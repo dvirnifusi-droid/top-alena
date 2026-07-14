@@ -80,6 +80,8 @@ export default function EmployeeHome() {
         ? { background: `linear-gradient(135deg, ${primary}e6 0%, ${secondary}b3 100%)` }
         : { background: `radial-gradient(120% 120% at 85% 15%, ${accent}59 0%, transparent 55%)` };
     const firstName = user?.full_name?.split(' ')[0] || 'עובד';
+    let todayLabel = 'הכלים שלך למשמרת היום';
+    try { todayLabel = new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' }); } catch { /* keep fallback */ }
 
     useEffect(() => {
         User.me().then(async u => {
@@ -258,7 +260,12 @@ export default function EmployeeHome() {
         my_notifications: isVisible('my_notifications') && <MyNotificationsWidget key="my_notifications" />,
         queue_status: isVisible('queue_status') && <QueueStatusWidget key="queue_status" />,
         quick_access: isVisible('quick_access') && (
-            <div key="quick_access" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div key="quick_access">
+                <h2 className="text-lg font-bold text-[#3A2E1E] mb-3 flex items-center gap-2">
+                    <span className="w-1.5 h-5 rounded-full" style={{ background: primary }} />
+                    כלים מהירים
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {[
                     { to: createPageUrl("Training"), icon: GraduationCap, color: "from-[#44512C] to-[#44512C]", title: "הכשרות ואימונים", desc: "קורסים ומשחקים לשיפור הביצועים" },
                     { to: createPageUrl("Checklists"), icon: CheckSquare, color: "from-green-500 to-green-600", title: "צ'קליסטים", desc: "בדיקות יומיות ומשימות" },
@@ -274,19 +281,20 @@ export default function EmployeeHome() {
                     { to: "/UserGuide", icon: BookOpen, color: "from-green-500 to-emerald-600", title: "מדריך שימוש", desc: "הסברים וסרטוני הדרכה", special: true },
                 ].map((item) => (
                     <Link key={item.to} to={item.to}>
-                        <Card className={`hover:shadow-lg transition-shadow cursor-pointer h-full ${item.special ? 'border-2 border-green-200 bg-green-50' : ''}`}>
-                            <CardContent className="p-6">
-                                <div className="flex flex-col items-center text-center">
-                                    <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-lg flex items-center justify-center mb-3`}>
+                        <Card className="rounded-2xl border border-[#EADFC8] bg-white/95 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full">
+                            <CardContent className="p-4 sm:p-5">
+                                <div className="flex flex-col items-center text-center gap-2.5">
+                                    <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-2xl flex items-center justify-center shadow-sm`}>
                                         <item.icon className="w-6 h-6 text-white" />
                                     </div>
-                                    <h3 className="font-semibold text-lg mb-2">{item.title}</h3>
-                                    <p className="text-sm text-gray-600">{item.desc}</p>
+                                    <h3 className="font-bold text-sm sm:text-base text-[#3A2E1E] leading-tight">{item.title}</h3>
+                                    <p className="text-xs text-[#8A7C64] leading-snug hidden sm:block">{item.desc}</p>
                                 </div>
                             </CardContent>
                         </Card>
                     </Link>
                 ))}
+                </div>
             </div>
         ),
     };
@@ -334,7 +342,7 @@ export default function EmployeeHome() {
                                         {greetingForNow()}, {firstName} 👋
                                     </h1>
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <p className="text-white/85 text-sm">הכלים שלך למשמרת היום</p>
+                                        <p className="text-white/85 text-sm">{todayLabel}</p>
                                         {todayPosition && (
                                             <Badge className="bg-white/25 backdrop-blur-sm text-white border border-white/30 flex items-center gap-1">
                                                 <Briefcase className="w-3.5 h-3.5" />
@@ -359,7 +367,7 @@ export default function EmployeeHome() {
                 <ConfettiEffect trigger={showConfetti} message={confettiMsg} emoji="🎉" onDone={() => setShowConfetti(false)} />
 
                 {/* גאדג'טים לפי סדר המשתמש */}
-                <div className="space-y-0">
+                <div className="space-y-4">
                     {widgetOrder.map(id => widgets[id] || null)}
                 </div>
             </div>
