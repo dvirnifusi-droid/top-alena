@@ -607,6 +607,8 @@ export default function WorkScheduling() {
     // when shift_type matches but no matching clock-in exists for that date.
     const [clockIns, setClockIns] = useState(new Map());
     const [activeNow, setActiveNow] = useState(new Set()); // ids + norm-names clocked in RIGHT NOW
+    const [reconcile, setReconcile] = useState(null); // { preview } identity-repair result
+    const [reconcileBusy, setReconcileBusy] = useState(false);
     const [laborCost, setLaborCost] = useState(null); // { total, hours, by_day, by_shift, has_rates, budget }
     const [budgetInput, setBudgetInput] = useState('');
     const [savingBudget, setSavingBudget] = useState(false);
@@ -1217,6 +1219,55 @@ export default function WorkScheduling() {
 
     return (
         <div className="p-4 md:p-6" dir="rtl">
+            {/* Identity repair — re-link clock-ins/assignments split by Google login. */}
+            {isAdminLike && (
+                <div className="mb-3">
+                    <button
+                        disabled={reconcileBusy}
+                        onClick={async () => {
+                            setReconcileBusy(true);
+                            try { const r = await base44.functions.reconcileClockIdentities({}); setReconcile(r?.data || r); }
+                            catch (e) { setReconcile({ error: e?.message || 'failed' }); }
+                            setReconcileBusy(false);
+                        }}
+                        className="text-xs rounded-lg px-3 py-1.5 font-bold border border-[#D9BD83] text-[#7A5A2E] bg-[#F4ECD8] hover:bg-[#E8D9B5] disabled:opacity-50"
+                    >{reconcileBusy ? '...' : '🔧 סנכרן מזהי עובדים (שעון↔סידור)'}</button>
+
+                    {reconcile && !reconcile.error && (
+                        <div className="mt-2 rounded-xl border-2 border-[#E8D9B5] bg-[#FFFDF8] p-3 max-w-lg text-sm">
+                            {reconcile.mode === 'APPLIED' ? (
+                                <p className="font-bold text-green-700">✅ בוצע! תוקנו {reconcile.tracks_to_fix} רשומות שעון + {reconcile.assignments_to_fix} שיבוצים. רענן (Ctrl+Shift+R).</p>
+                            ) : (
+                                <>
+                                    <p className="font-bold text-[#1F1B17] mb-1">תצוגה מקדימה — מה יתוקן (עדיין לא נגעתי):</p>
+                                    <p className="text-[#7A6F5D]">🕐 רשומות שעון לתיקון: <b>{reconcile.tracks_to_fix}</b> מתוך {reconcile.tracks_total}</p>
+                                    <p className="text-[#7A6F5D]">📋 שיבוצים לתיקון: <b>{reconcile.assignments_to_fix}</b> (ב-{reconcile.shifts_touched} משמרות)</p>
+                                    {(reconcile.track_sample || []).length > 0 && (
+                                        <p className="text-[11px] text-[#9a7f57] mt-1">דוגמאות: {(reconcile.track_sample || []).slice(0, 5).map(s => `"${s.was}"→"${s.now}"`).join(' · ')}</p>
+                                    )}
+                                    <div className="flex gap-2 mt-2">
+                                        {(reconcile.tracks_to_fix + reconcile.assignments_to_fix) > 0 && (
+                                            <button
+                                                disabled={reconcileBusy}
+                                                onClick={async () => {
+                                                    if (!window.confirm(`לתקן ${reconcile.tracks_to_fix} רשומות שעון + ${reconcile.assignments_to_fix} שיבוצים? (בטוח, מבוסס-מייל)`)) return;
+                                                    setReconcileBusy(true);
+                                                    try { const r = await base44.functions.reconcileClockIdentities({ apply: true }); setReconcile(r?.data || r); await loadData(); }
+                                                    catch (e) { setReconcile({ error: e?.message || 'failed' }); }
+                                                    setReconcileBusy(false);
+                                                }}
+                                                className="text-xs rounded-lg px-3 py-1.5 font-bold bg-[#A04A2E] text-white hover:bg-[#8B3D24] disabled:opacity-50"
+                                            >אשר והרץ</button>
+                                        )}
+                                        <button onClick={() => setReconcile(null)} className="text-xs px-2 text-[#7A6F5D]">סגור</button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+                    {reconcile?.error && <p className="text-red-600 text-xs mt-1">שגיאה: {reconcile.error}</p>}
+                </div>
+            )}
             {/* Draft / Publish banner — per department (future weeks, admin) */}
             {isAdminLike && isFutureWeek && (() => {
                 const bothPublished = isDeptPublished('floor') && isDeptPublished('kitchen');

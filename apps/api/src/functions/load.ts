@@ -5906,6 +5906,79 @@ registerFn('getOperatingCosts', async ({ user }: any) => {
   };
 });
 
+// Reconcile split identities: after Google login, clock-ins + schedule
+// assignments got saved under a User.id (or drifted name) instead of the
+// canonical Employee.id, so the schedule/reports couldn't link them. This maps
+// every ShiftTracking + WorkShift assignment back to the Employee.id via email
+// (User.id → email → Employee) and normalizes names. Preview by default; pass
+// { apply: true } to write. Idempotent + email-based → safe.
+registerFn('reconcileClockIdentities', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const db2 = prisma as any;
+  const apply = (body || {}).apply === true;
+  const norm = (s: any) => String(s || '').replace(/\s+/g, '').toLowerCase();
+
+  const emps: any[] = await db2.employee.findMany({ select: { id: true, full_name: true, email: true } }).catch(() => []);
+  const users: any[] = await db2.user.findMany({ select: { id: true, email: true } }).catch(() => []);
+  const empById = new Map(emps.map(e => [e.id, e]));
+  const empByEmail = new Map<string, any>();
+  for (const e of emps) { const k = String(e.email || '').toLowerCase(); if (k) empByEmail.set(k, e); }
+  // Unique-name index only (skip names shared by >1 employee to avoid mis-mapping).
+  const nameCount = new Map<string, number>();
+  for (const e of emps) { const n = norm(e.full_name); if (n) nameCount.set(n, (nameCount.get(n) || 0) + 1); }
+  const empByName = new Map<string, any>();
+  for (const e of emps) { const n = norm(e.full_name); if (n && nameCount.get(n) === 1) empByName.set(n, e); }
+  const userEmail = new Map(users.map(u => [u.id, String(u.email || '').toLowerCase()]));
+
+  // Resolve (id, name) → canonical Employee, WITHOUT touching already-correct rows.
+  const resolve = (id: string, name: string): any => {
+    if (id && empById.has(id)) return null; // already an Employee.id → leave as-is
+    const em = userEmail.get(id);
+    if (em && empByEmail.has(em)) return empByEmail.get(em); // User.id → email → Employee
+    const n = norm(name);
+    if (n && empByName.has(n)) return empByName.get(n); // unique exact-ish name
+    return null;
+  };
+
+  // ── ShiftTracking ──
+  const tracks: any[] = await db2.shiftTracking.findMany({ select: { id: true, employee_id: true, employee_name: true } }).catch(() => []);
+  let trackFix = 0; const trackSample: any[] = [];
+  for (const t of tracks) {
+    const target = resolve(t.employee_id, t.employee_name);
+    if (!target) continue;
+    if (target.id === t.employee_id && (target.full_name || '') === (t.employee_name || '')) continue;
+    trackFix++;
+    if (trackSample.length < 12) trackSample.push({ was: t.employee_name, now: target.full_name });
+    if (apply) await db2.shiftTracking.update({ where: { id: t.id }, data: { employee_id: target.id, employee_name: target.full_name } }).catch(() => {});
+  }
+
+  // ── WorkShift.assigned_staff ──
+  const shifts: any[] = await db2.workShift.findMany({ select: { id: true, assigned_staff: true } }).catch(() => []);
+  let asgFix = 0; const asgSample: any[] = []; let shiftsTouched = 0;
+  for (const ws of shifts) {
+    const staff = Array.isArray(ws.assigned_staff) ? ws.assigned_staff : [];
+    let changed = false;
+    const next = staff.map((a: any) => {
+      const target = resolve(a?.employee_id, a?.employee_name);
+      if (!target) return a;
+      if (target.id === a.employee_id && (target.full_name || '') === (a.employee_name || '')) return a;
+      asgFix++; changed = true;
+      if (asgSample.length < 12) asgSample.push({ was: a.employee_name, now: target.full_name });
+      return { ...a, employee_id: target.id, employee_name: target.full_name };
+    });
+    if (changed) { shiftsTouched++; if (apply) await db2.workShift.update({ where: { id: ws.id }, data: { assigned_staff: next } }).catch(() => {}); }
+  }
+
+  return {
+    mode: apply ? 'APPLIED' : 'PREVIEW',
+    employees: emps.length, users: users.length,
+    tracks_total: tracks.length, tracks_to_fix: trackFix,
+    shifts_total: shifts.length, assignments_to_fix: asgFix, shifts_touched: shiftsTouched,
+    track_sample: trackSample, assignment_sample: asgSample,
+  };
+});
+
 // Diagnostic — why do clock-ins not match the schedule ("לא נכנס לשעון")?
 // Compares WorkShift assigned_staff to ShiftTracking over the last 10 days and
 // reports how they match (by id / by name / none) + samples, so we can see if
