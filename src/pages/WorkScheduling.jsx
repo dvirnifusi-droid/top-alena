@@ -1529,8 +1529,16 @@ export default function WorkScheduling() {
                                                                 const noShowEligible = isPastDay || isTodayLate;
                                                                 // Match by employee_id first, then by normalized name (covers
                                                                 // clock-ins stored under User.id instead of Employee.id).
-                                                                const track = clockIns.get(`${assignment.employee_id}|${dateStr}`)
-                                                                    || clockIns.get(`n:${normClockName(assignment.employee_name)}|${dateStr}`);
+                                                                // Look for a clock-in by id OR normalized name, across the shift
+                                                                // day AND ±1 day (overnight shifts + UTC/Israel date drift move the
+                                                                // ShiftTracking.date off the schedule column).
+                                                                const nkA = normClockName(assignment.employee_name);
+                                                                const dayShift = (delta) => { const d = new Date(dateStr + 'T00:00:00'); d.setDate(d.getDate() + delta); return format(d, 'yyyy-MM-dd'); };
+                                                                let track = null;
+                                                                for (const dc of [dateStr, dayShift(-1), dayShift(1)]) {
+                                                                    track = clockIns.get(`${assignment.employee_id}|${dc}`) || clockIns.get(`n:${nkA}|${dc}`);
+                                                                    if (track) break;
+                                                                }
                                                                 // An assignment created BY a clock-in ("נוסף אוטומטית") means they
                                                                 // clocked in — never flag it, even if id/name drifted (Google auth).
                                                                 const fromClockIn = String(assignment.notes || '').includes('נוסף אוטומטית');
