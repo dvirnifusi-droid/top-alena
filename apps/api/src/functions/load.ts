@@ -5812,6 +5812,58 @@ registerFn('deleteOrderList', async ({ user, body }: any) => {
   return { ok: true };
 });
 
+// ── Owner control-panel / home aggregation (all REAL data) ───────────────────
+// One call powering the Apollo dashboard hero: what Apollo handled (freedom
+// index + feed), who's on shift now, today's pulse, and what still needs the
+// owner. Per-tenant (runs on each tenant's own DB). Every section is guarded so
+// a missing table degrades to a zero, never a broken dashboard.
+registerFn('getOwnerDashboard', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const db2 = prisma as any;
+  const TZ = 'Asia/Jerusalem';
+  const now = new Date();
+  const ymd = now.toLocaleDateString('en-CA', { timeZone: TZ });
+  const dayStart = new Date(`${ymd}T00:00:00.000Z`);
+  const dayEnd = new Date(`${ymd}T23:59:59.999Z`);
+  const t0 = new Date(dayStart.getTime() - 3 * 3600 * 1000); // TZ cushion
+  const out: any = { day: ymd, generated_at: now.toISOString() };
+
+  // Who's clocked in right now.
+  out.active_shift = await db2.shiftTracking.findMany({
+    where: { status: 'active' }, orderBy: { shift_start: 'asc' }, take: 40,
+    select: { employee_name: true, shift_start: true, employee_id: true },
+  }).then((r: any[]) => r.map(x => ({ name: x.employee_name, since: x.shift_start }))).catch(() => []);
+
+  out.reservations_today = await db2.reservation.count({ where: { date: { gte: dayStart, lte: dayEnd } } }).catch(() => 0);
+  out.incidents_open = await db2.incident.count({ where: { NOT: { status: { in: ['resolved', 'closed'] } } } }).catch(() => 0);
+  out.candidates_pending = await db2.jobCandidate.count({ where: { status: { in: ['pending', 'pending_review', 'new'] } } }).catch(() => 0);
+  out.tips_unlocked = await db2.tipReport.count({ where: { date: ymd, NOT: { status: 'locked' } } }).catch(() => 0);
+  out.whatsapp_today = await db2.whatsAppMessage.count({ where: { direction: 'outbound', createdAt: { gte: t0, lte: dayEnd } } }).catch(() => 0);
+  out.sales_today = await db2.shiftEndReport.aggregate({ _sum: { total_revenue: true }, where: { shift_date: { gte: dayStart, lte: dayEnd } } })
+    .then((r: any) => { const v = Number(r?._sum?.total_revenue); return v > 0 ? Math.round(v) : null; }).catch(() => null);
+
+  const clDone = await db2.checklistExecution.count({ where: { status: 'completed', updatedAt: { gte: t0, lte: dayEnd } } }).catch(() => 0);
+  const clTotal = await db2.checklist.count({}).catch(() => 0);
+  out.checklists = { done: clDone, total: clTotal };
+
+  // Recent agent actions (real outbound WhatsApp the system sent).
+  out.feed = await db2.whatsAppMessage.findMany({
+    where: { direction: 'outbound' }, orderBy: { createdAt: 'desc' }, take: 5,
+    select: { body: true, createdAt: true },
+  }).then((r: any[]) => r.map(x => ({ text: String(x.body || '').replace(/\s+/g, ' ').slice(0, 140), at: x.createdAt })).filter(x => x.text)).catch(() => []);
+
+  // Freedom index — share of today's touchpoints Apollo auto-handled vs what
+  // still needs the owner. Honest: 100% only when nothing is pending.
+  const automated = (out.whatsapp_today || 0) + (out.reservations_today || 0) + clDone;
+  const pending = (out.incidents_open || 0) + (out.candidates_pending || 0) + (out.tips_unlocked || 0);
+  out.freedom = {
+    automated, pending,
+    pct: (automated + pending) > 0 ? Math.round((automated / (automated + pending)) * 100) : 100,
+    breakdown: { whatsapp: out.whatsapp_today || 0, reservations: out.reservations_today || 0, checklists: clDone },
+  };
+  return out;
+});
+
 // Lock/unlock the "should be in stock" (target/par) column on an order list.
 registerFn('setOrderListLock', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
