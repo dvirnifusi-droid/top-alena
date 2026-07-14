@@ -287,8 +287,8 @@ export default function EmployeeHome() {
                         <Card className="rounded-2xl border border-white/60 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-xl hover:-translate-y-1 active:scale-[0.97] transition-all duration-200 cursor-pointer h-full">
                             <CardContent className="p-4 sm:p-5">
                                 <div className="flex flex-col items-center text-center gap-2.5">
-                                    <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-2xl flex items-center justify-center shadow-md ring-1 ring-black/5`}>
-                                        <item.icon className="w-6 h-6 text-white drop-shadow" />
+                                    <div className={`w-14 h-14 bg-gradient-to-br ${item.color} rounded-2xl flex items-center justify-center shadow-md ring-1 ring-black/5`}>
+                                        <item.icon className="w-7 h-7 text-white drop-shadow" />
                                     </div>
                                     <h3 className="font-bold text-sm sm:text-base text-[#3A2E1E] leading-tight">{item.title}</h3>
                                     <p className="text-xs text-[#8A7C64] leading-snug hidden sm:block">{item.desc}</p>
@@ -326,7 +326,7 @@ export default function EmployeeHome() {
                     </div>
                     {/* נצנוץ עדין לאנרגיה */}
                     <Sparkles className="absolute top-3 left-3 w-16 h-16 text-white/10 pointer-events-none" style={{ animation: 'heroTwinkle 4s ease-in-out infinite' }} />
-                    <div className="relative p-5 sm:p-6">
+                    <div className="relative p-6 sm:p-8">
                         {/* שורה עליונה: לוגו + שם העסק | כפתורי פעולה */}
                         <div className="flex items-center justify-between gap-3 mb-4">
                             <div className="flex items-center gap-2.5 min-w-0">
@@ -354,7 +354,7 @@ export default function EmployeeHome() {
                                     <img src={currentEmployee.avatar_url} alt="avatar" className="w-14 h-14 rounded-full object-cover border-2 border-white/70 shadow-lg flex-shrink-0" />
                                 )}
                                 <div className="min-w-0">
-                                    <h1 className="text-2xl sm:text-3xl font-extrabold text-white drop-shadow mb-1 truncate">
+                                    <h1 className="text-3xl sm:text-4xl font-extrabold text-white drop-shadow mb-1 truncate">
                                         {greetingForNow()}, {firstName} 👋
                                     </h1>
                                     <div className="flex items-center gap-2 flex-wrap">

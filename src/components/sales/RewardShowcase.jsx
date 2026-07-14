@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 export default function RewardShowcase() {
     const [data, setData] = useState({ affordable: [], locked: [], balance: 0 });
     const [redeeming, setRedeeming] = useState(null);
+    const [tab, setTab] = useState('available'); // available | locked
 
     const loadFallback = async () => {
         // Resilient path: pull rewards + my balance directly from entity APIs
@@ -95,44 +96,68 @@ export default function RewardShowcase() {
                     <span className="text-sm font-bold text-amber-600">{data.balance} 🪙</span>
                 </div>
 
-                {data.affordable.length > 0 && (
+                {(data.affordable.length > 0 || data.locked.length > 0) && (
                     <>
-                        <p className="text-xs text-gray-500 mb-2">✅ זמינים עכשיו</p>
-                        <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
-                            {data.affordable.slice(0, 6).map(r => (
-                                <div key={r.id} className="flex-shrink-0 w-28 bg-green-50 border border-green-200 rounded-lg p-2 text-center">
-                                    <div className="text-2xl">{r.emoji || '🎁'}</div>
-                                    <div className="text-xs font-bold mt-1 line-clamp-2">{r.title}</div>
-                                    <div className="text-xs text-gray-600">{r.cost} 🪙</div>
-                                    <Button size="sm" className="mt-2 w-full text-xs h-7" onClick={() => redeem(r)} disabled={redeeming === r.id}>
-                                        קנה
-                                    </Button>
-                                </div>
-                            ))}
+                        {/* טאבים: זמינים / נעולים */}
+                        <div className="flex gap-2 mb-3">
+                            <button
+                                onClick={() => setTab('available')}
+                                className="px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                style={tab === 'available' ? { background: 'var(--brand-primary, #A04A2E)', color: '#fff' } : undefined}
+                            >
+                                ✅ זמינים {data.affordable.length > 0 ? `(${data.affordable.length})` : ''}
+                            </button>
+                            <button
+                                onClick={() => setTab('locked')}
+                                className="px-3 py-1.5 rounded-full text-xs font-bold transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                style={tab === 'locked' ? { background: 'var(--brand-primary, #A04A2E)', color: '#fff' } : undefined}
+                            >
+                                🔒 קצת עוד {data.locked.length > 0 ? `(${data.locked.length})` : ''}
+                            </button>
                         </div>
-                    </>
-                )}
 
-                {data.locked.length > 0 && (
-                    <>
-                        <p className="text-xs text-gray-500 mb-2">🔒 קצת עוד</p>
-                        <div className="flex gap-2 overflow-x-auto pb-2">
-                            {data.locked.map(r => {
-                                const pct = Math.min(100, Math.round((data.balance / Math.max(1, r.cost)) * 100));
-                                const need = Math.max(0, Number(r.cost || 0) - data.balance);
-                                return (
-                                    <div key={r.id} className="flex-shrink-0 w-28 bg-gray-50 border rounded-lg p-2 text-center">
-                                        <div className="text-2xl opacity-60">{r.emoji || '🎁'}</div>
-                                        <div className="text-xs font-bold mt-1 line-clamp-2">{r.title}</div>
-                                        <div className="text-xs text-gray-600">{r.cost} 🪙</div>
-                                        <div className="h-1.5 bg-gray-200 rounded-full mt-2 overflow-hidden">
-                                            <div className="h-full bg-amber-400" style={{ width: `${pct}%` }} />
+                        {tab === 'available' && (
+                            data.affordable.length > 0 ? (
+                                <div className="flex gap-2 overflow-x-auto pb-2">
+                                    {data.affordable.slice(0, 8).map(r => (
+                                        <div key={r.id} className="flex-shrink-0 w-28 bg-green-50 border border-green-200 rounded-xl p-2 text-center">
+                                            <div className="text-2xl">{r.emoji || '🎁'}</div>
+                                            <div className="text-xs font-bold mt-1 line-clamp-2">{r.title}</div>
+                                            <div className="text-xs text-gray-600">{r.cost} 🪙</div>
+                                            <Button size="sm" className="mt-2 w-full text-xs h-7" onClick={() => redeem(r)} disabled={redeeming === r.id}>
+                                                קנה
+                                            </Button>
                                         </div>
-                                        <div className="text-[10px] text-gray-500 mt-1">עוד {need}</div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-slate-400 text-center py-4">עוד אין פרסים בהישג יד — אספו עוד מטבעות 🪙</p>
+                            )
+                        )}
+
+                        {tab === 'locked' && (
+                            data.locked.length > 0 ? (
+                                <div className="flex gap-2 overflow-x-auto pb-2">
+                                    {data.locked.map(r => {
+                                        const pct = Math.min(100, Math.round((data.balance / Math.max(1, r.cost)) * 100));
+                                        const need = Math.max(0, Number(r.cost || 0) - data.balance);
+                                        return (
+                                            <div key={r.id} className="flex-shrink-0 w-28 bg-gray-50 border rounded-xl p-2 text-center">
+                                                <div className="text-2xl opacity-60">{r.emoji || '🎁'}</div>
+                                                <div className="text-xs font-bold mt-1 line-clamp-2">{r.title}</div>
+                                                <div className="text-xs text-gray-600">{r.cost} 🪙</div>
+                                                <div className="h-1.5 bg-gray-200 rounded-full mt-2 overflow-hidden">
+                                                    <div className="h-full" style={{ width: `${pct}%`, background: 'var(--brand-accent, #C9A15A)' }} />
+                                                </div>
+                                                <div className="text-[10px] text-gray-500 mt-1">עוד {need}</div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-slate-400 text-center py-4">כל הפרסים כבר בהישג ידך! 🎉</p>
+                            )
+                        )}
                     </>
                 )}
 
