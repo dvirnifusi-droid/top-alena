@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
+import PageHeader from '../components/shared/PageHeader';
 import TimePicker from '../components/shared/TimePicker';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -688,40 +689,14 @@ function EmployeeReportsInner() {
 
     const selectedEmployee = employees.find(e => e.id === selectedEmployeeId) || { full_name: user?.full_name };
 
-    // TEMP client-side diagnostic — shows what THIS browser actually computes,
-    // so a single screenshot reveals why the match yields 0. Admin-only.
-    const _selEmpDbg = employees.find(e => e.id === selectedEmployeeId);
-    const _selNmDbg = normEmpName(_selEmpDbg?.full_name);
-    let _idM = 0, _nmM = 0;
-    (workShifts || []).forEach(ws => (ws.assigned_staff || []).forEach(a => {
-        if (a.employee_id && a.employee_id === selectedEmployeeId) _idM++;
-        if (a.employee_name && _selNmDbg && normEmpName(a.employee_name) === _selNmDbg) _nmM++;
-    }));
-
     return (
         <div className="p-4 sm:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto">
-                {isAdmin && selectedEmployeeId && selectedEmployeeId !== 'all' && (
-                    <div dir="ltr" className="mb-3 rounded-lg bg-slate-900 text-green-200 text-[11px] font-mono p-3 leading-relaxed">
-                        <b className="text-yellow-300">CLIENT DEBUG (temp)</b><br/>
-                        selectedEmployeeId = <b>{String(selectedEmployeeId)}</b><br/>
-                        selectedEmp.full_name = <b>{String(_selEmpDbg?.full_name ?? '(undefined!)')}</b><br/>
-                        workShifts loaded = <b>{(workShifts || []).length}</b> · shiftTracking = <b>{(shifts || []).length}</b> · tipReports = <b>{(tipReports || []).length}</b><br/>
-                        {Object.keys(loadErrors).length > 0 && (
-                            <span className="text-red-400">LOAD ERRORS = <b>{JSON.stringify(loadErrors)}</b><br/></span>
-                        )}
-                        assignments matching by ID = <b className="text-yellow-300">{_idM}</b> · by NAME = <b className="text-yellow-300">{_nmM}</b><br/>
-                        hourlyShiftEntries = <b className="text-yellow-300">{filteredData.hourlyShiftEntries.length}</b> · monthTotal = <b className="text-yellow-300">{monthlyBreakdown.totalHours}</b> · period = <b>{filterPeriod}</b>
-                    </div>
-                )}
-                <div className="flex items-center justify-between mb-2">
-                    <div>
-                        <h1 className="text-4xl font-bold text-slate-900">דוחות עובדים</h1>
-                        <p className="text-slate-600 mt-1">
-                            {isAdmin ? 'מעקב שעות עבודה, טיפים וביצועים לכל העובדים' : `הדוח האישי שלך - ${selectedEmployee?.full_name || ''}`}
-                        </p>
-                    </div>
-                    {isAdmin && (
+                <PageHeader
+                    title="דוחות עובדים"
+                    icon={BarChart3}
+                    subtitle={isAdmin ? 'מעקב שעות עבודה, טיפים וביצועים לכל העובדים' : `הדוח האישי שלך - ${selectedEmployee?.full_name || ''}`}
+                    action={isAdmin && (
                         <Button
                             onClick={() => { setExportSelectedEmps(employees.map(e => e.id)); setShowExport(true); }}
                             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
@@ -730,7 +705,7 @@ function EmployeeReportsInner() {
                             ייצוא לרואה חשבון
                         </Button>
                     )}
-                </div>
+                />
 
                 {/* Filters */}
                 <Card className="mb-8 border-2">
