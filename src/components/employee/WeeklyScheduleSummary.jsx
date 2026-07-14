@@ -162,10 +162,10 @@ function ShiftsList({ shifts, loading, currentEmployee, allEmployees, managerPho
                     managerPhone={managerPhone}
                 />
             )}
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="mt-3 p-2.5 rounded-xl border border-[#EADFC8] bg-[#FBF6EA]">
                 <div className="flex items-center justify-between">
-                    <span className="font-semibold text-blue-900">סה"כ שעות בשבוע:</span>
-                    <span className="text-lg font-bold text-blue-600">{totalHours.toFixed(1)} שעות</span>
+                    <span className="font-semibold text-sm text-[#3A2E1E]">סה"כ שעות בשבוע</span>
+                    <span className="text-base font-bold" style={{ color: 'var(--brand-primary, #A04A2E)' }}>{totalHours.toFixed(1)} שעות</span>
                 </div>
             </div>
         </>
@@ -216,7 +216,7 @@ export default function WeeklyScheduleSummary({ userId, currentEmployee }) {
     const nextLabel = `${format(nextWeekStart, 'dd/MM')} - ${format(addDays(nextWeekStart, 6), 'dd/MM')}`;
 
     return (
-        <Card className="rounded-2xl border border-[#EADFC8] mb-6">
+        <Card className="rounded-2xl border border-[#EADFC8]">
             <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
                     <CalendarIcon className="w-5 h-5" />

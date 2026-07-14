@@ -543,24 +543,24 @@ export default function ShiftClockWidget() {
 
     return (
         <>
-            <Card className={`mb-6 border-2 shadow-lg ${isOnBreak ? 'border-yellow-400 bg-yellow-50' : isActive ? 'border-green-400 bg-green-50' : 'border-slate-200 bg-white'}`}>
-                <CardContent className="p-5">
+            <Card className={`mb-4 rounded-2xl border shadow-sm ${isOnBreak ? 'border-yellow-400 bg-yellow-50' : isActive ? 'border-green-400 bg-green-50' : 'border-[#EADFC8] bg-white'}`}>
+                <CardContent className="p-4">
                     {/* שם + שעה + תאריך */}
-                    <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                         <div>
-                            <h2 className="text-xl font-bold text-slate-800">
+                            <h2 className="text-base font-bold text-slate-800">
                                 {user?.full_name || 'עובד'}
                             </h2>
-                            <p className="text-sm text-slate-500">
+                            <p className="text-xs text-slate-500">
                                 {format(currentTime, 'dd/MM/yyyy')} · {format(currentTime, 'EEEE') === 'Sunday' ? 'ראשון' : format(currentTime, 'EEEE') === 'Monday' ? 'שני' : format(currentTime, 'EEEE') === 'Tuesday' ? 'שלישי' : format(currentTime, 'EEEE') === 'Wednesday' ? 'רביעי' : format(currentTime, 'EEEE') === 'Thursday' ? 'חמישי' : format(currentTime, 'EEEE') === 'Friday' ? 'שישי' : 'שבת'}
                             </p>
                         </div>
                         <div className="text-left">
-                            <div className="text-3xl font-mono font-bold text-slate-800">
+                            <div className="text-2xl font-mono font-bold text-slate-800 tabular-nums">
                                 {format(currentTime, 'HH:mm:ss')}
                             </div>
                             {activeShift && (
-                                <p className="text-xs text-slate-500 text-center mt-1">
+                                <p className="text-xs text-slate-500 text-center mt-0.5">
                                     {isOnBreak ? '☕ בהפסקה' : `⏱️ ${getElapsedDisplay(activeShift.shift_start)}`}
                                 </p>
                             )}
@@ -570,13 +570,13 @@ export default function ShiftClockWidget() {
                     {/* סטטוס + כפתורים */}
                     {!activeShift ? (
                         <div className="text-center">
-                            <p className="text-slate-500 mb-3 text-sm">טרם נרשמה כניסה למשמרת היום</p>
+                            <p className="text-slate-500 mb-2 text-xs">טרם נרשמה כניסה למשמרת היום</p>
                             <Button
                                 onClick={startShift}
                                 disabled={actionLoading}
-                                className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-xl font-bold rounded-2xl w-full shadow-lg shadow-green-600/30 animate-pulse hover:animate-none transition-all"
+                                className="bg-green-600 hover:bg-green-700 text-white py-3 text-base font-bold rounded-xl w-full shadow-md shadow-green-600/25 animate-pulse hover:animate-none transition-all"
                             >
-                                <Play className="w-6 h-6 ml-2" />
+                                <Play className="w-5 h-5 ml-2" />
                                 כניסה למשמרת
                             </Button>
                         </div>

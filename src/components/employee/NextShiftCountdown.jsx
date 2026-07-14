@@ -105,12 +105,10 @@ export default function NextShiftCountdown({ currentEmployee, user }) {
 
   if (!next) {
     return (
-      <Card className="mb-4 border-2 border-slate-200">
-        <CardContent className="p-4 flex items-center gap-3 text-slate-500">
-          <Calendar className="w-5 h-5" />
-          <span className="text-sm">אין משמרת מתוכננת בשבוע הקרוב</span>
-        </CardContent>
-      </Card>
+      <div className="mb-3 flex items-center gap-1.5 text-slate-400 text-xs px-1">
+        <Calendar className="w-3.5 h-3.5" />
+        <span>אין משמרת מתוכננת בשבוע הקרוב</span>
+      </div>
     );
   }
 
