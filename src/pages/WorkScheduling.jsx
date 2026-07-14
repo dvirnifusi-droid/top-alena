@@ -539,7 +539,7 @@ function ScheduleSettingsDialog({ open, onClose, initialShifts, initialHidden, i
 // Normalized employee name — used as a fallback clock-in match key when the
 // ShiftTracking.employee_id was stored as User.id (Google-auth users) instead of
 // Employee.id, which made real clock-ins show as "לא נכנס לשעון".
-const normClockName = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+const normClockName = (s) => String(s || '').replace(/\s+/g, '').toLowerCase();
 
 // Main Component
 // =================================================================
@@ -606,6 +606,7 @@ export default function WorkScheduling() {
     // Built once on load. Used to overlay "no-show" badges on scheduled cells
     // when shift_type matches but no matching clock-in exists for that date.
     const [clockIns, setClockIns] = useState(new Map());
+    const [activeNow, setActiveNow] = useState(new Set()); // ids + norm-names clocked in RIGHT NOW
     const [laborCost, setLaborCost] = useState(null); // { total, hours, by_day, by_shift, has_rates, budget }
     const [budgetInput, setBudgetInput] = useState('');
     const [savingBudget, setSavingBudget] = useState(false);
@@ -743,6 +744,16 @@ export default function WorkScheduling() {
                 }
             }
             setClockIns(cMap);
+            // Who is clocked in RIGHT NOW (status active, not yet closed). Indexed by
+            // id + norm-name so the grid can paint their card light-green.
+            const aset = new Set();
+            for (const t of (allTracks || [])) {
+                if (t.status === 'active' && !t.shift_end) {
+                    if (t.employee_id) aset.add(String(t.employee_id));
+                    const nk = normClockName(t.employee_name); if (nk) aset.add(`n:${nk}`);
+                }
+            }
+            setActiveNow(aset);
             // Normalize date fields once — API returns ISO strings post-migration
             // but every comparison site below uses YYYY-MM-DD form.
             const sliceDate = (x) => (typeof x === 'string' ? x.slice(0, 10) : x);
@@ -1498,46 +1509,23 @@ export default function WorkScheduling() {
                                                                 // where the employee is scheduled but no ShiftTracking exists → mark as "הבריז".
                                                                 const todayStr = format(new Date(), 'yyyy-MM-dd');
                                                                 const isPastDay = dateStr < todayStr;
-                                                                const isTodayLate = (() => {
-                                                                    if (dateStr !== todayStr) return false;
-                                                                    if (!assignment.start_time) return false;
-                                                                    const [sh, sm] = String(assignment.start_time).split(':').map(Number);
-                                                                    const now = new Date();
-                                                                    const startMin = (sh * 60) + (sm || 0);
-                                                                    const nowMin = (now.getHours() * 60) + now.getMinutes();
-                                                                    return nowMin > startMin + 30;
-                                                                })();
-                                                                // Past-day flagging removed: clock-in records are too inconsistent
-                                                                // (Google-auth split ids + name-spelling/space drift + gaps) to
-                                                                // detect historical no-shows without constant false positives.
-                                                                // Only flag TODAY's clearly-late, still-unmatched shifts.
-                                                                const noShowEligible = isTodayLate; // was: isPastDay || isTodayLate
-                                                                void isPastDay;
-                                                                // Match by employee_id first, then by normalized name (covers
-                                                                // clock-ins stored under User.id instead of Employee.id).
-                                                                // Look for a clock-in by id OR normalized name, across the shift
-                                                                // day AND ±1 day (overnight shifts + UTC/Israel date drift move the
-                                                                // ShiftTracking.date off the schedule column).
+                                                                // Color code: on-the-clock NOW = light green · past = muted ·
+                                                                // my shift = highlight · tip roles · else (today/future) = cream.
                                                                 const nkA = normClockName(assignment.employee_name);
-                                                                const dayShift = (delta) => { const d = new Date(dateStr + 'T00:00:00'); d.setDate(d.getDate() + delta); return format(d, 'yyyy-MM-dd'); };
-                                                                let track = null;
-                                                                for (const dc of [dateStr, dayShift(-1), dayShift(1)]) {
-                                                                    track = clockIns.get(`${assignment.employee_id}|${dc}`) || clockIns.get(`n:${nkA}|${dc}`);
-                                                                    if (track) break;
-                                                                }
-                                                                // An assignment created BY a clock-in ("נוסף אוטומטית") means they
-                                                                // clocked in — never flag it, even if id/name drifted (Google auth).
-                                                                const fromClockIn = String(assignment.notes || '').includes('נוסף אוטומטית');
-                                                                const noShow = noShowEligible && !track && !fromClockIn;
-                                                                let cardClass = 'bg-[#F4ECD8] hover:bg-[#E8D9B5]';
-                                                                if (noShow) {
-                                                                    cardClass = 'bg-red-50 border-2 border-dashed border-red-400 hover:bg-red-100 opacity-75';
+                                                                const isActiveNow = activeNow.has(String(assignment.employee_id)) || activeNow.has(`n:${nkA}`);
+                                                                let cardClass;
+                                                                if (isActiveNow) {
+                                                                    cardClass = 'bg-green-100 border-2 border-green-400 hover:bg-green-200 text-green-900';
                                                                 } else if (isMyAssignment(assignment)) {
                                                                     cardClass = 'bg-gradient-to-r from-green-400 to-yellow-400 text-gray-900 font-bold shadow-lg border-2 border-yellow-500 hover:shadow-xl';
+                                                                } else if (isPastDay) {
+                                                                    cardClass = 'bg-slate-100 border border-slate-200 text-slate-500 hover:bg-slate-200';
                                                                 } else if (tipRole === 'closing') {
                                                                     cardClass = 'bg-red-100 border border-red-300 hover:bg-red-200';
                                                                 } else if (tipRole === 'opening') {
                                                                     cardClass = 'bg-[#F4ECD8] border border-[#D9BD83] hover:bg-purple-200';
+                                                                } else {
+                                                                    cardClass = 'bg-[#F4ECD8] hover:bg-[#E8D9B5]';
                                                                 }
                                                                 return (
                                                                 <div
@@ -1565,17 +1553,12 @@ export default function WorkScheduling() {
                                                                     )}
                                                                     <p className="font-semibold text-sm truncate flex items-center justify-center gap-1">
                                                                         {isMyAssignment(assignment) && <Crown className="w-3 h-3 text-yellow-700" />}
+                                                                        {isActiveNow && <span title="בשעון עכשיו" className="text-xs">🟢</span>}
                                                                         {tipRole === 'closing' && <span title="סגירה" className="text-xs">🔴</span>}
                                                                         {tipRole === 'opening' && <span title="פתיחה" className="text-xs">🟣</span>}
-                                                                        {noShow && <span title="לא נכנס לשעון" className="text-xs">⚠️</span>}
-                                                                        <span className={noShow ? 'line-through text-red-700' : ''}>{assignment.employee_name}</span>
+                                                                        <span>{assignment.employee_name}</span>
                                                                     </p>
-                                                                    <p className={`text-xs ${noShow ? 'text-red-700 line-through' : ''}`}>{assignment.start_time} - {assignment.end_time}</p>
-                                                                    {noShow && (
-                                                                        <p className="text-[10px] font-bold text-red-700 bg-red-100 rounded px-1 mt-0.5 leading-tight">
-                                                                            🚫 לא נכנס לשעון
-                                                                        </p>
-                                                                    )}
+                                                                    <p className="text-xs">{assignment.start_time} - {assignment.end_time}</p>
                                                                     {assignment.notes && (
                                                                         <p className="text-xs text-orange-700 bg-orange-50 rounded px-1 mt-0.5 text-right leading-tight" title={assignment.notes}>
                                                                             📝 {assignment.notes}
