@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
+import { Clock, Flame, Hourglass } from 'lucide-react';
 
 // Compact "at a glance" strip for the EmployeeHome hero: next shift · streak ·
 // hours this week. Each stat loads independently and fails soft to '—' so a
@@ -100,18 +101,21 @@ export default function HeroGlance({ user, currentEmployee }) {
                 return `${when} ${nextShift.start}`;
             })();
 
-    const Tile = ({ icon, label, value }) => (
-        <div className="flex-1 min-w-0 bg-white/15 backdrop-blur-sm border border-white/20 rounded-2xl px-2.5 py-2 text-center">
-            <div className="text-white/80 text-[10px] font-medium truncate">{icon} {label}</div>
-            <div className="text-white font-extrabold text-sm sm:text-base truncate leading-tight mt-0.5">{value}</div>
+    const Tile = ({ icon: Icon, label, value }) => (
+        <div className="flex-1 min-w-0 bg-white/10 border border-white/20 rounded-xl px-3 py-2">
+            <div className="flex items-center gap-1.5 text-white/70 text-[10px] font-semibold uppercase tracking-wide">
+                <Icon className="w-3 h-3" strokeWidth={2.5} />
+                <span className="truncate">{label}</span>
+            </div>
+            <div className="text-white font-extrabold text-base sm:text-lg truncate leading-tight mt-0.5 tabular-nums">{value}</div>
         </div>
     );
 
     return (
-        <div className="flex gap-2 mt-4">
-            <Tile icon="⏰" label="המשמרת הבאה" value={nextLabel} />
-            <Tile icon="🔥" label="רצף ימים" value={streak == null ? '…' : `${streakVal}`} />
-            <Tile icon="⏱️" label="שעות השבוע" value={weekHours == null ? '…' : `${hoursVal}`} />
+        <div className="flex gap-2 mt-5">
+            <Tile icon={Clock} label="המשמרת הבאה" value={nextLabel} />
+            <Tile icon={Flame} label="רצף ימים" value={streak == null ? '…' : `${streakVal}`} />
+            <Tile icon={Hourglass} label="שעות השבוע" value={weekHours == null ? '…' : `${hoursVal}`} />
         </div>
     );
 }

@@ -184,7 +184,7 @@ export default function EmployeeHome() {
         ),
         daily_briefs: isVisible('daily_briefs') && todayBriefs.length > 0 && (
             <div key="daily_briefs" className="mb-6 space-y-3">
-                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <h2 className="font-display text-xl font-bold text-[#2A2018] flex items-center gap-2">
                     <Megaphone className="w-5 h-5 text-orange-500" />
                     תדריכי היום
                 </h2>
@@ -238,9 +238,9 @@ export default function EmployeeHome() {
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
+                                <h3 className="font-display text-xl font-bold mb-2 flex items-center gap-2">
                                     <Brain className="w-6 h-6" />
-                                    🤖 כלי עבודה חכמים
+                                    כלי עבודה חכמים
                                 </h3>
                                 <p className="text-[#F4ECD8] mb-4">כלים מבוססי AI לחיסכון בזמן ושיפור היעילות</p>
                                 <div className="flex items-center gap-2">
@@ -288,8 +288,7 @@ export default function EmployeeHome() {
                     ] },
                 ].map((cat) => (
                     <div key={cat.title}>
-                        <h2 className="text-base font-bold text-[#3A2E1E] mb-2.5 flex items-center gap-2">
-                            <span className="w-1.5 h-4 rounded-full" style={{ background: cat.color }} />
+                        <h2 className="font-display text-xl font-bold text-[#2A2018] mb-3 pb-1.5 border-b-2" style={{ borderColor: `${cat.color}44` }}>
                             {cat.title}
                         </h2>
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -344,7 +343,6 @@ export default function EmployeeHome() {
                         <div className="absolute -bottom-20 -left-8 w-56 h-56 rounded-full blur-3xl opacity-25" style={{ background: '#ffffff', animation: 'heroFloat2 11s ease-in-out infinite' }} />
                     </div>
                     {/* נצנוץ עדין לאנרגיה */}
-                    <Sparkles className="absolute top-3 left-3 w-16 h-16 text-white/10 pointer-events-none" style={{ animation: 'heroTwinkle 4s ease-in-out infinite' }} />
                     <div className="relative p-6 sm:p-8">
                         {/* שורה עליונה: לוגו + שם העסק | כפתורי פעולה */}
                         <div className="flex items-center justify-between gap-3 mb-4">
@@ -353,7 +351,7 @@ export default function EmployeeHome() {
                                     <img src={branding.logo_url} alt="logo" className="h-9 w-9 rounded-xl object-cover bg-white/90 p-0.5 shadow-sm flex-shrink-0" />
                                 )}
                                 <span className="text-white font-bold text-base sm:text-lg drop-shadow-sm truncate">{branding?.name}</span>
-                                <span className="text-white/40 text-[9px] font-mono flex-shrink-0">v12</span>
+                                <span className="text-white/40 text-[9px] font-mono flex-shrink-0">v13</span>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 {currentEmployee && <CoinWidget employeeId={currentEmployee.id} employeeName={currentEmployee.full_name} />}
@@ -374,11 +372,11 @@ export default function EmployeeHome() {
                                     <img src={currentEmployee.avatar_url} alt="avatar" className="w-14 h-14 rounded-full object-cover border-2 border-white/70 shadow-lg flex-shrink-0" />
                                 )}
                                 <div className="min-w-0">
-                                    <h1 className="text-3xl sm:text-4xl font-extrabold text-white drop-shadow mb-1 truncate">
-                                        {greetingForNow()}, {firstName} 👋
+                                    <h1 className="font-display text-4xl sm:text-5xl font-black text-white drop-shadow mb-1 leading-none">
+                                        {greetingForNow()}, {firstName}
                                     </h1>
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <p className="text-white/85 text-sm">{todayLabel}</p>
+                                        <p className="text-white/85 text-sm uppercase tracking-wide">{todayLabel}</p>
                                         {todayPosition && (
                                             <Badge className="bg-white/25 backdrop-blur-sm text-white border border-white/30 flex items-center gap-1">
                                                 <Briefcase className="w-3.5 h-3.5" />

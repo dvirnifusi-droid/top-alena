@@ -92,7 +92,7 @@ export default function RewardShowcase() {
         <Card className="mb-4">
             <CardContent className="p-4">
                 <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-bold text-[#3A2E1E]">💎 חנות הפרסים</h3>
+                    <h3 className="font-display text-xl font-bold text-[#2A2018]">חנות הפרסים</h3>
                     <span className="inline-flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-white text-sm font-black rounded-full px-3 py-1 shadow-sm">
                         🪙 {Number(data.balance || 0).toLocaleString()}
                     </span>

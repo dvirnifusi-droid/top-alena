@@ -84,5 +84,14 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--brand-font-family, 'Assistant'), system-ui, sans-serif;
   }
+}
+
+/* Editorial display face — high-contrast Hebrew serif for big statement headings.
+   Used via className="font-display" to give the app a hand-designed, fashion/
+   restaurant feel instead of the default system-font "AI" look. */
+.font-display {
+  font-family: 'Frank Ruhl Libre', Georgia, 'Times New Roman', serif;
+  letter-spacing: -0.01em;
 }
