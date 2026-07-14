@@ -253,10 +253,16 @@ function EmployeeReportsInner() {
     const loadReportData = async () => {
         setLoading2(true);
         try {
+            // Load PAST/present shifts only (date <= today). Reports never need
+            // future-scheduled shifts, and including them let a large future
+            // backlog consume the row limit under '-date' desc, pushing the
+            // current month out of the window → the report showed 0 hours.
+            const todayEnd = new Date();
+            todayEnd.setHours(23, 59, 59, 999);
             const [allShifts, allTipReports, allWorkShifts] = await Promise.all([
                 base44.entities.ShiftTracking.list(),
                 base44.entities.TipReport.list(),
-                base44.entities.WorkShift.list('-date', 500),
+                base44.entities.WorkShift.filter({ date: { lte: todayEnd.toISOString() } }, '-date', 3000),
             ]);
             // Normalize ISO date strings to YYYY-MM-DD across all three sets
             // so the equality-based filtering below still works.

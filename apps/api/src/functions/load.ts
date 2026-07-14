@@ -6003,7 +6003,12 @@ registerFn('debugEmployeeHours', async ({ user, body }: any) => {
   const matchEmps = emps.filter(e => norm(e.full_name).includes(q) || q.includes(norm(e.full_name)));
 
   const since = new Date(Date.now() - 40 * 86400 * 1000);
-  const shifts: any[] = await db2.workShift.findMany({ where: { date: { gte: since } }, select: { date: true, assigned_staff: true } }).catch(() => []);
+  // Replicate the report's EXACT load: newest 500 by date desc (no date filter).
+  // If the restaurant scheduled far into the future, the newest 500 can be all
+  // future-dated → this month's worked shifts fall outside the window → 0.
+  const shifts: any[] = await db2.workShift.findMany({ orderBy: { date: 'desc' }, take: 500, select: { date: true, shift_type: true, assigned_staff: true } }).catch(() => []);
+  const loadedDays = shifts.map(s => ilDay(s.date)).sort();
+  const totalWorkShifts: number = await db2.workShift.count().catch(() => -1);
   // TIP positions (waiter roles) that go to tips, not schedule-hours
   const TIP_POS = ['מלצר', 'מלצרית', 'ראנר', 'ראנרית', 'בריסטה', 'ברמן', 'ברמנית', 'מארחת', 'מארח', 'הוסטס', 'שיפודאי'];
   const calcH = (st: any, et: any) => { if (!st || !et) return 0; const [sh, sm] = String(st).split(':').map(Number); const [eh, em] = String(et).split(':').map(Number); let s = sh * 60 + sm, e = eh * 60 + em; if (e < s) e += 1440; return (e - s) / 60; };
@@ -6051,6 +6056,14 @@ registerFn('debugEmployeeHours', async ({ user, body }: any) => {
     assignment_sample: asgSample, track_sample: trkSample,
     // ►► THE ANSWER: what the report SHOULD show for this month ◄◄
     end_time_stats: { assignments_missing_end_time: asgNoEnd, assignments_with_hours: asgWithHours },
+    loaded_window: {
+      total_workshifts_in_db: totalWorkShifts,
+      loaded_count: shifts.length,
+      oldest_loaded: loadedDays[0] || '(none)',
+      newest_loaded: loadedDays[loadedDays.length - 1] || '(none)',
+      today: nowIl,
+      truncated_future: totalWorkShifts > shifts.length && (loadedDays[0] || '') > nowIl,
+    },
     REPORT_SIM_THIS_MONTH: {
       month: ym,
       my_assignments_this_month: simMonthAsg,
@@ -6058,7 +6071,8 @@ registerFn('debugEmployeeHours', async ({ user, body }: any) => {
       skipped_no_end_time: simNoEnd,
       counted_shifts: simCounted,
       total_hours: Math.round(simHours * 10) / 10,
-      verdict: simMonthAsg === 0 ? 'NO assignments this month for this id — period/id issue'
+      verdict: (totalWorkShifts > shifts.length && (loadedDays[0] || '') > nowIl) ? '⚠️ 500-LIMIT TRUNCATED: newest 500 shifts are all future-dated → this month is not loaded'
+        : simMonthAsg === 0 ? 'NO assignments this month for this id — period/id issue'
         : simCounted === 0 && simNoEnd > 0 ? 'assignments exist but MISSING end_time → calcHours=0'
         : simCounted === 0 && simTip > 0 ? 'all assignments are TIP positions → go to tips not schedule'
         : `report SHOULD show ${simCounted} shifts / ${Math.round(simHours * 10) / 10}h — bug is elsewhere (selectedEmployeeId on page?)`,
