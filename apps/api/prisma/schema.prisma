@@ -2056,6 +2056,7 @@ model RestaurantProfile {
   brand_colors                 Json?
   brand_font                   String?
   logo_url                     String?
+  cover_photo_url              String?   // hero background photo for EmployeeHome header
   geofencing_enabled           Boolean?  @default(true)
   // Geofence columns added via applyShiftGeofenceMigration — declared so
   // getGeofenceConfig can read them through Prisma (it was returning null

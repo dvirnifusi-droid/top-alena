@@ -39,6 +39,16 @@ import RewardShowcase from '../components/sales/RewardShowcase';
 import CompactCoinWidget from '../components/sales/CompactCoinWidget';
 import WeeklyPersonalGoal from '../components/sales/WeeklyPersonalGoal';
 import { isWaitstaff, isNonSalesRole } from '@/lib/roleGates';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
+
+// Time-of-day greeting (Israel local time on the device).
+function greetingForNow() {
+    const h = new Date().getHours();
+    if (h < 12) return 'בוקר טוב';
+    if (h < 17) return 'צהריים טובים';
+    if (h < 21) return 'ערב טוב';
+    return 'לילה טוב';
+}
 
 export default function EmployeeHome() {
     const [user, setUser] = useState(null);
@@ -53,8 +63,23 @@ export default function EmployeeHome() {
     const [allEmployees, setAllEmployees] = useState([]);
     const [showCustomizer, setShowCustomizer] = useState(false);
     const fileInputRef = useRef();
+    const branding = useTenantBranding();
 
     const { layout, saveLayout, isVisible } = useDashboardLayout(user?.email, 'employee');
+
+    // Per-tenant hero palette (falls back to the warm Alena identity).
+    const bc = branding?.brand_colors || {};
+    const primary = bc.primary || '#A04A2E';
+    const secondary = bc.secondary || '#44512C';
+    const accent = bc.accent || '#C9A15A';
+    const hasCover = !!branding?.cover_photo_url;
+    const heroStyle = hasCover
+        ? { backgroundImage: `url("${branding.cover_photo_url}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
+        : { background: `linear-gradient(135deg, ${primary} 0%, ${secondary} 100%)` };
+    const overlayStyle = hasCover
+        ? { background: `linear-gradient(135deg, ${primary}e6 0%, ${secondary}b3 100%)` }
+        : { background: `radial-gradient(120% 120% at 85% 15%, ${accent}59 0%, transparent 55%)` };
+    const firstName = user?.full_name?.split(' ')[0] || 'עובד';
 
     useEffect(() => {
         User.me().then(async u => {
@@ -267,47 +292,65 @@ export default function EmployeeHome() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6" dir="rtl">
+        <div className="min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] p-4 sm:p-6" dir="rtl">
             <div className="max-w-7xl mx-auto">
-                {/* כותרת עם אוואטר */}
-                <div className="mb-8">
-                    <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-4">
-                            {currentEmployee?.avatar_url && (
-                                <img src={currentEmployee.avatar_url} alt="avatar" className="w-16 h-16 rounded-full object-cover border-2 border-[#A04A2E] shadow-lg flex-shrink-0" />
-                            )}
-                            <div>
-                                <h1 className="text-3xl font-bold text-slate-900 mb-2">
-                                    שלום {user?.full_name?.split(' ')[0] || 'עובד'}! 👋
-                                </h1>
-                                <div className="flex items-center gap-3 flex-wrap">
-                                    <p className="text-slate-600">הכלים שלך למשמרת היום</p>
-                                    {todayPosition && (
-                                        <Badge className="bg-[#A04A2E] text-white flex items-center gap-1">
-                                            <Briefcase className="w-4 h-4" />
-                                            {todayPosition}
-                                        </Badge>
-                                    )}
-                                    <button
-                                        onClick={() => setShowSwitchUser(true)}
-                                        className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 shadow-sm"
-                                    >
-                                        <UserCircle className="w-4 h-4" />
-                                        <span>החלף משתמש</span>
-                                        <ChevronDown className="w-3 h-3" />
-                                    </button>
-                                </div>
+                {/* אדר "וואו" קומפקטי — תמונת העסק/גרדיאנט מותגי + לוגו + ברכה. כל הכפתורים נשמרים. */}
+                <div
+                    className="relative overflow-hidden rounded-3xl shadow-xl mb-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
+                    style={heroStyle}
+                >
+                    <div className="absolute inset-0 pointer-events-none" style={overlayStyle} />
+                    {/* נצנוץ עדין לאנרגיה */}
+                    <Sparkles className="absolute top-3 left-3 w-16 h-16 text-white/10 pointer-events-none" />
+                    <div className="relative p-5 sm:p-6">
+                        {/* שורה עליונה: לוגו + שם העסק | כפתורי פעולה */}
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                                {branding?.logo_url && (
+                                    <img src={branding.logo_url} alt="logo" className="h-9 w-9 rounded-xl object-cover bg-white/90 p-0.5 shadow-sm flex-shrink-0" />
+                                )}
+                                <span className="text-white font-bold text-base sm:text-lg drop-shadow-sm truncate">{branding?.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                {currentEmployee && <CoinWidget employeeId={currentEmployee.id} employeeName={currentEmployee.full_name} />}
+                                <ShiftNotificationBell currentEmployee={currentEmployee} isManager={false} />
+                                <button
+                                    onClick={() => setShowCustomizer(true)}
+                                    className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/30 rounded-xl px-3 py-2 text-sm text-white font-medium transition-colors"
+                                >
+                                    <Settings2 className="w-4 h-4" />
+                                    <span className="hidden sm:inline">ערוך דשבורד</span>
+                                </button>
                             </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                            {currentEmployee && <CoinWidget employeeId={currentEmployee.id} employeeName={currentEmployee.full_name} />}
-                            <ShiftNotificationBell currentEmployee={currentEmployee} isManager={false} />
+                        {/* שורת ברכה: אוואטר + ברכה לפי שעה + תפקיד | החלף משתמש */}
+                        <div className="flex items-end justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-3 min-w-0">
+                                {currentEmployee?.avatar_url && (
+                                    <img src={currentEmployee.avatar_url} alt="avatar" className="w-14 h-14 rounded-full object-cover border-2 border-white/70 shadow-lg flex-shrink-0" />
+                                )}
+                                <div className="min-w-0">
+                                    <h1 className="text-2xl sm:text-3xl font-extrabold text-white drop-shadow mb-1 truncate">
+                                        {greetingForNow()}, {firstName} 👋
+                                    </h1>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="text-white/85 text-sm">הכלים שלך למשמרת היום</p>
+                                        {todayPosition && (
+                                            <Badge className="bg-white/25 backdrop-blur-sm text-white border border-white/30 flex items-center gap-1">
+                                                <Briefcase className="w-3.5 h-3.5" />
+                                                {todayPosition}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                             <button
-                                onClick={() => setShowCustomizer(true)}
-                                className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 shadow-sm"
+                                onClick={() => setShowSwitchUser(true)}
+                                className="flex items-center gap-1 bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/30 rounded-xl px-3 py-2 text-sm text-white transition-colors"
                             >
-                                <Settings2 className="w-4 h-4" />
-                                <span className="hidden sm:inline">ערוך דשבורד</span>
+                                <UserCircle className="w-4 h-4" />
+                                <span>החלף משתמש</span>
+                                <ChevronDown className="w-3 h-3" />
                             </button>
                         </div>
                     </div>

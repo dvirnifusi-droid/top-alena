@@ -14,6 +14,7 @@ let _fetchPromise = null;
 const DEFAULT_BRANDING = {
   name: 'TOP APOLLO',
   logo_url: null,
+  cover_photo_url: null,
   brand_colors: null,
   brand_font: null,
   address: null,
@@ -45,6 +46,7 @@ async function fetchBranding() {
         // which was always undefined → always fell back to 'TOP APOLLO'.
         name: profile?.restaurant_name || profile?.name || 'TOP APOLLO',
         logo_url: profile?.logo_url || null,
+        cover_photo_url: profile?.cover_photo_url || null, // hero background photo
         brand_colors: profile?.brand_colors || null, // {primary, secondary, accent} or null
         brand_font: profile?.brand_font || null,
         address: profile?.address || null,

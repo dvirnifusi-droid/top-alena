@@ -17721,6 +17721,7 @@ if (!(globalThis as any).__startupDriftRepair) {
       await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "last_daily_hours_report_at" TIMESTAMP(3);`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "daily_hours_report_snapshot" JSONB;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "twilio_credentials" JSONB;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "cover_photo_url" TEXT;`);
       // PrepList columns for the par/order-list feature.
       await prisma.$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "list_type" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "par_locked" BOOLEAN;`);

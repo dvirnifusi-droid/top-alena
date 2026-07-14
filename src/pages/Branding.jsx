@@ -27,6 +27,8 @@ function BrandingInner() {
   const [profileId, setProfileId] = useState(null);
   const [restaurantName, setRestaurantName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [coverPhotoUrl, setCoverPhotoUrl] = useState('');
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [colors, setColors] = useState(DEFAULT_COLORS);
   const [font, setFont] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -56,6 +58,7 @@ function BrandingInner() {
           setProfileId(profile.id);
           setRestaurantName(profile.restaurant_name || '');
           setLogoUrl(profile.logo_url || '');
+          setCoverPhotoUrl(profile.cover_photo_url || '');
           setColors({ ...DEFAULT_COLORS, ...(profile.brand_colors || {}) });
           setFont(profile.brand_font || '');
           setBusinessType(profile.business_type || '');
@@ -122,6 +125,21 @@ function BrandingInner() {
     }
   };
 
+  const handleCoverUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingCover(true);
+    setError(null);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setCoverPhotoUrl(file_url);
+    } catch (err) {
+      setError('שגיאה בהעלאה: ' + (err?.message || ''));
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -130,6 +148,7 @@ function BrandingInner() {
       const payload = {
         restaurant_name: restaurantName || 'המסעדה',
         logo_url: logoUrl || null,
+        cover_photo_url: coverPhotoUrl || null,
         brand_colors: colors,
         brand_font: font || null,
         business_type: businessType || null,
@@ -235,6 +254,26 @@ function BrandingInner() {
               </label>
               {logoUrl && (
                 <Button variant="ghost" size="sm" onClick={() => setLogoUrl('')} className="text-red-600">
+                  הסר
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-sm font-semibold">תמונת רקע לאדר (מסך העובד)</Label>
+            <p className="text-xs text-slate-500 mt-1 mb-2">תמונה יפה של העסק — מופיעה כרקע האדר במסך הבית של העובדים. אם לא תעלה — יוצג גרדיאנט בצבעי המותג שלך.</p>
+            <div className="flex items-center gap-3">
+              {coverPhotoUrl && (
+                <img src={coverPhotoUrl} alt="רקע" className="w-28 h-16 rounded-lg object-cover border" />
+              )}
+              <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed cursor-pointer hover:bg-slate-50">
+                {uploadingCover ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                <span className="text-sm">{uploadingCover ? 'מעלה...' : 'העלה תמונת רקע'}</span>
+                <input type="file" accept="image/*" onChange={handleCoverUpload} className="hidden" />
+              </label>
+              {coverPhotoUrl && (
+                <Button variant="ghost" size="sm" onClick={() => setCoverPhotoUrl('')} className="text-red-600">
                   הסר
                 </Button>
               )}
