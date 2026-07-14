@@ -690,9 +690,29 @@ function EmployeeReportsInner() {
 
     const selectedEmployee = employees.find(e => e.id === selectedEmployeeId) || { full_name: user?.full_name };
 
+    // TEMP client-side diagnostic — shows what THIS browser actually computes,
+    // so a single screenshot reveals why the match yields 0. Admin-only.
+    const _selEmpDbg = employees.find(e => e.id === selectedEmployeeId);
+    const _selNmDbg = normEmpName(_selEmpDbg?.full_name);
+    let _idM = 0, _nmM = 0;
+    (workShifts || []).forEach(ws => (ws.assigned_staff || []).forEach(a => {
+        if (a.employee_id && a.employee_id === selectedEmployeeId) _idM++;
+        if (a.employee_name && _selNmDbg && normEmpName(a.employee_name) === _selNmDbg) _nmM++;
+    }));
+
     return (
         <div className="p-4 sm:p-8 bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto">
+                {isAdmin && selectedEmployeeId && selectedEmployeeId !== 'all' && (
+                    <div dir="ltr" className="mb-3 rounded-lg bg-slate-900 text-green-200 text-[11px] font-mono p-3 leading-relaxed">
+                        <b className="text-yellow-300">CLIENT DEBUG (temp)</b><br/>
+                        selectedEmployeeId = <b>{String(selectedEmployeeId)}</b><br/>
+                        selectedEmp.full_name = <b>{String(_selEmpDbg?.full_name ?? '(undefined!)')}</b><br/>
+                        workShifts loaded = <b>{(workShifts || []).length}</b> · shiftTracking = <b>{(shifts || []).length}</b><br/>
+                        assignments matching by ID = <b className="text-yellow-300">{_idM}</b> · by NAME = <b className="text-yellow-300">{_nmM}</b><br/>
+                        hourlyShiftEntries = <b className="text-yellow-300">{filteredData.hourlyShiftEntries.length}</b> · monthTotal = <b className="text-yellow-300">{monthlyBreakdown.totalHours}</b> · period = <b>{filterPeriod}</b>
+                    </div>
+                )}
                 <div className="flex items-center justify-between mb-2">
                     <div>
                         <h1 className="text-4xl font-bold text-slate-900">דוחות עובדים</h1>
