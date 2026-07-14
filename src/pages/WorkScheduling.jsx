@@ -609,6 +609,8 @@ export default function WorkScheduling() {
     const [activeNow, setActiveNow] = useState(new Set()); // ids + norm-names clocked in RIGHT NOW
     const [reconcile, setReconcile] = useState(null); // { preview } identity-repair result
     const [reconcileBusy, setReconcileBusy] = useState(false);
+    const [dbgEmpName, setDbgEmpName] = useState('');
+    const [dbgEmp, setDbgEmp] = useState(null); // per-employee hours diagnostic
     const [laborCost, setLaborCost] = useState(null); // { total, hours, by_day, by_shift, has_rates, budget }
     const [budgetInput, setBudgetInput] = useState('');
     const [savingBudget, setSavingBudget] = useState(false);
@@ -1232,6 +1234,25 @@ export default function WorkScheduling() {
                         }}
                         className="text-xs rounded-lg px-3 py-1.5 font-bold border border-[#D9BD83] text-[#7A5A2E] bg-[#F4ECD8] hover:bg-[#E8D9B5] disabled:opacity-50"
                     >{reconcileBusy ? '...' : '🔧 סנכרן מזהי עובדים (שעון↔סידור)'}</button>
+
+                    <span className="inline-flex items-center gap-1 mr-2">
+                        <input value={dbgEmpName} onChange={e => setDbgEmpName(e.target.value)} placeholder="שם עובד לבדיקה"
+                            className="text-xs rounded-lg border border-[#D9BD83] px-2 py-1 w-32" />
+                        <button
+                            onClick={async () => {
+                                if (!dbgEmpName.trim()) return;
+                                try { const r = await base44.functions.debugEmployeeHours({ name: dbgEmpName.trim() }); setDbgEmp(r?.data || r); }
+                                catch (e) { setDbgEmp({ error: e?.message || 'failed' }); }
+                            }}
+                            className="text-xs rounded-lg px-2 py-1 font-bold bg-slate-800 text-white"
+                        >🔬 בדוק עובד</button>
+                    </span>
+                    {dbgEmp && (
+                        <div className="mt-2 relative">
+                            <button onClick={() => setDbgEmp(null)} className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs z-10">×</button>
+                            <pre dir="ltr" className="text-[10px] bg-slate-900 text-green-200 rounded-lg p-3 overflow-auto max-h-80 whitespace-pre-wrap max-w-lg">{JSON.stringify(dbgEmp, null, 2)}</pre>
+                        </div>
+                    )}
 
                     {reconcile && !reconcile.error && (
                         <div className="mt-2 rounded-xl border-2 border-[#E8D9B5] bg-[#FFFDF8] p-3 max-w-lg text-sm">

@@ -5986,6 +5986,51 @@ registerFn('reconcileClockIdentities', async ({ user, body }: any) => {
   };
 });
 
+// Targeted diagnostic for ONE employee — shows duplicate Employee rows + the
+// employee_ids used across the schedule vs the clock, so we can see exactly why
+// their hours report is empty (id mismatch / duplicate record / period).
+registerFn('debugEmployeeHours', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const db2 = prisma as any;
+  const norm = (s: any) => String(s || '').replace(/\s+/g, '').toLowerCase();
+  const q = norm((body || {}).name);
+  if (!q) throw new Error('name required');
+  const short = (s: any) => String(s || '').slice(0, 10);
+  const ilDay = (d: any) => { try { return new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }); } catch { return String(d).slice(0, 10); } };
+
+  const emps: any[] = await db2.employee.findMany({ select: { id: true, full_name: true, email: true, status: true } }).catch(() => []);
+  const matchEmps = emps.filter(e => norm(e.full_name).includes(q) || q.includes(norm(e.full_name)));
+
+  const since = new Date(Date.now() - 40 * 86400 * 1000);
+  const shifts: any[] = await db2.workShift.findMany({ where: { date: { gte: since } }, select: { date: true, assigned_staff: true } }).catch(() => []);
+  const asgIds = new Map<string, number>(); const asgSample: any[] = [];
+  for (const ws of shifts) {
+    for (const a of (Array.isArray(ws.assigned_staff) ? ws.assigned_staff : [])) {
+      if (norm(a?.employee_name).includes(q) || q.includes(norm(a?.employee_name))) {
+        const k = short(a.employee_id); asgIds.set(k, (asgIds.get(k) || 0) + 1);
+        if (asgSample.length < 8) asgSample.push({ day: ilDay(ws.date), eid: short(a.employee_id), name: `"${a.employee_name}"`, pos: a.position });
+      }
+    }
+  }
+  const tracks: any[] = await db2.shiftTracking.findMany({ where: { shift_start: { gte: since } }, select: { employee_id: true, employee_name: true, date: true, shift_start: true, status: true } }).catch(() => []);
+  const trkIds = new Map<string, number>(); const trkSample: any[] = [];
+  for (const t of tracks) {
+    if (norm(t.employee_name).includes(q) || q.includes(norm(t.employee_name))) {
+      const k = short(t.employee_id); trkIds.set(k, (trkIds.get(k) || 0) + 1);
+      if (trkSample.length < 8) trkSample.push({ day: ilDay(t.shift_start), eid: short(t.employee_id), name: `"${t.employee_name}"`, status: t.status });
+    }
+  }
+  return {
+    query: (body || {}).name,
+    employee_records: matchEmps.map(e => ({ id: short(e.id), name: `"${e.full_name}"`, email: e.email, status: e.status })),
+    employee_record_count: matchEmps.length,
+    assignment_ids: [...asgIds.entries()].map(([id, n]) => ({ id, count: n, is_this_employee: matchEmps.some(e => short(e.id) === id), is_some_employee: emps.some(e => short(e.id) === id) })),
+    track_ids: [...trkIds.entries()].map(([id, n]) => ({ id, count: n })),
+    assignment_sample: asgSample, track_sample: trkSample,
+  };
+});
+
 // Diagnostic — why do clock-ins not match the schedule ("לא נכנס לשעון")?
 // Compares WorkShift assigned_staff to ShiftTracking over the last 10 days and
 // reports how they match (by id / by name / none) + samples, so we can see if
