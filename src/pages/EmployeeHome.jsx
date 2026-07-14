@@ -263,41 +263,52 @@ export default function EmployeeHome() {
         my_notifications: isVisible('my_notifications') && <MyNotificationsWidget key="my_notifications" />,
         queue_status: isVisible('queue_status') && <QueueStatusWidget key="queue_status" />,
         quick_access: isVisible('quick_access') && (
-            <div key="quick_access">
-                <h2 className="text-lg font-bold text-[#3A2E1E] mb-3 flex items-center gap-2">
-                    <span className="w-1.5 h-5 rounded-full" style={{ background: primary }} />
-                    כלים מהירים
-                </h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div key="quick_access" className="space-y-5">
                 {[
-                    { to: createPageUrl("Training"), icon: GraduationCap, color: "from-[#44512C] to-[#44512C]", title: "הכשרות ואימונים", desc: "קורסים ומשחקים לשיפור הביצועים" },
-                    { to: createPageUrl("Checklists"), icon: CheckSquare, color: "from-green-500 to-green-600", title: "צ'קליסטים", desc: "בדיקות יומיות ומשימות" },
-                    { to: createPageUrl("Incidents"), icon: AlertTriangle, color: "from-orange-500 to-orange-600", title: "דיווח תקריות", desc: "דיווח מהיר על בעיות" },
-                    { to: createPageUrl("Leaderboard"), icon: Star, color: "from-[#A04A2E] to-[#A04A2E]", title: "לוח מובילים", desc: "הישגים ונקודות" },
-                    { to: createPageUrl("WorkScheduling"), icon: Calendar, color: "from-[#B89556] to-[#B89556]", title: "סידור העבודה", desc: "המשמרות שלך השבוע" },
-                    { to: createPageUrl("WaiterTables"), icon: Utensils, color: "from-[#A04A2E] to-[#A04A2E]", title: "השולחנות שלי", desc: "ניהול שולחנות במשמרת" },
-                    { to: createPageUrl("MyPerformance"), icon: Star, color: "from-amber-500 to-amber-600", title: "הביצועים שלי", desc: "נתונים ודירוגים" },
-                    { to: createPageUrl("ShiftEndReport"), icon: CheckSquare, color: "from-[#44512C] to-[#44512C]", title: "דוח סיום משמרת", desc: "סיכום המשמרת" },
-                    { to: createPageUrl("EmployeeReports"), icon: FileText, color: "from-red-500 to-[#A04A2E]", title: "דוחות עובדים", desc: "שעות, טיפים וביצועים" },
-                    { to: createPageUrl("LeaveRequests"), icon: CalendarDays, color: "from-blue-400 to-[#44512C]", title: "בקשות חופשה", desc: "הגש בקשת חופשה או מחלה" },
-                    { to: createPageUrl("ShiftChat"), icon: MessageCircle, color: "from-[#A04A2E] to-[#A04A2E]", title: "צ'אט משמרת", desc: "תקשורת פנימית לצוות" },
-                    { to: "/UserGuide", icon: BookOpen, color: "from-green-500 to-emerald-600", title: "מדריך שימוש", desc: "הסברים וסרטוני הדרכה", special: true },
-                ].map((item) => (
-                    <Link key={item.to} to={item.to}>
-                        <Card className="rounded-2xl border border-white/60 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-xl hover:-translate-y-1 active:scale-[0.97] transition-all duration-200 cursor-pointer h-full">
-                            <CardContent className="p-4 sm:p-5">
-                                <div className="flex flex-col items-center text-center gap-2.5">
-                                    <div className={`w-14 h-14 bg-gradient-to-br ${item.color} rounded-2xl flex items-center justify-center shadow-md ring-1 ring-black/5`}>
-                                        <item.icon className="w-7 h-7 text-white drop-shadow" />
-                                    </div>
-                                    <h3 className="font-bold text-sm sm:text-base text-[#3A2E1E] leading-tight">{item.title}</h3>
-                                    <p className="text-xs text-[#8A7C64] leading-snug hidden sm:block">{item.desc}</p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </Link>
+                    { title: 'המשמרת שלי', color: primary, items: [
+                        { to: createPageUrl("Checklists"), icon: CheckSquare, title: "צ'קליסטים" },
+                        { to: createPageUrl("WaiterTables"), icon: Utensils, title: "השולחנות שלי" },
+                        { to: createPageUrl("ShiftEndReport"), icon: CheckSquare, title: "דוח סיום משמרת" },
+                        { to: createPageUrl("ShiftChat"), icon: MessageCircle, title: "צ'אט משמרת" },
+                    ] },
+                    { title: 'הזמן שלי', color: primary, items: [
+                        { to: createPageUrl("WorkScheduling"), icon: Calendar, title: "סידור העבודה" },
+                        { to: createPageUrl("LeaveRequests"), icon: CalendarDays, title: "בקשות חופשה" },
+                        { to: createPageUrl("EmployeeReports"), icon: FileText, title: "דוחות עובדים" },
+                    ] },
+                    { title: 'התקדמות והישגים', color: accent, items: [
+                        { to: createPageUrl("Leaderboard"), icon: Star, title: "לוח מובילים" },
+                        { to: createPageUrl("MyPerformance"), icon: Star, title: "הביצועים שלי" },
+                        { to: createPageUrl("Training"), icon: GraduationCap, title: "הכשרות ואימונים" },
+                    ] },
+                    { title: 'עזרה ותמיכה', color: '#8A7C64', items: [
+                        { to: createPageUrl("Incidents"), icon: AlertTriangle, title: "דיווח תקריות" },
+                        { to: "/UserGuide", icon: BookOpen, title: "מדריך שימוש" },
+                    ] },
+                ].map((cat) => (
+                    <div key={cat.title}>
+                        <h2 className="text-base font-bold text-[#3A2E1E] mb-2.5 flex items-center gap-2">
+                            <span className="w-1.5 h-4 rounded-full" style={{ background: cat.color }} />
+                            {cat.title}
+                        </h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                            {cat.items.map((item) => (
+                                <Link key={item.to} to={item.to}>
+                                    <Card className="rounded-2xl border border-white/60 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 cursor-pointer h-full">
+                                        <CardContent className="p-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm ring-1 ring-black/5 flex-shrink-0" style={{ background: cat.color }}>
+                                                    <item.icon className="w-5 h-5 text-white" />
+                                                </div>
+                                                <h3 className="font-bold text-sm text-[#3A2E1E] leading-tight">{item.title}</h3>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
                 ))}
-                </div>
             </div>
         ),
     };
