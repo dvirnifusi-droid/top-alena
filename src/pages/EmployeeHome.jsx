@@ -226,9 +226,10 @@ export default function EmployeeHome() {
             </div>
         ),
         smart_tools: isVisible('smart_tools') && (
-            <div key="smart_tools" className="mb-8">
+            <div key="smart_tools">
                 <Card
-                    className="bg-gradient-to-r from-[#A04A2E] to-[#A04A2E] text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                    className="border-0 text-white cursor-pointer hover:shadow-xl transition-all duration-300 rounded-2xl"
+                    style={{ background: `linear-gradient(120deg, ${primary}, ${secondary})` }}
                     onClick={() => setShowSmartTools(true)}
                 >
                     <CardContent className="p-6">

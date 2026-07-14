@@ -574,9 +574,9 @@ export default function ShiftClockWidget() {
                             <Button
                                 onClick={startShift}
                                 disabled={actionLoading}
-                                className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-lg rounded-xl w-full"
+                                className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-xl font-bold rounded-2xl w-full shadow-lg shadow-green-600/30 animate-pulse hover:animate-none transition-all"
                             >
-                                <Play className="w-5 h-5 ml-2" />
+                                <Play className="w-6 h-6 ml-2" />
                                 כניסה למשמרת
                             </Button>
                         </div>

@@ -590,7 +590,8 @@ export default function AiChatWidget() {
         return (
             <button
                 onClick={() => setIsOpen(true)}
-                className="w-full flex items-center gap-4 bg-gradient-to-l from-red-900 to-amber-800 text-white rounded-2xl px-5 py-3 shadow-2xl hover:brightness-110 transition-all duration-300 cursor-pointer border-0"
+                className="w-full flex items-center gap-4 text-white rounded-2xl px-5 py-3 shadow-2xl hover:brightness-110 transition-all duration-300 cursor-pointer border-0"
+                style={{ background: 'linear-gradient(to left, var(--brand-secondary, #3B2F20), var(--brand-primary, #A04A2E))' }}
                 dir="rtl"
             >
                 <img 
@@ -602,11 +603,11 @@ export default function AiChatWidget() {
                     <div className="flex items-center gap-2 justify-end mb-0.5">
                         <span className="font-bold text-base">דביר AI 🧠</span>
                     </div>
-                    <p className="text-amber-200 text-xs">שאל אותי הכל ואענה לך מהמוח הדיגיטלי שלי</p>
+                    <p className="text-white/80 text-xs">שאל אותי הכל ואענה לך מהמוח הדיגיטלי שלי</p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-full whitespace-nowrap">4 כלים</span>
-                    <span className="bg-orange-400 text-white text-xs px-3 py-1 rounded-full font-bold whitespace-nowrap">לחץ לפתיחה!</span>
+                    <span className="text-white text-xs px-3 py-1 rounded-full font-bold whitespace-nowrap" style={{ background: 'var(--brand-accent, #C9A15A)' }}>לחץ לפתיחה!</span>
                 </div>
             </button>
         );
@@ -615,7 +616,7 @@ export default function AiChatWidget() {
     return (
         <div className="w-full">
             <Card className={`w-full shadow-2xl border-0 bg-white/95 backdrop-blur-sm flex flex-col ${isMinimized ? 'h-16' : 'h-[600px] sm:h-[640px] lg:h-[min(80vh,720px)]'}`}>
-                <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-orange-600 to-red-600 text-white p-3 sm:p-4 rounded-t-lg">
+                <CardHeader className="flex flex-row items-center justify-between text-white p-3 sm:p-4 rounded-t-lg" style={{ background: 'linear-gradient(to right, var(--brand-primary, #A04A2E), var(--brand-secondary, #3B2F20))' }}>
                     <div className="flex items-center gap-2">
                         <img 
                             src={DVIR_ICON_URL} 

@@ -188,7 +188,7 @@ export default function WeeklyScheduleSummary({ userId, currentEmployee }) {
     const nextLabel = `${format(nextWeekStart, 'dd/MM')} - ${format(addDays(nextWeekStart, 6), 'dd/MM')}`;
 
     return (
-        <Card className="border-2 border-blue-200 mb-6">
+        <Card className="rounded-2xl border border-[#EADFC8] mb-6">
             <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
                     <CalendarIcon className="w-5 h-5" />
@@ -198,21 +198,15 @@ export default function WeeklyScheduleSummary({ userId, currentEmployee }) {
                 <div className="flex gap-2 mt-2">
                     <button
                         onClick={() => handleTabChange('current')}
-                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                            activeTab === 'current'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
+                        className="px-4 py-1.5 rounded-full text-sm font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        style={activeTab === 'current' ? { background: 'var(--brand-primary, #A04A2E)', color: '#fff' } : undefined}
                     >
                         השבוע ({currentLabel})
                     </button>
                     <button
                         onClick={() => handleTabChange('next')}
-                        className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                            activeTab === 'next'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
+                        className="px-4 py-1.5 rounded-full text-sm font-medium transition-colors bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        style={activeTab === 'next' ? { background: 'var(--brand-primary, #A04A2E)', color: '#fff' } : undefined}
                     >
                         שבוע הבא ({nextLabel})
                     </button>
