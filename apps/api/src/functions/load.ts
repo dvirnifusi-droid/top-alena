@@ -13746,7 +13746,12 @@ function isAdminRole(role: any): boolean {
 // Authed — anyone logged in can read config (frontend uses it to know whether
 // to ask for GPS). Per-employee disable flag resolved server-side.
 registerFn('getGeofenceConfig', async ({ user }) => {
-  const profile = await db.restaurantProfile.findFirst();
+  // Explicit select — never touch columns that may be drift-missing on a tenant
+  // (recruitment_criteria/twilio_credentials/etc), which would P2022 and leave
+  // LocationSettings stuck on "טוען".
+  const profile = await db.restaurantProfile.findFirst({
+    select: { restaurant_lat: true, restaurant_lng: true, shift_geofence_required: true },
+  });
   const restaurant_lat = profile?.restaurant_lat ?? null;
   const restaurant_lng = profile?.restaurant_lng ?? null;
   const flagOn = !!profile?.shift_geofence_required;
@@ -17703,6 +17708,22 @@ if (!(globalThis as any).__startupDriftRepair) {
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "marketing_consent_at" TIMESTAMP(3);`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "marketing_unsubscribed_at" TIMESTAMP(3);`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "ShiftTracking" ADD COLUMN IF NOT EXISTS "end_reminder_sent_at" TIMESTAMP(3);`);
+      // ShiftTracking.source/shift_type — tip-lock reconciliation origin markers.
+      // Without these, ANY ShiftTracking.findMany (entity route selects all cols)
+      // P2022s on tenants that never got the column → employee-hours "ללא שעון"
+      // flags + empty clock reads. Additive backfill for every tenant.
+      await prisma.$executeRawUnsafe(`ALTER TABLE "ShiftTracking" ADD COLUMN IF NOT EXISTS "source" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "ShiftTracking" ADD COLUMN IF NOT EXISTS "shift_type" TEXT;`);
+      // RestaurantProfile columns added mid-2026 with no migration → full-select
+      // reads (getGeofenceConfig, recruitment, daily-hours, twilio override)
+      // P2022 on tenants missing them → LocationSettings stuck "טוען", etc.
+      await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "recruitment_criteria" JSONB;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "last_daily_hours_report_at" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "daily_hours_report_snapshot" JSONB;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "twilio_credentials" JSONB;`);
+      // PrepList columns for the par/order-list feature.
+      await prisma.$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "list_type" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "par_locked" BOOLEAN;`);
       // Checklist.department — added for dept-filter UI (floor/bar/kitchen/managers)
       await prisma.$executeRawUnsafe(`ALTER TABLE "Checklist" ADD COLUMN IF NOT EXISTS "department" TEXT;`);
       // Customer marketing fields — birthday/anniversary for campaigns + throttling

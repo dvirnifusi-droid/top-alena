@@ -10,18 +10,25 @@ export default function LocationSettings() {
     const [employees, setEmployees] = useState([]);
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState('');
+    const [loading, setLoading] = useState(true);
 
     const load = async () => {
+        // Load each source INDEPENDENTLY — one failing call must not block the
+        // whole page (a tenant with drifted RestaurantProfile columns would
+        // otherwise leave the page stuck on "טוען" and unable to set location).
         try {
             const cfgRes = await base44.functions.getGeofenceConfig({});
-            setConfig(cfgRes?.data || null);
+            setConfig(cfgRes?.data || {});
+        } catch (e) { console.error('getGeofenceConfig failed:', e); setConfig({}); }
+        try {
             const profs = await base44.entities.RestaurantProfile.list();
             setProfile(profs?.[0] || null);
+        } catch (e) { console.error('RestaurantProfile.list failed:', e); }
+        try {
             const emps = await base44.entities.Employee.list();
             setEmployees(emps || []);
-        } catch (e) {
-            console.error('LocationSettings load failed:', e);
-        }
+        } catch (e) { console.error('Employee.list failed:', e); }
+        setLoading(false);
     };
     useEffect(() => { load(); }, []);
 
@@ -65,11 +72,15 @@ export default function LocationSettings() {
         }
     };
 
-    if (!config) return <div className="p-6">טוען...</div>;
+    if (loading) return <div className="p-6">טוען...</div>;
 
-    const hasLocation = profile?.restaurant_lat != null && profile?.restaurant_lng != null;
+    // Prefer coordinates from getGeofenceConfig (safe select) so a drifted
+    // RestaurantProfile.list doesn't hide an already-set location.
+    const lat = config?.restaurant_lat ?? profile?.restaurant_lat ?? null;
+    const lng = config?.restaurant_lng ?? profile?.restaurant_lng ?? null;
+    const hasLocation = lat != null && lng != null;
     const mapsHref = hasLocation
-        ? `https://maps.google.com/?q=${profile.restaurant_lat},${profile.restaurant_lng}`
+        ? `https://maps.google.com/?q=${lat},${lng}`
         : null;
 
     return (
@@ -81,7 +92,7 @@ export default function LocationSettings() {
                     <h2 className="font-semibold">מיקום העסק</h2>
                     {hasLocation ? (
                         <p className="text-sm text-slate-600">
-                            {profile.restaurant_lat.toFixed(5)}, {profile.restaurant_lng.toFixed(5)}{' '}
+                            {lat.toFixed(5)}, {lng.toFixed(5)}{' '}
                             <a href={mapsHref} target="_blank" rel="noopener" className="text-[#44512C] underline">פתח במפה</a>
                         </p>
                     ) : (
@@ -103,7 +114,7 @@ export default function LocationSettings() {
                             <p className="text-xs text-slate-500">כשמופעל: עובדים חייבים להיות במרחק 30m מהעסק כדי להחתים כניסה. סגירה אוטומטית אחרי 500m+ ללא יציאה.</p>
                         </div>
                         <Switch
-                            checked={!!profile?.shift_geofence_required}
+                            checked={!!(config?.tracking_required || profile?.shift_geofence_required)}
                             onCheckedChange={toggleGlobal}
                             disabled={!hasLocation}
                         />
