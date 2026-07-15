@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import VoiceControl from "@/components/voice/VoiceControl";
+import PinGate, { PIN_LOCKED_PAGES } from "@/components/shared/PinGate";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
   LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield, Lock, ShoppingCart
@@ -475,7 +476,7 @@ export default function Layout({ children, currentPageName }) {
             {user && <PopupManager user={user} />}
             {user && <AutoCloseNoticeBanner />}
             <InstallAppBanner />
-            {children}
+            {PIN_LOCKED_PAGES.has(currentPageName) ? <PinGate>{children}</PinGate> : children}
           </main>
         </div>
       </SidebarProvider>
