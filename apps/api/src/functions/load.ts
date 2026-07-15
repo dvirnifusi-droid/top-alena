@@ -8808,7 +8808,11 @@ registerFn('chatEventsInquiry', async ({ body }) => {
   }
   const brandNameEv = await getBrandName();
   const bpBlockEv = await businessContextBlock();
-  const rawPrompt = (kit.system_prompt && kit.system_prompt.trim()) || DEFAULT_EVENTS_PROMPT;
+  // Prefer the friendly per-tenant config (Stage 1-A): if questions are defined,
+  // assemble the whole prompt from them; else use the raw system_prompt / default.
+  const generatedPrompt = buildEventsPromptFromConfig((kit as any)?.intake_config);
+  const usingGeneratedPrompt = !!generatedPrompt;
+  const rawPrompt = generatedPrompt || (kit.system_prompt && kit.system_prompt.trim()) || DEFAULT_EVENTS_PROMPT;
   // Runtime brand swap — legacy stored prompts had hardcoded 'עלינא' /
   // 'עלנא' baked in; replace them with the tenant's actual brand so the
   // events agent doesn't greet Miha customers as Alena.
@@ -8879,7 +8883,9 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     `• אל תעבור לשלב הסיכום/אישור לפני שיש שם מלא (כולל שם משפחה) וטלפון תקין.\n` +
     `--- סוף כללי פרטי קשר ---\n`;
   const intakeFields = Array.isArray((kit as any)?.intake_config?.fields) ? (kit as any).intake_config.fields : [];
-  const contactRules = intakeFields.length
+  const contactRules = usingGeneratedPrompt
+    ? '' // required-field rules are already baked into the generated prompt
+    : intakeFields.length
     ? (() => {
         const lines = intakeFields
           .filter((f: any) => f && f.label)
@@ -11433,6 +11439,36 @@ const DEFAULT_EVENTS_PROMPT = `את דנה — מנהלת האירועים הפ�
 - complete: boolean — true ברגע שיש 4 שדות החובה (שם+טלפון, תאריך, מיקום+סוג, כמות)
 - escalation: boolean — true רק במקרי קצה (יותר מ-200 אנשים, אירוע חוץ-לארץ, מעורבות מדיה)
 - score: 50 תמיד`;
+
+// Builds the full Dana prompt from a per-tenant intake config (Stage 1-A of
+// "work once"): the owner defines opening/questions/forbidden in a friendly
+// editor and the code assembles the prompt — the flow scaffolding (persona,
+// critical rules, two-turn confirmation, JSON schema) stays fixed so nothing
+// important is ever lost. Returns null when no questions are configured (caller
+// falls back to DEFAULT_EVENTS_PROMPT). `{brand}` interpolation happens downstream.
+function buildEventsPromptFromConfig(cfg: any): string | null {
+  const questions: any[] = Array.isArray(cfg?.questions) ? cfg.questions
+    : Array.isArray(cfg?.fields) ? cfg.fields : [];
+  const valid = questions.filter((q) => q && String(q.label || '').trim());
+  if (!valid.length) return null;
+  const opening = String(cfg?.opening || '').trim()
+    || `היי 🌿 אני דנה, מנהלת האירועים של '{brand}'. שמחה שחשבתם עלינו! יש לי כמה שאלות קצרות, ואז המנהל יחזור אליך אישית עם הצעה מותאמת. מתחילים?`;
+  const qLines = valid.map((q, i) => `${i + 1}. **${String(q.label).trim()}**${q.required ? ' (חובה)' : ''} — ${String(q.instruction || '').trim() || 'אסוף/אספי פרט זה מהלקוח בשאלה טבעית.'}`).join('\n');
+  const requiredLabels = valid.filter((q) => q.required).map((q) => String(q.label).trim()).join(', ');
+  const forbidden: string[] = Array.isArray(cfg?.forbidden) ? cfg.forbidden.map((x: any) => String(x || '').trim()).filter(Boolean) : [];
+  const forbiddenBlock = forbidden.length
+    ? `\n⚠️ **אסור לשאול**: ${forbidden.join(', ')}. אם הלקוח מציין משהו כזה מעצמו — רשמי בלי לשאול עוד.`
+    : '';
+  const toneLine = cfg?.tone ? `\nסגנון דיבור: ${String(cfg.tone).trim()}` : '';
+  return [
+    `את דנה — מנהלת האירועים הפרטיים של מסעדת '{brand}'. את מדברת בעברית טבעית, חמה, קצרה ואישית — כמו נציגה בשר ודם, לא בוט. **תפקידך כרגע: רק לאסוף מידע ראשוני** ולהעביר למנהל המסעדה שיחזור אישית. את לא סוגרת עסקה, לא מצטטת מחירים, לא מאשרת תאריך.${toneLine}`,
+    `פתחי רק אם זו ההודעה הראשונה (אין שיחה קודמת):\n"${opening}"`,
+    `איסוף מידע — שאלה אחת בכל פעם, לא הכל ביחד:\n${qLines}${requiredLabels ? `\n\n**אל תעברי לשלב הסיכום/אישור לפני שאספת את כל שדות החובה: ${requiredLabels}.**` : ''}${forbiddenBlock}`,
+    `חוקים קריטיים — אל תפרי אף פעם:\n- לעולם אל תצטטי מחירים ספציפיים. אם נשאלת — הפני למנהל.\n- לעולם אל תאשרי תאריך כפנוי.\n- לעולם אל תציעי חבילות, תפריטים או הנחות — את לא מוכרת.\n- אל תזכירי שמות פרטיים של עובדים — תמיד "המנהל".\n- אם הלקוח שואל "כמה זה עולה" / "התאריך פנוי" / "מה כלול" / "תשלחי הצעה" — עני בדיוק: "שאלה מצוינת — אני אעביר את הפרטים שלך למנהל המסעדה והוא יחזור אליך אישית תוך כמה שעות עם הצעה מותאמת וכל התשובות 🙏" ואז המשיכי לשאלה הבאה.`,
+    `🛑 שלב הסיכום והאישור — קריטי, בשתי תורות:\n**תורת הסיכום** — כשיש את כל פרטי החובה: 1) "מצוין, תודה רבה {שם}! אז אני מסכמת:" 2) אל תפרטי את השדות בעצמך — המערכת מוסיפה סיכום מובנה. 3) סיימי ב"הפרטים נכונים? תאשר/י ואני שולחת למנהל המסעדה." 4) ב-JSON: complete=false, stage='awaiting_confirmation'. אסור "העברתי"/"יחזור אליך" לפני אישור.\n**תורת השליחה** — כשהלקוח מאשר: אל תכתבי כלום (המערכת כותבת). ב-JSON: complete=true, stage='completed'.`,
+    `החזירי תמיד JSON בלבד:\n- reply: string (בעברית)\n- collected: { contact_name, contact_phone, contact_email, event_date, event_time, hours_window, location ('restaurant'|'external'), location_details, guest_count, event_type, special_requests }\n- stage: 'collecting'\n- complete: boolean (true כשיש את כל שדות החובה)\n- escalation: boolean (מקרי קצה בלבד)\n- score: 50`,
+  ].join('\n\n');
+}
 
 registerFn('getEventSalesKit', async () => {
   let kit = await db.eventSalesKit.findFirst({ where: { singleton: true } });

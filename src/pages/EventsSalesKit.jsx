@@ -88,18 +88,28 @@ export default function EventsSalesKit() {
   const addUpsell = () => setKit({ ...kit, upsells: [...upsells, blankUpsell()] });
   const removeUpsell = (idx) => setKit({ ...kit, upsells: upsells.filter((_, i) => i !== idx) });
 
-  // Intake fields — the details the events agent must collect (Stage 1: per-tenant).
-  const intakeFields = Array.isArray(kit.intake_config?.fields) ? kit.intake_config.fields : [];
-  const setIntakeFields = (fields) => setKit({ ...kit, intake_config: { ...(kit.intake_config || {}), fields } });
-  const updateIntakeField = (idx, patch) => setIntakeFields(intakeFields.map((f, i) => i === idx ? { ...f, ...patch } : f));
-  const addIntakeField = () => setIntakeFields([...intakeFields, { label: '', instruction: '', required: true }]);
-  const removeIntakeField = (idx) => setIntakeFields(intakeFields.filter((_, i) => i !== idx));
-  const seedDefaultIntake = () => setIntakeFields([
-    { label: 'שם מלא', instruction: 'שם פרטי + שם משפחה. אל תתקדם בלי שם משפחה — שאל "ומה שם המשפחה?".', required: true },
-    { label: 'טלפון נייד', instruction: 'נייד ישראלי תקין (05, 10 ספרות). קרא בחזרה לאישור.', required: true },
-    { label: 'מייל גיבוי', instruction: 'בקש פעם אחת לפני הסיכום. אם מדלגים — המשך.', required: false },
-    { label: 'סוג האירוע', instruction: 'יום הולדת / חברה / מסיבה וכו\'.', required: false },
-  ]);
+  // Agent question editor (Stage 1-A): the whole Dana prompt is generated from
+  // this friendly config — opening + ordered questions + what's forbidden to ask.
+  const cfg = kit.intake_config || {};
+  const questions = Array.isArray(cfg.questions) ? cfg.questions : (Array.isArray(cfg.fields) ? cfg.fields : []);
+  const forbidden = Array.isArray(cfg.forbidden) ? cfg.forbidden : [];
+  const setCfg = (patch) => setKit({ ...kit, intake_config: { ...cfg, ...patch } });
+  const setQuestions = (qs) => setCfg({ questions: qs, fields: undefined });
+  const updateQuestion = (idx, patch) => setQuestions(questions.map((q, i) => i === idx ? { ...q, ...patch } : q));
+  const addQuestion = () => setQuestions([...questions, { label: '', instruction: '', required: true }]);
+  const removeQuestion = (idx) => setQuestions(questions.filter((_, i) => i !== idx));
+  const moveQuestion = (idx, dir) => { const j = idx + dir; if (j < 0 || j >= questions.length) return; const qs = [...questions]; [qs[idx], qs[j]] = [qs[j], qs[idx]]; setQuestions(qs); };
+  const seedDefaultIntake = () => setCfg({
+    opening: `היי 🌿 אני דנה, מנהלת האירועים של המסעדה. שמחה שחשבתם עלינו! יש לי כמה שאלות קצרות, ואז המנהל יחזור אליך אישית עם הצעה מותאמת. מתחילים?`,
+    questions: [
+      { label: 'שם מלא + טלפון', instruction: 'שם פרטי + משפחה (אל תתקדם בלי שם משפחה). טלפון נייד ישראלי תקין (05, 10 ספרות) — קרא בחזרה לאישור.', required: true },
+      { label: 'תאריך + שעה', instruction: 'אפשר תאריך יחסי ("מחר", "ראשון הבא"). בקש שעה מדויקת. אם לא נמסר — רשום חלון שעות בלבד, אל תמציא שעה.', required: true },
+      { label: 'מיקום + סוג אירוע', instruction: 'אצלנו במסעדה או במקום אחר? ומה סוג האירוע? אם חוץ — בקש עיר + כתובת מלאה.', required: true },
+      { label: 'כמות אנשים בערך', instruction: 'מספר משוער. אל תשאל על ילדים בנפרד.', required: true },
+      { label: 'מייל לגיבוי', instruction: 'בקש פעם אחת לפני הסיכום. אם מדלגים — המשך בלי להתעקש.', required: false },
+    ],
+    forbidden: ['כמה ילדים', 'אלרגיות', 'צמחוני/טבעוני', 'כשר', 'תקציב', 'חבילות', 'תפריטים'],
+  });
 
   return (
     <div className="p-4 md:p-6 space-y-4" dir="rtl">
@@ -220,51 +230,55 @@ export default function EventsSalesKit() {
             </p>
           </CardContent></Card>
 
-          {/* ── פרטים שהסוכן אוסף מהלקוח (פר-מסעדה) ── */}
+          {/* ── עורך שאלות הסוכן — בונה את הפרומפט לבד (פר-מסעדה) ── */}
           <Card className="mt-4">
             <CardHeader>
-              <CardTitle className="text-lg">פרטים שהסוכן אוסף מהלקוח</CardTitle>
+              <CardTitle className="text-lg">עורך שאלות הסוכן (בונה את הפרומפט לבד)</CardTitle>
               <CardDescription>
-                הגדר בדיוק אילו פרטים דנה חייבת לאסוף בכל פנייה — כל מסעדה לפי הצורך שלה.
-                {intakeFields.length === 0 && ' כרגע לא הוגדר — הסוכן משתמש בברירת המחדל (שם מלא · טלפון · מייל גיבוי).'}
+                הגדר את דנה בקליקים — פתיח, השאלות שהיא שואלת (בסדר), ומה אסור לשאול. המערכת מרכיבה את כל הפרומפט אוטומטית; אתה לא נוגע בטקסט הגולמי.
+                {questions.length === 0 && ' כרגע לא הוגדר — הסוכן משתמש בפרומפט ברירת-המחדל (התיבה למעלה).'}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {intakeFields.length === 0 ? (
+            <CardContent className="space-y-4">
+              {questions.length === 0 ? (
                 <Button variant="outline" onClick={seedDefaultIntake}>
-                  <Plus className="w-4 h-4 ml-1" /> התחל מברירת המחדל וערוך
+                  <Plus className="w-4 h-4 ml-1" /> התחל מברירת-המחדל וערוך
                 </Button>
               ) : (
                 <>
-                  {intakeFields.map((f, idx) => (
-                    <div key={idx} className="rounded-xl border border-[#EADFC8] bg-[#FBF6EA] p-3 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={f.label || ''}
-                          onChange={(e) => updateIntakeField(idx, { label: e.target.value })}
-                          placeholder="שם השדה (למשל: מייל גיבוי)"
-                          className="flex-1 font-bold"
-                        />
-                        <label className="flex items-center gap-1 text-xs whitespace-nowrap">
-                          <input type="checkbox" checked={!!f.required} onChange={(e) => updateIntakeField(idx, { required: e.target.checked })} />
-                          חובה
-                        </label>
-                        <Button variant="ghost" size="sm" className="text-red-600" onClick={() => removeIntakeField(idx)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <Textarea
-                        rows={2}
-                        value={f.instruction || ''}
-                        onChange={(e) => updateIntakeField(idx, { instruction: e.target.value })}
-                        placeholder="הנחיה לסוכן — איך לבקש ולוודא את הפרט (למשל: קרא את הטלפון בחזרה לאישור)"
-                        className="text-xs"
-                      />
+                  <div>
+                    <Label className="text-sm font-bold">משפט פתיחה</Label>
+                    <Textarea rows={3} value={cfg.opening || ''} onChange={(e) => setCfg({ opening: e.target.value })} placeholder="ההודעה הראשונה שדנה שולחת" className="text-sm mt-1" />
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-bold mb-2 block">השאלות (בסדר)</Label>
+                    <div className="space-y-2">
+                      {questions.map((q, idx) => (
+                        <div key={idx} className="rounded-xl border border-[#EADFC8] bg-[#FBF6EA] p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-[#8A7C64] w-5">{idx + 1}.</span>
+                            <Input value={q.label || ''} onChange={(e) => updateQuestion(idx, { label: e.target.value })} placeholder="נושא השאלה (למשל: תאריך + שעה)" className="flex-1 font-bold" />
+                            <label className="flex items-center gap-1 text-xs whitespace-nowrap"><input type="checkbox" checked={!!q.required} onChange={(e) => updateQuestion(idx, { required: e.target.checked })} /> חובה</label>
+                            <Button variant="ghost" size="sm" className="px-1" onClick={() => moveQuestion(idx, -1)} disabled={idx === 0}><ChevronUp className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="sm" className="px-1" onClick={() => moveQuestion(idx, 1)} disabled={idx === questions.length - 1}><ChevronDown className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="sm" className="text-red-600 px-1" onClick={() => removeQuestion(idx)}><Trash2 className="w-4 h-4" /></Button>
+                          </div>
+                          <Textarea rows={2} value={q.instruction || ''} onChange={(e) => updateQuestion(idx, { instruction: e.target.value })} placeholder="הנחיה לדנה — איך לשאול ולוודא (למשל: קרא את הטלפון בחזרה לאישור)" className="text-xs" />
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                  <Button variant="outline" onClick={addIntakeField}>
-                    <Plus className="w-4 h-4 ml-1" /> הוסף שדה
-                  </Button>
+                    <Button variant="outline" size="sm" className="mt-2" onClick={addQuestion}><Plus className="w-4 h-4 ml-1" /> הוסף שאלה</Button>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-bold">אסור לשאול (מופרד בפסיקים)</Label>
+                    <Input value={forbidden.join(', ')} onChange={(e) => setCfg({ forbidden: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} placeholder="תקציב, אלרגיות, כשר, חבילות, מחירים" className="text-sm mt-1" />
+                  </div>
+
+                  <div className="text-xs text-[#8A7C64] bg-[#FBF6EA] rounded-lg p-2 border border-[#EADFC8]">
+                    ✅ בזמן שמירה — כל הפרומפט (פתיח + השאלות + חוקי-האיסור + שלב האישור + פורמט ה-JSON) מורכב אוטומטית מזה. שאר החוקים הקריטיים (לא לצטט מחיר, לא לאשר תאריך, אישור בשתי תורות) קבועים ותמיד נשמרים.
+                  </div>
                 </>
               )}
             </CardContent>
