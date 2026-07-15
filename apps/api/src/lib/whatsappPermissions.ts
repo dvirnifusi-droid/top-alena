@@ -70,6 +70,29 @@ function normalizePhone(p: string): string {
 }
 
 // === Main resolver ====================================================
+
+// Per-tenant owner phone from the platform Tenant registry (public schema on the
+// same DB instance — verified readable cross-schema from tenant containers, which
+// each know their TENANT_SLUG). Cached per process (5-min TTL; a container serves
+// exactly one tenant so this is a single row). Lets every tenant recognize ITS
+// OWN owner as is_owner=true without touching the shared WHATSAPP_ADMIN_NUMBERS.
+let _ownerCache: { digits: string | null; at: number } | null = null;
+async function getTenantOwnerDigits(): Promise<string | null> {
+  const slug = String(process.env.TENANT_SLUG || '').trim();
+  if (!slug) return null;
+  if (_ownerCache && Date.now() - _ownerCache.at < 300_000) return _ownerCache.digits;
+  let digits: string | null = null;
+  try {
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT owner_phone FROM public."Tenant" WHERE slug = $1 LIMIT 1`, slug,
+    );
+    const raw = rows?.[0]?.owner_phone;
+    digits = raw ? normalizePhone(raw) : null;
+  } catch { digits = null; /* registry unreachable — env + Employee paths still apply */ }
+  _ownerCache = { digits, at: Date.now() };
+  return digits;
+}
+
 export async function resolveAccessScope(rawPhone: string): Promise<AccessScope> {
   const phone = String(rawPhone || '').trim();
   const phoneDigits = normalizePhone(phone);
@@ -92,6 +115,26 @@ export async function resolveAccessScope(rawPhone: string): Promise<AccessScope>
       role_label_he: 'בעלים',
       is_owner: true,
     };
+  }
+
+  // ── 1b. Per-tenant registered owner (from the platform Tenant registry) ──
+  // Makes every tenant's OWN owner a full owner on THEIR tenant, without adding
+  // them to the shared WHATSAPP_ADMIN_NUMBERS env. Cross-schema read is cached.
+  if (phoneDigits) {
+    const ownerDigits = await getTenantOwnerDigits();
+    if (ownerDigits && ownerDigits === phoneDigits) {
+      return {
+        role: 'owner',
+        employee_id: null,
+        employee_name: 'בעלים',
+        phone,
+        can_write: true,
+        visible_departments: 'all',
+        visible_employee_ids: 'all',
+        role_label_he: 'בעלים',
+        is_owner: true,
+      };
+    }
   }
 
   // ── 2. Match an Employee by phone (any format variant) ──────────────
@@ -121,6 +164,22 @@ export async function resolveAccessScope(rawPhone: string): Promise<AccessScope>
   const hasPosition = (re: RegExp) => positionStrs.some((s: string) => re.test(s));
   const dbRole = String(emp.role || '').toLowerCase();
   const dept = getDeptFromPositions(positions);
+
+  // Owner recorded on the Employee row itself (onboarding may create the owner
+  // as an Employee with role 'owner') — full owner rights, not just manager.
+  if (dbRole === 'owner') {
+    return {
+      role: 'owner',
+      employee_id: emp.id,
+      employee_name: emp.full_name,
+      phone,
+      can_write: true,
+      visible_departments: 'all',
+      visible_employee_ids: 'all',
+      role_label_he: 'בעלים',
+      is_owner: true,
+    };
+  }
 
   // Restaurant manager (top of restaurant) — full visibility
   if (dbRole === 'restaurant_manager' || dbRole === 'manager' || hasPosition(/מנהל מסעדה|מנכ"ל|בעל מקום/)) {
