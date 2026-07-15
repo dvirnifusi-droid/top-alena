@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Trash2, Save } from 'lucide-react';
+import { Plus, Trash2, Save, Target } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 const EMPTY = { name: '', dish_label: '', emoji: '🍰', default_target: 30, default_coins_per_sale: 50, is_active: true, sort_order: 0 };
 
@@ -48,7 +49,7 @@ export default function SalesGoalTemplates() {
 
     return (
         <div className="p-6 max-w-4xl mx-auto" dir="rtl">
-            <h1 className="text-2xl font-bold mb-6">🎯 תבניות יעדי מכירה</h1>
+            <PageHeader title="תבניות יעדי מכירה" icon={Target} />
 
             <Card className="mb-6 bg-[#F4ECD8] border-[#E8D9B5]">
                 <CardContent className="p-4">

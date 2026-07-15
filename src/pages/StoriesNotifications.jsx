@@ -3,7 +3,8 @@ import { base44 } from "@/api/base44Client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Heart, MessageCircle, Eye, Trash2, CheckCircle2 } from "lucide-react";
+import { Heart, MessageCircle, Eye, Trash2, CheckCircle2, Bell } from "lucide-react";
+import PageHeader from "@/components/shared/PageHeader";
 import { format, isAfter, subHours } from "date-fns";
 
 export default function StoriesNotifications() {
@@ -167,10 +168,7 @@ export default function StoriesNotifications() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-4" dir="rtl">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">🔔 הודעות סטוריז</h1>
-        <p className="text-muted-foreground">כל הפעילות בסטוריז שלך</p>
-      </div>
+      <PageHeader title="הודעות סטוריז" subtitle="כל הפעילות בסטוריז שלך" icon={Bell} />
 
       {/* Filter Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">

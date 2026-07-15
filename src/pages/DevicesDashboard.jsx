@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tablet, CreditCard, Plus, Trash2, Wrench, CheckCircle, Clock, Camera, Loader2 } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 import { format } from 'date-fns';
 
 const STATUS_LABELS = {
@@ -129,16 +130,16 @@ export default function DevicesDashboard() {
 
     return (
         <div className="p-4 space-y-6" dir="rtl">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-                <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                    <Tablet className="w-7 h-7 text-[#44512C]" />
-                    ניהול ציוד מלצרים
-                </h1>
-                <Button onClick={() => setShowAddDialog(true)} className="bg-[#44512C] hover:bg-[#44512C] text-white">
-                    <Plus className="w-4 h-4 ml-1" />
-                    הוסף מכשיר
-                </Button>
-            </div>
+            <PageHeader
+                title="ניהול ציוד מלצרים"
+                icon={Tablet}
+                action={(
+                    <Button onClick={() => setShowAddDialog(true)} className="bg-[#44512C] hover:bg-[#44512C] text-white">
+                        <Plus className="w-4 h-4 ml-1" />
+                        הוסף מכשיר
+                    </Button>
+                )}
+            />
 
             {/* סיכום מצב */}
             <div className="grid grid-cols-3 gap-3">
