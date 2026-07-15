@@ -5,7 +5,7 @@ import { Invoice } from '@/entities/Invoice';
 import { InvoiceItem } from '@/entities/InvoiceItem';
 import { Supplier } from '@/entities/Supplier';
 import { CreateFileSignedUrl } from '@/integrations/Core';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,9 +13,10 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowRight, Loader2, AlertTriangle, Pencil, Check, X, CreditCard, Trash2, ZoomIn, ZoomOut, ExternalLink } from 'lucide-react';
+import { ArrowRight, Loader2, AlertTriangle, Pencil, Check, X, CreditCard, Trash2, ZoomIn, ZoomOut, ExternalLink, FileText } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { format } from 'date-fns';
+import PageHeader from '@/components/shared/PageHeader';
 
 const STATUS_BADGE = {
     pending_review: { label: '⏳ ממתינה לסקירה', cls: 'bg-amber-100 text-amber-800' },
@@ -123,7 +124,7 @@ export default function InvoiceDetailsPage() {
     const paymentInfo = PAYMENT_BADGE[invoice.payment_status] || PAYMENT_BADGE.unpaid;
 
     return (
-        <div className="p-4 sm:p-8 bg-gray-50 min-h-screen" dir="rtl">
+        <div className="p-4 sm:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-6">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                     <Button asChild variant="outline">
@@ -138,14 +139,13 @@ export default function InvoiceDetailsPage() {
                     </div>
                 </div>
 
+                <PageHeader
+                    title={`חשבונית מס' ${invoice.invoice_number || 'לא צוין'}`}
+                    subtitle={<>ספק: {supplier?.company_name || '—'} | תאריך: {invoice.invoice_date ? format(new Date(invoice.invoice_date), 'dd/MM/yyyy') : '—'} | סה"כ: ₪{invoice.total_amount?.toLocaleString() || 0}</>}
+                    icon={FileText}
+                />
                 <Card>
-                    <CardHeader>
-                        <CardTitle className="text-2xl">חשבונית מס' {invoice.invoice_number || 'לא צוין'}</CardTitle>
-                        <CardDescription>
-                            ספק: {supplier?.company_name || '—'} | תאריך: {invoice.invoice_date ? format(new Date(invoice.invoice_date), 'dd/MM/yyyy') : '—'} | סה"כ: ₪{invoice.total_amount?.toLocaleString() || 0}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-6">
                         <div className="flex flex-wrap gap-2">
                             <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
                                 <Pencil className="w-3.5 h-3.5 ml-1" /> ערוך
@@ -161,7 +161,7 @@ export default function InvoiceDetailsPage() {
                                 </Button>
                             )}
                             {invoice.payment_status !== 'paid' && (
-                                <Button size="sm" className="bg-blue-600 hover:bg-blue-700" disabled={busy === 'pay'} onClick={markPaid}>
+                                <Button size="sm" style={{ backgroundColor: 'var(--brand-primary, #A04A2E)' }} className="text-white hover:opacity-90" disabled={busy === 'pay'} onClick={markPaid}>
                                     {busy === 'pay' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><CreditCard className="w-3.5 h-3.5 ml-1" /> סמן כשולמה</>}
                                 </Button>
                             )}

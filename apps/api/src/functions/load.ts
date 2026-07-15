@@ -15119,6 +15119,13 @@ async function ensurePlatformTables() {
       JSON.stringify(p.modules), p.is_default, p.sort_order,
     ).catch((e: any) => console.warn('[plan seed]', p.key, e?.message));
   }
+  // Default plan grants ALL modules — a new tenant starts FULL (like Alena) and
+  // the owner turns off per-tenant what they don't want (via ModuleSetting).
+  // Force-synced each boot so the paywall never hides a module from a fresh tenant.
+  try {
+    const allOptional = (MODULE_CATALOG as any[]).filter((m) => !m.core).map((m) => m.key);
+    await sql(`UPDATE "Plan" SET modules = $1::jsonb, "updatedAt" = NOW() WHERE is_default = true`, JSON.stringify(allOptional));
+  } catch (e: any) { console.warn('[plan seed] default-all-modules', e?.message); }
   platformTablesReady = true;
 }
 

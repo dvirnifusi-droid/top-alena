@@ -124,7 +124,7 @@ export default function CourierDashboard() {
     <div className="p-4 max-w-2xl mx-auto space-y-4" dir="rtl">
       {/* כותרת */}
       <div className="bg-gradient-to-r from-primary to-accent rounded-lg p-4 text-white">
-        <h1 className="text-2xl font-bold">🚴 {currentUser?.full_name || "שליח"}</h1>
+        <h1 className="text-2xl font-bold">{currentUser?.full_name || "שליח"}</h1>
         <p className="text-sm opacity-90">אפליקציית המשלוחים שלך</p>
       </div>
 

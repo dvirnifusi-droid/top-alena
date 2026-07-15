@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RotateCcw } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 export default function AdminReopenShifts() {
     const [running, setRunning] = useState(false);
@@ -28,11 +29,11 @@ export default function AdminReopenShifts() {
 
     return (
         <div className="p-6 max-w-2xl mx-auto" dir="rtl">
-            <h1 className="text-2xl font-bold mb-2">🔧 שחזור משמרות שנסגרו אוטומטית</h1>
-            <p className="text-sm text-gray-600 mb-4">
-                מחפש משמרות שנסגרו אוטומטית ב-36 השעות האחרונות (geofence / 4h / 16h)
-                ומחזיר אותן למצב פתוח כדי שתוכל לסגור אותן ידנית עם השעה הנכונה.
-            </p>
+            <PageHeader
+                title="שחזור משמרות שנסגרו אוטומטית"
+                subtitle="מחפש משמרות שנסגרו אוטומטית ב-36 השעות האחרונות (geofence / 4h / 16h) ומחזיר אותן למצב פתוח כדי שתוכל לסגור אותן ידנית עם השעה הנכונה."
+                icon={RotateCcw}
+            />
 
             <Card className="mb-4">
                 <CardContent className="p-6 text-center">

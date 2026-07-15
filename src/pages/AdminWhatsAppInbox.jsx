@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Send, ArrowRight, MessageCircle, RefreshCw } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 // Quick-reply templates. Brand name comes from tenant branding; the
 // confirmation template's address + phone line is Alena-specific, so it
@@ -328,19 +329,17 @@ export default function AdminWhatsAppInbox() {
 
     return (
         <div className="p-4" dir="rtl">
-            <div className="flex items-center justify-between mb-3">
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                    💬 WhatsApp Inbox
-                </h1>
-                <Button variant="outline" size="sm" onClick={loadConversations}>
-                    <RefreshCw className={`w-3 h-3 ml-1 ${loadingList ? 'animate-spin' : ''}`} />
-                    רענן
-                </Button>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-                הודעות נכנסות מ-WhatsApp מופיעות כאן בזמן אמת (אחרי שתגדיר webhook ב-Twilio).
-                לחץ על שיחה כדי לראות את ההיסטוריה ולהגיב.
-            </p>
+            <PageHeader
+                title="WhatsApp Inbox"
+                subtitle="הודעות נכנסות מ-WhatsApp מופיעות כאן בזמן אמת (אחרי שתגדיר webhook ב-Twilio). לחץ על שיחה כדי לראות את ההיסטוריה ולהגיב."
+                icon={MessageCircle}
+                action={
+                    <Button variant="outline" size="sm" onClick={loadConversations}>
+                        <RefreshCw className={`w-3 h-3 ml-1 ${loadingList ? 'animate-spin' : ''}`} />
+                        רענן
+                    </Button>
+                }
+            />
 
             <Card className="overflow-hidden flex" style={{ minHeight: '600px' }}>
                 <ConversationList
@@ -364,7 +363,7 @@ export default function AdminWhatsAppInbox() {
 
             <details className="mt-4 bg-amber-50 border border-amber-200 rounded-lg">
                 <summary className="cursor-pointer p-3 text-sm font-bold text-amber-900 select-none">
-                    📡 הגדרת Webhook ב-Twilio (פעם אחת — לחץ להרחבה)
+                    הגדרת Webhook ב-Twilio (פעם אחת — לחץ להרחבה)
                 </summary>
                 <div className="p-3 pt-0 border-t border-amber-200">
                     <p className="text-xs text-amber-800 mb-2">

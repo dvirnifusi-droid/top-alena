@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Plus, Trash2, Settings } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import PageHeader from '@/components/shared/PageHeader';
 
 const DEFAULT_DEPARTMENTS = [
     { 
@@ -151,13 +152,11 @@ export default function AvailabilityFormSettings() {
 
     return (
         <div className="p-4 md:p-8 max-w-4xl mx-auto" dir="rtl">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold flex items-center gap-2 mb-2">
-                    <Settings className="w-8 h-8 text-primary" />
-                    הגדרות עמוד הגשת זמינות
-                </h1>
-                <p className="text-gray-600">ערוך את הגדרות דף הגשת הזמינות של העובדים</p>
-            </div>
+            <PageHeader
+                title="הגדרות עמוד הגשת זמינות"
+                subtitle="ערוך את הגדרות דף הגשת הזמינות של העובדים"
+                icon={Settings}
+            />
 
             <div className="flex gap-2 mb-6 border-b border-gray-200">
                 <button

@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { TipReport } from '@/entities/TipReport';
 import { createPageUrl } from '@/utils';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, ArrowRight, DollarSign, Clock, Users, Percent } from 'lucide-react';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
+import PageHeader from '@/components/shared/PageHeader';
 
 export default function TipReportDetailsPage() {
     const [report, setReport] = useState(null);
@@ -34,7 +35,7 @@ export default function TipReportDetailsPage() {
     }
 
     return (
-        <div className="p-4 sm:p-8 bg-gray-50 min-h-screen" dir="rtl">
+        <div className="p-4 sm:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-6">
                 <div>
                     <Button asChild variant="outline">
@@ -45,15 +46,11 @@ export default function TipReportDetailsPage() {
                     </Button>
                 </div>
                 
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-2xl">פירוט דוח טיפים</CardTitle>
-                        <CardDescription>
-                            {format(new Date(report.date), 'eeee, d MMMM yyyy', { locale: he })}
-                             • משמרת {report.shift_type === 'dinner' ? 'ערב' : 'צהריים'}
-                        </CardDescription>
-                    </CardHeader>
-                </Card>
+                <PageHeader
+                    title="פירוט דוח טיפים"
+                    subtitle={<>{format(new Date(report.date), 'eeee, d MMMM yyyy', { locale: he })} • משמרת {report.shift_type === 'dinner' ? 'ערב' : 'צהריים'}</>}
+                    icon={DollarSign}
+                />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <InfoCard title="סה״כ טיפים" value={`₪${report.total_tips_collected?.toLocaleString()}`} icon={DollarSign} />

@@ -3,10 +3,11 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, ShoppingBag } from 'lucide-react';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
+import PageHeader from '@/components/shared/PageHeader';
 
 export default function ApparelManagement() {
   const [apparel, setApparel] = useState([]);
@@ -102,7 +103,7 @@ export default function ApparelManagement() {
   return (
     <div className="space-y-6" dir="rtl">
       <div>
-        <h1 className="text-3xl font-bold mb-6">📦 ניהול חנות בגדים</h1>
+        <PageHeader title="ניהול חנות בגדים" subtitle="הוספה וניהול של פריטי לבוש בחנות" icon={ShoppingBag} />
         
         <Card className="p-6 bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] border-2 border-[#E8D9B5] space-y-4">
           <h2 className="text-xl font-bold">הוספת פריט חדש</h2>

@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings, Phone, MessageSquare, Calendar, Save } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 // Defaults for the customer confirmation page (ReservationView). The editor pre-fills these.
 const DEFAULT_PARKING = 'חניון מול מרכז בן גוריון — הליכה קצרה מהמקום.';
@@ -245,12 +246,13 @@ export default function PublicReservationSettings() {
     };
 
     return (
-        <div className="p-6 bg-gray-50 min-h-screen" dir="rtl">
+        <div className="p-6 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
             <div className="max-w-4xl mx-auto">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">הגדרות מסעדה</h1>
-                    <p className="text-gray-600">נהל את ההגדרות הכלליות והזמנות</p>
-                </div>
+                <PageHeader
+                    title="הגדרות מסעדה"
+                    subtitle="נהל את ההגדרות הכלליות והזמנות"
+                    icon={Settings}
+                />
 
                 {message && (
                     <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
@@ -335,7 +337,7 @@ export default function PublicReservationSettings() {
                             <CardContent className="space-y-4">
                                 {/* Booking-page media: hero background (image/video) + body marketing video */}
                                 <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-3 space-y-3">
-                                    <div className="font-black text-sm text-indigo-900">🎬 מדיה לעמוד ההזמנה</div>
+                                    <div className="font-black text-sm text-indigo-900">מדיה לעמוד ההזמנה</div>
                                     <div>
                                         <Label>רקע ל-hero (מאחורי הלוגו)</Label>
                                         <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -438,7 +440,7 @@ export default function PublicReservationSettings() {
                                 </div>
 
                                 <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                                    <h4 className="font-semibold text-green-900 mb-2">🎯 איך זה עובד?</h4>
+                                    <h4 className="font-semibold text-green-900 mb-2">איך זה עובד?</h4>
                                     <ul className="text-sm text-green-800 space-y-1">
                                         <li>• לקוחות שמרוצים בסקר יראו הצעה להצטרף לקבוצה</li>
                                         <li>• לקוחות לא מרוצים יכנסו אוטומטית למועדון לקוחות לטיפול</li>
@@ -570,7 +572,7 @@ export default function PublicReservationSettings() {
                     <TabsContent value="confirm">
                         <Card>
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2">📄 עמוד אישור ההזמנה</CardTitle>
+                                <CardTitle className="flex items-center gap-2">עמוד אישור ההזמנה</CardTitle>
                                 <p className="text-xs text-gray-500">מה שהלקוח רואה בקישור האישור (ReservationView). כתובת + טלפון נלקחים מטאב "כללי".</p>
                             </CardHeader>
                             <CardContent className="space-y-5">

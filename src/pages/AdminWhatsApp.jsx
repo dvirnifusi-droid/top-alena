@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Loader2, MessageCircle, CheckCircle2, AlertTriangle, Send, Users } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 function StatusSection() {
     const [status, setStatus] = useState(null);
@@ -260,7 +261,7 @@ function TwilioCredsSection() {
         <Card className="mb-4 border-amber-300 bg-amber-50/50" dir="rtl">
             <CardContent className="p-4">
                 <h3 className="font-bold text-lg flex items-center gap-2 mb-1">
-                    🔑 עדכון Auth Token של Twilio
+                    עדכון Auth Token של Twilio
                 </h3>
                 <p className="text-xs text-gray-600 mb-3">
                     אם הסוכן לא מגיב ורואים שגיאת <b>401</b> — סימן שה-Auth Token התחלף ב-Twilio. העתק אותו מ-
@@ -296,10 +297,11 @@ export default function AdminWhatsApp() {
     const brandName = useTenantBranding()?.name || 'המסעדה';
     return (
         <div className="p-6 max-w-3xl mx-auto" dir="rtl">
-            <h1 className="text-2xl font-bold mb-2">💬 WhatsApp · Twilio</h1>
-            <p className="text-sm text-gray-600 mb-6">
-                סטטוס החיבור, שליחת בדיקה, ושליחות שיווקיות (broadcast) ללקוחות. הקוד מחבר אוטומטית כל קונפירמציית הזמנה — הדף הזה מאפשר לך לוודא שזה עובד ולשלוח באופן יזום.
-            </p>
+            <PageHeader
+                title="WhatsApp · Twilio"
+                subtitle="סטטוס החיבור, שליחת בדיקה, ושליחות שיווקיות (broadcast) ללקוחות. הקוד מחבר אוטומטית כל קונפירמציית הזמנה — הדף הזה מאפשר לך לוודא שזה עובד ולשלוח באופן יזום."
+                icon={MessageCircle}
+            />
 
             <StatusSection />
             <TwilioCredsSection />
@@ -308,7 +310,7 @@ export default function AdminWhatsApp() {
 
             <Card className="mt-6 bg-gray-50">
                 <CardContent className="p-4 text-xs text-gray-600 space-y-2">
-                    <p className="font-bold text-gray-800">📋 צעדי הקמה (חד-פעמי)</p>
+                    <p className="font-bold text-gray-800">צעדי הקמה (חד-פעמי)</p>
                     <ol className="list-decimal pr-5 space-y-1">
                         <li>Twilio Console → Messaging → Senders → WhatsApp Senders → + New Sender</li>
                         <li>בחר "Use a Twilio phone number" — בחר את המספר הקיים שלך</li>

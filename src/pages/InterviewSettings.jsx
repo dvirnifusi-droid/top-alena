@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import TimePicker from '@/components/shared/TimePicker';
+import PageHeader from '@/components/shared/PageHeader';
+import { Calendar } from 'lucide-react';
 
 // Owner-facing: weekly recurring interview slot definition.
 // Stored as InterviewSlotTemplate {weekday, time, duration_minutes, active}.
@@ -93,11 +95,11 @@ export default function InterviewSettings() {
 
   return (
     <div dir="rtl" className="max-w-3xl mx-auto p-4 space-y-5">
-      <div className="text-center">
-        <div className="text-4xl mb-1">📅</div>
-        <h1 className="text-2xl font-black text-slate-800">סלוטים לראיון עבודה</h1>
-        <p className="text-slate-500 text-sm">המועדים שמועמדים עם ציון 80+ יוכלו לבחור מתוכם</p>
-      </div>
+      <PageHeader
+        title="סלוטים לראיון עבודה"
+        subtitle="המועדים שמועמדים עם ציון 80+ יוכלו לבחור מתוכם"
+        icon={Calendar}
+      />
 
       <div className="bg-white rounded-2xl shadow border border-slate-200 p-4">
         <div className="flex justify-between items-center mb-3">

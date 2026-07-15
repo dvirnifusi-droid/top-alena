@@ -9,9 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash2, ArrowRight } from 'lucide-react';
+import { Plus, Edit, Trash2, ArrowRight, Building } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import PageHeader from '@/components/shared/PageHeader';
 
 function ProductForm({ product, supplierId, onSave, onCancel }) {
   const [formData, setFormData] = useState(
@@ -155,7 +156,7 @@ export default function SupplierDetails() {
   if (!supplier) return <div className="text-center p-8">לא נמצא ספק.</div>;
 
   return (
-    <div className="p-4 sm:p-8 bg-gradient-to-br from-orange-50 to-red-50 min-h-screen" dir="rtl">
+    <div className="p-4 sm:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
       <div className="max-w-7xl mx-auto space-y-8">
         <div>
             <Button asChild variant="outline">
@@ -163,12 +164,11 @@ export default function SupplierDetails() {
             </Button>
         </div>
         
-        <Card>
-            <CardHeader>
-                <CardTitle className="text-3xl">{supplier.company_name}</CardTitle>
-                <CardDescription>איש קשר: {supplier.contact_person} | {supplier.email}</CardDescription>
-            </CardHeader>
-        </Card>
+        <PageHeader
+            title={supplier.company_name}
+            subtitle={`איש קשר: ${supplier.contact_person} | ${supplier.email}`}
+            icon={Building}
+        />
 
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">

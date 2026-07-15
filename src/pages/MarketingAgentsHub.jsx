@@ -10,6 +10,7 @@ import { Loader2, Sparkles, Image as ImgIcon, TrendingUp, BookOpen, ChefHat, Mes
 import { toast } from 'sonner';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { isMainAlena } from '@/lib/tenant';
+import PageHeader from '@/components/shared/PageHeader';
 
 const AGENTS = [
   { key: 'vp_marketing',         label: 'VP Marketing (מנהל שיווק)',   group: 'leadership', icon: Crown,         desc: 'תגיד לו יעד עסקי — הוא ינתח מצב, יבנה תוכנית, ויחלק עבודה לכל הסוכנים' },
@@ -641,24 +642,25 @@ export default function MarketingAgentsHub() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto" dir="rtl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Megaphone className="w-6 h-6" /> VP Marketing — 11 סוכנים</h1>
-          <p className="text-slate-600 text-sm mt-1">צוות שיווק אוטונומי תחת סגן השיווק. סוכנים מבוססי-LLM פעילים מיד; סוכני מדיה ועיצוב חזותי דורשים מפתחות API.</p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button onClick={() => setShowPipeline(true)} className="bg-gradient-to-l from-[#A04A2E] to-[#A04A2E] hover:from-fuchsia-700 hover:to-[#7A3722] text-white">
-            <Zap className="w-4 h-4 ml-1" /> בנה קמפיין אוטומטי
-          </Button>
-          <Button variant="outline" onClick={() => setShowSecrets(true)}>
-            <Key className="w-4 h-4 ml-1" /> מפתחות API {metaTokenSet ? '✅' : '⚠️'}
-          </Button>
-          <Button variant="outline" onClick={() => setShowBriefs(true)}>
-            <Rocket className="w-4 h-4 ml-1" /> Briefs ({briefs.length})
-          </Button>
-          <Button variant="outline" onClick={() => setShowHistory(true)}>היסטוריית הרצות ({runs.length})</Button>
-        </div>
-      </div>
+      <PageHeader
+        title="VP Marketing — 11 סוכנים"
+        subtitle="צוות שיווק אוטונומי תחת סגן השיווק. סוכנים מבוססי-LLM פעילים מיד; סוכני מדיה ועיצוב חזותי דורשים מפתחות API."
+        icon={Megaphone}
+        action={
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={() => setShowPipeline(true)} className="bg-gradient-to-l from-[#A04A2E] to-[#A04A2E] hover:from-[#7A3722] hover:to-[#7A3722] text-white">
+              <Zap className="w-4 h-4 ml-1" /> בנה קמפיין אוטומטי
+            </Button>
+            <Button variant="outline" onClick={() => setShowSecrets(true)}>
+              <Key className="w-4 h-4 ml-1" /> מפתחות API {metaTokenSet ? '✅' : '⚠️'}
+            </Button>
+            <Button variant="outline" onClick={() => setShowBriefs(true)}>
+              <Rocket className="w-4 h-4 ml-1" /> Briefs ({briefs.length})
+            </Button>
+            <Button variant="outline" onClick={() => setShowHistory(true)}>היסטוריית הרצות ({runs.length})</Button>
+          </div>
+        }
+      />
 
       {GROUPS.map((g) => (
         <div key={g.key} className="mb-6">
