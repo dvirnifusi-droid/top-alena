@@ -1505,7 +1505,10 @@ export default function WorkScheduling() {
                                                                 // Color code: on-the-clock NOW = light green · past = muted ·
                                                                 // my shift = highlight · tip roles · else (today/future) = cream.
                                                                 const nkA = normClockName(assignment.employee_name);
-                                                                const isActiveNow = activeNow.has(String(assignment.employee_id)) || activeNow.has(`n:${nkA}`);
+                                                                // "On the clock NOW" green only makes sense on TODAY's card — an
+                                                                // employee clocked in now is working today's shift, not a past/future
+                                                                // one. Gating on today stops green bleeding onto already-passed days.
+                                                                const isActiveNow = dateStr === todayStr && (activeNow.has(String(assignment.employee_id)) || activeNow.has(`n:${nkA}`));
                                                                 let cardClass;
                                                                 if (isActiveNow) {
                                                                     cardClass = 'bg-green-100 border-2 border-green-400 hover:bg-green-200 text-green-900';
