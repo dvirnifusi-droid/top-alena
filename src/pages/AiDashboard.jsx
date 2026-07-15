@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PageGuard from '../components/shared/PageGuard';
+import PageHeader from '@/components/shared/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -400,13 +401,7 @@ function AiDashboardInner() {
         <div className="min-h-screen bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] p-6" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-8">
                 {/* Header */}
-                <div className="text-center">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-3">
-                        <Brain className="w-10 h-10 text-[#44512C]" />
-                        מרכז בקרת AI
-                    </h1>
-                    <p className="text-gray-600 text-lg">ניהול בסיס הידע של המערכת החכמה</p>
-                </div>
+                <PageHeader title="מרכז בקרת AI" subtitle="ניהול בסיס הידע של המערכת החכמה" icon={Brain} />
 
                 {/* AI Daily Summary */}
                 <AiDailySummaryWidget />
@@ -525,13 +520,13 @@ function AiDashboardInner() {
                 <Tabs defaultValue="menu" className="w-full">
                     <TabsList className="grid w-full grid-cols-3 bg-gradient-to-r from-white/80 via-white/60 to-white/80 backdrop-blur-xl p-2 h-auto rounded-2xl border border-white/20 shadow-xl">
                         <TabsTrigger value="menu" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-500 data-[state=active]:text-white transition-all duration-300">
-                            🍽️ ניהול תפריט
+                            ניהול תפריט
                         </TabsTrigger>
                         <TabsTrigger value="info" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#44512C] data-[state=active]:to-[#B89556] data-[state=active]:text-white transition-all duration-300">
-                            📋 מידע כללי על המסעדה
+                            מידע כללי על המסעדה
                         </TabsTrigger>
                         <TabsTrigger value="files" className="py-3 px-6 text-sm font-bold rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#A04A2E] data-[state=active]:to-[#A04A2E] data-[state=active]:text-white transition-all duration-300">
-                            📚 ידע של דביר
+                            ידע של דביר
                         </TabsTrigger>
                     </TabsList>
 

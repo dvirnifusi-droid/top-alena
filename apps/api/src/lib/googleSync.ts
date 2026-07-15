@@ -11,6 +11,7 @@
 // access_token, access_token_exp (epoch ms), email, and the calendar id
 // to write into (default 'primary'). No schema migration needed.
 import { prisma } from '../db.js';
+import { getBrandName } from './brandName.js';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
@@ -171,9 +172,10 @@ export async function createCalendarEvent(phone: string, params: {
   const calendarId = (row?.raw as any)?.calendar_id || 'primary';
   const start = new Date(params.whenIso);
   const end = new Date(start.getTime() + (params.durationMin || 60) * 60_000);
+  const brand = await getBrandName();
   const body = {
     summary: params.title,
-    description: params.description || 'נוצר על-ידי העוזר של עלינא ב-WhatsApp',
+    description: params.description || `נוצר על-ידי העוזר של ${brand} ב-WhatsApp`,
     start: { dateTime: start.toISOString(), timeZone: 'Asia/Jerusalem' },
     end: { dateTime: end.toISOString(), timeZone: 'Asia/Jerusalem' },
     reminders: { useDefault: true },

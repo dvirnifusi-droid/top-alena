@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Pencil, Trash2, Save, X, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, X, ToggleLeft, ToggleRight, Gamepad2 } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 const DEFAULT_QUESTION = { question: '', options: ['', '', '', ''], answer: 0, is_active: true };
 
@@ -62,31 +63,32 @@ export default function GamesAdmin() {
   };
 
   return (
-    <div className="p-4 sm:p-8 min-h-screen bg-[#FAF5E8]" dir="rtl">
+    <div className="p-4 sm:p-8 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-black text-gray-800">🎮 ניהול משחקי ממתינים</h1>
-            <p className="text-gray-500 text-sm">ערוך שאלות טריוויה שמוצגות ללקוחות בתור</p>
-          </div>
-          <Button onClick={openNew} className="bg-[#A04A2E] hover:bg-[#7A3722]">
-            <Plus className="w-4 h-4 ml-1" /> שאלה חדשה
-          </Button>
-        </div>
+        <PageHeader
+          title="ניהול משחקי ממתינים"
+          subtitle="ערוך שאלות טריוויה שמוצגות ללקוחות בתור"
+          icon={Gamepad2}
+          action={(
+            <Button onClick={openNew} className="bg-[#A04A2E] hover:bg-[#7A3722]">
+              <Plus className="w-4 h-4 ml-1" /> שאלה חדשה
+            </Button>
+          )}
+        />
 
         {/* Edit / New Form */}
         {editing && (
           <Card className="mb-6 border-[#D9BD83] bg-[#F4ECD8]">
             <CardHeader className="pb-3">
               <CardTitle className="text-base text-[#7A3722]">
-                {editing === 'new' ? '➕ הוספת שאלה חדשה' : '✏️ עריכת שאלה'}
+                {editing === 'new' ? 'הוספת שאלה חדשה' : 'עריכת שאלה'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <label className="text-sm font-bold text-gray-700 block mb-1">השאלה</label>
                 <input
-                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-400"
+                  className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[var(--brand-primary,#A04A2E)]"
                   value={form.question}
                   onChange={e => setForm({ ...form, question: e.target.value })}
                   placeholder="למשל: מה המנה הפופולרית ביותר?"
@@ -110,7 +112,7 @@ export default function GamesAdmin() {
                         {['א', 'ב', 'ג', 'ד'][i]}
                       </button>
                       <input
-                        className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-purple-400"
+                        className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[var(--brand-primary,#A04A2E)]"
                         value={opt}
                         onChange={e => setOption(i, e.target.value)}
                         placeholder={`תשובה ${['א', 'ב', 'ג', 'ד'][i]}`}

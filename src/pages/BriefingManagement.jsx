@@ -16,6 +16,7 @@ import { RestaurantProfile } from '@/entities/RestaurantProfile';
 import BriefEditor from '../components/briefing/BriefEditor';
 import BriefingAiGenerator from '@/components/ai/BriefingAiGenerator';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
+import PageHeader from '@/components/shared/PageHeader';
 
 export default function BriefingManagement() {
     const brandName = useTenantBranding()?.name || 'המסעדה';
@@ -174,15 +175,11 @@ export default function BriefingManagement() {
         <div className="min-h-screen bg-[#FAF5E8] p-3 sm:p-6" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-6">
                 {/* Header */}
-                <div className="bg-white rounded-2xl border p-5 shadow-sm flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-[#B89556] rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
-                        <FileText className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">ניהול תדריכים יומיים</h1>
-                        <p className="text-sm text-gray-500">יצירת תדריכים מקצועיים לצוות המסעדה</p>
-                    </div>
-                </div>
+                <PageHeader
+                    title="ניהול תדריכים יומיים"
+                    subtitle="יצירת תדריכים מקצועיים לצוות המסעדה"
+                    icon={FileText}
+                />
 
                 {/* Main Tabs */}
                 <Tabs value={activeTab} onValueChange={v => { setActiveTab(v); setCurrentBriefData(null); }}>

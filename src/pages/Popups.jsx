@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Plus, Edit2, Trash2, Eye, EyeOff, Bell, Upload, Search } from 'lucide-react';
 import PageGuard from '@/components/shared/PageGuard';
 import TimePicker from '@/components/shared/TimePicker';
+import PageHeader from '@/components/shared/PageHeader';
 
 const DISPLAY_TYPES = [
   { value: 'modal', label: 'מודאל (חוסם מסך)', icon: '🪟' },
@@ -207,15 +208,16 @@ function PopupsInner() {
 
   return (
     <div className="p-4 max-w-5xl mx-auto" dir="rtl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">ניהול פופ-אפים</h1>
-          <p className="text-gray-500 text-sm mt-1">הודעות מתוזמנות לעובדים ולמשתמשים</p>
-        </div>
-        <button onClick={openNew} className="flex items-center gap-2 bg-[#44512C] text-white px-4 py-2 rounded-lg hover:bg-[#44512C] font-medium">
-          <Plus size={18} /> פופ-אפ חדש
-        </button>
-      </div>
+      <PageHeader
+        title="ניהול פופ-אפים"
+        subtitle="הודעות מתוזמנות לעובדים ולמשתמשים"
+        icon={Bell}
+        action={(
+          <button onClick={openNew} className="flex items-center gap-2 bg-[#44512C] text-white px-4 py-2 rounded-lg hover:bg-[#44512C] font-medium">
+            <Plus size={18} /> פופ-אפ חדש
+          </button>
+        )}
+      />
 
       {loading ? (
         <div className="text-center text-gray-400 py-16">טוען...</div>

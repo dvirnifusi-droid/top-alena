@@ -9555,8 +9555,9 @@ registerFn('chatEventsInquiry', async ({ body }) => {
       ? c.event_time
       : (c.hours_window ? c.hours_window : null);
 
+    const brandForLoc = await getBrandName();
     const locationTxt = (() => {
-      if (c.location === 'restaurant' || /במסעדה|אצלכם|אצלנו/.test(String(c.location || ''))) return 'במסעדה (עלינא)';
+      if (c.location === 'restaurant' || /במסעדה|אצלכם|אצלנו/.test(String(c.location || ''))) return `במסעדה (${brandForLoc})`;
       const details = String(c.location_details || c.location || '').trim();
       if (details && details !== 'external') return `אירוע חוץ — ${details}`;
       if (c.location === 'external') return 'אירוע חוץ';

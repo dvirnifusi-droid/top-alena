@@ -92,25 +92,8 @@ const AuthenticatedApp = () => {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50" dir="rtl">
-          <div className="text-center space-y-6 p-8 bg-white rounded-2xl shadow-lg max-w-sm w-full">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-              <span className="text-3xl">🔐</span>
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">TOP APOLLO</h2>
-              <p className="text-slate-500">יש להתחבר כדי להמשיך</p>
-            </div>
-            <button
-              onClick={navigateToLogin}
-              className="w-full bg-green-700 hover:bg-green-800 text-white font-bold py-3 px-6 rounded-xl transition-colors duration-200"
-            >
-              התחברות למערכת
-            </button>
-          </div>
-        </div>
-      );
+      // Skip the intermediate "please log in" card — go straight to the login page.
+      return <Navigate to="/login" replace />;
     }
   }
 

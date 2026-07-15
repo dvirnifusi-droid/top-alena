@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { Sparkles } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 // Admin UI for SpecialPopup. Owner-editable marketing popups + funnel stats.
 // Routes: /SpecialsAdmin (auth required).
@@ -142,17 +144,17 @@ export default function SpecialsAdmin() {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Heebo:wght@300;400;500;600;700;900&display=swap'); .brand-display{font-family:'Frank Ruhl Libre',serif;font-weight:900}`}</style>
 
       <div className="max-w-6xl mx-auto space-y-6">
-        <header className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="text-xs font-bold uppercase tracking-[0.3em]" style={{ color: '#B89556' }}>ניהול שיווק</div>
-            <h1 className="brand-display text-3xl md:text-4xl mt-1" style={{ color: '#1F1B17' }}>פופאפים — עורך + סטטיסטיקה</h1>
-            <p className="text-sm mt-1" style={{ color: '#44512C' }}>הוסף/ערוך פופאפים שמופיעים על דף ההזמנות. נתונים ל-30 הימים האחרונים.</p>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={seedDefaults} className="px-4 py-2 rounded-xl text-sm font-bold border" style={{ background: '#FFFEFB', color: '#44512C', borderColor: 'rgba(68,81,44,0.30)' }}>טען ברירות מחדל</button>
-            <button onClick={startNew} className="px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#A04A2E', color: '#F4ECD8' }}>+ פופאפ חדש</button>
-          </div>
-        </header>
+        <PageHeader
+          title="פופאפים — עורך + סטטיסטיקה"
+          subtitle="הוסף/ערוך פופאפים שמופיעים על דף ההזמנות. נתונים ל-30 הימים האחרונים."
+          icon={Sparkles}
+          action={(
+            <div className="flex gap-2">
+              <button onClick={seedDefaults} className="px-4 py-2 rounded-xl text-sm font-bold border" style={{ background: '#FFFEFB', color: '#44512C', borderColor: 'rgba(68,81,44,0.30)' }}>טען ברירות מחדל</button>
+              <button onClick={startNew} className="px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#A04A2E', color: '#F4ECD8' }}>+ פופאפ חדש</button>
+            </div>
+          )}
+        />
 
         {err && <div className="rounded-xl p-3 text-sm" style={{ background: '#FFEBEB', color: '#A11A1A', border: '1px solid #F5C2C2' }}>{err}</div>}
         {msg && <div className="rounded-xl p-3 text-sm" style={{ background: '#E6F4D9', color: '#3C5A14', border: '1px solid #B8D687' }}>{msg}</div>}

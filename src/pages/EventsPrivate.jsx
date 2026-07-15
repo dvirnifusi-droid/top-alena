@@ -18,7 +18,7 @@ const UTM_SOURCES = [
   { key: 'whatsapp',  label: 'וואטסאפ אישי',     utm: 'whatsapp' },
   { key: 'qr',        label: 'QR במסעדה',         utm: 'qr_print' },
 ];
-const PUBLIC_BASE_URL = 'https://topalena.com/EventsInquiry';
+const PUBLIC_BASE_URL = (typeof window !== 'undefined' ? window.location.origin : 'https://topalena.com') + '/EventsInquiry';
 const withUtm = (utm) => utm ? `${PUBLIC_BASE_URL}?utm_source=${encodeURIComponent(utm)}` : PUBLIC_BASE_URL;
 
 function EventsLinkCard() {

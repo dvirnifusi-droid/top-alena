@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import ConfettiEffect from '../components/gamification/ConfettiEffect';
+import { Trophy } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 export default function GamificationAdmin() {
   const [pendingRedemptions, setPendingRedemptions] = useState([]);
@@ -118,12 +120,14 @@ export default function GamificationAdmin() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF5E8] p-6" dir="rtl">
+    <div className="min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] p-6" dir="rtl">
       <ConfettiEffect trigger={showConfetti} message="בוצע! 🎉" emoji="✅" onDone={() => setShowConfetti(false)} />
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-black text-gray-800 mb-6 flex items-center gap-3">
-          🎮 מרכז גמיפיקציה - ניהול
-        </h1>
+        <PageHeader
+          title="מרכז גמיפיקציה - ניהול"
+          subtitle="ניהול פדיונות, אתגרים, בונוסים ופרסים"
+          icon={Trophy}
+        />
 
         <Tabs defaultValue="redemptions">
           <TabsList className="w-full mb-6 flex-wrap h-auto gap-1 p-1">
@@ -169,7 +173,7 @@ export default function GamificationAdmin() {
           {/* אתגר יומי */}
           <TabsContent value="challenge">
             <Card>
-              <CardHeader><CardTitle>🎯 הגדר אתגר להיום</CardTitle></CardHeader>
+              <CardHeader><CardTitle>הגדר אתגר להיום</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 {todayChallenge && (
                   <div className="p-3 bg-green-50 border border-green-200 rounded-xl mb-4">
@@ -197,7 +201,7 @@ export default function GamificationAdmin() {
           {/* בונוס ידני */}
           <TabsContent value="bonus">
             <Card>
-              <CardHeader><CardTitle>🪙 הענק מטבעות ידנית לעובד</CardTitle></CardHeader>
+              <CardHeader><CardTitle>הענק מטבעות ידנית לעובד</CardTitle></CardHeader>
               <CardContent>
                 <BonusForm employees={employees} onBonus={handleBonusCoins} />
               </CardContent>
@@ -207,7 +211,7 @@ export default function GamificationAdmin() {
           {/* שאאוט */}
           <TabsContent value="shoutout">
             <Card>
-              <CardHeader><CardTitle>🔥 פרסם שאאוט לעובד מצטיין</CardTitle></CardHeader>
+              <CardHeader><CardTitle>פרסם שאאוט לעובד מצטיין</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex gap-2">
                   <select
@@ -236,7 +240,7 @@ export default function GamificationAdmin() {
           {/* לוח מובילים */}
           <TabsContent value="leaderboard">
             <Card>
-              <CardHeader><CardTitle>🏆 לוח מובילי מטבעות</CardTitle></CardHeader>
+              <CardHeader><CardTitle>לוח מובילי מטבעות</CardTitle></CardHeader>
               <CardContent className="space-y-2">
                 {leaderboard.map(([name, coins], i) => (
                   <div key={name} className="flex items-center gap-3 p-3 bg-white rounded-xl border">
@@ -255,7 +259,7 @@ export default function GamificationAdmin() {
             <div className="space-y-4">
               {/* הוספת פרס חדש */}
               <Card>
-                <CardHeader><CardTitle>➕ {editingReward ? 'עריכת פרס' : 'הוסף פרס חדש'}</CardTitle></CardHeader>
+                <CardHeader><CardTitle>{editingReward ? 'עריכת פרס' : 'הוסף פרס חדש'}</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex gap-2">
                     <Input placeholder="אמוג'י" value={newReward.emoji} onChange={e => setNewReward(p => ({ ...p, emoji: e.target.value }))} className="w-20" />
@@ -294,7 +298,7 @@ export default function GamificationAdmin() {
 
               {/* פרסים כשירים לקופסה */}
               <Card className="border-2 border-orange-200 bg-orange-50">
-                <CardHeader><CardTitle>🎁 פרסים בקופסת ההפתעה</CardTitle></CardHeader>
+                <CardHeader><CardTitle>פרסים בקופסת ההפתעה</CardTitle></CardHeader>
                 <CardContent>
                   <p className="text-sm text-gray-600 mb-3">סמן אילו פרסים יכולים לצאת בקופסת ההפתעה:</p>
                   {rewards.filter(r => r.is_active).length === 0 ? (
@@ -327,8 +331,8 @@ export default function GamificationAdmin() {
               </Card>
 
               {/* הגדרות קופסת הפתעה */}
-              <Card className="border-2 border-purple-200 bg-[#F4ECD8]">
-                <CardHeader><CardTitle>🎲 הגדרות קופסת הפתעה</CardTitle></CardHeader>
+              <Card className="border-2 border-[#D9BD83] bg-[#F4ECD8]">
+                <CardHeader><CardTitle>הגדרות קופסת הפתעה</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center gap-3 flex-wrap">
                     <label className="text-sm font-medium whitespace-nowrap">% סיכוי לפרס אמיתי:</label>

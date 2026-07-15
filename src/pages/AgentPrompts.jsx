@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
+import { Bot } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 // One screen to edit the system_prompt of every Agent. Owner-only feature
 // — the AI agents are dark without a prompt, and there was no UI to set
@@ -107,12 +109,7 @@ export default function AgentPrompts() {
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4" dir="rtl">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-black text-slate-800">🤖 פרומפטים של הסוכנים</h1>
-          <p className="text-slate-500 text-sm">כתוב לכל סוכן מי הוא, מה תפקידו ואיך לענות. בלי פרומפט — הסוכן לא יודע מה לעשות.</p>
-        </div>
-      </div>
+      <PageHeader title="פרומפטים של הסוכנים" subtitle="כתוב לכל סוכן מי הוא, מה תפקידו ואיך לענות. בלי פרומפט — הסוכן לא יודע מה לעשות." icon={Bot} />
 
       {/* Stats */}
       <section className="grid grid-cols-3 gap-2">

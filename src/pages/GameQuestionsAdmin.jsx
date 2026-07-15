@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Edit2, Save, X } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, ListChecks } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 const CATEGORIES = {
   friends: '👯 ארוחת חברים (50)',
@@ -83,25 +84,25 @@ export default function GameQuestionsAdmin() {
   const activeQuestions = questions.filter(q => q.is_active).length;
 
   return (
-    <div className="p-4 sm:p-6 min-h-screen bg-[#FAF5E8]" dir="rtl">
-      {/* כותרת */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-gray-800">📝 ניהול שאלות המשחקים</h1>
-          <p className="text-gray-500 text-sm">עריכה והוספה של שאלות למשחקי קבוצה</p>
-        </div>
-        <Button
-          onClick={() => {
-            setFormData({ question: '', category: 'friends' });
-            setEditingId(null);
-            setShowForm(true);
-          }}
-          className="bg-primary hover:bg-primary/90 text-white font-black py-2 px-4 rounded-lg flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          הוסף שאלה
-        </Button>
-      </div>
+    <div className="p-4 sm:p-6 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
+      <PageHeader
+        title="ניהול שאלות המשחקים"
+        subtitle="עריכה והוספה של שאלות למשחקי קבוצה"
+        icon={ListChecks}
+        action={(
+          <Button
+            onClick={() => {
+              setFormData({ question: '', category: 'friends' });
+              setEditingId(null);
+              setShowForm(true);
+            }}
+            className="bg-primary hover:bg-primary/90 text-white font-black py-2 px-4 rounded-lg flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            הוסף שאלה
+          </Button>
+        )}
+      />
 
       {/* סטטיסטיקה */}
       <div className="grid grid-cols-2 gap-3 mb-6">
@@ -124,7 +125,7 @@ export default function GameQuestionsAdmin() {
         <Card className="mb-6 border-2 border-primary">
           <CardContent className="p-4 space-y-3">
             <h3 className="font-bold text-gray-800">
-              {editingId ? '✏️ עריכת שאלה' : '➕ שאלה חדשה'}
+              {editingId ? 'עריכת שאלה' : 'שאלה חדשה'}
             </h3>
 
             <div>
