@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, AlertTriangle } from 'lucide-react';
+import { Trash2, AlertTriangle, Star, Plus } from 'lucide-react';
 import { he } from 'date-fns/locale';
 import { format } from 'date-fns';
 import TimePicker from '../shared/TimePicker';
@@ -42,7 +42,7 @@ const filterPositionsByShiftType = (positions, shiftType) => {
     return positions.filter(position => !excludedPositions.includes(position.position_name));
 };
 
-export default function QuickAssignDialog({ isOpen, onOpenChange, context, employees, positions, onAction }) {
+export default function QuickAssignDialog({ isOpen, onOpenChange, context, employees, positions, onAction, availabilities = [], weekShifts = [] }) {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
     const [selectedPosition, setSelectedPosition] = useState('');
     const [employeeSearch, setEmployeeSearch] = useState('');
@@ -81,6 +81,53 @@ export default function QuickAssignDialog({ isOpen, onOpenChange, context, emplo
             }
         }
     }, [isOpen, context, isEditMode]);
+
+    // ── מי הגיש זמינות למשמרת הזו (יום + סוג משמרת) ──
+    // מסנן את מי שכבר שובץ למשמרת (כל תפקיד) ואת מי שבחופשה, כדי שהרשימה
+    // תצטמצם ככל שמשבצים. shift_preference: 'lunch'/'dinner'/'both'.
+    const submitters = React.useMemo(() => {
+        if (!isOpen || !context?.date || isEditMode) return [];
+        const dateStr = format(context.date, 'yyyy-MM-dd');
+        const slice = (d) => (typeof d === 'string' ? d.slice(0, 10) : format(new Date(d), 'yyyy-MM-dd'));
+        // already assigned to this day+shift (any position)
+        const assigned = new Set();
+        (weekShifts || []).forEach(s => {
+            if (slice(s.date) === dateStr && s.shift_type === context.shiftType) {
+                (s.assigned_staff || []).forEach(a => a.employee_id && assigned.add(a.employee_id));
+            }
+        });
+        const byId = new Map();
+        (availabilities || []).forEach(av => {
+            if (slice(av.date) !== dateStr) return;
+            if (av.availability_type === 'unavailable') return;
+            const sp = av.shift_preference || 'both';
+            if (sp !== 'both' && sp !== context.shiftType) return;
+            if (assigned.has(av.employee_id)) return;
+            if (onLeaveEmployeeIds.has(av.employee_id)) return;
+            if (byId.has(av.employee_id)) return;
+            const emp = employees.find(e => e.id === av.employee_id);
+            byId.set(av.employee_id, {
+                id: av.employee_id,
+                name: emp?.full_name || av.employee_name,
+                preferred: av.availability_type === 'preferred',
+                reason: av.reason || '',
+                positions: Array.isArray(av.positions) ? av.positions : [],
+            });
+        });
+        return [...byId.values()];
+    }, [isOpen, context, isEditMode, availabilities, weekShifts, onLeaveEmployeeIds, employees]);
+
+    // הוספה מהירה של מגיש-זמינות ישירות לתא (עם תפקיד+שעות ברירת-המחדל של התא)
+    const quickAddSubmitter = (empId, preferredPosition) => {
+        const pos = preferredPosition || selectedPosition || context?.positionName || '';
+        const isUnassigned = pos === 'בלתם';
+        onAction({
+            employee_id: empId,
+            position: pos,
+            start_time: isUnassigned ? '' : startTime,
+            end_time: isUnassigned ? '' : endTime,
+        }, 'save');
+    };
 
     const handleSubmit = () => {
         if (!selectedEmployeeId || !selectedPosition) {
@@ -124,6 +171,38 @@ export default function QuickAssignDialog({ isOpen, onOpenChange, context, emplo
                     {!isEditMode && <DialogDescription>שבץ עובד לתפקיד ולשעות ספציפיות במשמרת.</DialogDescription>}
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
+                    {!isEditMode && (
+                        <div className="rounded-xl border border-[#EADFC8] bg-[#FBF6EA] p-3">
+                            <p className="text-xs font-bold text-[#3A2E1E] mb-2 flex items-center gap-1.5">
+                                <span>הגישו זמינות ל{shiftTypesConfig[context?.shiftType]?.label || 'משמרת'} ביום זה</span>
+                                <span className="text-[#8A7C64] font-normal">({submitters.length})</span>
+                            </p>
+                            {submitters.length === 0 ? (
+                                <p className="text-xs text-[#8A7C64]">אף אחד שעדיין לא שובץ לא הגיש זמינות למשמרת הזו.</p>
+                            ) : (
+                                <div className="flex flex-wrap gap-1.5">
+                                    {submitters.map(s => {
+                                        const posMatch = (s.positions || []).find(p => filteredPositions.some(fp => fp.position_name === p));
+                                        return (
+                                            <button
+                                                key={s.id}
+                                                type="button"
+                                                onClick={() => quickAddSubmitter(s.id, posMatch)}
+                                                title={s.reason ? `הערה: ${s.reason}` : 'הוסף למשמרת'}
+                                                className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold text-white shadow-sm active:scale-95 transition-transform"
+                                                style={{ background: s.preferred ? 'var(--brand-primary, #A04A2E)' : '#6B7A47' }}
+                                            >
+                                                {s.preferred && <Star className="w-3 h-3" fill="currentColor" />}
+                                                {s.name}
+                                                {posMatch && <span className="opacity-80">· {posMatch}</span>}
+                                                <Plus className="w-3 h-3" />
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="employee" className="text-right">עובד</Label>
                         <Select onValueChange={setSelectedEmployeeId} value={selectedEmployeeId}>

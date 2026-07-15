@@ -1745,6 +1745,8 @@ export default function WorkScheduling() {
                     employees={employees}
                     positions={positions}
                     onAction={handleQuickAssignAction}
+                    availabilities={availabilities}
+                    weekShifts={week}
                 />
             )}
 
