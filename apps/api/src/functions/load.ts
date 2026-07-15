@@ -21,6 +21,7 @@ import { fireTriggers } from '../lib/triggers.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
 import { invokeLLM, generateImage } from '../lib/llm.js';
+import { scanContent, importScanned } from '../lib/aiScanner.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
 import { uploadStreamToS3 } from '../lib/storage.js';
 import { MODULE_CATALOG, SUB_FEATURE_CATALOG } from '../lib/modules.js';
@@ -503,6 +504,26 @@ registerFn('extractMenuFromPhotos', async ({ body }) => {
 
   if (result && !result.items && Array.isArray(result.dishes)) result.items = result.dishes;
   return { menu: result };
+});
+
+// ── Universal AI scanner ──────────────────────────
+// Classify any document/photo/text the owner sends, parse it into normalized
+// preview rows (NEVER writes); importScanned writes the confirmed rows. Core
+// lives in lib/aiScanner.ts so the WhatsApp inbound webhook reuses it verbatim.
+registerFn('aiScanContent', async ({ body, user }) => {
+  assertAiFilesAdmin(user);
+  const { file_url, file_urls, text, hint } = (body as any) || {};
+  const fileUrls: string[] = Array.isArray(file_urls) ? file_urls.filter(Boolean) : (file_url ? [file_url] : []);
+  return scanContent({ fileUrls, text, hint });
+});
+
+// Write the (possibly owner-edited) parsed rows into the right tables. Explicit
+// confirm step — never called automatically by aiScanContent.
+registerFn('importScanned', async ({ body, user }) => {
+  assertAiFilesAdmin(user);
+  const { classification, parsed } = (body as any) || {};
+  if (!classification || !parsed) throw new Error('classification and parsed required');
+  return importScanned(classification, parsed);
 });
 
 // Expand a task into a detailed step-by-step plan (owner asks "how do I do this?").

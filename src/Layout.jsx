@@ -6,7 +6,7 @@ import VoiceControl from "@/components/voice/VoiceControl";
 import PinGate, { PIN_LOCKED_PAGES } from "@/components/shared/PinGate";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
-  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield, Lock, ShoppingCart
+  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield, Lock, ShoppingCart, ScanLine
 } from "lucide-react";
 import {
   Sidebar, SidebarContent,
@@ -57,6 +57,7 @@ const adminLinks = [
   { title: "לוח בקרה", url: createPageUrl("Dashboard"), icon: LayoutGrid, color: "cinnamon" },
 
   { title: "🤖 כלי AI", url: createPageUrl("AIHub"), icon: Sparkles, color: "gold" },
+  { title: "🔍 סורק חכם", url: createPageUrl("Scanner"), icon: ScanLine, color: "gold" },
   { title: "💰 עלויות תפעול", url: createPageUrl("OperatingCosts"), icon: Wallet, isSubItem: true, color: "gold" },
 
   { title: "תפעול המסעדה", url: "#", icon: Utensils, isCategory: true, color: "cinnamon" },

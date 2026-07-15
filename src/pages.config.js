@@ -128,6 +128,7 @@ import StoriesNotifications from './pages/StoriesNotifications';
 import SupplierDetails from './pages/SupplierDetails';
 import Suppliers from './pages/Suppliers';
 import OrderList from './pages/OrderList';
+import Scanner from './pages/Scanner';
 import OperatingCosts from './pages/OperatingCosts';
 import SurveyQRCodes from './pages/SurveyQRCodes';
 import TablesManagement from './pages/TablesManagement';
@@ -260,6 +261,7 @@ export const PAGES = {
     "SupplierDetails": SupplierDetails,
     "Suppliers": Suppliers,
     "OrderList": OrderList,
+    "Scanner": Scanner,
     "OperatingCosts": OperatingCosts,
     "SurveyQRCodes": SurveyQRCodes,
     "TablesManagement": TablesManagement,
