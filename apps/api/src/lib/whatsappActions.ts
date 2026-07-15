@@ -942,6 +942,202 @@ async function executeAction(exec: any): Promise<string> {
       const word = exec.decision === 'approved' ? 'אושרה' : 'נדחתה';
       return `✅ בקשת ההחלפה של *${exec.requester_name}* ${word}.`;
     }
+    // ═══ Owner-agent action pack (10 capabilities) ═══
+    case 'create_reservation': {
+      // Mirror createPublicReservation (load.ts:7864): date = midnight-UTC of the
+      // day, time raw "HH:mm", confirmed status.
+      const bookingDate = new Date(`${exec.date}T00:00:00.000Z`);
+      await (prisma as any).reservation.create({
+        data: {
+          customer_name: exec.customer_name,
+          customer_phone: exec.customer_phone || null,
+          date: bookingDate,
+          time: exec.time,
+          party_size: exec.party_size,
+          status: 'confirmed',
+          is_standby: false,
+          reservation_end_time: exec.reservation_end_time || null,
+          special_requests: exec.special_requests || null,
+          source: exec.source || 'whatsapp',
+        } as any,
+      });
+      return `✅ נשמרה הזמנה ל-*${exec.customer_name}* · ${exec.party_size} סועדים · ${exec.date} ${exec.time}${exec.customer_phone ? ` · ${exec.customer_phone}` : ''}.`;
+    }
+    case 'cancel_reservation': {
+      // Mirror cancelReservationByToken (load.ts:17315).
+      await (prisma as any).reservation.update({
+        where: { id: exec.reservation_id },
+        data: {
+          status: 'cancelled',
+          cancelled_at: new Date(),
+          cancellation_reason: exec.reason || 'בוטל ע״י המנהל ב-WhatsApp',
+        } as any,
+      });
+      return `✅ ההזמנה של *${exec.customer_name || ''}* (${exec.date || ''} ${exec.time || ''}) בוטלה.`;
+    }
+    case 'lock_tips': {
+      // Mirror the Tips.jsx lock write (status/locked_by/locked_at), scoped to the
+      // UTC day (+ optional shift_type); skips reports already locked.
+      const day0 = new Date(`${exec.date}T00:00:00.000Z`);
+      const day1 = new Date(`${exec.date}T23:59:59.999Z`);
+      const res = await (prisma as any).tipReport.updateMany({
+        where: {
+          date: { gte: day0, lte: day1 },
+          ...(exec.shift_type ? { shift_type: exec.shift_type } : {}),
+          NOT: { status: 'locked' },
+        },
+        data: { status: 'locked', locked_by: exec.locked_by || 'whatsapp', locked_at: new Date() },
+      });
+      const shiftHe = exec.shift_type ? ` (${exec.shift_type === 'lunch' ? 'צהריים' : 'ערב'})` : '';
+      return `✅ הטיפים של ${exec.date}${shiftHe} ננעלו (${res?.count ?? 0} דו"ח).`;
+    }
+    case 'mark_supplier_ordered': {
+      // Mirror markSupplierOrdered (load.ts:6592).
+      await (prisma as any).$executeRawUnsafe(
+        `UPDATE "SupplierOrderList" SET "last_ordered_at"=NOW(), "updatedAt"=NOW() WHERE id=$1`,
+        exec.supplier_id,
+      );
+      return `✅ סימנתי שהזמנת מ-*${exec.supplier_name}*. לא אשלח תזכורת ליומיים הקרובים.`;
+    }
+    case 'open_incident': {
+      const inc = await (prisma as any).incident.create({
+        data: {
+          incident_number: `WA-${Date.now()}`,
+          title: exec.title,
+          description: exec.description,
+          category: exec.category || 'maintenance',   // REQUIRED col — must be set on raw create
+          severity: exec.severity || 'medium',
+          status: 'open',
+          visibility_level: 'managers_and_employees',
+          reported_by: exec.reported_by || 'מנהל (WhatsApp)',
+          incident_date: new Date(),
+        } as any,
+      });
+      return `🔧 נפתחה תקלה *${exec.title}* (חומרה ${exec.severity}). מס' ${inc.incident_number}.`;
+    }
+    case 'resolve_incident':
+      // Mirror clearAllIncidents (load.ts:6329).
+      await (prisma as any).incident.update({
+        where: { id: exec.incident_id },
+        data: { status: 'resolved', resolution_date: new Date() },
+      });
+      return `✅ התקלה *${exec.incident_title || ''}* סומנה כטופלה.`;
+    case 'mark_expense_paid':
+      // Mirror markCashFlowEntryPaid (load.ts:11266).
+      await (prisma as any).$executeRawUnsafe(
+        `UPDATE "CashFlowEntry" SET status = 'paid', paid_at = NOW(), "updatedAt" = NOW() WHERE id = $1`,
+        exec.entry_id,
+      );
+      return `💸 ההוצאה *${exec.expense_label || ''}*${exec.amount ? ` (₪${exec.amount})` : ''} סומנה כשולמה.`;
+    case 'set_dish_price': {
+      // Mirror updateRecipeSalePrice (load.ts:11112).
+      await (prisma as any).$executeRawUnsafe(
+        `UPDATE "Recipe" SET sale_price = $1, "updatedAt" = NOW() WHERE id = $2`,
+        exec.sale_price, exec.recipe_id,
+      );
+      // Best-effort food-cost% ripple — helper isn't exported from load.ts, so skip silently.
+      try {
+        const mod: any = await import('../functions/load.js');
+        if (typeof mod.recomputeAllRecipeCosts === 'function') await mod.recomputeAllRecipeCosts();
+      } catch { /* recompute helper unavailable — sale_price still saved */ }
+      return `🍽️ מחיר המנה *${exec.recipe_name}* עודכן ל-₪${exec.sale_price}.`;
+    }
+    case 'invite_employee': {
+      // Mirror inviteEmployeeViaWhatsApp (load.ts:23268): token + PendingInvitation
+      // row + WhatsApp link to /EmployeeComplete.
+      const { randomUUID } = await import('node:crypto');
+      const brand = (await (await import('./brandName.js')).getBrandName());
+      const fullName = exec.full_name;
+      const empPhone = exec.phone;
+      const token = randomUUID().replace(/-/g, '').slice(0, 24);
+      try {
+        await (prisma as any).pendingInvitation.create({ data: { token, full_name: fullName, phone: empPhone, status: 'sent' } });
+      } catch {
+        await (prisma as any).$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS "PendingInvitation" (
+            "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
+            "token" TEXT NOT NULL UNIQUE,
+            "full_name" TEXT NOT NULL,
+            "phone" TEXT NOT NULL,
+            "email" TEXT,
+            "role" TEXT,
+            "status" TEXT NOT NULL DEFAULT 'sent',
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "completed_at" TIMESTAMP(3)
+          );
+        `);
+        await (prisma as any).pendingInvitation.create({ data: { token, full_name: fullName, phone: empPhone, status: 'sent' } });
+      }
+      const origin = process.env.PUBLIC_BASE_URL || `https://${process.env.TENANT_SLUG || 'topalena'}.topalena.com`;
+      const link = `${origin}/EmployeeComplete?t=${token}`;
+      const msg = `שלום ${fullName} 🌿\nהוזמנת להצטרף לצוות ${brand}.\nכדי להשלים את הפרטים (תפקיד, מייל) — לחץ כאן:\n${link}\n\nזה ייקח דקה 🚀`;
+      await sendWhatsApp(empPhone, msg);
+      return `✅ הזמנה נשלחה ל-*${fullName}* (${empPhone}). כשישלים פרטים הוא יופיע ב"ניהול עובדים".`;
+    }
+    case 'remove_from_shift': {
+      // Reverse of shift_assign — mirror the repo's own unassign filter.
+      const all: any[] = await (prisma as any).workShift.findMany({ orderBy: { date: 'desc' }, take: 2000 });
+      const shift = all.find((s: any) => {
+        const d = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
+        return d === exec.date && s.shift_type === exec.shift_type;
+      });
+      const he = exec.shift_type === 'lunch' ? 'צהריים' : 'ערב';
+      if (!shift) return `ℹ️ לא נמצאה משמרת ${he} בתאריך ${exec.date}.`;
+      const current: any[] = shift.assigned_staff || [];
+      if (!current.some((a: any) => a.employee_id === exec.employee_id)) {
+        return `ℹ️ ${exec.employee_name} כבר לא משובץ למשמרת הזו.`;
+      }
+      const newStaff = current.filter((a: any) => a.employee_id !== exec.employee_id);
+      await (prisma as any).workShift.update({ where: { id: shift.id }, data: { assigned_staff: newStaff } });
+      return `✅ ${exec.employee_name} הוסר מ${he} ${exec.date}.`;
+    }
+    case 'publish_schedule': {
+      // No "publish finalized schedule" concept exists — message each next-week
+      // assigned employee their shifts. getNextWeekDates() isn't exported.
+      const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+      const ilDay = dayMap[new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short' }).format(new Date())] ?? 0;
+      const daysUntilNextSunday = ilDay === 0 ? 7 : 7 - ilDay;
+      const weekSet = new Set<string>();
+      for (let i = 0; i < 7; i++) { const d = new Date(); d.setUTCDate(d.getUTCDate() + daysUntilNextSunday + i); weekSet.add(d.toISOString().slice(0, 10)); }
+      const all: any[] = await (prisma as any).workShift.findMany({ orderBy: { date: 'desc' }, take: 2000 });
+      const byEmp = new Map<string, { name: string; lines: any[] }>();
+      for (const s of all) {
+        const d = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
+        if (!weekSet.has(d)) continue;
+        for (const a of (s.assigned_staff || [])) {
+          if (!a?.employee_id) continue;
+          if (!byEmp.has(a.employee_id)) byEmp.set(a.employee_id, { name: a.employee_name, lines: [] });
+          byEmp.get(a.employee_id)!.lines.push({ date: d, shift_type: s.shift_type, start: a.start_time, end: a.end_time, position: a.position });
+        }
+      }
+      if (!byEmp.size) return 'ℹ️ אין משמרות משובצות לשבוע הבא. בנה את הסידור קודם.';
+      const emps: any[] = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 500 });
+      const phoneById = new Map<string, string>(emps.filter((e: any) => e.phone).map((e: any) => [e.id, e.phone] as [string, string]));
+      const dh = (ymd: string) => `${ymd.slice(8, 10)}.${ymd.slice(5, 7)}`;
+      let sent = 0, noPhone = 0;
+      for (const [empId, info] of byEmp) {
+        const p = phoneById.get(empId);
+        if (!p) { noPhone++; continue; }
+        info.lines.sort((a: any, b: any) => a.date.localeCompare(b.date));
+        const body = info.lines.map((l: any) => `• ${dh(l.date)} · ${l.shift_type === 'lunch' ? 'צהריים' : 'ערב'} · ${l.start}-${l.end}${l.position ? ` · ${l.position}` : ''}`).join('\n');
+        const msg = `*היי ${info.name}* 👋\nהסידור לשבוע הבא פורסם. המשמרות שלך:\n\n${body}\n\nבהצלחה! 🔥`;
+        try { await sendWhatsApp(p, msg); sent++; } catch (e: any) { console.warn('[publish_schedule] failed', p, e?.message); }
+      }
+      return `📢 הסידור פורסם — נשלח ל-*${sent}* עובדים${noPhone ? ` (${noPhone} ללא טלפון על הכרטיס)` : ''}.`;
+    }
+    case 'approve_event': {
+      // Core status change from approveEventBooking (load.ts:11881). Omits the
+      // Reservation-create + payment_status side-effects + customer notice trigger.
+      const booking: any = await (prisma as any).eventBooking.findUnique({ where: { id: exec.booking_id } });
+      if (!booking) return '❌ ההזמנה לא נמצאה (אולי נמחקה).';
+      if (booking.approval_status === 'approved') return `ℹ️ האירוע של ${booking.customer_name || 'הלקוח'} כבר אושר.`;
+      await (prisma as any).eventBooking.update({
+        where: { id: exec.booking_id },
+        data: { approval_status: 'approved', status: 'confirmed', updated_date: new Date().toISOString() },
+      });
+      return `✅ אירוע של *${exec.customer_name || booking.customer_name || 'לקוח'}* (${booking.event_date}${booking.guest_count ? ` · ${booking.guest_count} סועדים` : ''}) אושר.`;
+    }
     case 'employee_shifts_batch': {
       const target = exec.target_phone || exec.from_phone || '';
       if (!target) throw new Error('missing target phone');

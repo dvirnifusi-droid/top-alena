@@ -379,9 +379,683 @@ const TOOL_DECLARATIONS = [
     description: 'List all active scheduling rules the manager set. Use when the manager asks "מה החוקים?", "אילו כללים הגדרתי?", "תראה את החוקים לסידור".',
     parameters: { type: 'OBJECT', properties: {} },
   },
+  // ─── Reservations (manager-level) ──────────────────────────────────────────
+  {
+    name: 'check_availability',
+    description: 'בדיקת זמינות לשולחן/הזמנה במסעדה. השתמש כשהמשתמש שואל "יש מקום ל-6 בשבת ב-20:00?", "יש מקום מחר בערב?", "כמה מקום פנוי ב-21:00?", "אפשר לשבת שמונה אנשים ביום שישי?". קריאה בלבד — מחזיר כמה מקומות תפוסים/פנויים במשבצת ה-15 דקות המבוקשת. אל תשתמש להזמנה בפועל.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        party_size: { type: 'NUMBER', description: 'מספר הסועדים' },
+        date: { type: 'STRING', description: 'YYYY-MM-DD או ביטוי עברי: היום/מחר/מחרתיים/שבת/ראשון' },
+        time: { type: 'STRING', description: 'שעה בפורמט HH:MM (שעון ישראל). אם חסר — המערכת תבקש שעה.' },
+      },
+      required: ['party_size', 'date'],
+    },
+  },
+  {
+    name: 'propose_create_reservation',
+    description: 'הצעת יצירת הזמנת שולחן חדשה על שם לקוח. השתמש כשהמשתמש אומר "תזמין שולחן לכהן ל-4 בשבת 20:00", "תרשום הזמנה למשפחת לוי 6 אנשים מחר ב-21:00", "תכניס הזמנה ל...". המערכת תבקש אישור "כן" מהמשתמש לפני שמירה — אתה לא צריך לבקש אישור בעצמך.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        customer_name: { type: 'STRING', description: 'שם הלקוח שההזמנה על שמו' },
+        party_size: { type: 'NUMBER', description: 'מספר הסועדים' },
+        date: { type: 'STRING', description: 'YYYY-MM-DD או ביטוי עברי: היום/מחר/שבת/ראשון' },
+        time: { type: 'STRING', description: 'שעה בפורמט HH:MM (שעון ישראל)' },
+        customer_phone: { type: 'STRING', description: 'טלפון הלקוח (אופציונלי)' },
+        special_requests: { type: 'STRING', description: 'בקשות מיוחדות (אופציונלי)' },
+      },
+      required: ['customer_name', 'party_size', 'date', 'time'],
+    },
+  },
+  {
+    name: 'propose_cancel_reservation',
+    description: 'הצעת ביטול הזמנת שולחן קיימת. השתמש כשהמשתמש אומר "תבטל את ההזמנה של כהן", "בטל את השולחן ל-8 של מחר", "תבטל את ההזמנה מחר בערב". חפש לפי שם לקוח ו/או תאריך. אם יש כמה התאמות — המערכת תחזיר רשימה ותצטרך לשאול איזו. המערכת תבקש אישור "כן" לפני הביטול.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        customer_name: { type: 'STRING', description: 'שם הלקוח (חלקי מספיק)' },
+        date: { type: 'STRING', description: 'תאריך ההזמנה YYYY-MM-DD או ביטוי עברי (אופציונלי, מצמצם התאמות)' },
+      },
+    },
+  },
+  // ─── Revenue / ordering / tips (manager-level) ─────────────────────────────
+  {
+    name: 'get_today_revenue',
+    description: 'הכנסות ומצב המכירות של היום עכשיו (Beecomm בית-עסק + Gomiley משלוחים). טריגרים: "כמה מכרנו היום?", "מה המצב עכשיו?", "כמה כסף נכנס היום?", "כמה מזומן בקופה?".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'list_order_needs',
+    description: 'מה עוד לא הוזמן — פריטים שסומנו "צריך להזמין" ברשימות ההזמנה + ספקים שצריך להזמין מהם (לפי מלאי מול יעד) שעדיין לא הוזמנו. טריגרים: "מה צריך להזמין?", "מה חסר מהירקן?", "ממי לא הזמנתי עדיין?".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'propose_mark_supplier_ordered',
+    description: 'סימון שהזמנת מספק מסוים (נועל את התזכורות ליומיים). דורש אישור. טריגרים: "סמן שהזמנתי מהירקן", "הזמנתי מ<ספק>", "כבר הזמנתי מהבשר".',
+    parameters: { type: 'OBJECT', properties: { supplier: { type: 'STRING', description: 'שם הספק, למשל "ירקן" / "בשר" / "אלכוהול"' } }, required: ['supplier'] },
+  },
+  {
+    name: 'propose_lock_tips',
+    description: 'נעילת דו"ח הטיפים ליום מסוים (ברירת מחדל: אתמול) כדי לסגור אותו. דורש אישור. טריגרים: "נעל את הטיפים של אתמול", "תסגור טיפים של אתמול", "נעל טיפים של <תאריך>".',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        date: { type: 'STRING', description: 'אופציונלי: "אתמול" / "היום" / שם-יום / YYYY-MM-DD. ריק = אתמול.' },
+        shift_type: { type: 'STRING', enum: ['lunch', 'dinner'], description: 'אופציונלי: נעל רק משמרת אחת. השמט = כל המשמרות של היום.' },
+      },
+    },
+  },
+  // ─── Incidents / expenses / dish pricing (manager-level) ───────────────────
+  {
+    name: 'propose_open_incident',
+    description: 'פתיחת תקלה / אירוע חריג. Use for "תפתח תקלה: המקרר התקלקל", "יש תקלה במטבח", "דווח תקלה". חלץ description מהטקסט; אם ברור, קבע severity ו-category.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        description: { type: 'STRING', description: 'תיאור התקלה כפי שנכתב.' },
+        title: { type: 'STRING', description: 'כותרת קצרה (אופציונלי — ברירת מחדל: תחילת התיאור).' },
+        severity: { type: 'STRING', enum: ['low', 'medium', 'high', 'critical'], description: 'ברירת מחדל medium.' },
+        category: { type: 'STRING', enum: ['maintenance', 'kitchen', 'bar', 'customer_service', 'safety', 'security', 'cleanliness', 'staff', 'pos_system'], description: 'ברירת מחדל maintenance (ציוד/מקרר/תקלה טכנית).' },
+      },
+      required: ['description'],
+    },
+  },
+  {
+    name: 'list_incidents',
+    description: 'רשימת התקלות הפתוחות (שטרם טופלו). Use for "מה פתוח?", "אילו תקלות יש?", "מה התקלות הפתוחות?".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'propose_resolve_incident',
+    description: 'סימון תקלה פתוחה כטופלה. Use for "סגור את התקלה של המקרר", "התקלה במטבח טופלה", "תסמן את X כפתור". התאמה לפי תיאור/כותרת התקלה.',
+    parameters: { type: 'OBJECT', properties: { match: { type: 'STRING', description: 'מילות זיהוי לתקלה (למשל "מקרר", "קופה").' } }, required: ['match'] },
+  },
+  {
+    name: 'propose_mark_expense_paid',
+    description: 'סימון הוצאה בתזרים כשולמה. Use for "סמן את ההוצאה לספק X ששולמה", "שילמתי ל-Y", "תסמן את התשלום ל-Z כבוצע". התאמה לפי שם ספק/תיאור.',
+    parameters: { type: 'OBJECT', properties: { match: { type: 'STRING', description: 'שם ספק או תיאור ההוצאה.' } }, required: ['match'] },
+  },
+  {
+    name: 'propose_set_dish_price',
+    description: 'עדכון מחיר מכירה של מנה. Use for "עדכן מחיר פרנה ל-42", "תקבע את המחיר של חומוס ל-38", "המחיר של X עכשיו 55".',
+    parameters: {
+      type: 'OBJECT',
+      properties: { name: { type: 'STRING', description: 'שם המנה.' }, sale_price: { type: 'NUMBER', description: 'מחיר מכירה חדש בשקלים.' } },
+      required: ['name', 'sale_price'],
+    },
+  },
+  // ─── Team / schedule / events (manager + owner) ────────────────────────────
+  {
+    name: 'propose_invite_employee',
+    description: 'הצע להזמין עובד חדש לצוות. טריגרים: "תזמין עובד חדש", "הוסף עובד דני 052...", "צרף עובד לצוות". שולח לעובד קישור וואטסאפ להשלמת פרטים (תפקיד + מייל). דורש הרשאת בעלים.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        full_name: { type: 'STRING', description: 'שם מלא של העובד החדש' },
+        phone: { type: 'STRING', description: 'מספר הטלפון של העובד (עם קידומת)' },
+      },
+      required: ['full_name', 'phone'],
+    },
+  },
+  {
+    name: 'propose_remove_from_shift',
+    description: 'הצע להסיר/להוריד עובד ממשמרת מסוימת. טריגרים: "תוריד את דני מהמשמרת של מחר ערב", "הסר את מיכל מצהריים ביום שלישי", "בטל שיבוץ".',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        employee_name: { type: 'STRING' },
+        date: { type: 'STRING', description: 'YYYY-MM-DD או "מחר" / "רביעי"' },
+        shift_type: { type: 'STRING', enum: ['lunch', 'dinner'], description: 'צהריים=lunch, ערב=dinner' },
+      },
+      required: ['employee_name', 'date', 'shift_type'],
+    },
+  },
+  {
+    name: 'propose_publish_schedule',
+    description: 'הצע לפרסם את הסידור לשבוע הבא — כל עובד יקבל בוואטסאפ את המשמרות שלו. טריגרים: "פרסם את הסידור", "תשלח לכולם את הסידור", "הודע לצוות על המשמרות".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'propose_approve_event',
+    description: 'הצע לאשר הזמנת אירוע ממתינה. טריגרים: "אשר את הזמנת האירוע של כהן", "תאשר את האירוע של משפחת לוי". דורש הרשאת בעלים.',
+    parameters: {
+      type: 'OBJECT',
+      properties: { customer_name: { type: 'STRING', description: 'שם הלקוח של האירוע' } },
+      required: ['customer_name'],
+    },
+  },
 ];
 
 // ─── Tool implementations ──────────────────────────────────────────────────
+
+// ═══ Owner-agent action pack (10 capabilities) — all gated on scope.can_write ═══
+// Reservations · revenue · ordering · tips · incidents · expenses · pricing ·
+// employee invites · shift removal · schedule publish · event approval.
+// Every write stashes a pending_action and applies through executeAction() on "כן".
+
+// ─── Reservations (manager-level) — mirror load.ts seating/slot logic ───────
+const RES_toMin = (t: string) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+const RES_seatingDuration = (size: number) => (size >= 11 ? 150 : size >= 6 ? 135 : 120);
+const RES_isValidTime = (t: string) => /^([01]?\d|2[0-3]):[0-5]\d$/.test(String(t || '').trim());
+
+async function tool_check_availability(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+
+  const size = parseInt(String(args.party_size), 10);
+  if (!Number.isFinite(size) || size < 1) return { error: 'צריך מספר סועדים תקין.' };
+  const dateStr = resolveDate(String(args.date || ''));
+  if (!dateStr) return { error: `לא הצלחתי לפענח את התאריך "${args.date}".` };
+  const time = String(args.time || '').trim();
+  if (!time) return { need_time: true, message: 'לאיזו שעה לבדוק זמינות? (למשל 20:00)' };
+  if (!RES_isValidTime(time)) return { error: `שעה לא תקינה "${args.time}" — פורמט HH:MM.` };
+
+  const settings: any = await (prisma as any).reservationSettings.findFirst().catch(() => null);
+  const slotCapacity = Number.isFinite(Number(settings?.slot_capacity)) && Number(settings?.slot_capacity) > 0
+    ? Number(settings.slot_capacity) : 36;
+  const maxParty = Number.isFinite(Number(settings?.max_party_size)) && Number(settings?.max_party_size) > 0
+    ? Number(settings.max_party_size) : 12;
+  if (size > maxParty) {
+    return { available: false, reason: 'too_large_use_events', max_party: maxParty,
+      message: `${size} סועדים חורג מהמקסימום להזמנה רגילה (${maxParty}). זה אירוע — הפנה לצוות האירועים.` };
+  }
+
+  const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
+  const dayNext = new Date(dayStart); dayNext.setUTCDate(dayNext.getUTCDate() + 1);
+  const reservations: any[] = await (prisma as any).reservation.findMany({
+    where: { date: { gte: dayStart, lt: dayNext } },
+  });
+  const active = (r: any) => r.status !== 'cancelled' && r.status !== 'no_show';
+  const startMin = RES_toMin(time);
+  const slotCount = reservations
+    .filter((r: any) => active(r) && r.time && RES_toMin(r.time) >= startMin && RES_toMin(r.time) < startMin + 15)
+    .reduce((sum: number, r: any) => sum + (r.party_size || 0), 0);
+  const availableCapacity = Math.max(0, slotCapacity - slotCount);
+  const canAccommodate = slotCount + size <= slotCapacity;
+
+  return {
+    available: canAccommodate,
+    date: dateStr,
+    time,
+    party_size: size,
+    slot_capacity: slotCapacity,
+    current_capacity: slotCount,
+    available_capacity: availableCapacity,
+    message: canAccommodate
+      ? `יש מקום ל-${size} ב-${dateStr} בשעה ${time} (פנויים ${availableCapacity} מקומות במשבצת).`
+      : `אין מספיק מקום ל-${size} ב-${dateStr} בשעה ${time} — נותרו ${availableCapacity} מקומות בלבד במשבצת.`,
+  };
+}
+
+async function tool_propose_create_reservation(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+
+  const customer_name = String(args.customer_name || '').trim();
+  if (!customer_name) return { error: 'צריך שם ללקוח.' };
+  const size = parseInt(String(args.party_size), 10);
+  if (!Number.isFinite(size) || size < 1) return { error: 'צריך מספר סועדים תקין.' };
+  const dateStr = resolveDate(String(args.date || ''));
+  if (!dateStr) return { error: `לא הצלחתי לפענח את התאריך "${args.date}".` };
+  const time = String(args.time || '').trim();
+  if (!RES_isValidTime(time)) return { error: `שעה לא תקינה "${args.time}" — פורמט HH:MM.` };
+  const customer_phone = args.customer_phone ? String(args.customer_phone).trim() : null;
+  const special_requests = args.special_requests ? String(args.special_requests).trim() : null;
+
+  const settings: any = await (prisma as any).reservationSettings.findFirst().catch(() => null);
+  const slotCapacity = Number.isFinite(Number(settings?.slot_capacity)) && Number(settings?.slot_capacity) > 0
+    ? Number(settings.slot_capacity) : 36;
+  const maxParty = Number.isFinite(Number(settings?.max_party_size)) && Number(settings?.max_party_size) > 0
+    ? Number(settings.max_party_size) : 12;
+  if (size > maxParty) {
+    return { error: `${size} סועדים חורג מהמקסימום להזמנה רגילה (${maxParty}) — זה אירוע, הפנה לצוות האירועים.` };
+  }
+
+  const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
+  const dayNext = new Date(dayStart); dayNext.setUTCDate(dayNext.getUTCDate() + 1);
+  const reservations: any[] = await (prisma as any).reservation.findMany({
+    where: { date: { gte: dayStart, lt: dayNext } },
+  });
+  const active = (r: any) => r.status !== 'cancelled' && r.status !== 'no_show';
+  const startMin = RES_toMin(time);
+  const slotCount = reservations
+    .filter((r: any) => active(r) && r.time && RES_toMin(r.time) >= startMin && RES_toMin(r.time) < startMin + 15)
+    .reduce((sum: number, r: any) => sum + (r.party_size || 0), 0);
+  const full = slotCount + size > slotCapacity;
+
+  const endMin = RES_toMin(time) + RES_seatingDuration(size);
+  const reservation_end_time = `${String(Math.floor(endMin / 60) % 24).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+
+  await stashPendingAction(phone, {
+    type: 'create_reservation',
+    customer_name,
+    customer_phone,
+    date: dateStr,
+    time,
+    party_size: size,
+    reservation_end_time,
+    special_requests,
+    source: 'whatsapp',
+    target_phone: phone,
+  });
+
+  const warn = full ? `\n⚠️ המשבצת מלאה (${slotCount}/${slotCapacity}) — יישמר כ-override.` : '';
+  return {
+    proposal: `📅 הזמנה: ${customer_name} · ${size} סועדים · ${dateStr} ${time}${customer_phone ? ` · ${customer_phone}` : ''}${warn}`,
+    awaiting_confirmation: true,
+  };
+}
+
+async function tool_propose_cancel_reservation(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+
+  const nameQ = String(args.customer_name || '').trim().toLowerCase();
+  const dateStr = args.date ? resolveDate(String(args.date)) : null;
+  if (!nameQ && !dateStr) return { error: 'ציין שם לקוח ו/או תאריך של ההזמנה לביטול.' };
+
+  const todayStart = new Date(`${new Date().toLocaleDateString('en-CA', { timeZone: TZ })}T00:00:00.000Z`);
+  const where: any = { status: { notIn: ['cancelled', 'no_show'] } };
+  if (dateStr) {
+    const ds = new Date(`${dateStr}T00:00:00.000Z`);
+    const dn = new Date(ds); dn.setUTCDate(dn.getUTCDate() + 1);
+    where.date = { gte: ds, lt: dn };
+  } else {
+    where.date = { gte: todayStart };
+  }
+  let candidates: any[] = await (prisma as any).reservation.findMany({ where, take: 100 });
+  if (nameQ) candidates = candidates.filter((r: any) => String(r.customer_name || '').toLowerCase().includes(nameQ));
+  candidates.sort((a: any, b: any) => {
+    const da = a.date instanceof Date ? a.date.toISOString().slice(0, 10) : String(a.date).slice(0, 10);
+    const db = b.date instanceof Date ? b.date.toISOString().slice(0, 10) : String(b.date).slice(0, 10);
+    return da.localeCompare(db) || String(a.time).localeCompare(String(b.time));
+  });
+
+  if (!candidates.length) return { not_found: true, message: 'לא נמצאה הזמנה פעילה שתואמת לחיפוש.' };
+  if (candidates.length > 1) {
+    return {
+      ambiguous: true,
+      message: 'נמצאו כמה הזמנות — על איזו מדובר?',
+      candidates: candidates.slice(0, 8).map((r: any) => ({
+        customer_name: r.customer_name,
+        date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10),
+        time: r.time,
+        party_size: r.party_size,
+      })),
+    };
+  }
+
+  const r = candidates[0];
+  const dStr = r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10);
+  await stashPendingAction(phone, {
+    type: 'cancel_reservation',
+    reservation_id: r.id,
+    customer_name: r.customer_name,
+    date: dStr,
+    time: r.time,
+    party_size: r.party_size,
+    target_phone: phone,
+  });
+  return {
+    proposal: `❌ ביטול הזמנה: ${r.customer_name} · ${r.party_size} סועדים · ${dStr} ${r.time}`,
+    awaiting_confirmation: true,
+  };
+}
+
+// ─── Revenue / ordering / tips (manager-level) ─────────────────────────────
+async function tool_get_today_revenue(_args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+
+  const [bc, gm]: any[] = await Promise.all([
+    (prisma as any).beecommSnapshot.findFirst({ orderBy: { captured_at: 'desc' } }).catch(() => null),
+    (prisma as any).gomileySnapshot.findFirst({ orderBy: { captured_at: 'desc' } }).catch(() => null),
+  ]);
+  const beecomm_total = Number(bc?.total_today) || 0;
+  const beecomm_open_money = Number(bc?.open_money) || 0;
+  const gomiley_total = Number(gm?.total_income) || 0;
+  const gomiley_cash = Number(gm?.cash_orders_amount) || 0;
+  const gomiley_cash_count = Number(gm?.cash_orders_count) || 0;
+  const gomiley_orders = Number(gm?.total_orders) || 0;
+
+  return {
+    combined_total: Math.round(beecomm_total + gomiley_total),
+    beecomm: { total: Math.round(beecomm_total), open_money: Math.round(beecomm_open_money) },
+    gomiley: { total: Math.round(gomiley_total), orders: gomiley_orders, cash_count: gomiley_cash_count, cash_amount: Math.round(gomiley_cash) },
+    cash_today_approx: Math.round(beecomm_open_money + gomiley_cash),
+    last_beecomm_update: bc?.captured_at || null,
+    last_gomiley_update: gm?.captured_at || null,
+    note: (!bc && !gm) ? 'עדיין אין נתוני מכירות היום (Beecomm/Gomiley לא סונכרנו).' : undefined,
+  };
+}
+
+async function tool_list_order_needs(_args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+
+  const prepRows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT pi."name" AS name, pi."category" AS category, pi."unit" AS unit,
+            pi."target" AS target, pi."have" AS have, pl."name" AS list_name
+     FROM "PrepItem" pi JOIN "PrepList" pl ON pi."list_id" = pl."id"
+     WHERE pl."list_type" = 'order' AND pi."to_prep" = true AND pi."done" = false
+     ORDER BY pl."sort" ASC, pi."sort" ASC`,
+  ).catch(() => []);
+
+  const suppliers: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT "id","name","category","items","last_ordered_at"
+     FROM "SupplierOrderList" ORDER BY "sort" ASC, "name" ASC`,
+  ).catch(() => []);
+  const TWO_DAYS = 2 * 24 * 60 * 60 * 1000;
+  const suppliers_to_order = suppliers.map((s: any) => {
+    const items: any[] = Array.isArray(s.items) ? s.items : [];
+    const toOrder = items.filter((it) => {
+      const par = Number(it.par); const cur = Number(it.current);
+      return Number.isFinite(par) && Number.isFinite(cur) ? par - cur > 0 : true;
+    });
+    const recentlyOrdered = !!(s.last_ordered_at && (Date.now() - new Date(s.last_ordered_at).getTime() < TWO_DAYS));
+    return {
+      supplier: s.name, category: s.category || null,
+      recently_ordered: recentlyOrdered,
+      to_order_count: toOrder.length,
+      to_order: toOrder.slice(0, 30).map((it) => {
+        const gap = Number(it.par) - Number(it.current);
+        return { product: it.product, qty: gap > 0 ? gap : null, unit: it.unit || null };
+      }),
+    };
+  }).filter((s: any) => !s.recently_ordered && s.to_order_count > 0);
+
+  return {
+    prep_order_items: prepRows.map((r: any) => ({
+      name: r.name, list: r.list_name, category: r.category || null,
+      unit: r.unit || null, target: r.target || null, have: r.have || null,
+    })),
+    suppliers_to_order,
+    empty: prepRows.length === 0 && suppliers_to_order.length === 0,
+  };
+}
+
+async function tool_propose_mark_supplier_ordered(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+
+  const name = String(args?.supplier || '').trim();
+  if (!name) return { error: 'איזה ספק סימנת שהזמנת ממנו?' };
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT "id","name","last_ordered_at" FROM "SupplierOrderList"
+     WHERE "name" ILIKE $1 OR "name" ILIKE $2 ORDER BY "sort" ASC LIMIT 6`,
+    `%${name}%`, `${name}%`,
+  ).catch(() => []);
+  if (!rows.length) return { found: false, message: `לא מצאתי ספק בשם "${name}". נסה שם אחר או פתח את רשימת הספקים.` };
+  if (rows.length > 1) {
+    return { ambiguous: true, message: 'יש כמה ספקים תואמים — לאיזה התכוונת?', options: rows.map((r: any) => r.name) };
+  }
+  const sup = rows[0];
+  await stashPendingAction(phone, { type: 'mark_supplier_ordered', supplier_id: sup.id, supplier_name: sup.name, target_phone: phone });
+  return { proposal: `🛒 סימון "${sup.name}" כהוזמן (לא אשלח תזכורת ליומיים)`, awaiting_confirmation: true };
+}
+
+async function tool_propose_lock_tips(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+
+  const raw = String(args?.date || '').trim().toLowerCase();
+  let date = resolveDate(raw);
+  if (!date && (/^(אתמול|yesterday)$/.test(raw) || raw === '')) {
+    const t = new Date(new Date().toLocaleString('en-US', { timeZone: TZ }));
+    t.setDate(t.getDate() - 1);
+    date = t.toLocaleDateString('en-CA', { timeZone: TZ });
+  }
+  if (!date) return { error: 'לא הבנתי את התאריך. נסה "אתמול" או תאריך בפורמט YYYY-MM-DD.' };
+  const shift = args?.shift_type === 'lunch' ? 'lunch' : args?.shift_type === 'dinner' ? 'dinner' : null;
+
+  const day0 = new Date(`${date}T00:00:00.000Z`);
+  const day1 = new Date(`${date}T23:59:59.999Z`);
+  const reports: any[] = await (prisma as any).tipReport.findMany({
+    where: { date: { gte: day0, lte: day1 }, ...(shift ? { shift_type: shift } : {}) },
+    take: 10,
+  }).catch(() => []);
+  const shiftHe = shift ? ` (${shift === 'lunch' ? 'צהריים' : 'ערב'})` : '';
+  if (!reports.length) return { found: false, message: `לא נמצא דו"ח טיפים ל-${date}${shiftHe}.` };
+  const already = reports.filter((r: any) => r.status === 'locked').length;
+  const toLock = reports.length - already;
+  if (toLock === 0) return { message: `כל דו"חות הטיפים של ${date}${shiftHe} כבר נעולים 🔒` };
+  const total = reports.reduce((s: number, r: any) => s + Number(r.total_tips_collected || 0), 0);
+
+  await stashPendingAction(phone, {
+    type: 'lock_tips', date, shift_type: shift,
+    locked_by: scope.employee_name || 'whatsapp', target_phone: phone,
+  });
+  return { proposal: `🔒 נעילת טיפים ל-${date}${shiftHe} — ${toLock} דו"ח, סה"כ ₪${Math.round(total)}`, awaiting_confirmation: true };
+}
+
+// ─── Incidents / expenses / dish pricing (manager-level) ───────────────────
+async function tool_propose_open_incident(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const description = String(args.description || '').trim();
+  if (!description) return { error: 'צריך תיאור לתקלה.' };
+  const title = String(args.title || description).trim().slice(0, 80);
+  const severity = ['low', 'medium', 'high', 'critical'].includes(String(args.severity)) ? String(args.severity) : 'medium';
+  const validCats = ['maintenance', 'kitchen', 'bar', 'customer_service', 'safety', 'security', 'cleanliness', 'staff', 'pos_system'];
+  const category = validCats.includes(String(args.category)) ? String(args.category) : 'maintenance';
+  await stashPendingAction(phone, {
+    type: 'open_incident',
+    title, description, severity, category,
+    reported_by: scope.employee_name || 'מנהל (WhatsApp)',
+    target_phone: phone,
+  });
+  return { proposal: `🔧 פתיחת תקלה: ${title} · חומרה ${severity}`, awaiting_confirmation: true };
+}
+
+async function tool_list_incidents(_args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const rows: any[] = await (prisma as any).incident.findMany({
+    where: { OR: [{ status: { in: ['open', 'in_progress', 'reported', 'pending', 'new'] } }, { status: null }] },
+    orderBy: { incident_date: 'desc' },
+    take: 30,
+  });
+  return {
+    count: rows.length,
+    incidents: rows.map((i: any) => ({
+      id_short: i.id.slice(-6),
+      title: i.title || (i.description ? i.description.slice(0, 40) : '—'),
+      severity: i.severity || '—',
+      category: i.category || '—',
+      status: i.status || 'open',
+      date: i.incident_date instanceof Date ? i.incident_date.toISOString().slice(0, 10) : String(i.incident_date || '').slice(0, 10),
+    })),
+  };
+}
+
+async function tool_propose_resolve_incident(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const q = String(args.match || '').trim();
+  if (!q) return { error: 'איזו תקלה לסגור? תן תיאור קצר.' };
+  const open: any[] = await (prisma as any).incident.findMany({
+    where: { OR: [{ status: { in: ['open', 'in_progress', 'reported', 'pending', 'new'] } }, { status: null }] },
+    orderBy: { incident_date: 'desc' }, take: 100,
+  });
+  const ql = q.toLowerCase();
+  const idq = ql.replace(/[^a-z0-9]/gi, '');
+  const matches = open.filter((i: any) =>
+    String(i.title || '').toLowerCase().includes(ql) ||
+    String(i.description || '').toLowerCase().includes(ql) ||
+    (idq.length >= 4 && i.id.slice(-6).toLowerCase() === idq));
+  if (!matches.length) return { error: `לא מצאתי תקלה פתוחה שמתאימה ל-"${q}".` };
+  if (matches.length > 1) return {
+    ambiguous: true,
+    candidates: matches.slice(0, 6).map((i: any) => `${i.title || (i.description || '').slice(0, 40)} (${i.id.slice(-6)})`),
+  };
+  const inc = matches[0];
+  const label = inc.title || (inc.description || '').slice(0, 40);
+  await stashPendingAction(phone, { type: 'resolve_incident', incident_id: inc.id, incident_title: label, target_phone: phone });
+  return { proposal: `✅ סגירת תקלה: ${label}`, awaiting_confirmation: true };
+}
+
+async function tool_propose_mark_expense_paid(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const q = String(args.match || '').trim();
+  if (!q) return { error: 'איזו הוצאה לסמן כשולמה? תן שם ספק או תיאור.' };
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, date::date AS date, source, description, category, amount
+     FROM "CashFlowEntry"
+     WHERE type = 'expense' AND status = 'planned'
+       AND (source ILIKE $1 OR description ILIKE $1 OR category ILIKE $1)
+     ORDER BY date ASC LIMIT 6`,
+    `%${q}%`,
+  );
+  if (!rows.length) return { error: `לא מצאתי הוצאה פתוחה שמתאימה ל-"${q}".` };
+  if (rows.length > 1) return {
+    ambiguous: true,
+    candidates: rows.map((r: any) => `${r.source || r.description || r.category} — ₪${Math.round(Number(r.amount))} (${r.date instanceof Date ? r.date.toISOString().slice(0, 10) : r.date})`),
+  };
+  const e = rows[0];
+  const label = e.source || e.description || e.category;
+  const amount = Math.round(Number(e.amount));
+  await stashPendingAction(phone, { type: 'mark_expense_paid', entry_id: e.id, expense_label: label, amount, target_phone: phone });
+  return { proposal: `💸 סימון הוצאה כשולמה: ${label} · ₪${amount}`, awaiting_confirmation: true };
+}
+
+async function tool_propose_set_dish_price(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const name = String(args.name || '').trim();
+  const price = Number(args.sale_price);
+  if (!name) return { error: 'איזו מנה לעדכן?' };
+  if (!Number.isFinite(price) || price <= 0) return { error: 'צריך מחיר חיובי בשקלים.' };
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, name, kind, sale_price FROM "Recipe"
+     WHERE (name ILIKE $1 OR name ILIKE $2) AND kind = 'DISH' LIMIT 5`,
+    `%${name}%`, `${name}%`,
+  );
+  if (!rows.length) return { error: `לא מצאתי מנה בשם "${name}".` };
+  if (rows.length > 1) return {
+    ambiguous: true,
+    candidates: rows.map((r: any) => `${r.name}${r.sale_price ? ` (נוכחי ₪${r.sale_price})` : ''}`),
+  };
+  const rec = rows[0];
+  await stashPendingAction(phone, {
+    type: 'set_dish_price', recipe_id: rec.id, recipe_name: rec.name,
+    sale_price: price, old_price: rec.sale_price ?? null, target_phone: phone,
+  });
+  return { proposal: `🍽️ עדכון מחיר: ${rec.name} → ₪${price}${rec.sale_price ? ` (מ-₪${rec.sale_price})` : ''}`, awaiting_confirmation: true };
+}
+
+// ─── Team / schedule / events ──────────────────────────────────────────────
+async function tool_propose_invite_employee(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  if (!scope.is_owner) return { error: 'רק הבעלים יכול לבצע פעולה זו.' };
+  const fullName = String(args.full_name || '').trim();
+  const empPhone = String(args.phone || '').replace(/[^\d+]/g, '');
+  if (fullName.length < 2) return { error: 'צריך שם מלא של העובד.' };
+  if (empPhone.replace(/\D/g, '').length < 9) return { error: 'מספר טלפון לא תקין. שלח מספר עם קידומת.' };
+  const existing = await (prisma as any).employee.findFirst({ where: { phone: empPhone } }).catch(() => null);
+  if (existing) return { error: `כבר קיים עובד עם הטלפון ${empPhone} (${existing.full_name}).` };
+  await stashPendingAction(phone, { type: 'invite_employee', full_name: fullName, phone: empPhone, target_phone: phone });
+  return { proposal: `👤 הזמנת עובד חדש: *${fullName}* → ${empPhone}\nיישלח לו קישור להשלמת פרטים (תפקיד + מייל).`, awaiting_confirmation: true };
+}
+
+async function tool_propose_remove_from_shift(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const emps: any[] = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 500 });
+  const m = matchEmployees(String(args.employee_name || ''), emps);
+  if (!m.exact.length) {
+    if (m.suggestions.length) return {
+      not_found: true,
+      message: `לא מצאתי עובד פעיל בשם "${args.employee_name}". התכוונת לאחד מאלה?`,
+      suggestions: m.suggestions.map((e: any) => e.full_name),
+    };
+    return { error: `לא נמצא עובד פעיל בשם "${args.employee_name}".` };
+  }
+  if (m.exact.length > 1) return { ambiguous: true, candidates: m.exact.map((e: any) => e.full_name) };
+  const emp = m.exact[0];
+  const dateStr = resolveDate(args.date);
+  if (!dateStr) return { error: `לא הצלחתי לפענח את התאריך "${args.date}".` };
+  const all: any[] = await (prisma as any).workShift.findMany({ orderBy: { date: 'desc' }, take: 2000 });
+  const shift = all.find((s: any) => {
+    const d = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
+    return d === dateStr && s.shift_type === args.shift_type;
+  });
+  if (!shift || !(shift.assigned_staff || []).some((a: any) => a.employee_id === emp.id)) {
+    return { error: `${emp.full_name} לא משובץ ל${args.shift_type === 'lunch' ? 'צהריים' : 'ערב'} ${dateStr}.` };
+  }
+  await stashPendingAction(phone, {
+    type: 'remove_from_shift',
+    employee_id: emp.id, employee_name: emp.full_name,
+    date: dateStr, shift_type: args.shift_type,
+    target_phone: phone,
+  });
+  return { proposal: `🗑 הסרת *${emp.full_name}* מ${args.shift_type === 'lunch' ? 'צהריים' : 'ערב'} ${dateStr}`, awaiting_confirmation: true };
+}
+
+async function tool_propose_publish_schedule(_args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const ilDay = dayMap[new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' }).format(new Date())] ?? 0;
+  const daysUntilNextSunday = ilDay === 0 ? 7 : 7 - ilDay;
+  const weekSet = new Set<string>();
+  for (let i = 0; i < 7; i++) { const d = new Date(); d.setUTCDate(d.getUTCDate() + daysUntilNextSunday + i); weekSet.add(d.toISOString().slice(0, 10)); }
+  const all: any[] = await (prisma as any).workShift.findMany({ orderBy: { date: 'desc' }, take: 2000 });
+  const empIds = new Set<string>();
+  for (const s of all) {
+    const d = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
+    if (!weekSet.has(d)) continue;
+    for (const a of (s.assigned_staff || [])) if (a?.employee_id) empIds.add(a.employee_id);
+  }
+  if (!empIds.size) return { error: 'אין משמרות משובצות לשבוע הבא — בנה את הסידור קודם.' };
+  await stashPendingAction(phone, { type: 'publish_schedule', target_phone: phone });
+  return { proposal: `📢 פרסום הסידור לשבוע הבא — כל עובד יקבל בוואטסאפ את המשמרות שלו.\nייכללו *${empIds.size}* עובדים.`, awaiting_confirmation: true };
+}
+
+async function tool_propose_approve_event(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  if (!scope.is_owner) return { error: 'רק הבעלים יכול לבצע פעולה זו.' };
+  const q = String(args.customer_name || '').trim();
+  if (!q) return { error: 'למי לאשר את האירוע? שלח שם לקוח.' };
+  const bookings: any[] = await (prisma as any).eventBooking.findMany({ take: 500 });
+  const pending = bookings.filter((b: any) => b.approval_status !== 'approved' && b.approval_status !== 'rejected');
+  if (!pending.length) return { error: 'אין הזמנות אירוע ממתינות לאישור.' };
+  const asEmp = pending.map((b: any) => ({ ...b, full_name: b.customer_name || '' }));
+  let hit = matchEmployees(q, asEmp).exact;
+  if (!hit.length) hit = matchEmployees(q, asEmp).suggestions;
+  if (!hit.length) return { error: `לא מצאתי הזמנת אירוע ממתינה בשם "${q}".` };
+  if (hit.length > 1) return {
+    ambiguous: true,
+    message: 'יש כמה הזמנות ממתינות תואמות — איזו?',
+    candidates: hit.map((b: any) => `${b.customer_name} · ${b.event_date}${b.guest_count ? ` · ${b.guest_count} סועדים` : ''}`),
+  };
+  const b: any = hit[0];
+  await stashPendingAction(phone, { type: 'approve_event', booking_id: b.id, customer_name: b.customer_name, target_phone: phone });
+  return {
+    proposal: `🎉 אישור אירוע: *${b.customer_name || 'לקוח'}* · ${b.event_date}${b.event_time ? ` ${b.event_time}` : ''}${b.guest_count ? ` · ${b.guest_count} סועדים` : ''}${b.total_ils ? ` · ₪${b.total_ils}` : ''}`,
+    awaiting_confirmation: true,
+  };
+}
 
 async function tool_list_today_schedule(args: any, _phone: string): Promise<any> {
   const targetYMD = args?.date || ymd();
@@ -1441,6 +2115,23 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   propose_event_add_batch: tool_propose_event_add_batch,
   propose_task_add_batch: tool_propose_task_add_batch,
   propose_employee_shifts_batch: tool_propose_employee_shifts_batch,
+  // ─── Owner-agent action pack (10 capabilities) ───────────────────────────
+  check_availability: tool_check_availability,
+  propose_create_reservation: tool_propose_create_reservation,
+  propose_cancel_reservation: tool_propose_cancel_reservation,
+  get_today_revenue: tool_get_today_revenue,
+  list_order_needs: tool_list_order_needs,
+  propose_mark_supplier_ordered: tool_propose_mark_supplier_ordered,
+  propose_lock_tips: tool_propose_lock_tips,
+  propose_open_incident: tool_propose_open_incident,
+  list_incidents: tool_list_incidents,
+  propose_resolve_incident: tool_propose_resolve_incident,
+  propose_mark_expense_paid: tool_propose_mark_expense_paid,
+  propose_set_dish_price: tool_propose_set_dish_price,
+  propose_invite_employee: tool_propose_invite_employee,
+  propose_remove_from_shift: tool_propose_remove_from_shift,
+  propose_publish_schedule: tool_propose_publish_schedule,
+  propose_approve_event: tool_propose_approve_event,
 };
 
 // ─── Agent loop ────────────────────────────────────────────────────────────
@@ -1458,6 +2149,15 @@ const SYSTEM_PROMPT_BASE_TEMPLATE = `אתה העוזר האישי של בעל מ
 7. שעות מדויקות: "16:00" זה 16:00. לא 19:00. לא 61:00.
 8. תאריכים יחסיים בעברית: "מחר", "ראשון", "רביעי הבא" — תעביר אותם ככל ש-tools יודעים לפענח.
 9. אם הבקשה חורגת מהכלים — תאמר את זה בכנות במקום להמציא תשובה.
+
+*ניהול המסעדה — 10 יכולות (כולן דורשות הרשאת מנהל; יצירה/ביטול/עדכון עוברים אישור "כן" אוטומטי — אל תבקש אישור בעצמך)*:
+- *הזמנות שולחן*: "יש מקום ל-X בתאריך/שעה?" → check_availability · "תזמין שולחן ל..." → propose_create_reservation · "תבטל את ההזמנה של..." → propose_cancel_reservation. שעות = שעון ישראל; העבר תאריך כפי שנכתב.
+- *מכירות היום*: "כמה מכרנו?"/"מה המצב עכשיו?" → get_today_revenue (Beecomm+Gomiley, סה"כ ומזומן).
+- *הזמנות מספקים*: "מה צריך להזמין?"/"מה חסר מהירקן?" → list_order_needs (רק מה שעדיין לא הוזמן) · "סמן שהזמנתי מ<ספק>" → propose_mark_supplier_ordered.
+- *טיפים*: "נעל את הטיפים של אתמול" → propose_lock_tips (ברירת מחדל: אתמול).
+- *תקלות*: "תפתח תקלה: ..." → propose_open_incident · "מה פתוח?" → list_incidents · "סגור את התקלה של X" → propose_resolve_incident.
+- *הוצאות ומחירים*: "סמן שההוצאה ל-X שולמה"/"שילמתי ל-Y" → propose_mark_expense_paid · "עדכן מחיר X ל-N" → propose_set_dish_price.
+- *צוות ואירועים*: "תזמין עובד חדש ..." → propose_invite_employee (בעלים בלבד) · "תוריד את X ממחר ערב" → propose_remove_from_shift · "פרסם את הסידור" → propose_publish_schedule · "אשר את האירוע של X" → propose_approve_event (בעלים בלבד).
 
 *חוקי זמן — קריטי*:
 - שעות שמשתמש כותב הן *תמיד* שעון ישראל (Asia/Jerusalem).
