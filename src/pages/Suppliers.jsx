@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import InvoiceScanner from '../components/dashboard/InvoiceScanner';
 import PageHeader from '@/components/shared/PageHeader';
+import AiScannerButton from '@/components/scanner/AiScannerButton';
 
 function SupplierForm({ supplier, onSave, onCancel }) {
   const [formData, setFormData] = useState(
@@ -149,10 +150,13 @@ export default function Suppliers() {
           subtitle="ניהול כל הספקים, המוצרים וההזמנות"
           icon={Building}
           action={
-            <Button onClick={() => openForm()} className="bg-orange-600 hover:bg-orange-700">
-              <Plus className="w-5 h-5 ml-2" />
-              הוסף ספק חדש
-            </Button>
+            <div className="flex items-center gap-2">
+              <AiScannerButton target="suppliers" onImported={loadSuppliers} />
+              <Button onClick={() => openForm()} className="bg-orange-600 hover:bg-orange-700">
+                <Plus className="w-5 h-5 ml-2" />
+                הוסף ספק חדש
+              </Button>
+            </div>
           }
         />
         

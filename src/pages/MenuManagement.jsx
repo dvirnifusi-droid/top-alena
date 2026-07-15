@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Utensils, Plus, Edit, Trash2, Search, Loader2, RefreshCw, EyeOff, Eye } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
+import AiScannerButton from '@/components/scanner/AiScannerButton';
 
 const emptyItem = { name: '', category: 'כללי', price: '', description: '', available: true };
 
@@ -121,6 +122,7 @@ export default function MenuManagement() {
             <Button variant="outline" onClick={load} disabled={loading}>
               <RefreshCw className={`w-4 h-4 ml-1 ${loading ? 'animate-spin' : ''}`} /> רענן
             </Button>
+            <AiScannerButton target="menu" onImported={load} />
             <Button onClick={() => setDialog({ item: null })} className="bg-[#A04A2E] hover:bg-[#7A3722]">
               <Plus className="w-4 h-4 ml-1" /> מנה חדשה
             </Button>

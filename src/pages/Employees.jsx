@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MoreHorizontal, Key } from "lucide-react";
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
+import AiScannerButton from '@/components/scanner/AiScannerButton';
 
 
 function EmployeeForm({ employee, onSave, onCancel }) {
@@ -861,6 +862,7 @@ function EmployeesInner() {
              <Button onClick={syncAllEmails} variant="outline" className="border-[#D9BD83] text-[#7A3722] hover:bg-[#F4ECD8]">
                🔄 סנכרן מיילים
              </Button>
+             <AiScannerButton target="employees" onImported={loadEmployees} />
              <Button onClick={openAddForm} className="bg-[#44512C] hover:bg-[#44512C]">
                <Plus className="w-5 h-5 ml-2" />
                הוסף עובד חדש

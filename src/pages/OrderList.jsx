@@ -10,6 +10,7 @@ import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, Plus, Trash2, ListChecks, ShoppingCart, Search, Check, Copy, Upload, Pencil } from 'lucide-react';
+import AiScannerButton from '@/components/scanner/AiScannerButton';
 
 const W = { terracotta: '#A04A2E', olive: '#44512C', brass: '#B89556', cream: '#FAF5E8', creamCard: '#F4ECD8', border: '#E8D9B5', charcoal: '#1F1B17', muted: '#7A6F5D' };
 
@@ -185,6 +186,7 @@ function OrderListInner() {
           action={isAdmin && (
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={addList}><Plus className="w-4 h-4 ml-1" />רשימה</Button>
+              <AiScannerButton target="order_list" onImported={() => loadItems(activeList)} />
               {activeList && !editMode && <Button size="sm" variant="outline" onClick={openEdit}><Pencil className="w-4 h-4 ml-1" />ערוך קטלוג</Button>}
             </div>
           )}

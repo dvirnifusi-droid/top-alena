@@ -21,6 +21,7 @@ import ChecklistArchive from "../components/checklists/ChecklistArchive";
 import TaskAssignmentDialog from "../components/checklists/TaskAssignmentDialog"; // Import the new dialog
 import ChecklistLiveRun from "../components/checklists/ChecklistLiveRun";
 import { Employee } from '@/entities/all'; // Import Employee entity
+import AiScannerButton from '@/components/scanner/AiScannerButton';
 
 function ChecklistsInner() {
     const [checklists, setChecklists] = useState([]);
@@ -322,6 +323,7 @@ function ChecklistsInner() {
                                 <Button variant="outline" onClick={() => setShowTextImport((v) => !v)} className="gap-1">
                                     <Upload className="w-4 h-4" /> ייבוא מטקסט
                                 </Button>
+                                <AiScannerButton target="checklist" onImported={loadData} />
                                 <Button
                                     onClick={() => setEditingChecklist({})}
                                     className="bg-[#A04A2E] hover:bg-[#8B3D24] text-white"
