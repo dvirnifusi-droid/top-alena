@@ -69,11 +69,11 @@ function CelebrationsEditor({ customer, onUpdate }) {
             <p className="text-xs text-gray-600 mb-2">פורמט: MM-DD (לדוגמה: 03-15 לT15 במרץ)</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                 <div>
-                    <Label className="text-xs">🎂 יום הולדת</Label>
+                    <Label className="text-xs">יום הולדת</Label>
                     <input type="text" placeholder="03-15" value={bday} onChange={(e) => setBday(e.target.value)} className="w-full mt-1 px-2 py-1 border rounded text-sm" />
                 </div>
                 <div>
-                    <Label className="text-xs">💝 יום נישואים</Label>
+                    <Label className="text-xs">יום נישואים</Label>
                     <input type="text" placeholder="07-22" value={anniv} onChange={(e) => setAnniv(e.target.value)} className="w-full mt-1 px-2 py-1 border rounded text-sm" />
                 </div>
                 <div>

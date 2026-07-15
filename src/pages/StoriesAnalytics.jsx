@@ -3,7 +3,8 @@ import { base44 } from "@/api/base44Client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { TrendingUp, Eye, Heart, Upload, MessageCircle } from "lucide-react";
+import { TrendingUp, Eye, Heart, Upload, MessageCircle, Camera } from "lucide-react";
+import PageHeader from "@/components/shared/PageHeader";
 import { format, subDays, startOfDay } from "date-fns";
 
 const COLORS = ["#ff7300", "#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
@@ -75,10 +76,7 @@ export default function StoriesAnalytics() {
 
   return (
     <div className="p-4 max-w-7xl mx-auto space-y-4" dir="rtl">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">📊 ניתוח סטוריז</h1>
-        <p className="text-muted-foreground">סטטיסטיקות מפורטות של כל הסטוריז</p>
-      </div>
+      <PageHeader title="ניתוח סטוריז" subtitle="סטטיסטיקות מפורטות של כל הסטוריז" icon={Camera} />
 
       {/* Time Range Filter */}
       <div className="flex gap-2">
@@ -157,7 +155,7 @@ export default function StoriesAnalytics() {
           {/* Daily Trends */}
           <Card>
             <CardContent className="p-6">
-              <h3 className="font-bold mb-4">📈 מגמה יומית</h3>
+              <h3 className="font-bold mb-4">מגמה יומית</h3>
               {dailyChartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={dailyChartData}>
@@ -181,7 +179,7 @@ export default function StoriesAnalytics() {
             {/* Top Employees */}
             <Card>
               <CardContent className="p-6">
-                <h3 className="font-bold mb-4">👥 עובדים הכי פעילים</h3>
+                <h3 className="font-bold mb-4">עובדים הכי פעילים</h3>
                 {topEmployees.length > 0 ? (
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={topEmployees}>
@@ -201,7 +199,7 @@ export default function StoriesAnalytics() {
             {/* Media Type */}
             <Card>
               <CardContent className="p-6">
-                <h3 className="font-bold mb-4">📸 סוגי תוכן</h3>
+                <h3 className="font-bold mb-4">סוגי תוכן</h3>
                 {mediaTypeData.some(d => d.value > 0) ? (
                   <ResponsiveContainer width="100%" height={250}>
                     <PieChart>

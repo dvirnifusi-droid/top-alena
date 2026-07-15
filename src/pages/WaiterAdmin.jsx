@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Plus, Trash2, Save, Utensils, Sparkles, Settings, MessageSquareCode, AlertCircle, RefreshCw, X, Upload, FileText, Wine } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
+import PageHeader from '@/components/shared/PageHeader';
 import toast from 'react-hot-toast';
 
 const DEFAULT_CATEGORIES = [
@@ -279,7 +280,7 @@ function SpecialsTab({ specials, setSpecials }) {
   const remove = (idx) => setSpecials(list.filter((_, i) => i !== idx));
   return (
     <div className="space-y-2">
-      <div className="text-sm text-slate-600 mb-2">📅 ספיישלים של היום — עדכן בכל בוקר. הסוכן יציע אותם בעדיפות.</div>
+      <div className="text-sm text-slate-600 mb-2">ספיישלים של היום — עדכן בכל בוקר. הסוכן יציע אותם בעדיפות.</div>
       {list.length === 0 && <p className="text-sm text-muted-foreground">אין ספיישלים היום.</p>}
       {list.map((s, idx) => (
         <Card key={s.id || idx}>
@@ -306,7 +307,7 @@ function OutOfStockTab({ outOfStock, setOutOfStock, menu }) {
 
   return (
     <div className="space-y-3">
-      <div className="text-sm text-slate-600">⛔ פריטים שאזלו היום — הסוכן לא ימליץ עליהם.</div>
+      <div className="text-sm text-slate-600">פריטים שאזלו היום — הסוכן לא ימליץ עליהם.</div>
       {list.length > 0 && (
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">חסר היום:</CardTitle></CardHeader>
@@ -430,18 +431,19 @@ export default function WaiterAdmin() {
 
   return (
     <div className="p-4 md:p-6 space-y-4" dir="rtl">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Utensils className="w-6 h-6 text-amber-600" /> ניהול ראש המלצרים הדיגיטלי</h1>
-          <p className="text-sm text-muted-foreground">תפריט, ספיישלים, חסר היום, מידע כללי ופרומפט. שינויים נכנסים מיידית לסוכן.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={load}><RefreshCw className="w-4 h-4 ml-1" /></Button>
-          <Button onClick={save} disabled={saving} className="bg-amber-600 hover:bg-amber-700">
-            {saving ? <><Loader2 className="w-4 h-4 ml-1 animate-spin" /> שומר…</> : <><Save className="w-4 h-4 ml-1" /> שמור</>}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="ניהול ראש המלצרים הדיגיטלי"
+        subtitle="תפריט, ספיישלים, חסר היום, מידע כללי ופרומפט. שינויים נכנסים מיידית לסוכן."
+        icon={Utensils}
+        action={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={load}><RefreshCw className="w-4 h-4 ml-1" /></Button>
+            <Button onClick={save} disabled={saving} className="bg-amber-600 hover:bg-amber-700">
+              {saving ? <><Loader2 className="w-4 h-4 ml-1 animate-spin" /> שומר…</> : <><Save className="w-4 h-4 ml-1" /> שמור</>}
+            </Button>
+          </div>
+        }
+      />
 
       <Tabs defaultValue="menu" className="w-full">
         <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 md:grid md:grid-cols-5">

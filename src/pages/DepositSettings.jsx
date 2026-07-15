@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '@/components/shared/PageGuard';
+import PageHeader from '@/components/shared/PageHeader';
+import { CreditCard } from 'lucide-react';
 
 const DAYS = [
     { key: 'sunday', label: 'ראשון' },
@@ -78,18 +80,22 @@ function DepositSettingsInner() {
 
     return (
         <div className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4" dir="rtl">
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-black text-gray-900">💳 הגדרות פיקדון</h1>
-                <label className="flex items-center gap-2 text-sm font-bold cursor-pointer">
-                    <input
-                        type="checkbox"
-                        checked={!!settings.enabled}
-                        onChange={e => update({ enabled: e.target.checked })}
-                        className="w-5 h-5 accent-emerald-600"
-                    />
-                    מערכת פיקדון פעילה
-                </label>
-            </div>
+            <PageHeader
+                title="הגדרות פיקדון"
+                subtitle="ימי פיקדון, סכומים, חלון ביטול וחיבור סליקה"
+                icon={CreditCard}
+                action={
+                    <label className="flex items-center gap-2 text-sm font-bold cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={!!settings.enabled}
+                            onChange={e => update({ enabled: e.target.checked })}
+                            className="w-5 h-5 accent-emerald-600"
+                        />
+                        מערכת פיקדון פעילה
+                    </label>
+                }
+            />
 
             {!settings.enabled && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-900">
@@ -99,7 +105,7 @@ function DepositSettingsInner() {
 
             {/* Days that require deposit */}
             <section className="bg-white border border-gray-200 rounded-2xl p-4">
-                <h2 className="font-black text-base mb-2">📅 ימים שדורשים פיקדון תמיד</h2>
+                <h2 className="font-black text-base mb-2">ימים שדורשים פיקדון תמיד</h2>
                 <p className="text-xs text-gray-500 mb-3">בכל הזמנה בימים שתסמן — תידרש העברת פיקדון, ללא קשר למספר סועדים.</p>
                 <div className="flex flex-wrap gap-2">
                     {DAYS.map(d => {
@@ -118,7 +124,7 @@ function DepositSettingsInner() {
 
             {/* Midweek threshold */}
             <section className="bg-white border border-gray-200 rounded-2xl p-4">
-                <h2 className="font-black text-base mb-2">👥 סף סועדים לאמצע שבוע</h2>
+                <h2 className="font-black text-base mb-2">סף סועדים לאמצע שבוע</h2>
                 <p className="text-xs text-gray-500 mb-3">בימים שלא סומנו למעלה — מאיזה מספר סועדים יידרש פיקדון.</p>
                 <div className="flex items-center gap-2">
                     <span className="text-sm">החל מ-</span>
@@ -134,7 +140,7 @@ function DepositSettingsInner() {
 
             {/* Amounts */}
             <section className="bg-white border border-gray-200 rounded-2xl p-4">
-                <h2 className="font-black text-base mb-2">💰 סכומי פיקדון</h2>
+                <h2 className="font-black text-base mb-2">סכומי פיקדון</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label className="text-sm font-bold block mb-1">לכל סועד (הזמנה רגילה)</label>
@@ -167,7 +173,7 @@ function DepositSettingsInner() {
 
             {/* Cancellation policy */}
             <section className="bg-white border border-gray-200 rounded-2xl p-4">
-                <h2 className="font-black text-base mb-2">⏰ חלון ביטול ללא חיוב</h2>
+                <h2 className="font-black text-base mb-2">חלון ביטול ללא חיוב</h2>
                 <p className="text-xs text-gray-500 mb-3">תוך הזמן שתגדיר לפני שעת ההזמנה — לקוח יכול לבטל בלי שהפיקדון יחויב.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
@@ -203,7 +209,7 @@ function DepositSettingsInner() {
 
             {/* Provider */}
             <section className="bg-white border border-gray-200 rounded-2xl p-4">
-                <h2 className="font-black text-base mb-2">🏦 חברת סליקה</h2>
+                <h2 className="font-black text-base mb-2">חברת סליקה</h2>
                 <p className="text-xs text-gray-500 mb-3">בחר אחרי שתשוחח עם MAX לעסקים. מערכת התשלום בפועל תופעל אחרי חיבור הפרטים.</p>
                 <select
                     value={settings.provider || ''}
@@ -219,7 +225,7 @@ function DepositSettingsInner() {
 
                 {settings.provider === 'payplus' && (
                     <div className="mt-4 space-y-2 border-t border-gray-100 pt-3">
-                        <div className="text-sm font-black text-gray-800">🔑 מפתחות PayPlus</div>
+                        <div className="text-sm font-black text-gray-800">מפתחות PayPlus</div>
                         {settings.has_credentials ? (
                             <div className="text-[11px] text-emerald-700 font-bold bg-emerald-50 rounded px-2 py-1">✅ מפתחות מוגדרים. השאר את שדות המפתח/סוד ריקים כדי לא לשנות אותם.</div>
                         ) : (
@@ -236,7 +242,8 @@ function DepositSettingsInner() {
                         <div className="text-[10px] text-gray-400">המפתחות נשמרים לעסק שלך בלבד (מולטי-טננט). לחיצה על "שמור" למטה תשמור אותם.</div>
                         <div className="pt-1">
                             <button type="button" onClick={testConnection} disabled={testing}
-                                className="text-xs font-bold bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white px-3 py-1.5 rounded-lg">
+                                style={!testing ? { backgroundColor: 'var(--brand-primary, #A04A2E)' } : undefined}
+                                className="text-xs font-bold hover:opacity-90 disabled:bg-gray-300 text-white px-3 py-1.5 rounded-lg">
                                 {testing ? 'בודק…' : '🧪 בדוק חיבור (מייצר קישור ₪1, אף אחד לא מחויב)'}
                             </button>
                             {testResult && (testResult.ok ? (

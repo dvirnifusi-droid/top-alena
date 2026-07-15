@@ -592,13 +592,13 @@ export default function CustomerClubPage() {
                             <Input value={newCustomer.email} onChange={e => setNewCustomer(p => ({ ...p, email: e.target.value }))} placeholder="email@example.com" className="mt-1" />
                         </div>
                         <div>
-                            <Label>🎂 תאריך לידה</Label>
+                            <Label>תאריך לידה</Label>
                             <Input type="date" value={newCustomer.birthday} onChange={e => setNewCustomer(p => ({ ...p, birthday: e.target.value }))} className="mt-1" />
                             <p className="text-[10px] text-gray-500 mt-1">משמש לקמפיין יום הולדת חודשי</p>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <Label>💝 יום נישואים / ציון מיוחד</Label>
+                                <Label>יום נישואים / ציון מיוחד</Label>
                                 <Input type="date" value={newCustomer.anniversary} onChange={e => setNewCustomer(p => ({ ...p, anniversary: e.target.value }))} className="mt-1" />
                             </div>
                             <div>

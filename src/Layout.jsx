@@ -76,7 +76,6 @@ const adminLinks = [
 
   { title: "כספים ודוחות", url: "#", icon: TrendingUp, isCategory: true, color: "olive" },
   { title: "📥 WhatsApp Inbox", url: createPageUrl("AdminWhatsAppInbox"), icon: Zap, isSubItem: true, color: "olive" },
-  { title: "📨 WhatsApp Templates", url: createPageUrl("AdminWhatsAppTemplates"), icon: Zap, isSubItem: true, color: "olive" },
   { title: "📊 קופה Live", url: createPageUrl("BeecommLive"), icon: Zap, isSubItem: true, color: "olive" },
   { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, isSubItem: true, color: "olive" },
   { title: "💰 תזרים מזומנים", url: createPageUrl("CashFlow"), icon: Wallet, isSubItem: true, color: "olive" },
@@ -101,6 +100,7 @@ const adminLinks = [
   { title: "הגדרות פלטפורמה 🧩", url: createPageUrl("PlatformSettings"), icon: LayoutGrid, isSubItem: true, color: "espresso" },
   { title: "מיתוג המסעדה 🎨", url: createPageUrl("Branding"), icon: Sparkles, isSubItem: true, color: "espresso" },
   { title: "חיבורים חיצוניים 🔌", url: createPageUrl("Integrations"), icon: Zap, isSubItem: true, color: "espresso" },
+  { title: "📨 WhatsApp Templates", url: createPageUrl("AdminWhatsAppTemplates"), icon: Zap, isSubItem: true, color: "espresso" },
   { title: "ייצוא דאטה", url: createPageUrl("DataExport"), icon: Download, isSubItem: true, color: "espresso" },
   { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell, isSubItem: true, color: "espresso" },
   { title: "פופ-אפים מתוזמנים 🔔", url: createPageUrl("Popups"), icon: Megaphone, isSubItem: true, color: "espresso" },

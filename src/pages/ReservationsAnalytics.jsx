@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { format, subDays, startOfMonth, differenceInCalendarDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Loader2, TrendingUp, TrendingDown, Users, CalendarCheck, UserX, RefreshCw, BarChart3 } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 // Source key → label + emoji. Falls back to the raw key for anything unmapped.
 const SOURCE_META = {
@@ -122,15 +123,16 @@ export default function ReservationsAnalytics() {
   return (
     <div dir="rtl" className="p-4 sm:p-6 max-w-6xl mx-auto space-y-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-gray-900 flex items-center gap-2"><BarChart3 className="w-6 h-6 text-indigo-600" /> דאשבורד הזמנות</h1>
-          <p className="text-sm text-gray-500">מאיפה מגיעות ההזמנות, כמה, ואיך זה משתנה לאורך זמן.</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-        </Button>
-      </div>
+      <PageHeader
+        title="דאשבורד הזמנות"
+        subtitle="מאיפה מגיעות ההזמנות, כמה, ואיך זה משתנה לאורך זמן."
+        icon={BarChart3}
+        action={
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          </Button>
+        }
+      />
 
       {/* Controls */}
       <Card className="shadow-sm">
@@ -174,7 +176,7 @@ export default function ReservationsAnalytics() {
           {/* Source breakdown */}
           <Card className="shadow-sm">
             <CardContent className="p-4">
-              <h2 className="font-black text-gray-900 mb-3">📊 מאיפה הגיעו ההזמנות</h2>
+              <h2 className="font-black text-gray-900 mb-3">מאיפה הגיעו ההזמנות</h2>
               {range.by_source.length === 0 ? <p className="text-sm text-gray-400">אין נתונים.</p> : (
                 <div className="space-y-2">
                   {range.by_source.map(s => {
@@ -202,7 +204,7 @@ export default function ReservationsAnalytics() {
             {/* Campaigns */}
             <Card className="shadow-sm">
               <CardContent className="p-4">
-                <h2 className="font-black text-gray-900 mb-3">🎯 קמפיינים (UTM)</h2>
+                <h2 className="font-black text-gray-900 mb-3">קמפיינים (UTM)</h2>
                 {range.by_campaign.filter(c => c.key !== '(ללא קמפיין)').length === 0 ? (
                   <p className="text-sm text-gray-400">אין קמפיינים מתויגים בתקופה זו. הוסף <code className="text-[11px] bg-gray-100 px-1 rounded">?utm_campaign=</code> לקישורים.</p>
                 ) : (
@@ -225,7 +227,7 @@ export default function ReservationsAnalytics() {
             {/* Status breakdown */}
             <Card className="shadow-sm">
               <CardContent className="p-4">
-                <h2 className="font-black text-gray-900 mb-3">📋 סטטוס ההזמנות</h2>
+                <h2 className="font-black text-gray-900 mb-3">סטטוס ההזמנות</h2>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(range.by_status).sort((a, b) => b[1] - a[1]).map(([st, n]) => {
                     const L = { confirmed: 'מאושר', seated: 'ישב', completed: 'הושלם', pending: 'ממתין', cancelled: 'בוטל', no_show: 'הבריז', standby: 'המתנה', request: 'בקשה' }[st] || st;
@@ -239,7 +241,7 @@ export default function ReservationsAnalytics() {
           {/* Daily timeline */}
           <Card className="shadow-sm">
             <CardContent className="p-4">
-              <h2 className="font-black text-gray-900 mb-3">📅 הזמנות לאורך התקופה</h2>
+              <h2 className="font-black text-gray-900 mb-3">הזמנות לאורך התקופה</h2>
               {range.daily.length === 0 ? <p className="text-sm text-gray-400">אין נתונים.</p> : (
                 <div className="flex items-end gap-0.5 h-40 overflow-x-auto pb-1" dir="ltr">
                   {range.daily.map(d => (
@@ -260,7 +262,7 @@ export default function ReservationsAnalytics() {
           <Card className="shadow-sm">
             <CardContent className="p-4">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                <h2 className="font-black text-gray-900">🔎 כל ההזמנות — מפורט <span className="text-xs font-normal text-gray-400">({filtered.length})</span></h2>
+                <h2 className="font-black text-gray-900">כל ההזמנות — מפורט <span className="text-xs font-normal text-gray-400">({filtered.length})</span></h2>
                 <div className="flex items-center gap-2">
                   {srcFilter && (
                     <button onClick={() => setSrcFilter(null)} className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded-full">

@@ -8,6 +8,7 @@ import {
 } from 'recharts';
 import { Users, Clock, TrendingDown, UserCheck, Gift, AlertTriangle, Zap, Star } from 'lucide-react';
 import FeatureGate from '@/components/platform/FeatureGate';
+import PageHeader from '@/components/shared/PageHeader';
 
 // Queue works on every plan; the analytics view is a premium sub-feature.
 export default function QueueAnalytics() {
@@ -97,14 +98,11 @@ function QueueAnalyticsInner() {
   ];
 
   return (
-    <div className="p-4 sm:p-8 min-h-screen bg-[#FAF5E8]" dir="rtl">
+    <div className="p-4 sm:p-8 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
       <div className="max-w-5xl mx-auto">
 
         {/* כותרת */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-black text-gray-800">📊 ניתוח תור - דוח ניהולי</h1>
-          <p className="text-gray-500 text-sm">ניתוח עומסים, נטישות ושעות שיא לניהול צוות</p>
-        </div>
+        <PageHeader title="ניתוח תור - דוח ניהולי" subtitle="ניתוח עומסים, נטישות ושעות שיא לניהול צוות" icon={Users} />
 
         <Tabs value={timeframe} onValueChange={setTimeframe} className="mb-6">
           <TabsList>
@@ -232,7 +230,7 @@ function QueueAnalyticsInner() {
             {/* Churn Heatmap - מפת חום של נטישה */}
             <Card className="mb-6">
               <CardHeader>
-                <CardTitle className="text-base">🔥 מפת חום נטישה - מתי אנשים עוזבים?</CardTitle>
+                <CardTitle className="text-base">מפת חום נטישה - מתי אנשים עוזבים?</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -308,7 +306,7 @@ function QueueAnalyticsInner() {
                 <Card className="mb-6 border-orange-200 bg-orange-50">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2 text-orange-800">
-                      <AlertTriangle className="w-4 h-4" /> נוטשים סדרתיים 🚨
+                      <AlertTriangle className="w-4 h-4" /> נוטשים סדרתיים
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
