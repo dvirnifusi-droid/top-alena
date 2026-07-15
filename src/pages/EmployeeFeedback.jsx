@@ -58,7 +58,7 @@ export default function EmployeeFeedbackPage() {
     if (filter.date && !feedback.incident_date.includes(filter.date)) return false;
     
     if (filter.dateRange !== 'all') {
-      const feedbackDate = new Date(feedback.incident_date);
+      const feedbackDate = new Date(feedback.incident_date || 0);
       const now = new Date();
       const days = filter.dateRange === 'week' ? 7 : filter.dateRange === 'month' ? 30 : 0;
       const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
@@ -71,7 +71,7 @@ export default function EmployeeFeedbackPage() {
   const getEmployeeNames = () => {
     const names = new Set();
     feedbacks.forEach(feedback => {
-      const match = feedback.title.match(/משוב עובד: (.+?) -/);
+      const match = (feedback.title || '').match(/משוב עובד: (.+?) -/);
       if (match) names.add(match[1]);
     });
     return Array.from(names);
@@ -81,7 +81,7 @@ export default function EmployeeFeedbackPage() {
     let atmosphereTotal = 0, salesTotal = 0, effortTotal = 0, count = 0;
     
     filteredFeedbacks.forEach(feedback => {
-      const description = feedback.description;
+      const description = feedback.description || '';
       const atmosphereMatch = description.match(/🏢 \*\*אווירה:\*\* (\d+)\/5/);
       const salesMatch = description.match(/💰 \*\*תחושת מכירה:\*\* (\d+)\/5/);
       const effortMatch = description.match(/💪 \*\*מאמץ אישי:\*\* (\d+)\/5/);

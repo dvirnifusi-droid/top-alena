@@ -34,7 +34,7 @@ export default function PlatformAdmin() {
     setLoading(true);
     try {
       const [statsRes, metricsRes, meRes] = await Promise.all([
-        base44.functions.getTenantStats({}),
+        base44.functions.getTenantStats({}).catch(() => null),
         base44.functions.getSuperAdminMetrics({}).catch(() => null),
         base44.auth.me().catch(() => null),
       ]);

@@ -11,16 +11,27 @@ import { Textarea } from '@/components/ui/textarea';
 import { UtensilsCrossed, Search, Upload, Loader2, GraduationCap, Save, Plus, Trash2, X } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 
-// ALL-CAPS-ish line = a dish header; following lines = its components.
+// A dish header is a non-indented, non-bulleted line followed by indented/bulleted
+// component lines. Component lines start with whitespace or a bullet char (•,-,*,·).
+// Works in Hebrew (the old ALL-CAPS heuristic never matched Hebrew text).
 function parseGuide(text) {
+  const bullet = /^[•\-*·]\s*/;
+  const isComponent = (raw) => /^\s/.test(raw) || bullet.test(raw.trim());
+  const lines = text.split('\n').filter((l) => l.trim());
   const dishes = [];
   let cur = null;
-  for (const raw of text.split('\n')) {
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
     const line = raw.trim();
-    if (!line) continue;
-    const isHeader = line.length < 46 && line === line.toUpperCase() && /[A-Za-z֐-׿]/.test(line);
-    if (isHeader || !cur) { cur = { name: line, components: [] }; dishes.push(cur); }
-    else cur.components.push(line.replace(/^\d+[.)]\s*/, ''));
+    if (isComponent(raw)) {
+      if (!cur) { cur = { name: line.replace(bullet, ''), components: [] }; dishes.push(cur); continue; }
+      cur.components.push(line.replace(bullet, '').replace(/^\d+[.)]\s*/, ''));
+    } else {
+      // Top-level line: a dish header when the next non-empty line is a component.
+      const headed = lines[i + 1] && isComponent(lines[i + 1]);
+      if (headed || !cur) { cur = { name: line, components: [] }; dishes.push(cur); }
+      else cur.components.push(line.replace(/^\d+[.)]\s*/, ''));
+    }
   }
   return dishes.filter((d) => d.name && d.components.length);
 }

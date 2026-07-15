@@ -7,6 +7,7 @@ function VoiceTestInner() {
     const [text, setText] = useState('');
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
     const [history, setHistory] = useState([]);
 
     // Test TTS — verifies the device can actually speak Hebrew back.
@@ -30,18 +31,23 @@ function VoiceTestInner() {
         if (!input.trim()) return;
         setLoading(true);
         setResult(null);
+        setError(null);
         try {
             let parsed = parseIntent(input);
             if (parsed.intent === 'unknown') {
                 // Try LLM fallback
-                const tok = localStorage.getItem('auth_token') || '';
-                const r = await fetch('/api/fn/parseVoiceCommand', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
-                    body: JSON.stringify({ text: input }),
-                });
-                const data = await r.json();
-                if (data?.intent && data.intent !== 'unknown') parsed = { ...data, raw: input };
+                try {
+                    const tok = localStorage.getItem('auth_token') || '';
+                    const r = await fetch('/api/fn/parseVoiceCommand', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+                        body: JSON.stringify({ text: input }),
+                    });
+                    const data = await r.json();
+                    if (data?.intent && data.intent !== 'unknown') parsed = { ...data, raw: input };
+                } catch (e) {
+                    setError('שגיאה בזיהוי הפקודה (LLM fallback): ' + (e?.message || String(e)));
+                }
             }
             let execResult = null;
             if (parsed.intent !== 'unknown') {
@@ -83,6 +89,13 @@ function VoiceTestInner() {
                     className="bg-[#44512C] hover:bg-[#44512C] disabled:bg-gray-300 text-white font-black px-5 py-2 rounded-xl text-sm"
                 >{loading ? 'בודק...' : '▶ בדוק'}</button>
             </div>
+
+            {/* Error */}
+            {error && (
+                <div className="p-3 rounded-xl border-2 bg-red-50 border-red-300 text-sm text-red-700">
+                    ⚠️ {error}
+                </div>
+            )}
 
             {/* Result */}
             {result && (

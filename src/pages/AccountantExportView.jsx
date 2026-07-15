@@ -70,8 +70,12 @@ function AccountantExportViewInner() {
                 
                 const invoicesWithUrls = await Promise.all(
                     invoicesData.map(async (inv) => {
-                        const { signed_url } = await CreateFileSignedUrl({ file_uri: inv.file_uri });
-                        return { ...inv, downloadUrl: signed_url };
+                        try {
+                            const { signed_url } = await CreateFileSignedUrl({ file_uri: inv.file_uri });
+                            return { ...inv, downloadUrl: signed_url };
+                        } catch {
+                            return { ...inv, downloadUrl: null };
+                        }
                     })
                 );
 
@@ -120,7 +124,7 @@ function AccountantExportViewInner() {
         return <div className="flex flex-col items-center justify-center min-h-screen text-red-600"><AlertCircle className="w-12 h-12 mb-4" />{error}</div>;
     }
 
-    const totalAmount = invoices.reduce((sum, inv) => sum + inv.total_amount, 0);
+    const totalAmount = invoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0);
 
     return (
         <div className="p-4 sm:p-8 bg-gray-100 min-h-screen" dir="rtl">
@@ -129,7 +133,7 @@ function AccountantExportViewInner() {
                     <CardHeader>
                         <div className="flex justify-between items-center">
                             <div>
-                                <CardTitle className="text-2xl flex items-center gap-2"><FileText />ייצוא חשבוניות עבור TOP APOLLO</CardTitle>
+                                <CardTitle className="text-2xl flex items-center gap-2"><FileText />ייצוא חשבוניות עבור TOP ALENA</CardTitle>
                                 <CardDescription>
                                     תקופה: {format(new Date(exportData.start_date), 'dd/MM/yyyy')} - {format(new Date(exportData.end_date), 'dd/MM/yyyy')}
                                 </CardDescription>
@@ -157,7 +161,7 @@ function AccountantExportViewInner() {
                                         <TableCell>{format(new Date(invoice.invoice_date), 'dd/MM/yyyy')}</TableCell>
                                         <TableCell>{suppliers[invoice.supplier_id] || 'לא ידוע'}</TableCell>
                                         <TableCell>{invoice.invoice_number}</TableCell>
-                                        <TableCell>₪{invoice.total_amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
+                                        <TableCell>₪{(invoice.total_amount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
                                         <TableCell>
                                             <Button asChild variant="outline" size="sm">
                                                 <a href={invoice.downloadUrl} target="_blank" rel="noopener noreferrer">הורד PDF</a>

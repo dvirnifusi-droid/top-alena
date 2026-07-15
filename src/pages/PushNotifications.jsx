@@ -43,7 +43,7 @@ export default function PushNotifications() {
 
     const getTargetEmployees = () => {
         if (mode === 'all_admins') {
-            return employees.filter(e => e.pushover_user_key && e.role === 'admin');
+            return employees.filter(e => e.pushover_user_key && ['admin', 'owner', 'manager'].includes(e.role));
         }
         if (mode === 'today_shift') {
             return employees.filter(e => e.pushover_user_key && todayShiftEmployeeIds.includes(e.id));
@@ -64,15 +64,25 @@ export default function PushNotifications() {
         setSending(true);
         setResult(null);
         const keys = targets.map(e => e.pushover_user_key);
-        const res = await sendPushoverNotification({
-            user_keys: keys,
-            title: title.trim() || 'TOP APOLLO',
-            message: message.trim(),
-        });
-        setSending(false);
-        setResult({ ok: true, count: keys.length });
-        setMessage('');
-        setTitle('');
+        try {
+            const res = await sendPushoverNotification({
+                user_keys: keys,
+                title: title.trim() || 'TOP APOLLO',
+                message: message.trim(),
+            });
+            const data = res?.data ?? res;
+            if (data?.ok !== false) {
+                setResult({ ok: true, count: keys.length });
+                setMessage('');
+                setTitle('');
+            } else {
+                setResult({ ok: false, error: data?.message || data?.error || 'שליחה נכשלה' });
+            }
+        } catch (e) {
+            setResult({ ok: false, error: e?.message || String(e) });
+        } finally {
+            setSending(false);
+        }
     };
 
     const toggleEmployee = (id) => {
@@ -189,10 +199,16 @@ export default function PushNotifications() {
                         />
                     </div>
 
-                    {result && (
+                    {result?.ok && (
                         <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
                             <CheckCircle className="w-4 h-4" />
                             <span>ההודעה נשלחה ל-{result.count} עובדים! ✅</span>
+                        </div>
+                    )}
+                    {result && result.ok === false && (
+                        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
+                            <AlertCircle className="w-4 h-4" />
+                            <span>שליחה נכשלה: {result.error}</span>
                         </div>
                     )}
 

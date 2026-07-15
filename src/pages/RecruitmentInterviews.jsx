@@ -511,11 +511,15 @@ export default function RecruitmentInterviews() {
             </div>
           )}
 
-          {/* Min-score slider — owner-tunable threshold for auto interview booking */}
-          <MinScoreControl currentScore={inbox.settings?.min_score ?? 80} onSaved={load} />
-          <RecruitmentCriteriaControl criteria={inbox.settings?.recruitment_criteria} onSaved={load} />
         </section>
       )}
+
+      {/* AI recruiter config — must be reachable even before any applications create a funnel */}
+      <section className="bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] rounded-2xl shadow border border-indigo-200 p-4">
+        {/* Min-score slider — owner-tunable threshold for auto interview booking */}
+        <MinScoreControl currentScore={inbox.settings?.min_score ?? 80} onSaved={load} />
+        <RecruitmentCriteriaControl criteria={inbox.settings?.recruitment_criteria} onSaved={load} />
+      </section>
 
       {/* Upcoming interviews */}
       <section className="bg-white rounded-2xl shadow border border-slate-200 p-4">

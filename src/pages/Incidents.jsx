@@ -104,9 +104,12 @@ function IncidentForm({ incident, onSave, onCancel }) {
     const file = e.target.files[0];
     if (!file) return;
     setUploadingPhoto(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setFormData(prev => ({ ...prev, photo_url: file_url }));
-    setUploadingPhoto(false);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setFormData(prev => ({ ...prev, photo_url: file_url }));
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   const handleSubmit = (e) => {

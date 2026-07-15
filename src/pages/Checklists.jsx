@@ -146,8 +146,8 @@ function ChecklistsInner() {
             
             const [checklistsData, executionsData, employeesData] = await Promise.all([
                 Checklist.list().then(data => data.filter(c => c.title !== "צ'ק ליסט אריזת משלוחים" && c.status === 'active')),
-                ChecklistExecution.list('-execution_date'),
-                Employee.list()
+                ChecklistExecution.list('-execution_date').catch(() => []),
+                Employee.list().catch(() => [])
             ]);
 
             setChecklists(checklistsData);

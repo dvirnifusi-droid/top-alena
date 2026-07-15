@@ -241,7 +241,7 @@ function ProfileForm({ profile, onSaved }) {
       payload.business_name = data.business_name || '';
       payload.business_type = data.business_type || '';
       payload.logo_url = data.logo_url || '';
-      payload.is_kosher = !!data.is_kosher;
+      payload.is_kosher = /כן|כשר/.test(data.kosher_status || '');
       payload.monthly_budget = typeof data.monthly_budget === 'number' ? data.monthly_budget : Number(data.monthly_budget) || null;
       payload.weekly_owner_time_hours = typeof data.weekly_owner_time_hours === 'number' ? data.weekly_owner_time_hours : Number(data.weekly_owner_time_hours) || null;
       await base44.functions.saveBusinessProfile({ profile: payload });
@@ -563,6 +563,15 @@ function TasksView({ tasks, onChange, hasProfile, strategy }) {
     finally { setGeneratingNext(false); }
   };
 
+  const generateThisMonth = async () => {
+    setGeneratingNext(true);
+    try {
+      await base44.functions.generateMonthTasks({ month_number: selectedMonth });
+      await onChange();
+    } catch { alert('שגיאה ביצירת חודש'); }
+    finally { setGeneratingNext(false); }
+  };
+
   const generateTopup = async () => {
     setGeneratingTopup(true);
     try {
@@ -625,7 +634,7 @@ function TasksView({ tasks, onChange, hasProfile, strategy }) {
         <div className="bg-white border border-slate-200 rounded-2xl p-6 text-center">
           <p className="text-slate-400 text-sm mb-3">אין עדיין משימות לחודש זה</p>
           {selectedMonth > 1 && (
-            <button onClick={generateNextMonth} disabled={generatingNext} className="bg-[#A04A2E] hover:bg-[#7A3722] disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl">
+            <button onClick={generateThisMonth} disabled={generatingNext} className="bg-[#A04A2E] hover:bg-[#7A3722] disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl">
               {generatingNext ? '🤔 מייצר…' : `✨ ייצר את חודש ${selectedMonth}`}
             </button>
           )}

@@ -27,6 +27,11 @@ const GOOGLE_REVIEW_LINK = 'https://g.page/r/CReDn7f8zub7EBM/review';
 export default function CustomerSurveyPage() {
     const branding = useTenantBranding();
     const brandName = branding?.name || 'המסעדה';
+    // GOOGLE_REVIEW_LINK points at Alena's specific Google place and there is no
+    // per-tenant settings/branding field for it. To avoid sending other tenants'
+    // customers to Alena's review page, only offer the Google review CTA on the
+    // main Alena tenant.
+    const isMainTenant = /עלינ|alena|alina/i.test(branding?.name || '');
     const [searchParams] = useSearchParams();
     const sessionId = searchParams.get('sessionId');
     const shortCode = searchParams.get('s'); // Changed from manualId to shortCode 's'
@@ -156,10 +161,14 @@ export default function CustomerSurveyPage() {
     }, []); // Empty dependency array means this runs once on mount
 
 
-    const handleRatingSubmit = () => {
+    const handleRatingSubmit = async () => {
         if (rating > 3) {
             // Good review
-            saveFeedback(true);
+            try {
+                await saveFeedback(true);
+            } catch (e) {
+                console.error('Error saving good-review feedback:', e);
+            }
             setStep('thanks_good');
         } else {
             // Bad review
@@ -628,7 +637,7 @@ export default function CustomerSurveyPage() {
                             )}
 
                             {/* הצטרפות לקבוצת וואטסאפ */}
-                            {settings?.whatsapp_group_enabled && (
+                            {settings?.whatsapp_group_enabled && settings?.whatsapp_group_link && (
                                 <div className="bg-green-50 p-6 rounded-lg border border-green-200 mt-6 text-center">
                                     <h3 className="font-bold text-green-900 text-xl mb-2 flex items-center justify-center gap-2">
                                         <span className="text-3xl">💎</span>
@@ -637,8 +646,8 @@ export default function CustomerSurveyPage() {
                                     <p className="text-green-800 mb-4">
                                         הצטרפו לקבוצה השקטה שלנו וקבלו ראשונים עדכונים על אירועים מיוחדים, תפריטים חדשים והטבות ששמורות רק לחברים!
                                     </p>
-                                    <Button 
-                                        onClick={() => window.open(settings?.whatsapp_group_link || 'https://chat.whatsapp.com/KwD8J5F3aE9JnZ2vB4XyQr', '_blank')}
+                                    <Button
+                                        onClick={() => window.open(settings.whatsapp_group_link, '_blank')}
                                         className="bg-green-600 hover:bg-green-700 text-white h-12 px-8 text-lg rounded-full shadow-lg transition-transform hover:scale-105"
                                     >
                                         <span className="text-xl mr-2">💬</span>
@@ -650,7 +659,7 @@ export default function CustomerSurveyPage() {
                                 </div>
                             )}
                             
-                            {step === 'thanks_good' && (
+                            {step === 'thanks_good' && isMainTenant && (
                                 <div className="bg-[#F4ECD8] p-6 rounded-lg border border-[#E8D9B5] mt-6 text-center">
                                     <h3 className="font-bold text-blue-900 text-xl mb-2">עזרתם לנו המון! ❤️</h3>
                                     <p className="text-[#2E3819] mb-4">

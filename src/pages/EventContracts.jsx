@@ -207,7 +207,7 @@ export default function EventContracts() {
                             if (!window.confirm(`לשנות סטטוס ל-"${STATUS_BADGE[next]?.label || next}"?`)) return;
                             try {
                               await base44.functions.updateEventContract({ id: c.id, status: next });
-                              load();
+                              loadAll();
                             } catch (err) {
                               alert('שגיאה: ' + (err?.message || ''));
                             }
@@ -270,7 +270,7 @@ export default function EventContracts() {
                               // 'Not found' = already deleted (likely a double-fire); silent.
                               if (!/not found/i.test(msg)) {
                                 alert('שגיאה: ' + msg);
-                                load(); // restore on real failure
+                                loadAll(); // restore on real failure
                               }
                             } finally {
                               setDeletingId(null);

@@ -51,8 +51,8 @@ export default function Deliveries() {
   const [sendingTelegram, setSendingTelegram] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showSessionDialog, setShowSessionDialog] = useState(false);
-  const [sessionToken, setSessionToken] = useState(localStorage.getItem("telegram_session_token") || "1BJWap1wBuxYQB63qXdNqAx93L6j-AN5E7817JNx8ZakZbgojqjTEKFWu-mVAhBraZZaVMCFyyemzj6catOrHl2jDoZE_wD3I7AVRi_Zylp0O6FwAqKF4anakvtmqohzqhVKNTxkpVwDahfKZQKHfWomWfH_IwuOky9loQ50JfjhX0Su7NIyKzJHOneC0VZPcpVmqJBIb-wHf08NYTjsNFBl9CTwe5-KXf5HHK1W7oPeGw38eB0wg6ecR8F53IJBGmwrf3VUPBh-kzLprZ_l9em2xhO70AyqWmFXyepC5t5DUHYC62G_-MJjGJg9X9ra57sB1Z-pSh9Zpt6xEhN10w3IVhhNHRQA=");
-  const [groupId, setGroupId] = useState(localStorage.getItem("telegram_group_id") || "-5197361593");
+  const [sessionToken, setSessionToken] = useState(localStorage.getItem("telegram_session_token") || "");
+  const [groupId, setGroupId] = useState(localStorage.getItem("telegram_group_id") || "");
   const [formData, setFormData] = useState({
     customer_name: "", customer_phone: "", address: "",
     cash_amount: "", courier_name: "", payment_status: "unpaid",

@@ -128,8 +128,26 @@ export default function UploadChecklists() {
     try {
       // יבוא הצ'קליסטים למסד הנתונים
       for (const checklistData of extractedData.checklists) {
+        // Map AI-extracted items (item_text/is_critical/required_action/order) to
+        // the shape the app reads (task/text/critical/is_required), mirroring the
+        // item shape built in Checklists.jsx importFromText.
+        const items = (checklistData.items || []).map((it, i) => {
+          const t = it.item_text || it.task || it.text || '';
+          return {
+            id: `it_${Math.random().toString(36).slice(2, 8)}`,
+            order: it.order ?? (i + 1),
+            task: t,
+            text: t,
+            area: '',
+            critical: !!it.is_critical,
+            is_required: false
+          };
+        });
         await Checklist.create({
           ...checklistData,
+          category: checklistData.category || 'operational',
+          frequency: checklistData.frequency || 'daily',
+          items,
           status: "active",
           version: "1.0"
         });

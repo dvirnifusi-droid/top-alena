@@ -20,7 +20,7 @@ function MorningReportSection() {
     const [error, setError] = useState(null);
 
     const send = async () => {
-        if (!confirm('לשלוח דוח בוקרי עכשיו ל-dvirnifusi@gmail.com?\n\nהדוח כולל סיכום של אתמול + המלצה מ-Gemini.')) return;
+        if (!confirm('לשלוח דוח בוקרי עכשיו לבעל העסק?\n\nהדוח כולל סיכום של אתמול + המלצה מ-Gemini.')) return;
         setSending(true); setError(null); setResult(null);
         try {
             const res = await base44.functions.sendMorningReport({});

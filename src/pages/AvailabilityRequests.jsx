@@ -741,7 +741,7 @@ function AvailabilityRequestsInner() {
                                                                 <div className="flex items-center justify-between mb-2">
                                                                     <span className="font-bold">{avail.employee_name}</span>
                                                                     <div className="flex gap-1">
-                                                                        <Badge className={typeConfig.color} className="text-xs">{typeConfig.label}</Badge>
+                                                                        <Badge className={`${typeConfig.color} text-xs`}>{typeConfig.label}</Badge>
                                                                         <Button size="sm" variant="ghost" onClick={() => handleEditAvail(avail)}>
                                                                             <Edit2 className="w-3 h-3" />
                                                                         </Button>

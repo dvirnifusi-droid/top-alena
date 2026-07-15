@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,12 +17,17 @@ export default function CharacterLounge() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  // The CoinTransaction subscribe callback is registered once and would
+  // otherwise close over the initial (empty) `employees` array, recomputing
+  // every balance to 0 on any coin event. Read the latest list from this ref.
+  const employeesRef = useRef([]);
+  useEffect(() => { employeesRef.current = employees; }, [employees]);
 
   const refreshCoins = async () => {
     try {
       const transactions = await base44.entities.CoinTransaction.list();
       const coinsByEmp = {};
-      employees.forEach(emp => {
+      employeesRef.current.forEach(emp => {
         const empTransactions = transactions.filter(t => t.employee_id === emp.id);
         const totalCoins = empTransactions.reduce((sum, t) => {
           if (t.status === 'approved') {

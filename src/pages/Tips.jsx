@@ -845,7 +845,7 @@ function TipsInner() {
                     )}
                 </CardContent>
                 <CardFooter className="flex justify-end gap-2 flex-wrap">
-                   <Button variant="outline" disabled={isLoading}><Printer className="w-4 h-4 ml-2"/>הדפס דוח</Button>
+                   <Button variant="outline" disabled={isLoading} onClick={() => window.print()}><Printer className="w-4 h-4 ml-2"/>הדפס דוח</Button>
                    <Button onClick={handleSaveReport} disabled={isLoading || existingReport?.status === 'locked'}>
                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin ml-2"/> : <Save className="w-4 h-4 ml-2"/>}
                        {existingReport ? 'עדכן דוח' : 'שמור דוח'}

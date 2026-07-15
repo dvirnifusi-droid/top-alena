@@ -101,7 +101,7 @@ export default function SupplierDetails() {
   const supplierId = new URLSearchParams(location.search).get('id');
 
   const loadData = useCallback(async () => {
-    if (!supplierId) return;
+    if (!supplierId) { setLoading(false); return; }
     setLoading(true);
     try {
       const [supplierData, productsData] = await Promise.all([

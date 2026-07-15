@@ -71,8 +71,8 @@ function AiDashboardInner() {
         setLoading(true);
         try {
             const [knowledge, questions, pending, menu, info] = await Promise.all([
-                KnowledgeBase.list('-last_updated'),
-                StaffQuestion.list('-created_date', 20),
+                KnowledgeBase.list('-last_updated').catch(() => []),
+                StaffQuestion.list('-created_date', 20).catch(() => []),
                 PendingQuestion.filter({ status: 'pending' }, '-created_date').catch(() => []), // Gracefully handle if PendingQuestion fails
                 MenuItem.list().catch(() => []), // Gracefully handle if MenuItem fails
                 RestaurantInfo.filter({ is_active: true }).catch(() => []) // Load restaurant info
@@ -393,8 +393,8 @@ function AiDashboardInner() {
     };
 
     const filteredItems = knowledgeItems.filter(item =>
-        item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.title||'').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.content||'').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (item.keywords && Array.isArray(item.keywords) && item.keywords.some(keyword => keyword.toLowerCase().includes(searchTerm.toLowerCase())))
     );
 

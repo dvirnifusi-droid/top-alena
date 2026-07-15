@@ -19,9 +19,15 @@ export default function MarketingDashboard() {
 
     const loadLogs = async () => {
         setLoading(true);
-        const data = await base44.entities.CampaignLog.list('-sent_at', 500);
-        setLogs(data);
-        setLoading(false);
+        try {
+            const data = await base44.entities.CampaignLog.list('-sent_at', 500);
+            setLogs(data || []);
+        } catch (e) {
+            console.error('Error loading campaign logs:', e);
+            setLogs([]);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const days = parseInt(period);

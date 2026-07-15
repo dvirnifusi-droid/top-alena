@@ -524,12 +524,13 @@ export default function MarketingAgentsHub() {
       return;
     }
     setPipelineStage('starting');
+    let tick;
     try {
       // Stage indicators — these are advisory, the backend runs synchronously
       // so we just bump them at fixed intervals to show life.
       const stages = ['copy', 'image', 'brief'];
       let i = 0;
-      const tick = setInterval(() => {
+      tick = setInterval(() => {
         if (i < stages.length) setPipelineStage(stages[i++]);
       }, 15000);
       const res = await base44.functions.runFullPipeline({
@@ -554,6 +555,7 @@ export default function MarketingAgentsHub() {
         loadRuns();
       }
     } catch (e) {
+      clearInterval(tick);
       toast.error(`שגיאה: ${e?.message || e}`);
       setPipelineStage(null);
     }

@@ -25,9 +25,12 @@ export default function MessageTemplates() {
 
     const loadTemplates = async () => {
         setLoading(true);
-        const data = await base44.entities.MessageTemplate.list('-created_date');
-        setTemplates(data);
-        setLoading(false);
+        try {
+            const data = await base44.entities.MessageTemplate.list('-created_date');
+            setTemplates(data);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const openNew = () => {

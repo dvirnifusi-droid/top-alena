@@ -1467,27 +1467,16 @@ export default function WorkScheduling() {
                                                     <div className="flex items-center gap-1">
                                                         <span className="text-sm text-gray-500">
                                                             (
-                                                            {days.reduce((total, day) => {
-                                                                const s = getShiftFor(day, type);
-                                                                let assignments = (s?.assigned_staff || [])
-                                                                    .filter(a => canon(a.position) === canon(position.position_name));
-                                                                if (filters.employee !== 'all') {
-                                                                    assignments = assignments.filter(a => a.employee_id === filters.employee);
-                                                                }
-                                                                return total + assignments.length;
-                                                            }, 0)}
+                                                            {days.reduce((total, day) => total + getAssignmentsFor(day, type, position.position_name).length, 0)}
                                                             )
                                                         </span>
                                                     </div>
                                                 </div>
                                                 {days.map(day => {
                                                     const shift = getShiftFor(day, type);
-                                                    let assignments = (shift?.assigned_staff || [])
-                                                        .filter(a => canon(a.position) === canon(position.position_name));
-
-                                                    if (filters.employee !== 'all') {
-                                                        assignments = assignments.filter(a => a.employee_id === filters.employee);
-                                                    }
+                                                    // Aggregate across duplicate shift rows (older data can create two
+                                                    // WorkShift rows for the same day+type) so no assigned staff is hidden.
+                                                    const assignments = getAssignmentsFor(day, type, position.position_name);
 
                                                     const dateStr = format(day, 'yyyy-MM-dd');
                                                     // Coverage: how many of this role this shift needs vs how many assigned.

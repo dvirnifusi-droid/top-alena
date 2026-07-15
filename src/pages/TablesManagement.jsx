@@ -148,7 +148,7 @@ export default function TablesManagementPage() {
                 steps_completed: newStepsCompleted
             };
 
-            if (nextStep === 23) {
+            if (currentStep === 23) {
                 updateData.status = 'completed';
                 updateData.session_end = new Date().toISOString();
                 // Optionally mark reservation as completed too
@@ -452,7 +452,7 @@ export default function TablesManagementPage() {
                                                     onClick={() => advanceStep(session.id, session.current_step)}
                                                     className="flex-1 bg-green-600 hover:bg-green-700"
                                                     size="sm"
-                                                    disabled={session.current_step >= 23}
+                                                    disabled={session.current_step > 23}
                                                 >
                                                     <Play className="w-3 h-3 ml-1" />
                                                     קדם שלב

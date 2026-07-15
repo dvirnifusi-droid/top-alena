@@ -171,7 +171,7 @@ export default function OnboardingQuestionnaire() {
       const s = SECTIONS[i];
       const answered = s.questions.filter((q) => (answers[q.n] || '').trim());
       if (!answered.length) continue;
-      lines.push(`## חלק ${i} · ${s.titleHe}`);
+      lines.push(`## חלק ${i + 1} · ${s.titleHe}`);
       lines.push('');
       for (const q of answered) {
         lines.push(`**ש${q.n}. ${q.he}**`);
@@ -182,7 +182,7 @@ export default function OnboardingQuestionnaire() {
     }
     const checked = ATTACH_ITEMS.filter((it) => checks[it.key]).map((it) => it.he);
     if (checked.length) {
-      lines.push('## חלק 8 · חומרים קיימים לצירוף');
+      lines.push('## חלק 9 · חומרים קיימים לצירוף');
       lines.push('');
       lines.push(checked.map((c) => `- ${c}`).join('\n'));
       lines.push('');
@@ -241,7 +241,7 @@ export default function OnboardingQuestionnaire() {
   const downloadPdf = () => {
     const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const sectionsHtml = SECTIONS.map((s, i) => `
-      <div class="section"><div class="sh">חלק ${i} · ${esc(s.titleHe)} <span class="en">${esc(s.titleEn)}</span></div>
+      <div class="section"><div class="sh">חלק ${i + 1} · ${esc(s.titleHe)} <span class="en">${esc(s.titleEn)}</span></div>
       <div class="sb">${s.questions.map((q) => `<div class="q"><div class="qh"><b>${q.n}.</b> ${esc(q.he)}</div><div class="ans">${esc(answers[q.n]) || '&nbsp;'}</div></div>`).join('')}</div></div>`).join('');
     const checkedHtml = ATTACH_ITEMS.map((it) => `<li>${checks[it.key] ? '☑' : '☐'} ${esc(it.he)}</li>`).join('');
     const html = `<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><title>שאלון הצטרפות · Dvir AI</title><style>
@@ -252,7 +252,7 @@ export default function OnboardingQuestionnaire() {
       .q{margin-bottom:9px;break-inside:avoid;} .qh{font-weight:700;color:#0f172a;} .ans{margin-top:3px;border:1px solid #cbd5e1;border-radius:6px;padding:6px 9px;min-height:20px;white-space:pre-wrap;}
       ul{list-style:none;padding:0;} li{margin-bottom:6px;}</style></head><body>
       <h1>📋 שאלון הצטרפות · בסיס הידע של Dvir AI</h1><p class="sub">הושלמו ${answeredCount}/${ALL_QS.length} שאלות</p>
-      ${sectionsHtml}<div class="section"><div class="sh">חלק 8 · חומרים קיימים לצירוף</div><div class="sb"><ul>${checkedHtml}</ul></div></div></body></html>`;
+      ${sectionsHtml}<div class="section"><div class="sh">חלק 9 · חומרים קיימים לצירוף</div><div class="sb"><ul>${checkedHtml}</ul></div></div></body></html>`;
     const w = window.open('', '_blank');
     if (!w) { toast({ title: 'החלון נחסם', description: 'אפשר חלונות קופצים כדי להוריד PDF', variant: 'destructive' }); return; }
     w.document.write(html); w.document.close(); w.focus();
@@ -293,7 +293,7 @@ export default function OnboardingQuestionnaire() {
         {SECTIONS.map((section, idx) => (
           <Card key={section.key} className="overflow-hidden">
             <div className="bg-gradient-to-l from-teal-600 to-emerald-500 text-white px-4 py-3">
-              <div className="font-bold text-lg">חלק {idx} · {section.titleHe}</div>
+              <div className="font-bold text-lg">חלק {idx + 1} · {section.titleHe}</div>
               <div className="text-xs opacity-90" dir="ltr">{section.titleEn}</div>
               {section.note && <div className="text-[11px] opacity-80 mt-0.5">{section.note}</div>}
             </div>
@@ -319,7 +319,7 @@ export default function OnboardingQuestionnaire() {
 
         <Card className="overflow-hidden">
           <div className="bg-gradient-to-l from-teal-600 to-emerald-500 text-white px-4 py-3">
-            <div className="font-bold text-lg">חלק 8 · חומרים קיימים לצירוף</div>
+            <div className="font-bold text-lg">חלק 9 · חומרים קיימים לצירוף</div>
             <div className="text-[11px] opacity-80 mt-0.5">כל מה שכבר קיים — פשוט העלה במסך "ידע של דביר", לא צריך להקליד מחדש</div>
           </div>
           <CardContent className="p-4 space-y-3">

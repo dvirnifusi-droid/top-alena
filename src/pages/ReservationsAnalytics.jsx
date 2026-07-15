@@ -38,27 +38,30 @@ const PRESETS = [
 
 function pct(part, whole) { return whole > 0 ? Math.round((part / whole) * 100) : 0; }
 
-function Delta({ now, was }) {
+function Delta({ now, was, invert = false }) {
   if (was == null) return null;
   const diff = now - was;
   if (was === 0 && now === 0) return <span className="text-[11px] text-gray-400">—</span>;
   const p = was === 0 ? 100 : Math.round((diff / was) * 100);
   const up = diff >= 0;
+  // For "bad-when-up" metrics (e.g. no-show rate), invert the good/bad semantics
+  // so a rise shows red + down-arrow. The numeric sign still reflects the real change.
+  const good = invert ? !up : up;
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[11px] font-bold ${up ? 'text-emerald-600' : 'text-rose-600'}`}>
-      {up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+    <span className={`inline-flex items-center gap-0.5 text-[11px] font-bold ${good ? 'text-emerald-600' : 'text-rose-600'}`}>
+      {good ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
       {up ? '+' : ''}{p}%
     </span>
   );
 }
 
-function Kpi({ icon, label, value, suffix, now, was }) {
+function Kpi({ icon, label, value, suffix, now, was, invert }) {
   return (
     <Card className="shadow-sm">
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-1">
           <span className="text-gray-400">{icon}</span>
-          <Delta now={now} was={was} />
+          <Delta now={now} was={was} invert={invert} />
         </div>
         <div className="text-2xl font-black text-gray-900 tabular-nums">{value}{suffix}</div>
         <div className="text-xs text-gray-500 mt-0.5">{label}</div>
@@ -170,7 +173,7 @@ export default function ReservationsAnalytics() {
             <Kpi icon={<Users className="w-5 h-5" />} label="סועדים" value={range.total_guests} now={range.total_guests} was={cmp?.total_guests} />
             <Kpi icon={<Users className="w-5 h-5" />} label="ממוצע לשולחן" value={range.avg_party} now={range.avg_party} was={cmp?.avg_party} />
             <Kpi icon={<Users className="w-5 h-5" />} label="לקוחות ייחודיים" value={range.unique_customers} now={range.unique_customers} was={cmp?.unique_customers} />
-            <Kpi icon={<UserX className="w-5 h-5" />} label="שיעור הברזות" value={range.no_show_rate} suffix="%" now={range.no_show_rate} was={cmp?.no_show_rate} />
+            <Kpi icon={<UserX className="w-5 h-5" />} label="שיעור הברזות" value={range.no_show_rate} suffix="%" now={range.no_show_rate} was={cmp?.no_show_rate} invert />
           </div>
 
           {/* Source breakdown */}

@@ -104,7 +104,7 @@ export default function Signup() {
           <div className="inline-flex items-center justify-center bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-full p-4 mb-3">
             <ChefHat className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-bold">הצטרפו ל-TOP APOLLO</h1>
+          <h1 className="text-2xl font-bold">הצטרפו ל-TOP ALENA</h1>
           <p className="text-sm text-slate-600 mt-1">
             פלטפורמה לניהול מסעדה מבוססת AI. חינם 14 יום, ללא כרטיס אשראי.
           </p>

@@ -248,7 +248,7 @@ function LeaderboardInner() {
                     <div className="space-y-4">
                         {performanceData.length > 0 ? (
                             performanceData.map((player, index) => (
-                                <Card key={player.id} className="shadow-md hover:shadow-lg transition-shadow duration-300">
+                                <Card key={player.employee_name} className="shadow-md hover:shadow-lg transition-shadow duration-300">
                                     <CardContent className="p-4 flex items-center justify-between gap-4">
                                         <div className="flex items-center gap-3 flex-1 min-w-0">
                                            <div className="w-10 text-center flex-shrink-0">{getRankIcon(index)}</div>

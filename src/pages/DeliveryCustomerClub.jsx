@@ -22,6 +22,35 @@ const PLATFORM_LABELS = {
   "טלפון": "📞 טלפון",
 };
 
+// Quote-aware CSV line parser — export quotes every field, so a value like
+// "רחוב הרצל, 5" contains a comma inside quotes that a naive split(",") would
+// break. Handles quoted fields with embedded commas and escaped quotes ("").
+const parseCsvLine = (line) => {
+  const out = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; } // escaped quote
+        else { inQuotes = false; }
+      } else {
+        cur += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out.map((v) => v.trim());
+};
+
 export default function DeliveryCustomerClub() {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -97,7 +126,7 @@ export default function DeliveryCustomerClub() {
     if (lines.length < 2) return alert("הקובץ ריק");
 
     // זיהוי headers אוטומטי
-    const headerLine = lines[0].split(",").map((h) => h.replace(/"/g, "").trim());
+    const headerLine = parseCsvLine(lines[0]);
     const findCol = (...names) => {
       for (const n of names) {
         const idx = headerLine.findIndex((h) => h.includes(n));
@@ -117,7 +146,7 @@ export default function DeliveryCustomerClub() {
 
     let imported = 0, skipped = 0;
     for (let i = 1; i < lines.length; i++) {
-      const cols2 = lines[i].split(",").map((v) => v.replace(/"/g, "").trim());
+      const cols2 = parseCsvLine(lines[i]);
       const phone = cols.phone >= 0 ? cols2[cols.phone] : "";
       if (!phone) { skipped++; continue; }
 

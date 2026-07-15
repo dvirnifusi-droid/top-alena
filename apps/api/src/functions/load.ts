@@ -1601,7 +1601,7 @@ registerFn('bookInterviewByManager', async ({ body }) => {
       scheduled_time: time,
       duration_minutes: tpl?.duration_minutes ?? 30,
       status: 'scheduled',
-      type_: t,
+      type: t,
     },
   });
   fireTriggers('Interview', 'created', interview).catch(() => {});
@@ -17926,6 +17926,10 @@ if (!(globalThis as any).__startupDriftRepair) {
       await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "twilio_credentials" JSONB;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "cover_photo_url" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "EventSalesKit" ADD COLUMN IF NOT EXISTS "intake_config" JSONB;`);
+      // Interview.type — manager booking (bookInterviewByManager) writes it to
+      // distinguish interview vs menu_exam. Guarantee the column so the insert
+      // never P2022s on a tenant whose Interview table predates it.
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Interview" ADD COLUMN IF NOT EXISTS "type" TEXT;`);
       // PrepList columns for the par/order-list feature.
       await prisma.$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "list_type" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "par_locked" BOOLEAN;`);

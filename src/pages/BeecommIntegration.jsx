@@ -173,7 +173,7 @@ export default function BeecommIntegrationPage() {
       await BeecommOrder.create(orderData);
       await loadOrders();
       
-      alert('הזמנה נשלחה בהצלחה!');
+      alert('נשמרה הזמנת בדיקה מקומית (לא נשלחה ל-Beecomm).');
       // Reset form
       setTestOrder({
         firstName: '',

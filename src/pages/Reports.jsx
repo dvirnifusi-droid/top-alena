@@ -321,7 +321,7 @@ function ReportsInner() {
 
     const filteredEmployeeData = selectedEmployee === 'all' ? 
         employeeMonthlyData : 
-        employeeMonthlyData.filter(emp => emp.name.includes(selectedEmployee));
+        employeeMonthlyData.filter(emp => (emp.name || '').includes(selectedEmployee));
 
     return (
         <div className="p-4 md:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">

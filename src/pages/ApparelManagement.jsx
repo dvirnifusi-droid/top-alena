@@ -27,9 +27,12 @@ export default function ApparelManagement() {
   }, []);
 
   const loadApparel = async () => {
-    const items = await base44.entities.Apparel.list();
-    setApparel(items);
-    setLoading(false);
+    try {
+      const items = await base44.entities.Apparel.list();
+      setApparel(items);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const categories = [

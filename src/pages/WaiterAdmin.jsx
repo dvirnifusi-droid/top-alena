@@ -303,7 +303,8 @@ function OutOfStockTab({ outOfStock, setOutOfStock, menu }) {
   const list = Array.isArray(outOfStock) ? outOfStock : [];
   const remove = (name) => setOutOfStock(list.filter((x) => x !== name));
   const add = (name) => { if (name && !list.includes(name)) setOutOfStock([...list, name]); };
-  const allItems = (menu?.categories || []).flatMap((c) => (c.items || []).map((it) => ({ name: it.name, cat: c.name }))).filter((x) => x.name);
+  const cats = Object.values(normalizeMenus(menu)).flatMap((m) => m?.categories || []);
+  const allItems = cats.flatMap((c) => (c.items || []).map((it) => ({ name: it.name, cat: c.name }))).filter((x) => x.name);
 
   return (
     <div className="space-y-3">

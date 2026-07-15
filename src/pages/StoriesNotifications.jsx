@@ -19,15 +19,25 @@ export default function StoriesNotifications() {
       try {
         const currentUser = await base44.auth.me();
         setUser(currentUser);
-        
+
         if (!currentUser) return;
+
+        // `employee_id` on stories holds an Employee id, not the auth User id
+        // (they differ). Resolve the current Employee by email — the same
+        // email-match pattern used in EmployeeHome.jsx / CharacterLounge.jsx.
+        const allEmployees = await base44.entities.Employee.list();
+        const currentEmployee = allEmployees.find(
+          e => e.email?.toLowerCase() === currentUser.email?.toLowerCase()
+        );
 
         // Load all stories
         const allStories = await base44.entities.EmployeeStory.list("-created_date", 1000);
         setStories(allStories);
 
         // Generate notifications for user's stories
-        const userStories = allStories.filter(s => s.employee_id === currentUser.id);
+        const userStories = currentEmployee
+          ? allStories.filter(s => s.employee_id === currentEmployee.id)
+          : [];
         const notifs = [];
 
         userStories.forEach(story => {

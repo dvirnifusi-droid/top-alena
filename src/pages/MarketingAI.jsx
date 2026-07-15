@@ -37,11 +37,11 @@ export default function MarketingAIPage() {
         setLoading(true);
         try {
             const [tasksData, goalsData, insightsData, sessionsData, profileData, suggestionsData] = await Promise.all([
-                MarketingTask.list('-due_date'),
-                MarketingGoal.filter({ status: 'active' }),
-                MarketingInsight.list('-created_date', 10),
-                BrainstormSession.list('-session_date', 5),
-                RestaurantProfile.list('', 1),
+                MarketingTask.list('-due_date').catch(() => []),
+                MarketingGoal.filter({ status: 'active' }).catch(() => []),
+                MarketingInsight.list('-created_date', 10).catch(() => []),
+                BrainstormSession.list('-session_date', 5).catch(() => []),
+                RestaurantProfile.list('', 1).catch(() => []),
                 AiSuggestion.list('-created_date', 50).catch(() => [])
             ]);
             

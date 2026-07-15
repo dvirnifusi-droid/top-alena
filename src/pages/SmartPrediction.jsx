@@ -34,6 +34,7 @@ export default function SmartPredictionPage() {
     const [selectedEndDate, setSelectedEndDate] = useState(format(addDays(new Date(), 2), 'yyyy-MM-dd'));
     const [historicalData, setHistoricalData] = useState([]);
     const [activeTab, setActiveTab] = useState('predictions');
+    const [loadError, setLoadError] = useState(null);
 
     useEffect(() => {
         loadSettings();
@@ -45,6 +46,7 @@ export default function SmartPredictionPage() {
 
     const loadSettings = async () => {
         try {
+            setLoadError(null);
             const settingsData = await PredictionSettings.list();
             if (settingsData.length > 0) {
                 setSettings(settingsData[0]);
@@ -68,6 +70,7 @@ export default function SmartPredictionPage() {
             }
         } catch (error) {
             console.error('Error loading settings:', error);
+            setLoadError(error?.message || 'שגיאה בטעינת ההגדרות');
         }
     };
 
@@ -575,6 +578,14 @@ ${JSON.stringify(salesData.map(sale => ({
     };
 
     if (!settings) {
+        if (loadError) {
+            return (
+                <div className="flex flex-col items-center justify-center h-screen gap-4" dir="rtl">
+                    <span className="text-red-600">שגיאה בטעינת ההגדרות</span>
+                    <button onClick={loadSettings} className="bg-[#A04A2E] hover:bg-[#7A3722] text-white font-bold px-5 py-2.5 rounded-xl">נסה שוב</button>
+                </div>
+            );
+        }
         return <div className="flex items-center justify-center h-screen"><span>טוען הגדרות...</span></div>;
     }
 

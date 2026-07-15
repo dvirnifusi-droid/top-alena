@@ -57,7 +57,7 @@ export default function AvailabilityFormSettings() {
         setLoading(true);
         try {
             const currentUser = await User.me();
-            if (currentUser?.role !== 'admin') {
+            if (!['admin', 'owner', 'manager'].includes(currentUser?.role)) {
                 setUser(null);
                 setLoading(false);
                 return;
@@ -135,7 +135,7 @@ export default function AvailabilityFormSettings() {
         return <div className="flex justify-center items-center h-screen"><Loader2 className="w-8 h-8 animate-spin" /></div>;
     }
 
-    if (!user || user.role !== 'admin') {
+    if (!user || !['admin', 'owner', 'manager'].includes(user.role)) {
         return (
             <div className="flex items-center justify-center h-screen">
                 <Card className="max-w-md w-full text-center p-8">
@@ -248,7 +248,7 @@ export default function AvailabilityFormSettings() {
                          <div>
                              <Label className="mb-2 block font-semibold">בחר חטיבה</Label>
                              <div className="flex gap-2 mb-4">
-                                 {settings.departments.map(dept => (
+                                 {(settings.departments || []).map(dept => (
                                      <button
                                          key={dept.key}
                                          onClick={() => setSelectedDeptKey(dept.key)}

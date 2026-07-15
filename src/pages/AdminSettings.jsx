@@ -9,12 +9,28 @@ import PageHeader from '@/components/shared/PageHeader';
 import { Settings, Zap, MessageCircle, Tablet, MapPin, RefreshCw, CreditCard, FormInput, Tv, Bell, Database, Mic, Mail } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 
+// Tailwind's JIT can't see interpolated class names (bg-${accent}-50 etc.), so
+// every accent used in this file is mapped to full literal class strings here.
+const ACCENT = {
+    amber:   { bg: 'bg-amber-50',   text: 'text-amber-600',   border: 'border-amber-100',   hover: 'hover:border-amber-300' },
+    cyan:    { bg: 'bg-cyan-50',    text: 'text-cyan-600',    border: 'border-cyan-100',    hover: 'hover:border-cyan-300' },
+    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', hover: 'hover:border-emerald-300' },
+    purple:  { bg: 'bg-purple-50',  text: 'text-purple-600',  border: 'border-purple-100',  hover: 'hover:border-purple-300' },
+    indigo:  { bg: 'bg-indigo-50',  text: 'text-indigo-600',  border: 'border-indigo-100',  hover: 'hover:border-indigo-300' },
+    blue:    { bg: 'bg-blue-50',    text: 'text-blue-600',    border: 'border-blue-100',    hover: 'hover:border-blue-300' },
+    rose:    { bg: 'bg-rose-50',    text: 'text-rose-600',    border: 'border-rose-100',    hover: 'hover:border-rose-300' },
+    slate:   { bg: 'bg-slate-50',   text: 'text-slate-600',   border: 'border-slate-100',   hover: 'hover:border-slate-300' },
+    violet:  { bg: 'bg-violet-50',  text: 'text-violet-600',  border: 'border-violet-100',  hover: 'hover:border-violet-300' },
+    orange:  { bg: 'bg-orange-50',  text: 'text-orange-600',  border: 'border-orange-100',  hover: 'hover:border-orange-300' },
+};
+
 function Tile({ to, title, sub, icon: Icon, accent }) {
+    const a = ACCENT[accent] || ACCENT.slate;
     return (
         <Link to={to} className="block">
-            <div className={`rounded-xl border-2 p-4 hover:shadow-md transition-all bg-white border-${accent}-100 hover:border-${accent}-300 h-full`}>
-                <div className={`w-10 h-10 rounded-lg bg-${accent}-50 flex items-center justify-center mb-3`}>
-                    <Icon className={`w-5 h-5 text-${accent}-600`} />
+            <div className={`rounded-xl border-2 p-4 hover:shadow-md transition-all bg-white ${a.border} ${a.hover} h-full`}>
+                <div className={`w-10 h-10 rounded-lg ${a.bg} flex items-center justify-center mb-3`}>
+                    <Icon className={`w-5 h-5 ${a.text}`} />
                 </div>
                 <div className="font-bold text-sm text-gray-900">{title}</div>
                 <div className="text-xs text-gray-500 mt-1 leading-relaxed">{sub}</div>
@@ -45,7 +61,7 @@ export default function AdminSettings() {
                 <Tile
                     to={createPageUrl('BeecommLive')}
                     title="Beecomm Live — POS"
-                    sub="מעקב חי על קופה, מלצרים, מנות. POS ID fAgKZ7pBRGiJXwRUTebj"
+                    sub="מעקב חי על קופה, מלצרים, מנות."
                     icon={Database}
                     accent="amber"
                 />

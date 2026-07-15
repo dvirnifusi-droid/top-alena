@@ -148,10 +148,15 @@ export default function BriefingManagement() {
                 }));
             }
 
-            const summaryResponse = await InvokeLLM({
-                prompt: `Summarize the following restaurant brief in one short, informative sentence in Hebrew: ${JSON.stringify(finalData)}`
-            });
-            finalData.ai_summary = summaryResponse;
+            // Best-effort AI summary — a failure here must not lose the whole brief.
+            try {
+                const summaryResponse = await InvokeLLM({
+                    prompt: `Summarize the following restaurant brief in one short, informative sentence in Hebrew: ${JSON.stringify(finalData)}`
+                });
+                finalData.ai_summary = summaryResponse;
+            } catch (summaryErr) {
+                console.warn('AI summary failed, saving brief without it', summaryErr);
+            }
 
             let savedBrief;
             if (finalData.id) {

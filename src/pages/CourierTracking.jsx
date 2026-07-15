@@ -114,10 +114,25 @@ export default function CourierTracking() {
       alert("אין משלוחים לשליח זה");
       return;
     }
-    // סדר כתובות עם מיזוגים לוויז
+    // Respect the manual reorder and include every stop (not just the first).
     const addresses = roundTripDeliveries.map(d => d.address).filter(Boolean);
-    if (addresses.length > 0) {
+    if (addresses.length === 0) {
+      setRoundTripDialog(null);
+      return;
+    }
+    if (addresses.length === 1) {
+      // Single stop — keep the existing Waze deep-link behavior.
       window.location.href = `waze://navigate?q=${encodeURIComponent(addresses[0])}`;
+    } else {
+      // Multiple stops — Waze navigates to one destination at a time, so build a
+      // Google Maps multi-stop directions URL: the final stop is the destination
+      // and the earlier stops become ordered waypoints.
+      const destination = addresses[addresses.length - 1];
+      const waypoints = addresses.slice(0, -1).map(encodeURIComponent).join("|");
+      window.open(
+        `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&waypoints=${waypoints}`,
+        "_blank"
+      );
     }
     setRoundTripDialog(null);
   };

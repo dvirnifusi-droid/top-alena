@@ -75,7 +75,7 @@ export default function EventsDashboard() {
                     {(data.monthly || []).length === 0 ? (
                         <p className="text-xs text-gray-400 text-center py-4">אין אירועים בטווח התאריכים</p>
                     ) : (
-                        <GanttChart monthly={data.monthly} events={data.events} />
+                        <GanttChart monthly={data.monthly} events={data.events || []} />
                     )}
                 </CardContent>
             </Card>
@@ -86,7 +86,7 @@ export default function EventsDashboard() {
                     <h3 className="font-bold text-sm mb-2 flex items-center gap-1">
                         <TrendingUp className="w-4 h-4 text-emerald-600" /> אירועים פתוחים — סטטוס וספקים
                     </h3>
-                    {data.open.length === 0 ? (
+                    {(data.open || []).length === 0 ? (
                         <p className="text-xs text-gray-400 text-center py-6">אין אירועים פתוחים כרגע</p>
                     ) : (
                         <div className="space-y-2">
@@ -97,7 +97,7 @@ export default function EventsDashboard() {
             </Card>
 
             {/* === Closed events (recent) === */}
-            {data.closed.length > 0 && (
+            {(data.closed || []).length > 0 && (
                 <Card className="mt-3">
                     <CardContent className="p-3 md:p-4">
                         <h3 className="font-bold text-sm mb-2 flex items-center gap-1">

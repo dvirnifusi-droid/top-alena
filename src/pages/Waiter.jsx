@@ -105,7 +105,7 @@ export default function Waiter() {
       en: `Welcome to ${brandName} 🌿 I'm your digital waiter. I'll help you build a perfect meal — salads, shareable mains, grilled vegetables, drinks and more. To start — how many of you are dining tonight?`,
       ru: `Добро пожаловать в ${brandName} 🌿 Я ваш цифровой официант. Помогу составить идеальный ужин — салаты, основные блюда для компании, овощи на гриле, напитки и многое другое. Для начала — сколько вас сегодня?`,
     };
-    setMessages([{ role: 'assistant', content: welcome[lang] || welcome.he }]);
+    setMessages((m) => m.length === 0 ? [{ role: 'assistant', content: welcome[lang] || welcome.he }] : m);
     /* eslint-disable-next-line */
   }, [lang]);
   useEffect(() => {

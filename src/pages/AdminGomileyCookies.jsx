@@ -199,7 +199,7 @@ export default function AdminGomileyCookies() {
     const [phpSessId, setPhpSessId] = useState('');
     const [arena, setArena] = useState('');
     const [deviceToken, setDeviceToken] = useState('');
-    const [restaurantId, setRestaurantId] = useState('1968');
+    const [restaurantId, setRestaurantId] = useState(isMainAlena() ? '1968' : '');
     const [status, setStatus] = useState(null);
     const [saving, setSaving] = useState(false);
     const [result, setResult] = useState(null);
@@ -254,7 +254,7 @@ export default function AdminGomileyCookies() {
                             <div>restaurant_id: {status.restaurant_id || '—'}</div>
                             <div className="col-span-2 mt-1">
                                 snapshot אחרון: {status.last_capture_at ? new Date(status.last_capture_at).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' }) : 'אין עדיין'}
-                                {status.last_orders_count !== null && ` · ${status.last_orders_count} משלוחים`}
+                                {status.last_orders_count != null && ` · ${status.last_orders_count} משלוחים`}
                             </div>
                         </div>
                     </CardContent>

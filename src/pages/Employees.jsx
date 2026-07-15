@@ -592,7 +592,7 @@ function EmployeesInner() {
        for (const e of chosen) {
          if (!e.full_name) continue;
          await Employee.create({
-           employee_name: e.full_name,
+           full_name: e.full_name,
            email: e.email || null,
            phone: e.phone || null,
            role: e.role || null,
