@@ -4512,6 +4512,65 @@ registerFn('migrateDriveToAiAssistantFiles', async ({ user }) => {
 // back to GeminiFileCache (Drive era) for files that haven't been migrated.
 // Lazily re-uploads each file to Gemini's Files API when the cached URI is
 // older than 47h.
+// Live business context for DVIR AI — pulls the owner's actual app data fresh
+// from the DB so anything entered in the app (menu, employees, suppliers,
+// checklists, order lists) is automatically "known" by the assistant WITHOUT
+// re-uploading a file. Every query is guarded so a missing/drifted table never
+// breaks the chat. Salaries are intentionally excluded (privacy).
+async function buildLiveBusinessContext(): Promise<string> {
+  const sections: string[] = [];
+
+  try {
+    const p: any = await db.restaurantProfile.findFirst();
+    if (p) {
+      const bits = [p.restaurant_name, p.cuisine_style, [p.address, p.city].filter(Boolean).join(', '), p.phone].filter(Boolean);
+      if (bits.length) sections.push(`עסק: ${bits.join(' · ')}`);
+    }
+  } catch { /* drift-safe */ }
+
+  try {
+    const items: any[] = await db.menuItem.findMany({ where: { available: true }, take: 300, orderBy: { category: 'asc' } });
+    if (items.length) {
+      const lines = items.map((i) => `• ${i.name}${i.price ? ` — ${i.price}₪` : ''}${i.category ? ` [${i.category}]` : ''}`);
+      sections.push(`תפריט (${items.length} מנות):\n${lines.join('\n')}`);
+    }
+  } catch { /* drift-safe */ }
+
+  try {
+    const emps: any[] = await db.employee.findMany({ where: { status: 'active' }, take: 300 });
+    if (emps.length) {
+      const lines = emps.map((e) => `• ${e.full_name}${e.role ? ` — ${e.role}` : ''}${e.department ? ` (${e.department})` : ''}`);
+      sections.push(`עובדים (${emps.length}):\n${lines.join('\n')}`);
+    }
+  } catch { /* drift-safe */ }
+
+  try {
+    const sups: any[] = await db.supplier.findMany({ take: 200 });
+    if (sups.length) {
+      const lines = sups.map((s) => `• ${s.company_name}${s.contact_person ? ` — ${s.contact_person}` : ''}${s.phone ? ` ${s.phone}` : ''}${s.category ? ` [${s.category}]` : ''}`);
+      sections.push(`ספקים (${sups.length}):\n${lines.join('\n')}`);
+    }
+  } catch { /* drift-safe */ }
+
+  try {
+    const cls: any[] = await db.checklist.findMany({ take: 100 });
+    if (cls.length) {
+      const lines = cls.map((c) => `• ${c.title}${c.frequency ? ` (${c.frequency})` : ''}${c.department ? ` [${c.department}]` : ''}`);
+      sections.push(`צ׳קליסטים (${cls.length}):\n${lines.join('\n')}`);
+    }
+  } catch { /* drift-safe */ }
+
+  try {
+    const lists: any[] = await db.$queryRawUnsafe(`SELECT name FROM "PrepList" WHERE list_type='order' LIMIT 50`);
+    if (Array.isArray(lists) && lists.length) sections.push(`רשימות הזמנות: ${lists.map((l: any) => l.name).join(', ')}`);
+  } catch { /* drift-safe */ }
+
+  if (!sections.length) return '';
+  return `\n\n=== נתוני העסק החיים (מתוך האפליקציה, מעודכן ברגע זה) ===\n` +
+    `זה מקור האמת העדכני. השתמש בו כדי לענות על שאלות על התפריט, המחירים, העובדים, הספקים, הצ׳קליסטים ורשימות ההזמנות. אם משהו לא מופיע כאן — אמור שאין לך את המידע, אל תמציא.\n\n` +
+    `${sections.join('\n\n')}\n=== סוף נתוני העסק ===`;
+}
+
 registerFn('askGemini', async ({ body }) => {
   const { message, history, systemPrompt, prompt } = body as any;
   const apiKey = process.env.GEMINI_API_KEY;
@@ -4588,7 +4647,10 @@ registerFn('askGemini', async ({ body }) => {
   };
   // Always reply in the user's language (staff may be non-Hebrew speakers).
   const LANG_DIRECTIVE = 'IMPORTANT: Reply in the SAME language the user writes in — Hebrew, English, or Spanish. Match the language of their latest message.';
-  reqBody.system_instruction = { parts: [{ text: (systemPrompt ? systemPrompt + '\n\n' : '') + LANG_DIRECTIVE }] };
+  // Inject the live app data so the assistant "knows" whatever the owner entered
+  // (menu/employees/suppliers/checklists/orders) without any file upload.
+  const businessContext = await buildLiveBusinessContext();
+  reqBody.system_instruction = { parts: [{ text: (systemPrompt ? systemPrompt + '\n\n' : '') + LANG_DIRECTIVE + businessContext }] };
 
   const callGemini = async (body: any) => {
     const r = await fetch(
