@@ -700,9 +700,10 @@ export default function ShiftEndReportDetailsPage() {
                                                     ביטול
                                                 </Button>
                                                 <Button onClick={() => {
-                                                    // Data is already saved in editedReport via handleDeliveryDataScanned
+                                                    // Scanned delivery data lives in editedReport (via handleDeliveryDataScanned);
+                                                    // persist it to the backend, then close the scanner.
                                                     setShowDeliveryScanner(false);
-                                                    setScannedDeliveryData(null); // Clear scanned data after "saving" it into editedReport
+                                                    handleSave(); // handleSave also clears scannedDeliveryData
                                                 }}>
                                                     שמור נתונים
                                                 </Button>

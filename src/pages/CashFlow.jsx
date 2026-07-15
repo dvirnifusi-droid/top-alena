@@ -123,7 +123,7 @@ function CashFlowInner() {
         </div>
       )}
 
-      {data?.negative_days_warning && (
+      {data?.negative_days_warning?.length > 0 && (
         <Card className="bg-red-50 border-red-200">
           <CardContent className="p-3 text-sm text-red-900 flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />

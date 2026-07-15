@@ -100,14 +100,14 @@ export default function WaiterTablesPage() {
 
         try {
             const updatedSteps = [...(session.steps_completed || []), stepNumber];
-            const nextStep = stepNumber < 23 ? stepNumber + 1 : 23;
+            const nextStep = stepNumber < steps.length ? stepNumber + 1 : steps.length;
 
             const updateData = {
                 current_step: nextStep,
                 steps_completed: updatedSteps
             };
 
-            if (stepNumber === 23) {
+            if (stepNumber === steps.length) {
                 updateData.status = 'completed';
                 updateData.session_end = new Date().toISOString();
             }
@@ -142,7 +142,7 @@ export default function WaiterTablesPage() {
     };
 
     const getProgressPercentage = (session) => {
-        return Math.round(((session.steps_completed?.length || 0) / 23) * 100);
+        return Math.round(((session.steps_completed?.length || 0) / (steps.length || 1)) * 100);
     };
 
     if (loading) return <div className="flex justify-center items-center h-screen">טוען...</div>;

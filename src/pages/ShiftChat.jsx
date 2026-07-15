@@ -50,7 +50,7 @@ export default function ShiftChat() {
                 setMessages(prev => prev.map(msg => msg.id === event.id ? event.data : msg));
             }
             // Check for new messages not from current user
-            if (event.type === 'create' && sameDay(event.data.shift_date) && event.data.sender_id !== user?.id) {
+            if (event.type === 'create' && sameDay(event.data.shift_date) && event.data.shift_type === selectedShift && event.data.sender_id !== user?.id) {
                 setHasNewMessages(true);
             }
         });

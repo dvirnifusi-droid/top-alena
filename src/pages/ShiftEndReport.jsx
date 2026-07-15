@@ -295,9 +295,8 @@ export default function ShiftEndReportPage() {
             ];
             const cleanedReportData = { ...reportData };
             numericFields.forEach(field => {
-                if (cleanedReportData[field]) {
-                    cleanedReportData[field] = parseFloat(cleanedReportData[field]);
-                }
+                const value = cleanedReportData[field];
+                cleanedReportData[field] = value === '' || value == null ? null : Number(value);
             });
             await ShiftEndReport.create(cleanedReportData);
             toast.success('דוח סיום משמרת נשמר בהצלחה!');
@@ -376,7 +375,7 @@ export default function ShiftEndReportPage() {
                         <DeliveryReportScanner onDataExtracted={handleDataExtracted}>
                              <Button variant="outline" className="text-orange-600 border-orange-200 hover:bg-orange-50"><Truck className="w-4 h-4 ml-2" /> סרוק משלוחים</Button>
                         </DeliveryReportScanner>
-                        <Button variant="outline"><FileText className="w-4 h-4 ml-2" /> הורד כתמונה</Button>
+                        <Button variant="outline" onClick={() => window.print()}><FileText className="w-4 h-4 ml-2" /> הורד כתמונה</Button>
                     </div>
                 </div>
 
