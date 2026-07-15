@@ -7219,6 +7219,13 @@ registerFn('sendDepositRequest', async ({ body, user, req }: any) => {
   const overrideAmount = Number((body as any)?.amount) || 0; // manager-chosen amount (optional)
   const r: any = await db.reservation.findUnique({ where: { id: String(reservation_id) } });
   if (!r) throw new Error('not_found');
+  // Don't clobber an already-active hold: re-sending would overwrite the captured
+  // transaction ref (deposit_provider_ref) with a fresh page_request_uid and reset
+  // the status, making the real hold impossible to capture. Block re-send once the
+  // card is authorized or already charged.
+  if (r.deposit_status === 'authorized' || r.deposit_status === 'captured') {
+    return { success: false, reason: `already_${r.deposit_status}`, message: 'הפיקדון כבר פעיל להזמנה הזו — לא נשלח קישור חדש.' };
+  }
   const s: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
   const cred = s?.provider_credentials;
   if (!cred?.api_key) throw new Error('PayPlus לא מוגדר — הזן מפתחות בהגדרות פיקדון.');
@@ -7282,6 +7289,12 @@ registerFn('payplusCallback', async ({ body }: any) => {
     if (!moreInfo || moreInfo === 'connection_test') return { ok: true, note: 'no reservation' };
     const r: any = await db.reservation.findUnique({ where: { id: String(moreInfo) } }).catch(() => null);
     if (!r) return { ok: true, note: 'reservation not found' };
+    // Terminal states are final. PayPlus retries webhooks, so a late/duplicate IPN
+    // arriving AFTER a manual capture or release must NOT revert the hold back to
+    // 'authorized' (which would re-arm the charge button → double charge).
+    if (r.deposit_status === 'captured' || r.deposit_status === 'released') {
+      return { ok: true, note: `already ${r.deposit_status}, ignoring callback` };
+    }
     if (approved) {
       const wasPending = r.status === 'pending' && !r.is_standby;
       const firstAuth = wasPending || r.deposit_status !== 'authorized';
@@ -7321,6 +7334,17 @@ registerFn('captureDeposit', async ({ body, user }) => {
   if (!cred?.api_key || !r.deposit_provider_ref) {
     return { success: false, error: 'חסר מזהה עסקה או מפתחות PayPlus.' };
   }
+  // Idempotency: atomically claim the authorized→capturing transition. Only ONE
+  // concurrent caller (double-click / retried request) can win, so PayPlus is
+  // charged exactly once. On charge failure we release the claim back to authorized.
+  const claim = await (prisma as any).reservation.updateMany({
+    where: { id: r.id, deposit_status: 'authorized' },
+    data: { deposit_status: 'capturing' },
+  });
+  if (claim.count !== 1) {
+    const cur: any = await (prisma as any).reservation.findUnique({ where: { id: r.id } }).catch(() => null);
+    return { success: false, reason: 'in_progress_or_done', currentStatus: cur?.deposit_status };
+  }
   try {
     await payplusChargeByUID(cred, r.deposit_provider_ref, r.deposit_amount);
     await (prisma as any).reservation.update({
@@ -7329,6 +7353,7 @@ registerFn('captureDeposit', async ({ body, user }) => {
     });
     return { success: true, captured_ils: r.deposit_amount };
   } catch (e: any) {
+    await (prisma as any).reservation.update({ where: { id: r.id }, data: { deposit_status: 'authorized' } }).catch(() => {});
     return { success: false, error: e?.message || String(e) };
   }
 });
