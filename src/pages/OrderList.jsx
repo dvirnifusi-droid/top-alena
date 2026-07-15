@@ -186,7 +186,7 @@ function OrderListInner() {
           action={isAdmin && (
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={addList}><Plus className="w-4 h-4 ml-1" />רשימה</Button>
-              <AiScannerButton target="order_list" onImported={() => loadItems(activeList)} />
+              <AiScannerButton target="order_list" onImported={async (s) => { const id = await loadLists(s?.list_id); await loadItems(id); }} />
               {activeList && !editMode && <Button size="sm" variant="outline" onClick={openEdit}><Pencil className="w-4 h-4 ml-1" />ערוך קטלוג</Button>}
             </div>
           )}

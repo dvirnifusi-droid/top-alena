@@ -198,7 +198,7 @@ export async function scanContent(opts: { fileUrls?: string[]; text?: string; hi
 // ── Import (write) ─────────────────────────────────────────────────────────
 // Takes the (possibly owner-edited) parsed object and creates DB records.
 // Idempotent-ish: skips blanks. Returns a human summary + counts.
-export interface ImportSummary { created: number; skipped: number; label: string; message: string; details?: any }
+export interface ImportSummary { created: number; skipped: number; label: string; message: string; list_id?: string; details?: any }
 
 const nowISO = () => new Date().toISOString();
 const rid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 10)}`;
@@ -393,5 +393,5 @@ async function importOrderList(parsed: any): Promise<ImportSummary> {
       sort++,
     );
   }
-  return { created: items.length, skipped: rows.length - items.length, label: 'רשימת הזמנות', message: `נוצרה רשימת הזמנות "${listName}" עם ${items.length} פריטים.` };
+  return { created: items.length, skipped: rows.length - items.length, label: 'רשימת הזמנות', message: `נוצרה רשימת הזמנות "${listName}" עם ${items.length} פריטים.`, list_id: listId };
 }

@@ -206,7 +206,7 @@ export default function ScannerPanel({ hint, onImported, compact = false }) {
                     <Input
                       type={c.type === 'number' ? 'number' : 'text'}
                       value={row[c.key] ?? ''}
-                      onChange={(e) => updateRow(i, c.key, c.type === 'number' ? (parseFloat(e.target.value) || 0) : e.target.value)}
+                      onChange={(e) => updateRow(i, c.key, e.target.value)}
                       className="h-8 text-sm"
                     />
                   </div>

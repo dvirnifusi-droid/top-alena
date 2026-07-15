@@ -94,6 +94,9 @@ export async function tryHandleAdminScanMedia(mediaUrl: string, fromPhone: strin
   }
 
   if (!scan?.parsed || !IMPORTABLE.has(scan.classification) || !scan.count) return null;
+  // Confidence gate: a genuine invoice can occasionally be misread as menu/order.
+  // Below the bar, defer to the existing invoice OCR (the safe default here).
+  if (Number(scan.confidence) < 0.55) return null;
 
   const preview = buildScanPreview(scan);
   await storePendingScan(fromPhone, scan, preview);
@@ -121,6 +124,20 @@ export async function tryConfirmPendingScan(fromPhone: string, body: string): Pr
     orderBy: { created_at: 'desc' },
   }).catch(() => null);
   if (!pending) return null;
+
+  // Most-recent-pending wins: if a NEWER invoice/action confirmation is waiting,
+  // this כן/אישור was meant for that one — defer so we don't steal it.
+  const newerOther: any = await (prisma as any).whatsAppMessage.findFirst({
+    where: {
+      direction: 'outbound',
+      contact_phone: fromPhone,
+      status: { in: ['pending_confirmation', 'pending_action_confirmation'] },
+      is_read: false,
+      created_at: { gt: new Date(pending.created_at) },
+    },
+    orderBy: { created_at: 'desc' },
+  }).catch(() => null);
+  if (newerOther) return null;
 
   // Consume it either way so a stale pending doesn't linger.
   await (prisma as any).whatsAppMessage.update({ where: { id: pending.id }, data: { is_read: true } }).catch(() => {});

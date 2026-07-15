@@ -5979,7 +5979,7 @@ registerFn('getOwnerDashboard', async ({ user }: any) => {
   out.incidents_open = await db2.incident.count({ where: { NOT: { status: { in: ['resolved', 'closed'] } } } }).catch(() => 0);
   out.candidates_pending = await db2.jobCandidate.count({ where: { status: { in: ['pending', 'pending_review', 'new'] } } }).catch(() => 0);
   out.tips_unlocked = await db2.tipReport.count({ where: { date: ymd, NOT: { status: 'locked' } } }).catch(() => 0);
-  out.whatsapp_today = await db2.whatsAppMessage.count({ where: { direction: 'outbound', createdAt: { gte: t0, lte: dayEnd } } }).catch(() => 0);
+  out.whatsapp_today = await db2.whatsAppMessage.count({ where: { direction: 'outbound', created_at: { gte: t0, lte: dayEnd } } }).catch(() => 0);
   out.sales_today = await db2.shiftEndReport.aggregate({ _sum: { total_revenue: true }, where: { shift_date: { gte: dayStart, lte: dayEnd } } })
     .then((r: any) => { const v = Number(r?._sum?.total_revenue); return v > 0 ? Math.round(v) : null; }).catch(() => null);
 
@@ -5989,9 +5989,9 @@ registerFn('getOwnerDashboard', async ({ user }: any) => {
 
   // Recent agent actions (real outbound WhatsApp the system sent).
   out.feed = await db2.whatsAppMessage.findMany({
-    where: { direction: 'outbound' }, orderBy: { createdAt: 'desc' }, take: 5,
-    select: { body: true, createdAt: true },
-  }).then((r: any[]) => r.map(x => ({ text: String(x.body || '').replace(/\s+/g, ' ').slice(0, 140), at: x.createdAt })).filter(x => x.text)).catch(() => []);
+    where: { direction: 'outbound' }, orderBy: { created_at: 'desc' }, take: 5,
+    select: { body: true, created_at: true },
+  }).then((r: any[]) => r.map(x => ({ text: String(x.body || '').replace(/\s+/g, ' ').slice(0, 140), at: x.created_at })).filter(x => x.text)).catch(() => []);
 
   // Freedom index — share of today's touchpoints Apollo auto-handled vs what
   // still needs the owner. Honest: 100% only when nothing is pending.
@@ -6027,7 +6027,7 @@ registerFn('getOperatingCosts', async ({ user }: any) => {
   // Messaging — count this month's outbound and estimate (~$0.012 per WhatsApp msg).
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const msgsOut = await db2.whatsAppMessage.count({ where: { direction: 'outbound', createdAt: { gte: monthStart } } }).catch(() => 0);
+  const msgsOut = await db2.whatsAppMessage.count({ where: { direction: 'outbound', created_at: { gte: monthStart } } }).catch(() => 0);
   const msgEstIls = Math.round(msgsOut * 0.012 * USD_ILS);
 
   // Fixed monthly infra — estimates (override per deployment via env).
@@ -11585,8 +11585,13 @@ const DEFAULT_EVENTS_PROMPT = `את דנה — מנהלת האירועים הפ�
 // important is ever lost. Returns null when no questions are configured (caller
 // falls back to DEFAULT_EVENTS_PROMPT). `{brand}` interpolation happens downstream.
 function buildEventsPromptFromConfig(cfg: any): string | null {
-  const questions: any[] = Array.isArray(cfg?.questions) ? cfg.questions
-    : Array.isArray(cfg?.fields) ? cfg.fields : [];
+  // Read ONLY `questions` (the new full-question editor). The legacy `fields`
+  // key from the earlier editor was a SUPPLEMENT appended to DEFAULT_EVENTS_PROMPT
+  // (it didn't include date/location/guests), so treating it as a complete
+  // question list would silently drop standard questions + the tenant's custom
+  // system_prompt. Legacy `fields`-only tenants fall through to their prior
+  // behavior (DEFAULT/system_prompt + fields-based contactRules) untouched.
+  const questions: any[] = Array.isArray(cfg?.questions) ? cfg.questions : [];
   const valid = questions.filter((q) => q && String(q.label || '').trim());
   if (!valid.length) return null;
   const opening = String(cfg?.opening || '').trim()
