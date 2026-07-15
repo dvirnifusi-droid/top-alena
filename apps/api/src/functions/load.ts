@@ -10019,6 +10019,21 @@ registerFn('chatEventsInquiry', async ({ body }) => {
 // send the owner a WhatsApp with a link to approve/edit.
 
 // "Next week" = the Sun-Sat that starts on the NEXT Sunday from today (IL).
+// Mirror of the /AvailabilityRequests page's toIsraelYMD. An EmployeeAvailability
+// row is stored at Israel-local-midnight, which on the wire is the PREVIOUS UTC
+// day at 21:00Z (e.g. Sun 19/07 00:00 IL == '2026-07-18T21:00:00Z'). Bucketing by
+// the raw UTC calendar day (date::text → slice(0,10)) puts it under 18/07 →
+// the builder silently missed a whole week of submitted availability, or placed
+// everyone one day early. Convert to the Israel calendar day the humans meant.
+// (Owner reported this exact miss for week 19-25/07 on 2026-07-15.)
+function toIsraelYMD(x: any): string {
+  if (!x) return '';
+  if (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x)) return x;
+  const d = x instanceof Date ? x : new Date(x);
+  if (isNaN(d.getTime())) return typeof x === 'string' ? String(x).slice(0, 10) : '';
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+}
+
 function getNextWeekDates(): string[] {
   const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
   const ilDayName = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short' }).format(new Date());
@@ -10059,13 +10074,18 @@ async function getSchedulableEmployees(): Promise<any[]> {
 
 async function getSubmittedEmployeeIdsForWeek(weekDates: string[]): Promise<Set<string>> {
   if (weekDates.length === 0) return new Set();
-  const start = new Date(weekDates[0] + 'T00:00:00.000Z');
-  const end = new Date(weekDates[weekDates.length - 1] + 'T23:59:59.999Z');
+  // Pull a wide window and bucket by the Israel calendar day (see toIsraelYMD) —
+  // a UTC range query drops rows stored at 21:00Z of the previous day.
+  const targetDateSet = new Set(weekDates);
   const rows: any[] = await (prisma as any).$queryRaw`
-    SELECT DISTINCT employee_id FROM "EmployeeAvailability"
-    WHERE date >= ${start} AND date <= ${end}
+    SELECT employee_id, date FROM "EmployeeAvailability"
+    WHERE date >= NOW() - INTERVAL '40 days' AND date <= NOW() + INTERVAL '40 days'
   `;
-  return new Set(rows.map((r) => r.employee_id).filter(Boolean));
+  const out = new Set<string>();
+  for (const r of rows) {
+    if (r.employee_id && targetDateSet.has(toIsraelYMD(r.date))) out.add(r.employee_id);
+  }
+  return out;
 }
 
 const APP_BASE_URL = process.env.APP_BASE_URL || 'https://topalena.com';
@@ -10295,12 +10315,15 @@ export async function runWeeklyScheduleBuild(opts: {
   // Israel-local-midnight (2026-07-04T21:00Z on the wire).
   const targetDateSet = new Set(weekDates);
   const rawAvailability: any[] = await (prisma as any).$queryRaw`
-    SELECT employee_id, employee_name, date::text AS date_str, availability_type, shift_preference, positions
+    SELECT employee_id, employee_name, date, availability_type, shift_preference, positions
     FROM "EmployeeAvailability"
-    WHERE date >= NOW() - INTERVAL '30 days' AND date <= NOW() + INTERVAL '30 days'
+    WHERE date >= NOW() - INTERVAL '32 days' AND date <= NOW() + INTERVAL '32 days'
   `;
+  // Bucket each row under the Israel calendar day it belongs to (date_str is what
+  // every downstream placement step reads), then keep only the target week.
+  for (const r of rawAvailability) r.date_str = toIsraelYMD(r.date);
   const submissions: any[] = rawAvailability.filter((r: any) =>
-    targetDateSet.has(String(r.date_str || '').slice(0, 10)),
+    targetDateSet.has(String(r.date_str || '')),
   );
   // Use the phone-less variant here — anyone active can be slotted, even if
   // we can't WhatsApp them about it. The reminder cron still filters on phone
@@ -10314,7 +10337,7 @@ export async function runWeeklyScheduleBuild(opts: {
   // targeting; the previous 'success/0' response hid that gap.
   if (submissions.length === 0) {
     const allRecent: any[] = await (prisma as any).$queryRaw`
-      SELECT date::text AS date_str, employee_name FROM "EmployeeAvailability"
+      SELECT date, employee_name FROM "EmployeeAvailability"
       WHERE date >= NOW() - INTERVAL '60 days' AND date <= NOW() + INTERVAL '60 days'
       ORDER BY date DESC LIMIT 30
     `;
@@ -10325,7 +10348,7 @@ export async function runWeeklyScheduleBuild(opts: {
         `שלח לצוות תזכורת דרך העוזר: "שלח תזכורת זמינות".`,
       );
     } else {
-      const uniqueDates = [...new Set(allRecent.map((r: any) => r.date_str.slice(0, 10)))].sort();
+      const uniqueDates = [...new Set(allRecent.map((r: any) => toIsraelYMD(r.date)))].sort();
       const minDate = uniqueDates[0];
       const maxDate = uniqueDates[uniqueDates.length - 1];
       insights.push(
