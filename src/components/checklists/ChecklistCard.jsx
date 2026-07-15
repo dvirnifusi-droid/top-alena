@@ -9,6 +9,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useTenantBranding } from "@/hooks/useTenantBranding";
 
 const COLOR_MAP = {
     emerald: { gradient: 'from-emerald-500 to-cyan-500', hover: 'hover:from-emerald-600 hover:to-cyan-600', bg: 'from-emerald-50 via-cyan-50 to-teal-50', border: 'border-emerald-100', header: 'bg-emerald-500' },
@@ -30,6 +31,7 @@ const SHIFT_LABELS = {
 
 export default function ChecklistCard({ checklist, onStart, executions, onEdit, onDelete, onAssignTasks, onLiveRun }) {
     const [isDeleting, setIsDeleting] = useState(false);
+    const branding = useTenantBranding();
 
     const exportToPdf = () => {
         const items = checklist.items || [];
@@ -76,12 +78,13 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                     <span>חתימת מבצע: __________________</span>
                     <span>חתימת מנהל: __________________</span>
                 </div>
-                <div class="footer">הופק מ-TOP APOLLO · ${date}</div>
+                <div class="footer">הופק מ-${branding.name} · ${date}</div>
             </body>
             </html>
         `;
 
         const win = window.open('', '_blank');
+        if (!win) return;
         win.document.write(html);
         win.document.close();
         win.focus();
@@ -92,7 +95,7 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
 
     const getLastExecution = () => {
         const today = new Date().toISOString().split('T')[0];
-        return executions.find(e => e.execution_date.startsWith(today));
+        return executions.find(e => (e.execution_date||'').startsWith(today));
     };
 
     const lastExecution = getLastExecution();

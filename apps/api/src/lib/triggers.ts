@@ -61,11 +61,19 @@ const fmtDate = (v: any) => {
   } catch {}
   return String(v).slice(0, 10);
 };
+// Asia/Jerusalem hour (0–23), DST-correct — IL is UTC+2 in winter, +3 in summer.
+// (IL's offset is always a whole number of hours, so minutes are unaffected.)
+const ilHourOf = (v: any): number => {
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d.getTime())) return NaN;
+  const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }).format(d));
+  return h % 24; // en-US hour12:false can yield 24 at midnight → normalize to 0
+};
 const fmtTime = (v: any) => {
   if (!v) return '';
   try {
     const d = new Date(v);
-    if (!isNaN(d.getTime())) return `${String(d.getUTCHours() + 3).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+    if (!isNaN(d.getTime())) return `${String(ilHourOf(d)).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
   } catch {}
   return String(v).slice(11, 16);
 };
@@ -242,7 +250,7 @@ on('EmployeeAvailability', 'created', async (row) => {
 // 8. Clock-in
 on('ShiftTracking', 'created', async (row) => {
   const t = fmtTime(row.shift_start);
-  const ilHour = (new Date(row.shift_start || Date.now()).getUTCHours() + 3) % 24;
+  const ilHour = ilHourOf(row.shift_start || Date.now());
   const typ = ilHour < 16 ? 'lunch' : 'dinner';
   const lines = [
     `👤 ${row.employee_name || '-'}`,

@@ -1325,7 +1325,7 @@ async function tool_propose_mark_sick(args: any, phone: string): Promise<any> {
   await (prisma as any).whatsAppMessage.create({
     data: {
       body: `[sick_request:${scope.employee_id}:${when.toISOString().slice(0, 10)}] ${scope.employee_name} מבקש חופש מחלה ל-${when.toISOString().slice(0, 10)}`,
-      direction: 'incoming', status: 'sick_request_pending',
+      direction: 'inbound', status: 'sick_request_pending',
       from_phone: phone, to_phone: 'system', contact_phone: phone, is_read: false,
     },
   }).catch(() => {});

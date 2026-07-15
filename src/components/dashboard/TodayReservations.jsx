@@ -4,14 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, Users, Clock } from "lucide-react";
 import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
 
-const mockReservations = [
-    { id: 1, time: "18:00", name: "משפחת כהן", party_size: 6, status: "confirmed" },
-    { id: 2, time: "18:30", name: "יוסי לוי", party_size: 2, status: "confirmed" },
-    { id: 3, time: "19:00", name: "דנה מור", party_size: 4, status: "pending" },
-    { id: 4, time: "20:00", name: "חברת טק", party_size: 12, status: "confirmed" },
-    { id: 5, time: "20:30", name: "רונן ושרה", party_size: 2, status: "confirmed" }
-];
-
 const statusConfig = {
     confirmed: { label: "אושר", color: "bg-green-100 text-green-800" },
     pending: { label: "ממתין", color: "bg-[#F4ECD8] text-yellow-800" },
@@ -48,7 +40,7 @@ export default function TodayReservations({ reservations = [], isLoading = false
         return null;
     }
 
-    const displayReservations = realReservations.length > 0 ? realReservations : (reservations && reservations.length > 0 ? reservations : mockReservations);
+    const displayReservations = realReservations.length > 0 ? realReservations : (reservations || []);
 
     return (
         <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-orange-50/30">

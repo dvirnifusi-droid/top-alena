@@ -11,10 +11,12 @@ import { elevenLabsTts } from "@/functions/elevenLabsTts";
 import { pushoverOnMenuTrainingComplete } from "@/functions/pushoverOnMenuTrainingComplete";
 import { base44 } from "@/api/base44Client";
 import { MenuTrainingResult } from "@/entities/all";
+import { useTenantBranding } from "@/hooks/useTenantBranding";
 
 const DVIR_ICON_URL = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68ac71d972dff18b98e30a21/5d2c4834a_17.png";
 
 export default function AiChatWidget() {
+    const branding = useTenantBranding();
     const [isOpen, setIsOpen] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
     const STORAGE_KEY = 'dvir_chat_history';
@@ -310,7 +312,7 @@ export default function AiChatWidget() {
                     .slice(-30)
                     .map(m => ({ role: (m.type === 'ai' || m.type === 'training_summary') ? 'assistant' : 'user', content: m.content }));
 
-                const systemPrompt = `אתה דביר - עוזר AI פנימי ומאמן מלצרים בכיר של מסעדת TOP APOLLO.
+                const systemPrompt = `אתה דביר - עוזר AI פנימי ומאמן מלצרים בכיר של מסעדת ${branding.name}.
 אתה עונה בעברית בלבד, בצורה חמה, מעודדת ומלהיבה.
 יש לך גישה לכל קבצי התפריט של המסעדה (תפריט אוכל, תפריט שתייה ואלכוהול, ספר מתכונים).
 

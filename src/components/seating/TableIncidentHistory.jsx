@@ -28,26 +28,36 @@ export default function TableIncidentHistory({ tableNumber }) {
 
     const loadIncidents = async () => {
         setLoading(true);
-        const all = await base44.entities.Incident.list('-incident_date', 100);
-        const filtered = all.filter(i => 
-            i.title?.includes(`שולחן ${tableNumber}`) ||
-            i.location === String(tableNumber)
-        );
-        setIncidents(filtered);
-        setLoading(false);
+        try {
+            const all = await base44.entities.Incident.list('-incident_date', 100);
+            const filtered = all.filter(i =>
+                i.title?.includes(`שולחן ${tableNumber}`) ||
+                i.location === String(tableNumber)
+            );
+            setIncidents(filtered);
+        } catch (err) {
+            console.error('Load incidents failed', err);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleMarkResolved = async (incident) => {
         setSaving(true);
-        await base44.entities.Incident.update(incident.id, {
-            status: 'resolved',
-            solution_provided: resolution || 'טופל',
-            resolution_date: new Date().toISOString(),
-        });
-        setEditingId(null);
-        setResolution('');
-        await loadIncidents();
-        setSaving(false);
+        try {
+            await base44.entities.Incident.update(incident.id, {
+                status: 'resolved',
+                solution_provided: resolution || 'טופל',
+                resolution_date: new Date().toISOString(),
+            });
+            setEditingId(null);
+            setResolution('');
+            await loadIncidents();
+        } catch (err) {
+            console.error('Mark resolved failed', err);
+        } finally {
+            setSaving(false);
+        }
     };
 
     if (loading) return <div className="text-sm text-gray-500 py-2">טוען היסטוריית תקריות...</div>;

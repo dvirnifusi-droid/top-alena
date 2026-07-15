@@ -10,8 +10,10 @@ import { format } from 'date-fns';
 import { AccountantExport } from '@/entities/AccountantExport';
 import { SendEmail } from '@/integrations/Core';
 import { createPageUrl } from '@/utils';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 export default function ExportDialog({ isOpen, onClose }) {
+    const branding = useTenantBranding();
     const [dateRange, setDateRange] = useState({ from: null, to: null });
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
@@ -43,8 +45,8 @@ export default function ExportDialog({ isOpen, onClose }) {
             await AccountantExport.create({
                 token: token,
                 accountant_email: email,
-                start_date: dateRange.from.toISOString().split('T')[0],
-                end_date: dateRange.to.toISOString().split('T')[0],
+                start_date: format(dateRange.from, 'yyyy-MM-dd'),
+                end_date: format(dateRange.to, 'yyyy-MM-dd'),
                 expires_at: expiresAt.toISOString(),
                 status: 'pending',
             });
@@ -60,7 +62,7 @@ export default function ExportDialog({ isOpen, onClose }) {
             try {
                 const emailResult = await SendEmail({
                     to: email,
-                    subject: 'ייצוא חשבוניות מחברת TOP APOLLO',
+                    subject: `ייצוא חשבוניות מחברת ${branding.name}`,
                     body: `
                         <div dir="rtl" style="font-family: Arial, sans-serif;">
                             <h2>שלום רב,</h2>
@@ -74,7 +76,7 @@ export default function ExportDialog({ isOpen, onClose }) {
                             <p><strong>חשוב:</strong> הקישור יהיה זמין למשך 7 ימים בלבד.</p>
                             <p>במידה ויש בעיות או שאלות, אנא צור קשר איתנו.</p>
                             <br>
-                            <p>בברכה,<br>צוות TOP APOLLO</p>
+                            <p>בברכה,<br>צוות ${branding.name}</p>
                         </div>
                     `
                 });

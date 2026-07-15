@@ -35,7 +35,8 @@ export default function RewardShowcase() {
 
     const load = async () => {
         try {
-            const d = await base44.functions.getActiveRewardsForMe({});
+            const res = await base44.functions.getActiveRewardsForMe({});
+            const d = res?.data || res;
             const affordable = Array.isArray(d?.affordable) ? d.affordable : [];
             const locked = Array.isArray(d?.locked) ? d.locked : [];
             // If the server returns empty in both buckets, fall back to direct

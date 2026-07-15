@@ -85,7 +85,7 @@ export default function PublicWaiterChat() {
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'משהו פה לא מגיב כרגע. אפשר להתקשר 03-622-8055 — הצוות יענה ישר.',
+        content: 'משהו פה לא מגיב כרגע. נסו שוב עוד רגע, או פנו ישירות לצוות המסעדה.',
         intent: 'general',
       }]);
     } finally {

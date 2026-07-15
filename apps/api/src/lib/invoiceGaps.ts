@@ -50,7 +50,7 @@ export function computeOverdueSuppliers(suppliers: SupplierHistory[], now: Date)
   }
   // Rank by how many "cycles" late (daysSinceLast / median), most overdue first.
   return out
-    .sort((a, b) => (b.daysSinceLast / b.medianDays) - (a.daysSinceLast / a.medianDays))
+    .sort((a, b) => (b.daysSinceLast / Math.max(1, b.medianDays)) - (a.daysSinceLast / Math.max(1, a.medianDays)))
     .slice(0, MAX_OVERDUE_LISTED);
 }
 

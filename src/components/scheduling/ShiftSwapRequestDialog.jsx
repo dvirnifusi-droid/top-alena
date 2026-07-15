@@ -24,19 +24,26 @@ export default function ShiftSwapRequestDialog({ open, onClose, myShift, employe
         setLoading(true);
         const target = employees.find(e => e.id === targetEmployeeId);
 
-        await base44.entities.ShiftSwapRequest.create({
-            requester_employee_id: currentEmployee.id,
-            requester_name: currentEmployee.full_name,
-            target_employee_id: targetEmployeeId,
-            target_name: target?.full_name || '',
-            shift_date: myShift.date,
-            shift_type: myShift.shift_type,
-            position: myShift.position,
-            start_time: myShift.start_time,
-            end_time: myShift.end_time,
-            message,
-            status: 'pending'
-        });
+        try {
+            await base44.entities.ShiftSwapRequest.create({
+                requester_employee_id: currentEmployee.id,
+                requester_name: currentEmployee.full_name,
+                target_employee_id: targetEmployeeId,
+                target_name: target?.full_name || '',
+                shift_date: myShift.date,
+                shift_type: myShift.shift_type,
+                position: myShift.position,
+                start_time: myShift.start_time,
+                end_time: myShift.end_time,
+                message,
+                status: 'pending'
+            });
+        } catch (err) {
+            console.error('Shift swap request failed', err);
+            setLoading(false);
+            alert('שגיאה בשליחת הבקשה. נסה שוב.');
+            return;
+        }
 
         // Send WhatsApp to manager if phone configured
         if (managerPhone) {

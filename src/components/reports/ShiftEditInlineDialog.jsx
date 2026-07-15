@@ -35,6 +35,7 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
 
     const handleSave = async () => {
         setSaving(true);
+        try {
         // Load the full WorkShift, update the specific staff member
         const ws = await base44.entities.WorkShift.get ?
             await base44.entities.WorkShift.get(workShiftId) :
@@ -87,7 +88,7 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
                             end_time: form.end_time,
                             total_break_minutes: Number(form.total_break_minutes) || 0,
                             notes: form.notes,
-                            position: form.position,
+                            position: form.position || shiftEntry.position,
                         };
                     }
                     return a;
@@ -95,9 +96,14 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
                 await base44.entities.WorkShift.update(workShiftId, { assigned_staff: updatedStaff });
             }
         }
-        setSaving(false);
         onSaved();
         onClose();
+        } catch (err) {
+            console.error('Shift edit save failed', err);
+            alert('שגיאה בשמירת המשמרת. נסה שוב.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     if (!shiftEntry) return null;

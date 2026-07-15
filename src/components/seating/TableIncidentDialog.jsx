@@ -72,7 +72,7 @@ export default function TableIncidentDialog({ open, onClose, tableNumber }) {
     };
 
     const handleSubmit = async () => {
-        if (selectedRecipients.length === 0) {
+        if (step !== 'service' && step !== 'move' && selectedRecipients.length === 0) {
             alert('⚠️ בחר לפחות מקבל אחד');
             return;
         }

@@ -17,29 +17,35 @@ export default function AvatarUploader({ currentAvatar, balance, onSave, onSpend
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setUploadedUrl(file_url);
-    
-    // אוטומטית להפיק 3D avatar
-    setGenerating(true);
-    setAiResult(null);
-    
-    // בנייה של prompt דינמי לפי אביזרים שקנה
-    let apparelText = 'wearing a basic grey t-shirt and blue jeans';
-    if (window.__employeeApparel) {
-      const items = window.__employeeApparel.map(a => a.wearing_text).filter(Boolean);
-      if (items.length > 0) apparelText = 'wearing ' + items.join(', ');
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setUploadedUrl(file_url);
+
+      // אוטומטית להפיק 3D avatar
+      setGenerating(true);
+      setAiResult(null);
+
+      // בנייה של prompt דינמי לפי אביזרים שקנה
+      let apparelText = 'wearing a basic grey t-shirt and blue jeans';
+      if (window.__employeeApparel) {
+        const items = window.__employeeApparel.map(a => a.wearing_text).filter(Boolean);
+        if (items.length > 0) apparelText = 'wearing ' + items.join(', ');
+      }
+
+      const prompt = `Full body 3D stylized character avatar, Pixar/Fortnite style, standing in a neutral T-pose. Character ${apparelText}. High-quality 3D render, studio lighting, solid white background. Maintain facial features from the uploaded photo. Professional 3D game character design.`;
+
+      const { url } = await base44.integrations.Core.GenerateImage({
+        prompt,
+        existing_image_urls: [file_url]
+      });
+      setAiResult(url);
+    } catch (error) {
+      console.error('Error generating avatar:', error);
+      alert('שגיאה ביצירת האווטר');
+    } finally {
+      setGenerating(false);
+      setUploading(false);
     }
-    
-    const prompt = `Full body 3D stylized character avatar, Pixar/Fortnite style, standing in a neutral T-pose. Character ${apparelText}. High-quality 3D render, studio lighting, solid white background. Maintain facial features from the uploaded photo. Professional 3D game character design.`;
-    
-    const { url } = await base44.integrations.Core.GenerateImage({
-      prompt,
-      existing_image_urls: [file_url]
-    });
-    setAiResult(url);
-    setGenerating(false);
-    setUploading(false);
   };
 
 

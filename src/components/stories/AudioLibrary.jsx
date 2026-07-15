@@ -18,7 +18,7 @@ const SAMPLE_AUDIO_LIBRARY = [
 const CATEGORIES = {
   upbeat: "🎉 אנרגטי",
   chill: "😌 רגוע",
-  fun: "😄 재미있음",
+  fun: "😄 כיף",
   motivate: "💪 השראה"
 };
 

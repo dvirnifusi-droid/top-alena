@@ -21,9 +21,14 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
 
     const loadDevices = async () => {
         setLoading(true);
-        const all = await base44.entities.DeviceAsset.list();
-        setDevices(all);
-        setLoading(false);
+        try {
+            const all = await base44.entities.DeviceAsset.list();
+            setDevices(all);
+        } catch (err) {
+            console.error('Load devices failed', err);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const ipads = devices.filter(d => d.device_type === 'ipad').sort((a, b) => a.device_number - b.device_number);
@@ -64,9 +69,15 @@ export default function GearUpDialog({ open, onClose, shiftTrackingId, employeeI
             }));
         }
 
-        await Promise.all(updates);
-        setSaving(false);
-        onClose({ ipad: noIpad ? null : selectedIpad, terminal: noTerminal ? null : selectedTerminal });
+        try {
+            await Promise.all(updates);
+            onClose({ ipad: noIpad ? null : selectedIpad, terminal: noTerminal ? null : selectedTerminal });
+        } catch (err) {
+            console.error('Gear up failed', err);
+            alert('שגיאה בקבלת הציוד. נסה שוב.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handleNoIpadToggle = () => {

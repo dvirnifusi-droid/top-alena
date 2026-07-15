@@ -33,9 +33,7 @@ export default function QuestionGame({ players, category, questions }) {
   };
 
   useEffect(() => {
-    if (activeQuestions.length > 0) {
-      getNextQuestion();
-    }
+    getNextQuestion();
   }, []);
 
   const handleNext = () => {

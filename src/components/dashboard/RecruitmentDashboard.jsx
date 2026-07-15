@@ -353,15 +353,20 @@ export default function RecruitmentDashboard() {
 
     const loadCandidates = useCallback(async () => {
         setLoading(true);
-        const all = await base44.entities.JobCandidate.list('-created_date', 200);
-        setCandidates(all);
-        // טען דירוגים מה-notes אם קיים (שמורים כ metadata קטן)
-        const r = {};
-        all.forEach(c => {
-            if (c._rating) r[c.id] = c._rating;
-        });
-        setRatings(r);
-        setLoading(false);
+        try {
+            const all = await base44.entities.JobCandidate.list('-created_date', 200);
+            setCandidates(all);
+            // טען דירוגים מה-notes אם קיים (שמורים כ metadata קטן)
+            const r = {};
+            all.forEach(c => {
+                if (c._rating) r[c.id] = c._rating;
+            });
+            setRatings(r);
+        } catch (e) {
+            console.error('Error loading candidates:', e);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
     useEffect(() => { loadCandidates(); }, [loadCandidates]);

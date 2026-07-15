@@ -30,32 +30,38 @@ export default function SendMessageDialog({ customer, allCustomers, onClose }) {
     setSending(true);
     setResult(null);
 
-    const recipientList = recipients.map((c) => ({
-      name: c.customer_name || "",
-      phone: c.customer_phone || "",
-      email: c.email || "",
-    }));
+    try {
+      const recipientList = recipients.map((c) => ({
+        name: c.customer_name || "",
+        phone: c.customer_phone || "",
+        email: c.email || "",
+      }));
 
-    if (channel === "email") {
-      let sent = 0, skipped = 0;
-      for (const r of recipientList) {
-        if (!r.email) { skipped++; continue; }
-        await base44.integrations.Core.SendEmail({
-          to: r.email,
-          subject: subject || "הודעה ממסעדה",
-          body: message,
-        });
-        sent++;
+      if (channel === "email") {
+        let sent = 0, skipped = 0;
+        for (const r of recipientList) {
+          if (!r.email) { skipped++; continue; }
+          await base44.integrations.Core.SendEmail({
+            to: r.email,
+            subject: subject || "הודעה ממסעדה",
+            body: message,
+          });
+          sent++;
+        }
+        setResult({ sent, skipped, total: recipientList.length });
+      } else {
+        const res = await sendDeliveryMessage({ channel, recipients: recipientList, message });
+        const data = res?.data || {};
+        const sent = data.results?.filter((r) => r.status === "sent").length || 0;
+        const skipped = data.results?.filter((r) => r.status === "skipped").length || 0;
+        setResult({ sent, skipped, total: recipientList.length, errors: data.results?.filter((r) => r.status === "failed") });
       }
-      setResult({ sent, skipped, total: recipientList.length });
-    } else {
-      const res = await sendDeliveryMessage({ channel, recipients: recipientList, message });
-      const data = res.data;
-      const sent = data.results?.filter((r) => r.status === "sent").length || 0;
-      const skipped = data.results?.filter((r) => r.status === "skipped").length || 0;
-      setResult({ sent, skipped, total: recipientList.length, errors: data.results?.filter((r) => r.status === "failed") });
+    } catch (err) {
+      console.error("Failed to send message:", err);
+      alert("שגיאה בשליחת ההודעה");
+    } finally {
+      setSending(false);
     }
-    setSending(false);
   };
 
   return (

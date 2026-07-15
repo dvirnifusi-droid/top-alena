@@ -50,12 +50,13 @@ export default function SpeedGame({ gameId, onComplete }) {
             );
             
             if (isCorrect) {
-                setScore(prev => prev + 10);
+                const newScore = score + 10;
+                setScore(newScore);
                 if (currentOrderIndex < orders.length - 1) {
                     setCurrentOrderIndex(prev => prev + 1);
                     setSelectedSequence([]);
                 } else {
-                    endGame();
+                    endGame(newScore);
                 }
             } else {
                 // Reset current order
@@ -65,9 +66,9 @@ export default function SpeedGame({ gameId, onComplete }) {
         }
     };
 
-    const endGame = () => {
+    const endGame = (rawScore = score) => {
         setGameState('finished');
-        const finalScore = Math.round((score / orders.length) * 10);
+        const finalScore = Math.round((rawScore / orders.length) * 10);
         onComplete(finalScore);
     };
 

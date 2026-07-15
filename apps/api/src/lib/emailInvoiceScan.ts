@@ -315,8 +315,16 @@ export async function scanEmailInvoices(opts: { backfillDays?: number } = {}): P
           : acct.last_checked_at
             ? new Date(new Date(acct.last_checked_at).getTime() - OVERLAP_MS)
             : new Date(Date.now() - FIRST_RUN_LOOKBACK_MS);
+        // A transient failure (LLM/S3 blip) shouldn't drop the invoice forever: keep
+        // recent 'error' rows OUT of `known` so they're re-fetched and retried for a
+        // bounded window, after which they're treated as permanently known (no
+        // infinite retry on a genuinely-unparseable email).
+        const errorRetryWindow = new Date(Date.now() - 3 * 24 * 3600 * 1000);
         const knownRows: any[] = await (prisma as any).emailMessageLog.findMany({
-          where: { account_email: acct.email },
+          where: {
+            account_email: acct.email,
+            NOT: { outcome: 'error', createdAt: { gte: errorRetryWindow } },
+          },
           select: { message_id: true },
         }).catch(() => []);
         const known = new Set<string>(knownRows.map(r => r.message_id));

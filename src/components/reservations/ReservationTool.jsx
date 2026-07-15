@@ -301,7 +301,7 @@ export default function ReservationTool({ onReservationCreated, customers }) {
                                 min="1"
                                 max="20"
                                 value={partySize}
-                                onChange={(e) => { setPartySize(parseInt(e.target.value)); setSuggestion(null); }}
+                                onChange={(e) => { setPartySize(parseInt(e.target.value) || 1); setSuggestion(null); }}
                             />
                         </div>
                         <div>

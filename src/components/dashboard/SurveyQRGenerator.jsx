@@ -41,6 +41,7 @@ export default function SurveyQRGenerator() {
 
     const handlePrint = () => {
         const printWindow = window.open('', '', 'width=400,height=600');
+        if (!printWindow) return;
         printWindow.document.write(`
             <html>
                 <head>

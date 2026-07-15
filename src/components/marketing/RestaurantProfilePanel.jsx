@@ -50,7 +50,11 @@ export default function RestaurantProfilePanel({ profile, onSave }) {
                 brand_font: profile.brand_font || "",
                 logo_url: profile.logo_url || ""
             });
-            setAnalysisResult(profile.ai_analysis ? JSON.parse(profile.ai_analysis) : null);
+            try {
+                setAnalysisResult(profile.ai_analysis ? JSON.parse(profile.ai_analysis) : null);
+            } catch {
+                setAnalysisResult(null);
+            }
         }
     }, [profile]);
 
@@ -321,7 +325,7 @@ export default function RestaurantProfilePanel({ profile, onSave }) {
                                     <div className="p-4 bg-green-100 rounded-lg">
                                         <h4 className="font-bold flex items-center gap-2 text-green-800"><ThumbsUp className="w-5 h-5"/> חוזקות</h4>
                                         <ul className="list-disc list-inside mt-2 text-green-700">
-                                            {analysisResult.swot.strengths.map((item, i) => <li key={`s-${i}`}>{item}</li>)}
+                                            {(analysisResult?.swot?.strengths || []).map((item, i) => <li key={`s-${i}`}>{item}</li>)}
                                         </ul>
                                     </div>
                                     {/* Weaknesses */}

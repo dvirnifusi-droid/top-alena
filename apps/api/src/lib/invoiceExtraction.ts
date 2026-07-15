@@ -142,7 +142,7 @@ export async function extractInvoicesFromFile(fileUrl: string): Promise<Extracte
     maxOutputTokens: 8000,
   });
   const list: any[] = Array.isArray(res?.invoices) ? res.invoices : [];
-  return list.filter(x => x && x.supplier_name && x.total_amount) as ExtractedInvoice[];
+  return list.filter(x => x && x.supplier_name && x.total_amount != null) as ExtractedInvoice[];
 }
 
 // ── Inventory matching ──────────────────────────────────────────────────────

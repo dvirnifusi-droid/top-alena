@@ -12,7 +12,7 @@ const colorSchemes = {
 };
 
 export default function QuickStats({ title, value, icon: Icon, color = 'blue', trend, isLoading }) {
-  const { bg, text, iconBg } = colorSchemes[color];
+  const { bg, text, iconBg } = colorSchemes[color] || colorSchemes.blue;
 
   if (isLoading) {
     return (
@@ -33,9 +33,11 @@ export default function QuickStats({ title, value, icon: Icon, color = 'blue', t
     <Card className={`shadow-sm border-slate-200 ${bg} overflow-hidden`}>
       <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 lg:p-6">
         <CardTitle className={`text-xs lg:text-sm font-medium ${text} leading-tight`}>{title}</CardTitle>
-        <div className={`p-1.5 lg:p-2 rounded-lg ${iconBg} text-white shadow-md`}>
-          <Icon className="w-3 h-3 lg:w-4 lg:h-4" />
-        </div>
+        {Icon && (
+          <div className={`p-1.5 lg:p-2 rounded-lg ${iconBg} text-white shadow-md`}>
+            <Icon className="w-3 h-3 lg:w-4 lg:h-4" />
+          </div>
+        )}
       </CardHeader>
       <CardContent className="p-3 lg:p-6 pt-0 lg:pt-0">
         <div className={`text-lg lg:text-2xl font-bold ${text}`}>{value}</div>

@@ -32,17 +32,21 @@ export default function GomileyLiveWidget() {
     const [combined, setCombined] = useState(null);
 
     const load = async () => {
-        try {
-            const [snapRes, comRes] = await Promise.all([
-                base44.functions.getLatestGomileySnapshot({}),
-                base44.functions.getCombinedRevenueToday({}),
-            ]);
-            const s = snapRes?.data ?? snapRes;
-            const c = comRes?.data ?? comRes;
+        const [snapRes, comRes] = await Promise.allSettled([
+            base44.functions.getLatestGomileySnapshot({}),
+            base44.functions.getCombinedRevenueToday({}),
+        ]);
+        if (snapRes.status === 'fulfilled') {
+            const s = snapRes.value?.data ?? snapRes.value;
             setSnap(s?.snapshot || null);
-            setCombined(c || null);
             setError(null);
-        } catch (e) { setError(e?.message); }
+        } else {
+            setError(snapRes.reason?.message);
+        }
+        if (comRes.status === 'fulfilled') {
+            const c = comRes.value?.data ?? comRes.value;
+            setCombined(c || null);
+        }
     };
 
     const refresh = async () => {

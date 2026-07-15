@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from '@/components/ui/card';
 
-export default function RecentAbandonedSection({ entries, recentAbandoned, fetchEntries }) {
+export default function RecentAbandonedSection({ entries = [], recentAbandoned = [], fetchEntries }) {
   const [open, setOpen] = useState(false);
 
   return (

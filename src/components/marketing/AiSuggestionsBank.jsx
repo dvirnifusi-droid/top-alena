@@ -85,8 +85,8 @@ export default function AiSuggestionsBank({ suggestions, onRefresh }) {
     };
 
     const filteredSuggestions = suggestions.filter(suggestion => {
-        const matchesSearch = suggestion.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            suggestion.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        const matchesSearch = (suggestion.title||'').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (suggestion.content||'').toLowerCase().includes(searchTerm.toLowerCase()) ||
                             (suggestion.tags && suggestion.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())));
         
         const matchesType = selectedType === 'all' || suggestion.suggestion_type === selectedType;

@@ -73,9 +73,9 @@ export default function ApparelCustomizer({ employeeId, employeeAvatar, onAvatar
     const updated = { ...equipped, [category]: itemId };
     setEquipped(updated);
 
-    // עדכן ב-DB
+    // עדכן ב-DB — עמודות EmployeeApparel הן shirt_id/pants_id/shoes_id/hat_id/outerwear_id
     if (employeeApparelId) {
-      await base44.entities.EmployeeApparel.update(employeeApparelId, updated);
+      await base44.entities.EmployeeApparel.update(employeeApparelId, { [`${category}_id`]: itemId });
     }
   };
 

@@ -12,11 +12,14 @@ export default function PendingRequestsWidget() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [leaves, swaps] = await Promise.all([
+        const [leavesRes, swapsRes] = await Promise.allSettled([
           base44.entities.LeaveRequest.filter({ status: 'pending' }),
           base44.entities.ShiftSwapRequest.filter({ status: 'pending' }),
         ]);
-        setData({ leaves: leaves.length, swaps: swaps.length });
+        setData({
+          leaves: leavesRes.status === 'fulfilled' ? leavesRes.value.length : 0,
+          swaps: swapsRes.status === 'fulfilled' ? swapsRes.value.length : 0,
+        });
       } catch {} finally { setLoading(false); }
     };
     load();

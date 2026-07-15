@@ -408,7 +408,7 @@ async function cmdDashboard(): Promise<string> {
     db.incident.count({ where: { NOT: { status: { in: ['resolved', 'closed'] } } } }).catch(() => 0),
     db.jobCandidate.count({ where: { status: { in: ['pending', 'pending_review', 'new'] } } }).catch(() => 0),
     db.tipReport.count({ where: { date: ymd, NOT: { status: 'locked' } } }).catch(() => 0),
-    db.whatsAppMessage.count({ where: { direction: 'outbound', createdAt: { gte: t0, lte: d1 } } }).catch(() => 0),
+    db.whatsAppMessage.count({ where: { direction: 'outbound', created_at: { gte: t0, lte: d1 } } }).catch(() => 0),
     db.checklistExecution.count({ where: { status: 'completed', updatedAt: { gte: t0, lte: d1 } } }).catch(() => 0),
   ]);
   const automated = waOut + resv + clDone;

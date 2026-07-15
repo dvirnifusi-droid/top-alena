@@ -153,11 +153,18 @@ export default function ExportToAccountantDialog({ open, onClose, employees, sel
             r.split(',').map(c => c.replace(/^"|"$/g, '')).join(' | ')
         ).join('\n');
 
-        await base44.integrations.Core.SendEmail({
-            to: accountantEmail,
-            subject: `דוח שעות עובדים - ${monthLabel}`,
-            body: `שלום,\n\nמצורף דוח שעות עבודה לחודש ${monthLabel}.\n\nעובדים: ${empNames}\n\n${rows}\n\n---\nנשלח ממערכת TOP APOLLO`
-        });
+        try {
+            await base44.integrations.Core.SendEmail({
+                to: accountantEmail,
+                subject: `דוח שעות עובדים - ${monthLabel}`,
+                body: `שלום,\n\nמצורף דוח שעות עבודה לחודש ${monthLabel}.\n\nעובדים: ${empNames}\n\n${rows}\n\n---\nנשלח ממערכת TOP APOLLO`
+            });
+        } catch (err) {
+            console.error('Send email failed', err);
+            setSending(false);
+            alert('שגיאה בשליחת המייל. נסה שוב.');
+            return;
+        }
 
         setSending(false);
         setSent(true);

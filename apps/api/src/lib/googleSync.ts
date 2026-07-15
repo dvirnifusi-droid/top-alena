@@ -250,16 +250,12 @@ export async function pullCalendarEvents(phone: string, daysAhead = 30): Promise
   for (const ev of items) {
     if (!ev.start?.dateTime) { skipped++; continue; } // all-day events for now skipped
     const gId = ev.id;
-    // Check if we already have it (raw.google_event_id matches)
-    const existing: any = await (prisma as any).whatsAppMessage.findFirst({
-      where: { status: 'scheduled_event', contact_phone: phone },
-      orderBy: { id: 'desc' },
-      take: 200,
-    }).catch(() => null);
-    // We need a list search — the single findFirst above is wrong for matching by raw.
-    // Do a small in-memory filter on a slightly larger batch:
+    // Check if we already have this event (raw.google_event_id matches). Match
+    // across ALL event statuses — including already-fired ('event_done') rows —
+    // so a fired event isn't re-imported as a fresh scheduled_event. Prisma
+    // can't cheaply filter a JSON field, so pull a batch and filter in memory.
     const recent: any[] = await (prisma as any).whatsAppMessage.findMany({
-      where: { status: 'scheduled_event', contact_phone: phone, is_read: false },
+      where: { status: { in: ['scheduled_event', 'event_done'] }, contact_phone: phone },
       take: 500,
     });
     const match = recent.find((r: any) => (r.raw as any)?.google_event_id === gId);

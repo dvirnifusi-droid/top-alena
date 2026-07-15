@@ -85,7 +85,7 @@ export default function WhatsAppInboxWidget() {
                 ) : (
                     <div className="divide-y divide-gray-100">
                         {preview.map(c => {
-                            const last = c.last_message;
+                            const last = c.last_message || {};
                             const name = c.contact_name || fmtPhone(c.contact_phone);
                             return (
                                 <Link

@@ -39,7 +39,7 @@ export default function ActivateGoalDialog({ open, onClose, onActivated }) {
                 target: Number(target),
                 coins_per_sale: Number(coins),
             });
-            onActivated?.(result.goal);
+            onActivated?.((result?.data || result)?.goal);
             setPicked(null);
             onClose();
         } catch (e) {

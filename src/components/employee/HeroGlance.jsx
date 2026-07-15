@@ -66,10 +66,10 @@ export default function HeroGlance({ user, currentEmployee }) {
             try {
                 const tracks = await base44.entities.ShiftTracking.list();
                 const mine = (tracks || []).filter(t =>
-                    (t.employee_id && t.employee_id === empId) ||
-                    (t.employee_name && name && (t.employee_name || '').trim().toLowerCase() === name)
+                    (t?.employee_id && t.employee_id === empId) ||
+                    (t?.employee_name && name && (t.employee_name || '').trim().toLowerCase() === name)
                 );
-                const days = new Set(mine.map(t => String(t.date || t.shift_start).slice(0, 10)));
+                const days = new Set(mine.map(t => String(t?.date || t?.shift_start || '').slice(0, 10)));
                 // Streak: consecutive days worked, counting back from today (or yesterday).
                 let s = 0; const cur = new Date();
                 for (let i = 0; i < 90; i++) {
@@ -81,8 +81,8 @@ export default function HeroGlance({ user, currentEmployee }) {
                 setStreak(s);
                 const weekAgo = format(new Date(Date.now() - 7 * 86400000), 'yyyy-MM-dd');
                 const h = mine
-                    .filter(t => String(t.date || t.shift_start).slice(0, 10) >= weekAgo)
-                    .reduce((acc, t) => acc + (Number(t.effective_hours) || Number(t.total_hours) || 0), 0);
+                    .filter(t => String(t?.date || t?.shift_start || '').slice(0, 10) >= weekAgo)
+                    .reduce((acc, t) => acc + (Number(t?.effective_hours) || Number(t?.total_hours) || 0), 0);
                 setWeekHours(Math.round(h * 10) / 10);
             } catch { setStreak(0); setWeekHours(0); }
         })();

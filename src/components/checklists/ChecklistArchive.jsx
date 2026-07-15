@@ -155,15 +155,15 @@ export default function ChecklistArchive() {
     };
 
     const filteredArchives = archives.filter(archive => {
-        const searchMatch = !filters.search || 
-            archive.checklist_title.toLowerCase().includes(filters.search.toLowerCase()) ||
-            archive.executed_by_name.toLowerCase().includes(filters.search.toLowerCase()) ||
+        const searchMatch = !filters.search ||
+            (archive.checklist_title||'').toLowerCase().includes(filters.search.toLowerCase()) ||
+            (archive.executed_by_name||'').toLowerCase().includes(filters.search.toLowerCase()) ||
             (archive.approving_manager_name && archive.approving_manager_name.toLowerCase().includes(filters.search.toLowerCase()));
-        
+
         const shiftMatch = filters.shiftType === 'all' || archive.shift_type === filters.shiftType;
-        
+
         const dateMatch = (!filters.dateFrom || archive.execution_date >= filters.dateFrom) &&
-                         (!filters.dateTo || archive.execution_date <= filters.dateTo);
+                         (!filters.dateTo || archive.execution_date.slice(0,10) <= filters.dateTo);
         
         return searchMatch && shiftMatch && dateMatch;
     });

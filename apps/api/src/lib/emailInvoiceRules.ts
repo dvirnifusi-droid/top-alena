@@ -9,8 +9,10 @@ export type MessageAction = 'skip_blocked' | 'skip_no_attachment' | 'process' | 
 
 export function decideMessageAction(rule: SenderRuleLike, hasAllowedAttachment: boolean): MessageAction {
   if (rule?.rule === 'block') return 'skip_blocked';
-  if (!hasAllowedAttachment) return 'skip_no_attachment';
+  // Allow-listed senders are trusted: process even without an attachment so a
+  // link-only invoice still reaches the body-link fallback path downstream.
   if (rule?.rule === 'allow') return 'process';
+  if (!hasAllowedAttachment) return 'skip_no_attachment';
   return 'classify';
 }
 

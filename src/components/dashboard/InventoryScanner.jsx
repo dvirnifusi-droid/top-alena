@@ -67,7 +67,7 @@ export default function InventoryScanner() {
 
             // יצירת התראות מלאי
             const newAlerts = [];
-            for (const item of aiResponse.detected_items) {
+            for (const item of (aiResponse.detected_items || [])) {
                 if (item.urgency === 'high' || item.urgency === 'critical') {
                     // חיפוש ספק מתאים
                     const matchingProduct = products.find(p => 

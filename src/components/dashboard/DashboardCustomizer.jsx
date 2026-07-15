@@ -4,7 +4,7 @@ import { Settings2, GripVertical, Eye, EyeOff } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
 export default function DashboardCustomizer({ open, onClose, layout, onSave }) {
-  const [localLayout, setLocalLayout] = useState(layout);
+  const [localLayout, setLocalLayout] = useState(layout || []);
 
   // sync when opened
   React.useEffect(() => {

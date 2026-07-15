@@ -6,6 +6,8 @@ import { AlertTriangle, Clock, ChevronRight, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 
 const severityConfig = {
     low: "bg-[#F4ECD8] text-[#2E3819]",
@@ -14,33 +16,8 @@ const severityConfig = {
     critical: "bg-red-100 text-red-800",
 };
 
-// נתוני דמו כברירת מחדל
-const mockIncidents = [
-  {
-    id: 1,
-    title: "תלונת לקוח על איחור במטבח",
-    incident_date: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    location: "שולחן 12",
-    severity: "medium"
-  },
-  {
-    id: 2,
-    title: "תקלה במכונת הקפה",
-    incident_date: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-    location: "בר",
-    severity: "high"
-  },
-  {
-    id: 3,
-    title: "החלקה במטבח",
-    incident_date: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-    location: "מטבח",
-    severity: "critical"
-  }
-];
-
 export default function RecentIncidents({ incidents = [], isLoading = false, onRefresh = () => {} }) {
-  const displayIncidents = (incidents && incidents.length > 0) ? incidents : mockIncidents;
+  const displayIncidents = incidents || [];
 
   return (
     <Card className="shadow-lg border-slate-200 h-full">
@@ -53,9 +30,11 @@ export default function RecentIncidents({ incidents = [], isLoading = false, onR
           <Button variant="ghost" size="sm" onClick={onRefresh} disabled={isLoading}>
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
-          <Button variant="outline" size="sm">
-            הצג הכל <ChevronRight className="w-4 h-4 mr-1" />
-          </Button>
+          <Link to={createPageUrl('Incidents')}>
+            <Button variant="outline" size="sm">
+              הצג הכל <ChevronRight className="w-4 h-4 mr-1" />
+            </Button>
+          </Link>
         </div>
       </CardHeader>
       <CardContent>
@@ -71,6 +50,10 @@ export default function RecentIncidents({ incidents = [], isLoading = false, onR
                 <Skeleton className="h-6 w-16" />
               </div>
             ))
+          ) : displayIncidents.length === 0 ? (
+            <div className="text-center py-6 text-slate-400">
+              <p>אין תקריות</p>
+            </div>
           ) : (
             displayIncidents.slice(0, 5).map((incident) => (
               <div key={incident.id} className="flex items-center gap-4 p-2 rounded-lg hover:bg-[#FAF5E8] transition-colors">

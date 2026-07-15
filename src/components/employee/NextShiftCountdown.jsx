@@ -92,8 +92,9 @@ export default function NextShiftCountdown({ currentEmployee, user }) {
     for (const s of shifts) {
       const d = new Date(s.date + 'T00:00:00');
       const startAt = parseHHmm(s.start_time, d);
-      const endAt = parseHHmm(s.end_time, d);
+      let endAt = parseHHmm(s.end_time, d);
       if (!startAt) continue;
+      if (endAt && endAt <= startAt) endAt = addDays(endAt, 1); // overnight shift ends next day
       // Still in the future, OR started recently and hasn't ended
       if (startAt > now) return { ...s, startAt, endAt, phase: 'future' };
       if (endAt && endAt > now) return { ...s, startAt, endAt, phase: 'active' };

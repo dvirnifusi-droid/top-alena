@@ -30,10 +30,14 @@ export default function SeatingAiHelper() {
     }, []);
 
     const checkLayoutExists = async () => {
-        const layouts = await SeatingLayout.list();
-        if (layouts.length > 0 && layouts[0].tables.length > 0) {
-            setLayoutExists(true);
-        } else {
+        try {
+            const layouts = await SeatingLayout.list();
+            if (layouts.length > 0 && layouts[0]?.tables?.length > 0) {
+                setLayoutExists(true);
+            } else {
+                setLayoutExists(false);
+            }
+        } catch {
             setLayoutExists(false);
         }
     };

@@ -387,8 +387,8 @@ export default function StoriesBar({ currentEmployee }) {
 
           {/* Stories */}
           {groups.map(([empId, group], idx) => {
-            const hasUnviewed = true;
-            const isManagerStory = group.stories[0]?.employee_id && group.stories.some(s => s.employee_id);
+            const hasUnviewed = group.stories.some(s => !((s.views||[]).some(v => v.employee_id === currentEmployee?.id)));
+            const isManagerStory = group.isManager;
             return (
               <div key={empId} className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer relative" onClick={() => openStory(idx)}>
                 <div className={`w-16 h-16 rounded-full p-0.5 ${isManagerStory && group.stories[0]?.employee_id ? "ring-2 ring-green-400" : ""} ${hasUnviewed ? "bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600" : "bg-gray-300"}`}>
@@ -596,7 +596,7 @@ export default function StoriesBar({ currentEmployee }) {
               </div>
 
               {/* Poll - only for story owner */}
-              {currentStory.poll && currentEmployee && currentStory.employee_id === currentEmployee.id && (
+              {currentStory.poll && currentEmployee && (
                 <div className="bg-white/10 rounded-xl p-3 space-y-2">
                   <p className="text-white font-semibold text-sm">{currentStory.poll.question}</p>
                   <div className="space-y-1.5">
@@ -609,6 +609,7 @@ export default function StoriesBar({ currentEmployee }) {
                       return (
                         <div
                           key={opt}
+                          onClick={() => handlePollVote(opt)}
                           className="w-full px-2 py-1.5 rounded text-xs text-right"
                         >
                           <div className="flex items-center justify-between">

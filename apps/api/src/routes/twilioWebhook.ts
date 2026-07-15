@@ -509,7 +509,7 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
         // Customer replied "הסר" (or similar) → opt them out of marketing
         // immediately and confirm with an auto-reply. Required by spam law:
         // the removal channel must be the same channel the message came on.
-        const isUnsubscribe = /^(הסר|הסירו|להסיר|הסרה|תסירו|stop|unsubscribe)\b/i.test(body.trim());
+        const isUnsubscribe = /^(הסר|הסירו|להסיר|הסרה|תסירו|stop|unsubscribe)(?:\s|$|[.,!?])/i.test(body.trim());
         if (isUnsubscribe) {
           const cleanPhone = from.replace(/[^\d]/g, '');
           const variants = [cleanPhone, cleanPhone.replace(/^972/, '0'), cleanPhone.replace(/^0/, '972')];

@@ -10,10 +10,15 @@ export async function buildPayViewer(user: { id?: string; email?: string; role?:
   const isOwner = user?.role === 'owner';
   let emp: any = null;
   if (user?.email) {
-    emp = await (prisma as any).employee.findFirst({
+    // Employee.email is neither unique nor guaranteed distinct (synthetic/placeholder
+    // emails exist). If more than one row matches, the identity is ambiguous → fail
+    // CLOSED (no scope) rather than inherit a possibly-wrong department/pay_access_scope.
+    const matches = await (prisma as any).employee.findMany({
       where: { email: user.email },
       select: { id: true, department: true, pay_access_scope: true },
-    }).catch(() => null);
+      take: 2,
+    }).catch(() => []);
+    emp = matches.length === 1 ? matches[0] : null;
   }
   return {
     isOwner,

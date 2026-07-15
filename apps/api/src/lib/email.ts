@@ -45,13 +45,17 @@ export async function sendEmail({ to, subject, text, html, from, replyTo }: Send
     text: finalText,
     html,
     // Reply-To so customers can reply to the business directly instead of noreply@
-    reply_to: replyTo || process.env.EMAIL_REPLY_TO || 'reservations@alenabepita.co.il',
-    // Standard List-Unsubscribe header — major signal for inbox placement
-    headers: {
-      'List-Unsubscribe': '<mailto:unsubscribe@alenabepita.co.il>',
-      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-    },
+    reply_to: replyTo || process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM || 'reservations@alenabepita.co.il',
   };
+  // Standard List-Unsubscribe header — major signal for inbox placement. Only
+  // emitted when EMAIL_LIST_UNSUB is set (per-tenant), so we never leak Alena's
+  // unsubscribe address onto another tenant's mail.
+  if (process.env.EMAIL_LIST_UNSUB) {
+    payload.headers = {
+      'List-Unsubscribe': process.env.EMAIL_LIST_UNSUB,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    };
+  }
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {

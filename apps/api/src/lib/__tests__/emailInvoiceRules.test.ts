@@ -29,9 +29,10 @@ describe('decideMessageAction', () => {
   it('blocked sender → skip', () => {
     expect(decideMessageAction({ rule: 'block' }, true)).toBe('skip_blocked');
   });
-  it('no attachment → skip regardless of rule', () => {
-    expect(decideMessageAction({ rule: 'allow' }, false)).toBe('skip_no_attachment');
+  it('no attachment → skip, unless the sender is allow-listed (link-only invoice)', () => {
+    expect(decideMessageAction({ rule: 'allow' }, false)).toBe('process');
     expect(decideMessageAction(null, false)).toBe('skip_no_attachment');
+    expect(decideMessageAction({ rule: 'auto' }, false)).toBe('skip_no_attachment');
   });
   it('allowed sender with attachment → process directly', () => {
     expect(decideMessageAction({ rule: 'allow' }, true)).toBe('process');

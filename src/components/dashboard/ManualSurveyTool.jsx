@@ -87,9 +87,12 @@ export default function ManualSurveyTool() {
             // העתקת ההודעה ללוח
             try {
                 await navigator.clipboard.writeText(message);
-                setResult({ 
-                    type: 'success', 
-                    message: `ההודעה הועתקה ללוח! כעת פתח את וואטסאפ העסקי שלך (0503962976) ושלח אותה ל-${customerPhone}` 
+                const businessPhone = branding?.phone;
+                setResult({
+                    type: 'success',
+                    message: businessPhone
+                        ? `ההודעה הועתקה ללוח! כעת פתח את וואטסאפ העסקי שלך (${businessPhone}) ושלח אותה ל-${customerPhone}`
+                        : `ההודעה הועתקה ללוח! כעת פתח את וואטסאפ העסקי שלך ושלח אותה ל-${customerPhone}`
                 });
             } catch (clipboardError) {
                 console.error('Failed to copy to clipboard:', clipboardError);
@@ -123,6 +126,7 @@ export default function ManualSurveyTool() {
     };
 
     const formatPhoneForDisplay = (phone) => {
+        if (!phone) return '';
         if (phone.startsWith('972')) {
             return '0' + phone.substring(3);
         }

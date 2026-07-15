@@ -15,7 +15,7 @@ export default function RecruitmentStats() {
                 pending: candidates.filter(c => c.status === 'pending').length,
                 rejected: candidates.filter(c => c.status === 'rejected').length,
             });
-        }).finally(() => setLoading(false));
+        }).catch(() => {}).finally(() => setLoading(false));
     }, []);
 
     const items = [

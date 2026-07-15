@@ -61,7 +61,7 @@ export default function EmployeeMealScanner({ onMealsExtracted }) {
                 if (meal.notes) {
                     const notesLower = meal.notes.toLowerCase();
                     const foundEmployee = allEmployees.find(emp => {
-                        const nameParts = emp.full_name.toLowerCase().split(' ');
+                        const nameParts = (emp.full_name || '').toLowerCase().split(' ').filter(part => part.length >= 2);
                         // Check if any part of the employee's name is in the notes
                         return nameParts.some(part => notesLower.includes(part));
                     });

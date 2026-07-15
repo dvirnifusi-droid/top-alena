@@ -35,7 +35,12 @@ export function laborCostForHours(pay: PayInfo | null | undefined, hours: number
   const rate = Number(pay.hourly_rate) || 0;
   const h = Number.isFinite(hours) && hours > 0 ? hours : 0;
   const gross = rate * h;
-  return gross + computeEmployerCost(gross, pay);
+  // Employer overhead for HOURLY staff must scale with the hours worked, i.e. the
+  // percentage path. Flat `employer_components` are a FIXED MONTHLY cost — adding
+  // them per shift would multiply them ~N× across N shifts. So pass only the pct
+  // (components are handled as a recurring monthly cost elsewhere, like salary).
+  const employer = computeEmployerCost(gross, { employer_pct: pay.employer_pct ?? null });
+  return gross + employer;
 }
 
 export type LaborEntry = { employee_id: string; hours: number };

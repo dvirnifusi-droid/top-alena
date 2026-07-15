@@ -122,7 +122,14 @@ export default function GearReturnDialog({ open, onClose, myDevices, employeeId 
             }));
         }
 
-        await Promise.all(updates);
+        try {
+            await Promise.all(updates);
+        } catch (err) {
+            console.error('Gear return failed', err);
+            setSaving(false);
+            alert('שגיאה בשמירת החזרת הציוד. נסה שוב.');
+            return;
+        }
         setSaving(false);
         onClose({ ipadPhoto: ipadPhoto || ipadPhotoPreview, terminalPhoto: terminalPhoto || terminalPhotoPreview, notes });
     };

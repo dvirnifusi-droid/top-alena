@@ -32,7 +32,7 @@ export default function AiDailySummaryWidget() {
     setLoading(true);
     try {
       const res = await aiDailySummary({});
-      if (res.data.success) {
+      if (res?.data?.success) {
         setSummary(res.data.summary);
         setLastUpdated(new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }));
       }

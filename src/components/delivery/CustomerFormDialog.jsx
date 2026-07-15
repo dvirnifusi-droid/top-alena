@@ -20,24 +20,29 @@ export default function CustomerFormDialog({ customer, onSave, onClose }) {
   const handleSave = async () => {
     if (!form.customer_phone) return alert("מספר טלפון הוא שדה חובה");
     setSaving(true);
-    if (customer) {
-      await base44.entities.DeliveryCustomer.update(customer.id, form);
-    } else {
-      // בדוק אם כבר קיים
-      const existing = await base44.entities.DeliveryCustomer.filter({ customer_phone: form.customer_phone });
-      if (existing.length > 0) {
-        alert("לקוח עם טלפון זה כבר קיים במערכת");
-        setSaving(false);
-        return;
+    try {
+      if (customer) {
+        await base44.entities.DeliveryCustomer.update(customer.id, form);
+      } else {
+        // בדוק אם כבר קיים
+        const existing = await base44.entities.DeliveryCustomer.filter({ customer_phone: form.customer_phone });
+        if (existing.length > 0) {
+          alert("לקוח עם טלפון זה כבר קיים במערכת");
+          return;
+        }
+        await base44.entities.DeliveryCustomer.create({
+          ...form,
+          customer_name: form.customer_name || "לקוח לא מזוהה",
+          total_orders: 0, total_spent: 0, orders: [],
+        });
       }
-      await base44.entities.DeliveryCustomer.create({
-        ...form,
-        customer_name: form.customer_name || "לקוח לא מזוהה",
-        total_orders: 0, total_spent: 0, orders: [],
-      });
+      onSave();
+    } catch (err) {
+      console.error("Failed to save customer:", err);
+      alert("שגיאה בשמירת הלקוח");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    onSave();
   };
 
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
