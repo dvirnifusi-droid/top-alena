@@ -4571,6 +4571,61 @@ async function buildLiveBusinessContext(): Promise<string> {
     `${sections.join('\n\n')}\n=== סוף נתוני העסק ===`;
 }
 
+// Transparency for the owner: exactly what feeds DVIR AI right now — the live
+// app data (with counts + a few samples + which source page to edit) AND the
+// uploaded knowledge files. Powers the "מקורות הידע" panel so it's never a
+// black box. Read-only, admin-gated, drift-safe per source.
+registerFn('getDvirKnowledgeSources', async ({ user }) => {
+  assertAiFilesAdmin(user);
+  const safe = async <T,>(fn: () => Promise<T>, fallback: T): Promise<T> => {
+    try { return await fn(); } catch { return fallback; }
+  };
+
+  const profile = await safe(async () => {
+    const p: any = await db.restaurantProfile.findFirst();
+    if (!p) return null;
+    return {
+      restaurant_name: p.restaurant_name || null,
+      cuisine_style: p.cuisine_style || null,
+      address: [p.address, p.city].filter(Boolean).join(', ') || null,
+      phone: p.phone || null,
+      has_hours: !!p.opening_hours,
+    };
+  }, null);
+
+  const menu = await safe(async () => {
+    const items: any[] = await db.menuItem.findMany({ where: { available: true }, take: 300, orderBy: { category: 'asc' } });
+    return { count: items.length, sample: items.slice(0, 6).map((i) => `${i.name}${i.price ? ` — ${i.price}₪` : ''}`) };
+  }, { count: 0, sample: [] as string[] });
+
+  const employees = await safe(async () => {
+    const rows: any[] = await db.employee.findMany({ where: { status: 'active' }, take: 300 });
+    return { count: rows.length, sample: rows.slice(0, 6).map((e) => `${e.full_name}${e.role ? ` — ${e.role}` : ''}`) };
+  }, { count: 0, sample: [] as string[] });
+
+  const suppliers = await safe(async () => {
+    const rows: any[] = await db.supplier.findMany({ take: 200 });
+    return { count: rows.length, sample: rows.slice(0, 6).map((s) => s.company_name) };
+  }, { count: 0, sample: [] as string[] });
+
+  const checklists = await safe(async () => {
+    const rows: any[] = await db.checklist.findMany({ take: 100 });
+    return { count: rows.length, sample: rows.slice(0, 6).map((c) => c.title) };
+  }, { count: 0, sample: [] as string[] });
+
+  const orderLists = await safe(async () => {
+    const rows: any[] = await db.$queryRawUnsafe(`SELECT name FROM "PrepList" WHERE list_type='order' LIMIT 50`);
+    return { count: Array.isArray(rows) ? rows.length : 0, sample: (rows || []).slice(0, 6).map((l: any) => l.name) };
+  }, { count: 0, sample: [] as string[] });
+
+  const files = await safe(async () => {
+    const rows: any[] = await db.aiAssistantFile.findMany({ where: { is_active: true }, orderBy: { created_date: 'desc' } });
+    return rows.map((f) => ({ file_name: f.file_name, mime_type: f.mime_type, description: f.description || null }));
+  }, [] as any[]);
+
+  return { live: { profile, menu, employees, suppliers, checklists, orderLists }, files };
+});
+
 registerFn('askGemini', async ({ body }) => {
   const { message, history, systemPrompt, prompt } = body as any;
   const apiKey = process.env.GEMINI_API_KEY;

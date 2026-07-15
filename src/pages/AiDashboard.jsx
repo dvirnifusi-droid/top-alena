@@ -11,6 +11,7 @@ import { KnowledgeBase, StaffQuestion, PendingQuestion, MenuItem, RestaurantInfo
 import { Plus, Search, Brain, MessageSquare, BookOpen, Shield, Users, Coffee, Settings, Trash2, Edit, Utensils, CheckCircle, Info } from "lucide-react";
 import AiDailySummaryWidget from "@/components/dashboard/AiDailySummaryWidget";
 import AiAssistantFilesManager from "@/components/ai-assistant/AiAssistantFilesManager";
+import DvirKnowledgePanel from "@/components/ai-assistant/DvirKnowledgePanel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -648,7 +649,8 @@ function AiDashboardInner() {
                         </Card>
                     </TabsContent>
 
-                    <TabsContent value="files" className="mt-8">
+                    <TabsContent value="files" className="mt-8 space-y-8">
+                        <DvirKnowledgePanel />
                         <AiAssistantFilesManager />
                     </TabsContent>
                 </Tabs>
