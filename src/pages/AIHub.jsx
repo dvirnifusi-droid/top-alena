@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Brain, Sparkles, Rocket, Megaphone, TrendingUp, Inbox } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
+import PinGate, { PIN_LOCKED_PAGES } from '@/components/shared/PinGate';
 import AgentInbox from './AgentInbox';
 import AiDashboard from './AiDashboard';
 import SmartPrediction from './SmartPrediction';
@@ -12,13 +13,13 @@ import AgentPrompts from './AgentPrompts';
 import RevenueForecasting from './RevenueForecasting';
 
 const TABS = [
-    { id: 'inbox', label: 'תיבת הסוכן', icon: Inbox, C: AgentInbox },
-    { id: 'dashboard', label: 'מרכז AI', icon: Sparkles, C: AiDashboard },
-    { id: 'predict', label: 'חיזוי עומסים', icon: Brain, C: SmartPrediction },
-    { id: 'advisor', label: 'יועץ שיווק', icon: Rocket, C: MarketingAdvisor },
-    { id: 'agents', label: 'סוכני שיווק', icon: Megaphone, C: MarketingAgentsHub },
-    { id: 'prompts', label: 'פרומפטים', icon: Brain, C: AgentPrompts },
-    { id: 'forecast', label: 'תחזיות הכנסות', icon: TrendingUp, C: RevenueForecasting },
+    { id: 'inbox', label: 'תיבת הסוכן', icon: Inbox, C: AgentInbox, page: 'AgentInbox' },
+    { id: 'dashboard', label: 'מרכז AI', icon: Sparkles, C: AiDashboard, page: 'AiDashboard' },
+    { id: 'predict', label: 'חיזוי עומסים', icon: Brain, C: SmartPrediction, page: 'SmartPrediction' },
+    { id: 'advisor', label: 'יועץ שיווק', icon: Rocket, C: MarketingAdvisor, page: 'MarketingAdvisor' },
+    { id: 'agents', label: 'סוכני שיווק', icon: Megaphone, C: MarketingAgentsHub, page: 'MarketingAgentsHub' },
+    { id: 'prompts', label: 'פרומפטים', icon: Brain, C: AgentPrompts, page: 'AgentPrompts' },
+    { id: 'forecast', label: 'תחזיות הכנסות', icon: TrendingUp, C: RevenueForecasting, page: 'RevenueForecasting' },
 ];
 
 export default function AIHub() {
@@ -43,7 +44,7 @@ export default function AIHub() {
                 </div>
                 {TABS.map(t => (
                     <TabsContent key={t.id} value={t.id} className="mt-0">
-                        <t.C />
+                        {PIN_LOCKED_PAGES.has(t.page) ? <PinGate><t.C /></PinGate> : <t.C />}
                     </TabsContent>
                 ))}
             </Tabs>
