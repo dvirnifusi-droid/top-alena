@@ -816,6 +816,28 @@ export default function WorkScheduling() {
         return week.find(s => s.date === dateString && s.shift_type === type);
     };
 
+    // Desktop-scope aggregation (mirrors MobileScheduleView.getAssignmentsFor):
+    // older data can create duplicate WorkShift rows for the same date+type, and
+    // getShiftFor().assigned_staff only reads the first, hiding staff. Aggregate +
+    // de-dupe across all matching rows so nobody is invisible in the grid.
+    const getAssignmentsFor = (date, type, positionName) => {
+        const dateString = format(date, 'yyyy-MM-dd');
+        const matching = week.filter(s => s.date === dateString && s.shift_type === type);
+        const seen = new Set();
+        const out = [];
+        for (const s of matching) {
+            for (const a of (s.assigned_staff || [])) {
+                if (canon(a.position) !== canon(positionName)) continue;
+                if (filters.employee !== 'all' && a.employee_id !== filters.employee) continue;
+                const k = `${a.employee_id}|${a.position}`;
+                if (seen.has(k)) continue;
+                seen.add(k);
+                out.push(a);
+            }
+        }
+        return out;
+    };
+
     const handleQuickAssign = (day, shiftType, positionName) => {
         setDialogContext({ date: day, shiftType, positionName });
         setIsQuickAssignOpen(true);
