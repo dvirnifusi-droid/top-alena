@@ -1347,14 +1347,27 @@ async function tool_build_schedule_now(_args: any, _phone: string): Promise<any>
   const { runWeeklyScheduleBuild } = await import('../functions/load.js');
   const res: any = await runWeeklyScheduleBuild({ force: true });
   if (res?.skipped) return { skipped: true, reason: res.reason };
+  // No availability submitted → the builder can't assign anyone. Return a CLEAR
+  // message so the agent doesn't say the misleading "built, 0 shifts assigned".
+  if (res.no_availability) {
+    return {
+      ok: false,
+      no_availability: true,
+      target_week: res.target_week,
+      insights: res.insights || [],
+      message: `⚠️ עדיין לא ניתן לשבץ — הצוות לא הגיש זמינות לשבוע ${res.target_week || 'הבא'}. ${(res.insights || []).join(' ')}\nרוצה שאשלח לצוות תזכורת להגיש זמינות?`,
+    };
+  }
+  const asg = res.assignmentCount || 0;
+  const sh = res.createdShifts || 0;
   return {
     ok: true,
-    created_shifts: res.createdShifts || 0,
-    assignment_count: res.assignmentCount || 0,
+    created_shifts: sh,
+    assignment_count: asg,
     missing: res.missing || [],
     insights: res.insights || [],
-    no_availability: !!res.no_availability,
     target_week: res.target_week,
+    message: `✅ בניתי את הסידור לשבוע ${res.target_week || 'הבא'}: *${asg}* שיבוצים ב-${sh} משמרות.${(res.missing || []).length ? ` (לא הגישו זמינות: ${(res.missing || []).slice(0, 8).join(', ')})` : ''}`,
   };
 }
 

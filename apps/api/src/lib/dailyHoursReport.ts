@@ -105,12 +105,23 @@ export async function buildDailyHoursReport(since: Date, now: Date = new Date())
 
   const rowsById = new Map<string, HoursRow>();
   const actualByEmp = new Map<string, any>();
+  const actualByName = new Map<string, any>();
+  const normName = (s: any) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
   for (const t of tracks) {
-    if (!t.employee_id) continue;
     const hrs = Number(t.total_hours ?? t.effective_hours) || 0;
-    // Keep the largest closed row per employee in the window (handles a double shift merged view).
-    const prev = actualByEmp.get(t.employee_id);
-    if (!prev || hrs > (Number(prev.total_hours ?? prev.effective_hours) || 0)) actualByEmp.set(t.employee_id, t);
+    // Index by id AND by name. A clock-in recorded under a NAME but a null/other
+    // employee_id (geofence / name-based clock — very common) must still count,
+    // otherwise a scheduled employee who actually worked is falsely flagged
+    // "no hours". Keep the largest closed row per key (double-shift merged view).
+    if (t.employee_id) {
+      const prev = actualByEmp.get(t.employee_id);
+      if (!prev || hrs > (Number(prev.total_hours ?? prev.effective_hours) || 0)) actualByEmp.set(t.employee_id, t);
+    }
+    const nm = normName(t.employee_name);
+    if (nm) {
+      const prevN = actualByName.get(nm);
+      if (!prevN || hrs > (Number(prevN.total_hours ?? prevN.effective_hours) || 0)) actualByName.set(nm, t);
+    }
   }
 
   // Names + roles for everyone involved.
@@ -140,7 +151,13 @@ export async function buildDailyHoursReport(since: Date, now: Date = new Date())
   for (const id of involvedIds) {
     const emp = empById.get(id);
     const roster = rosterByEmp.get(id);
-    const track = actualByEmp.get(id);
+    // Prefer the id match; fall back to an exact name match so a clock-in recorded
+    // under this employee's name (but no/other id) is credited instead of flagged.
+    let track = actualByEmp.get(id);
+    if (!track) {
+      const nm = normName(emp?.full_name);
+      if (nm && actualByName.has(nm)) track = actualByName.get(nm);
+    }
     const name = track?.employee_name || emp?.full_name || 'עובד';
     const role = roster?.role || emp?.role || '';
     const flags: string[] = [];
@@ -171,7 +188,7 @@ export async function buildDailyHoursReport(since: Date, now: Date = new Date())
     lines.push('אין משמרות שנסגרו מאז הדוח הקודם.');
   } else {
     for (const r of rows) {
-      if (r.hours == null) lines.push(`• ${r.name}${roleTag(r.role)} — ⚠️ בסידור, אין שעות מעודכנות`);
+      if (r.hours == null) lines.push(`• ${r.name}${roleTag(r.role)} — ⚠️ בסידור, לא נמצאה החתמת שעון`);
       else lines.push(`• ${r.name}${roleTag(r.role)} — *${r.hours.toFixed(2)}* שע'${r.flags.includes('long') ? ' ⚠️ משמרת ארוכה' : ''}`);
     }
     lines.push('', `📊 סה"כ: *${rows.length}* עובדים · *${totalHours.toFixed(2)}* שעות${flagged ? ` · ⚠️ *${flagged}* חריגים` : ''}`);

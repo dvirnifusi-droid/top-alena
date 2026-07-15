@@ -86,7 +86,13 @@ export async function tryConfirmPendingInvoice(
   if (!trimmed) return null;
   const isApprove = /^(אישור|אשר|כן|מאשר|מאשרת|ok|yes)\s*[.!]?$/i.test(trimmed);
   const isCancel = /^(ביטול|ביטל|בטל|בטלי|לא|no|cancel)\s*[.!]?$/i.test(trimmed);
-  if (!isApprove && !isCancel) return null;
+  // Inline corrections BEFORE saving — critical when OCR didn't match the supplier:
+  //   "ספק: שם נכון"  ·  "סכום: 350"  ·  "מספר: 12345"
+  const supEdit = trimmed.match(/^(?:ספק|שם ספק)\s*[:\-–]\s*(.{2,})$/i);
+  const amtEdit = trimmed.match(/^(?:סכום|סה["״'׳]?כ|total)\s*[:\-–]?\s*([\d.,]+)\s*(?:₪|ש"?ח)?$/i);
+  const numEdit = trimmed.match(/^(?:מספר|מס['׳]|חשבונית)\s*[:\-–]\s*([\w\-\/]+)$/i);
+  const isEdit = !!(supEdit || amtEdit || numEdit);
+  if (!isApprove && !isCancel && !isEdit) return null;
 
   // Find most recent unread outbound with pending_invoice from <15 min ago.
   // Column is created_at (snake_case in the WhatsAppMessage schema), not the
@@ -106,7 +112,29 @@ export async function tryConfirmPendingInvoice(
   const draft = (pending.raw as any)?.pending_invoice;
   if (!draft) return null;
 
-  // Mark as consumed regardless of branch so re-sending אישור doesn't double-create.
+  // ── EDIT — patch the draft, keep it pending, refresh the 15-min window ──
+  if (isEdit) {
+    const ex = (draft.extracted = draft.extracted || {});
+    if (supEdit) {
+      ex.supplier_name = supEdit[1].trim().slice(0, 200);
+      draft.matched_supplier_id = null;   // owner overrode the match → save under this name
+      draft.matched_supplier_name = null;
+    }
+    if (amtEdit) ex.total_amount = Number(String(amtEdit[1]).replace(/,/g, '')) || ex.total_amount;
+    if (numEdit) ex.invoice_number = numEdit[1].trim();
+    await (prisma as any).whatsAppMessage.update({
+      where: { id: pending.id },
+      data: { raw: { pending_invoice: draft }, created_at: new Date() },
+    }).catch(() => {});
+    const L = ['✏️ *עודכן:*', ''];
+    L.push(`🏢 ספק: ${ex.supplier_name || '—'}`);
+    if (ex.invoice_number) L.push(`#️⃣ חשבונית: ${ex.invoice_number}`);
+    L.push(`💰 סה"כ: ${(Number(ex.total_amount) || 0).toLocaleString('he-IL')} ₪`);
+    L.push('', 'ענה *אישור* לשמירה · *ביטול* · או שלח עוד תיקון (למשל "ספק: שם נכון").');
+    return L.join('\n');
+  }
+
+  // Mark as consumed so re-sending אישור doesn't double-create.
   await (prisma as any).whatsAppMessage.update({ where: { id: pending.id }, data: { is_read: true } }).catch(() => {});
 
   if (isCancel) {
@@ -236,7 +264,8 @@ export async function handleAdminInvoiceMedia(mediaUrl: string, fromPhone?: stri
   if (extracted.category_guess) lines.push(`🏷️ קטגוריה משוערת: ${extracted.category_guess}`);
   if (extracted.confidence_notes) lines.push(`\n⚠️ ${extracted.confidence_notes}`);
   lines.push('');
-  lines.push('✅ ענה *אישור* כדי לשמור ב-Invoices');
+  lines.push('✅ ענה *אישור* לשמירה · *ביטול*');
+  lines.push('✏️ לא זיהה נכון? תקן: "ספק: שם נכון" · "סכום: 350" · "מספר: 12345"');
   lines.push('❌ ענה *ביטול* כדי לא לשמור');
   lines.push('_(תקף ל-15 דקות)_');
   const previewText = lines.join('\n');
