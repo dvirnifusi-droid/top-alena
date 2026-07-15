@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -181,20 +182,16 @@ function IntegrationsInner() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto" dir="rtl">
-      <div className="bg-gradient-to-l from-slate-700 to-slate-900 text-white rounded-xl p-6">
-        <div className="flex items-center gap-3">
-          <Plug className="w-8 h-8" />
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold">חיבורים חיצוניים</h1>
-            <p className="text-sm text-white/80 mt-1">
-              חבר את החשבונות שלך — Instagram, Google, Telegram, POS. הטוקנים נשמרים בסכימה שלך בלבד.
-            </p>
-          </div>
-          <Button variant="ghost" onClick={load} className="text-white hover:bg-white/10">
+      <PageHeader
+        title="חיבורים חיצוניים"
+        subtitle="חבר את החשבונות שלך — Instagram, Google, Telegram, POS. הטוקנים נשמרים בסכימה שלך בלבד."
+        icon={Plug}
+        action={(
+          <Button variant="ghost" onClick={load} className="hover:bg-black/5">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
-        </div>
-      </div>
+        )}
+      />
 
       {error && (
         <Card className="border-red-300 bg-red-50">

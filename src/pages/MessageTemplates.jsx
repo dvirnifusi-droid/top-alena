@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Plus, Pencil, Trash2, Loader2, Mail, MessageSquare } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 export default function MessageTemplates() {
     const [templates, setTemplates] = useState([]);
@@ -64,15 +65,15 @@ export default function MessageTemplates() {
 
     return (
         <div className="p-4 md:p-8" dir="rtl">
-            <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-2">
-                    <FileText className="w-6 h-6 text-[#A04A2E]" />
-                    <h1 className="text-2xl font-bold">תבניות הודעה</h1>
-                </div>
-                <Button onClick={openNew} className="bg-[#A04A2E] hover:bg-[#7A3722] text-white">
-                    <Plus className="w-4 h-4 ml-1" /> תבנית חדשה
-                </Button>
-            </div>
+            <PageHeader
+                title="תבניות הודעה"
+                icon={FileText}
+                action={(
+                    <Button onClick={openNew} className="bg-[#A04A2E] hover:bg-[#7A3722] text-white">
+                        <Plus className="w-4 h-4 ml-1" /> תבנית חדשה
+                    </Button>
+                )}
+            />
 
             <Tabs value={typeFilter} onValueChange={setTypeFilter} className="mb-4">
                 <TabsList>

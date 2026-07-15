@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -85,15 +86,7 @@ export default function PushNotifications() {
 
     return (
         <div className="max-w-2xl mx-auto p-4 space-y-4" dir="rtl">
-            <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <Bell className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-bold">שליחת Push ידני</h1>
-                    <p className="text-muted-foreground text-sm">שלח הודעת Push לעובדים או קבוצות</p>
-                </div>
-            </div>
+            <PageHeader title="שליחת Push ידני" subtitle="שלח הודעת Push לעובדים או קבוצות" icon={Bell} />
 
             {/* בחירת קהל יעד */}
             <Card>

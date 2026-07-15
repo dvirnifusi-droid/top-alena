@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -188,17 +189,7 @@ function BrandingInner() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto" dir="rtl">
-      <div className="bg-gradient-to-l from-slate-700 to-slate-900 text-white rounded-xl p-6">
-        <div className="flex items-center gap-3">
-          <Palette className="w-8 h-8" />
-          <div>
-            <h1 className="text-2xl font-bold">מיתוג המסעדה</h1>
-            <p className="text-sm text-white/80 mt-1">
-              לוגו, צבעי מותג, פונט, ושם — הופיעו בכל המערכת שלך.
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader title="מיתוג המסעדה" subtitle="לוגו, צבעי מותג, פונט, ושם — הופיעו בכל המערכת שלך." icon={Palette} />
 
       {error && (
         <Card className="border-red-300 bg-red-50">

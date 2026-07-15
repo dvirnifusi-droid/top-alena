@@ -5,6 +5,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
+import PageHeader from '@/components/shared/PageHeader';
 import { Settings, Zap, MessageCircle, Tablet, MapPin, RefreshCw, CreditCard, FormInput, Tv, Bell, Database, Mic, Mail } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 
@@ -38,15 +39,7 @@ function Section({ title, emoji, children }) {
 export default function AdminSettings() {
     return (
         <div className="p-4 md:p-6 max-w-6xl mx-auto" dir="rtl">
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <Settings className="w-6 h-6 text-[#1F1B17]" />
-                    הגדרות ואינטגרציות
-                </h1>
-                <p className="text-sm text-gray-600 mt-1">
-                    כל החיבורים, ה-API-ים, וההגדרות מאחורי הקלעים במקום אחד.
-                </p>
-            </div>
+            <PageHeader title="הגדרות ואינטגרציות" subtitle="כל החיבורים, ה-API-ים, וההגדרות מאחורי הקלעים במקום אחד." icon={Settings} />
 
             <Section title="חיבורים חיצוניים" emoji="🔌">
                 <Tile
