@@ -1908,7 +1908,14 @@ async function runDailyCelebrationCampaigns(force = false) {
   }
 
   // 2) Anniversary today
-  const annivTemplate = 'מזל טוב, {name}! 🥂\nהיום יום מיוחד — בוא לחגוג אצלנו ויש לנו מתנה.\nרוטשילד 104, ראשון לציון 🌿';
+  // Address: this tenant's RestaurantProfile, Alena literal as byte-identical
+  // fallback, omitted for a non-Alena tenant with no address on file.
+  const isAlena = (process.env.TENANT_SLUG || 'alena') === 'alena';
+  const rp = await (db as any).restaurantProfile.findFirst().catch(() => null);
+  const annAddr = isAlena
+    ? 'רוטשילד 104, ראשון לציון'
+    : (rp?.address ? [rp.address, rp.city].filter(Boolean).join(', ') : '');
+  const annivTemplate = `מזל טוב, {name}! 🥂\nהיום יום מיוחד — בוא לחגוג אצלנו ויש לנו מתנה.${annAddr ? `\n${annAddr} 🌿` : ''}`;
   try {
     const annList = await db.customer.findMany({
       where: { ...baseGate, anniversary_mmdd: mmdd },
@@ -7837,7 +7844,18 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   const cancelLine = cancelHours
     ? `ביטול חופשי עד ${cancelHours} שעות לפני ההזמנה`
     : `אפשר לבטל ללא חיוב עד שעתיים לפני המועד`;
-  const restaurantPhone = process.env.RESTAURANT_PHONE || '03-6228055 שלוחה 3';
+  // Per-tenant contact details: prefer THIS tenant's RestaurantProfile; keep
+  // Alena's exact literals as the fallback so slug 'alena' stays byte-identical.
+  // Non-Alena tenants with no profile field → the whole line is omitted below.
+  const isAlena = (process.env.TENANT_SLUG || 'alena') === 'alena';
+  const rp = await (db as any).restaurantProfile.findFirst().catch(() => null);
+  // Alena stays byte-identical (literal wins); other tenants use their own profile
+  // or omit — transactional customer message, so no risk of Alena's copy shifting.
+  const addrLine = isAlena
+    ? `📍 רוטשילד 104, ראשון לציון`
+    : (rp?.address ? `📍 ${[rp.address, rp.city].filter(Boolean).join(', ')}` : '');
+  const parkingLine = isAlena ? `חניון מול מרכז בן גוריון (חינם מ-17:00 ובסופ"ש)` : '';
+  const restaurantPhone = isAlena ? (process.env.RESTAURANT_PHONE || '03-6228055 שלוחה 3') : (rp?.phone || '');
   const smsBody = isStandby
     ? [
         `שלום ${customer_name} 👋`,
@@ -7857,17 +7875,13 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
         `ההזמנה שלך ב${brand} אושרה ✅`,
         `📅 ${dateStr} בשעה ${time}`,
         `👥 ${size} סועדים`,
-        `📍 רוטשילד 104, ראשון לציון`,
+        ...(addrLine ? [addrLine] : []),
         ``,
-        `🅿️ חניה`,
-        `חניון מול מרכז בן גוריון (חינם מ-17:00 ובסופ"ש)`,
-        ``,
+        ...(parkingLine ? [`🅿️ חניה`, parkingLine, ``] : []),
         `⏰ ביטול`,
         cancelLine,
         ``,
-        `💬 שינויים / שאלות?`,
-        `${restaurantPhone} (במסעדה)`,
-        ``,
+        ...(restaurantPhone ? [`💬 שינויים / שאלות?`, `${restaurantPhone} (במסעדה)`, ``] : []),
         `נשמח לראותכם ✨`,
         `צוות ${brand}`,
         ``,
@@ -7915,17 +7929,17 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
         <div style="background:#fff;border:1px solid #e5d9c4;border-radius:10px;padding:16px;margin-bottom:16px">
           <p style="margin:4px 0">📅 <b>${dateStr}</b> בשעה <b>${time}</b></p>
           <p style="margin:4px 0">👥 <b>${size} סועדים</b></p>
-          <p style="margin:4px 0">📍 רוטשילד 104, ראשון לציון</p>
+          ${addrLine ? `<p style="margin:4px 0">${addrLine}</p>` : ''}
         </div>
 
-        <p style="margin:16px 0 4px;font-weight:bold">🅿️ חניה</p>
-        <p style="margin:0 0 16px">חניון מול מרכז בן גוריון (חינם מ-17:00 ובסופ"ש)</p>
+        ${parkingLine ? `<p style="margin:16px 0 4px;font-weight:bold">🅿️ חניה</p>
+        <p style="margin:0 0 16px">${parkingLine}</p>` : ''}
 
         <p style="margin:16px 0 4px;font-weight:bold">⏰ ביטול</p>
         <p style="margin:0 0 16px">${cancelLine}</p>
 
-        <p style="margin:16px 0 4px;font-weight:bold">💬 שינויים / שאלות?</p>
-        <p style="margin:0 0 16px">${restaurantPhone} (במסעדה)</p>
+        ${restaurantPhone ? `<p style="margin:16px 0 4px;font-weight:bold">💬 שינויים / שאלות?</p>
+        <p style="margin:0 0 16px">${restaurantPhone} (במסעדה)</p>` : ''}
 
         <p style="margin:24px 0 12px;text-align:center;color:#a04a2e;font-size:16px">נשמח לראותכם ✨</p>
         <p style="margin:0 0 16px;text-align:center;color:#666">צוות ${brand}</p>
@@ -8124,12 +8138,19 @@ registerFn('promoteStandbyReservation', async ({ body, user }) => {
   const baseUrl = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
   const trackUrl = `${baseUrl}/ReservationView?token=${r.tracking_token}`;
   const dateStr = (r.date instanceof Date ? r.date : new Date(r.date)).toISOString().slice(0, 10).split('-').reverse().join('/');
+  // Alena stays byte-identical (literal wins); other tenants use their own
+  // profile address or omit the line.
+  const isAlena = (process.env.TENANT_SLUG || 'alena') === 'alena';
+  const rp = await (db as any).restaurantProfile.findFirst().catch(() => null);
+  const addrLine = isAlena
+    ? `📍 רוטשילד 104, ראשון לציון`
+    : (rp?.address ? `📍 ${[rp.address, rp.city].filter(Boolean).join(', ')}` : '');
   const msg = [
     `שלום ${r.customer_name}!`,
     `שולחן התפנה ב-${brand} 🎉`,
     `📅 ${dateStr} · 🕐 ${timeToUse}`,
     `👥 ${r.party_size} סועדים`,
-    `📍 רוטשילד 104, ראשון לציון`,
+    ...(addrLine ? [addrLine] : []),
     ``,
     `ההזמנה שלך אושרה. נשמח לראותך!`,
     `🔗 ${trackUrl}`,
@@ -17240,6 +17261,23 @@ registerFn('guestInquiry', async ({ body }) => {
   if (typeof message !== 'string' || !message.trim()) {
     return { reply: 'אפשר לכתוב לי שאלה ואני אנסה לעזור.', intent: 'general' };
   }
+  // Per-tenant facts for the concierge prompt: prefer THIS tenant's
+  // RestaurantProfile; keep Alena's literals as the byte-identical fallback and
+  // omit any fact a non-Alena tenant hasn't filled in (no cross-tenant leaks).
+  const isAlena = (process.env.TENANT_SLUG || 'alena') === 'alena';
+  const rp = await (db as any).restaurantProfile.findFirst().catch(() => null);
+  const gAddr = isAlena ? 'רוטשילד 104 ראשון לציון' : (rp?.address ? [rp.address, rp.city].filter(Boolean).join(', ') : '');
+  const gPhone = isAlena ? '03-622-8055' : (rp?.phone || '');
+  const gInsta = isAlena ? '@alena.hamara' : '';
+  const factsLine = isAlena
+    ? `חמארה ים-תיכונית כשרה. מנגל פתוח, בר אלכוהול. ${gAddr}. טלפון: ${gPhone}. אינסטגרם: ${gInsta}.`
+    : [gAddr, gPhone ? `טלפון: ${gPhone}` : ''].filter(Boolean).join('. ');
+  const hoursBlock = isAlena
+    ? `שעות:\n  א׳-ד׳ 12:00-00:00 · ה׳ 12:00-02:00 · ו׳ סגור · ש׳ 20:15-02:00\n  עסקיות 12:00-17:00 בכל יום פתוח`
+    : '';
+  const parkingBlockG = isAlena
+    ? `חניה: חניון בן גוריון 2 דק׳ הליכה (חינם אחר הצהריים). חניה בכחול-לבן ברוטשילד/הרצל/וייצמן.`
+    : '';
   const trimmed = String(message).slice(0, 800);
   const turns: Array<{ role: string; content: string }> = Array.isArray(history) ? history.slice(-10) : [];
   const transcript = turns
@@ -17274,11 +17312,9 @@ registerFn('guestInquiry', async ({ body }) => {
 Happy Hour כרגע: ${happyHourActive ? 'פעיל — 40% הנחה על האלכוהול' : 'לא פעיל כרגע'}.
 
 ═══ מידע קבוע על המסעדה ═══
-חמארה ים-תיכונית כשרה. מנגל פתוח, בר אלכוהול. רוטשילד 104 ראשון לציון. טלפון: 03-622-8055. אינסטגרם: @alena.hamara.
+${factsLine}
 
-שעות:
-  א׳-ד׳ 12:00-00:00 · ה׳ 12:00-02:00 · ו׳ סגור · ש׳ 20:15-02:00
-  עסקיות 12:00-17:00 בכל יום פתוח
+${hoursBlock}
 
 ערבי הנושא:
   ראשון = Burger Night · שני = יין ללא תחתית · שלישי = Butcher Night · רביעי = ערב קלאסי · חמישי = ערב גבוה (עד 02:00) · מוצ״ש = הערב הכי גבוה (מ-20:15)
@@ -17286,14 +17322,14 @@ Happy Hour כרגע: ${happyHourActive ? 'פעיל — 40% הנחה על האל�
 
 הזמנות: עד 12 סועדים בטופס בעמוד הזה. 13+ = אירוע פרטי דרך /EventsInquiry. ביטול חופשי עד 3 שעות לפני (אחר כך 30₪ פיקדון לסועד). השולחן ממתין 10 דק׳ לאיחור.
 
-חניה: חניון בן גוריון 2 דק׳ הליכה (חינם אחר הצהריים). חניה בכחול-לבן ברוטשילד/הרצל/וייצמן.
+${parkingBlockG}
 
 תפריט: בשר על האש, חמארה, פוקצ׳ות, פלטות, סלטים, קינוחים. תפריט מלא ב-/menu. יש מנות צמחוניות (לא טבעוני מלא).
 
 ═══ כללים נוקשים ═══
 1. **שפת התשובה**: זהה את השפה של ההודעה האחרונה של האורח. **תשובתך חייבת להיות באותה שפה בדיוק**. עברית→עברית, English→English, רוסית→רוסית. ברירת מחדל = עברית. **אסור להחליף שפה אקראית** באמצע השיחה.
 2. **רלוונטיות**: תענה ישירות על מה שנשאל. אל תוסיף מידע לא קשור (לדוגמה: אל תספר על Burger Night אם נשאלת על איך להזמין שולחן).
-3. **דיוק**: אל תמציא מידע. אם לא יודע — הצע 03-622-8055.
+3. **דיוק**: אל תמציא מידע.${gPhone ? ` אם לא יודע — הצע ${gPhone}.` : ''}
 4. **הזמנה** → הדריך למילוי הטופס בעמוד. **אירוע 13+** → הפנה ל-/EventsInquiry.
 5. **תמציתיות**: 1-3 משפטים מקסימום. חם, ישיר, מקצועי.
 6. אסור לדבר על מתחרים. אסור להבטיח הנחות שלא קיימות.
@@ -17324,7 +17360,9 @@ Happy Hour כרגע: ${happyHourActive ? 'פעיל — 40% הנחה על האל�
     };
   } catch (err: any) {
     return {
-      reply: 'משהו פה לא עובד אצלי כרגע. אפשר להתקשר ל-03-622-8055 ונשמח לעזור.',
+      reply: gPhone
+        ? `משהו פה לא עובד אצלי כרגע. אפשר להתקשר ל-${gPhone} ונשמח לעזור.`
+        : 'משהו פה לא עובד אצלי כרגע. נסו שוב עוד רגע.',
       intent: 'general',
     };
   }
@@ -19913,7 +19951,7 @@ registerFn('creditSale', async ({ body, user }) => {
       employee_name: waiter.full_name,
       amount: coins,
       reason: `מכירת ${goal.dish_label}${isBonus ? ' (בונוס)' : ''}`,
-      type: 'sale_bonus',
+      type_: 'sale_bonus',
       trigger: `sales_goal:${goal.id}`,
       status: 'approved',
       approved_by: String((user as any).full_name || user.email || ''),
@@ -20005,7 +20043,7 @@ registerFn('undoLastSale', async ({ body, user }) => {
         employee_name: last.waiter_name,
         amount: -Math.abs(last.coins_amount),
         reason: `ביטול מכירה`,
-        type: 'sale_undo',
+        type_: 'sale_undo',
         trigger: `sales_goal:${goalId}`,
         status: 'approved',
         approved_by: String((user as any).full_name || user.email || ''),
@@ -22249,15 +22287,15 @@ registerFn('getKitchenScreenData', async ({ user }) => {
     const today00 = new Date();
     today00.setHours(0, 0, 0, 0);
     const events: any[] = await (db as any).saleEvent.findMany({
-      where: { created_at: { gte: today00 }, voided: false },
+      where: { createdAt: { gte: today00 }, undone_at: null },
     });
     const byUser = new Map<string, { user_email: string; user_name: string; count: number; bonus_sum: number }>();
     for (const e of events) {
-      const key = String(e.user_email || '').toLowerCase();
+      const key = String(e.waiter_id || '');
       if (!key) continue;
-      const cur = byUser.get(key) || { user_email: key, user_name: e.user_name || key, count: 0, bonus_sum: 0 };
+      const cur = byUser.get(key) || { user_email: key, user_name: e.waiter_name || key, count: 0, bonus_sum: 0 };
       cur.count += 1;
-      cur.bonus_sum += Number(e.bonus_amount) || 0;
+      cur.bonus_sum += e.is_bonus ? (Number(e.coins_amount) || 0) : 0;
       byUser.set(key, cur);
     }
     out.leaderboard = [...byUser.values()].sort((a, b) => b.count - a.count).slice(0, 5);
@@ -22361,16 +22399,16 @@ async function buildMorningReportData() {
   let salesEvents: { count: number; bonus_sum: number; by_template: Record<string, number>; top_waiter: { name: string; count: number } | null } | null = null;
   try {
     const events: any[] = await (db as any).saleEvent.findMany({
-      where: { created_at: { gte: dayStart, lte: dayEnd }, voided: false },
+      where: { createdAt: { gte: dayStart, lte: dayEnd }, undone_at: null },
     });
     const byTemplate: Record<string, number> = {};
     const byWaiter = new Map<string, number>();
     let bonus = 0;
     for (const e of events) {
-      const tpl = e.template_label || 'אחר';
+      const tpl = e.goal_id || 'אחר';
       byTemplate[tpl] = (byTemplate[tpl] || 0) + 1;
-      bonus += Number(e.bonus_amount) || 0;
-      if (e.user_name) byWaiter.set(e.user_name, (byWaiter.get(e.user_name) || 0) + 1);
+      bonus += e.is_bonus ? (Number(e.coins_amount) || 0) : 0;
+      if (e.waiter_name) byWaiter.set(e.waiter_name, (byWaiter.get(e.waiter_name) || 0) + 1);
     }
     const topW = [...byWaiter.entries()].sort((a, b) => b[1] - a[1])[0];
     salesEvents = {
@@ -22434,10 +22472,25 @@ export async function sendMorningReport() {
   if (data.pending.vacation > 0) pendingItems.push(`${data.pending.vacation} חופשות`);
   const pendingTxt = pendingItems.length > 0 ? `📋 ממתינים לאישור: ${pendingItems.join(' · ')}` : '';
 
+  // Route each tenant's report to ITS OWN owner, plus a central platform copy so
+  // the platform owner can monitor everyone. Alena has no Tenant row → owner
+  // resolves empty → it goes to the central address only (unchanged behavior).
+  const slug = process.env.TENANT_SLUG || 'alena';
+  let ownerEmail = '', ownerName = '';
+  try {
+    await ensurePlatformTables();
+    const trows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT owner_email, owner_name FROM "Tenant" WHERE slug = $1`, slug);
+    ownerEmail = String(trows?.[0]?.owner_email || '').trim();
+    ownerName = String(trows?.[0]?.owner_name || '').trim();
+  } catch { /* platform table unavailable → central address only */ }
+  const platformEmail = process.env.PLATFORM_REPORTS_EMAIL || 'dvirnifusi@gmail.com';
+  const recipients = [...new Set([ownerEmail, platformEmail].filter(Boolean))];
+  const greetName = ownerName || 'בעל העסק';
+
   const subject = `☀️ ${await getBrandName()} · סיכום ${data.date}`;
   const html = `
 <div dir="rtl" style="font-family:system-ui,-apple-system,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-  <h2 style="color:#92400e;margin-bottom:8px;">☀️ בוקר טוב, דביר</h2>
+  <h2 style="color:#92400e;margin-bottom:8px;">☀️ בוקר טוב, ${greetName}</h2>
   <p style="color:#64748b;font-size:14px;margin-top:0;">סיכום ${data.date}</p>
 
   <div style="background:#fef3c7;border-right:4px solid #f59e0b;padding:16px;border-radius:8px;margin:16px 0;">
@@ -22456,10 +22509,12 @@ export async function sendMorningReport() {
   <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
   <p style="font-size:11px;color:#94a3b8;text-align:center;">topalena.com · דוח אוטומטי</p>
 </div>`.trim();
-  const text = `בוקר טוב, דביר\nסיכום ${data.date}\n\n${insight}\n\n${beecommTxt}\n${gomileyTxt}\n${salesTxt}\n${pendingTxt}`.trim();
+  const text = `בוקר טוב, ${greetName}\nסיכום ${data.date}\n\n${insight}\n\n${beecommTxt}\n${gomileyTxt}\n${salesTxt}\n${pendingTxt}`.trim();
 
-  await sendEmail({ to: 'dvirnifusi@gmail.com', subject, text, html });
-  return { ok: true, sent_to: 'dvirnifusi@gmail.com', date: data.date, insight };
+  for (const to of recipients) {
+    await sendEmail({ to, subject, text, html }).catch((e: any) => console.warn('[morning-report] send failed to', to, e?.message));
+  }
+  return { ok: true, sent_to: recipients.join(', '), date: data.date, insight };
 }
 
 registerFn('sendMorningReport', async ({ user }) => {
@@ -22637,7 +22692,7 @@ async function autoCreditFromBeecomm(): Promise<{ ok: boolean; credited?: number
           employee_name: waiter.full_name,
           amount: coins,
           reason: `מכירת ${goal.dish_label}${isBonus ? ' (בונוס)' : ''} · אוטומטי מ-Beecomm`,
-          type: 'sale_bonus',
+          type_: 'sale_bonus',
           trigger: `sales_goal:${goal.id}:beecomm_auto`,
           status: 'approved',
           approved_by: 'beecomm_auto',
