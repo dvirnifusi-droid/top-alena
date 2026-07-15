@@ -13,6 +13,7 @@ import crypto from 'node:crypto';
 import { pushoverToAdmins } from '../lib/pushover.js';
 import { tryHandleAdminCommand, isWhatsAppAdmin } from '../lib/whatsappAgent.js';
 import { handleAdminInvoiceMedia, tryConfirmPendingInvoice } from '../lib/whatsappInvoice.js';
+import { tryHandleAdminScanMedia, tryConfirmPendingScan } from '../lib/whatsappScan.js';
 import { tryProposeAction, tryConfirmPendingAction } from '../lib/whatsappActions.js';
 import { tryHandleDailyHoursReply } from '../lib/dailyHoursReply.js';
 import { transcribeWhatsAppVoice } from '../lib/whatsappVoice.js';
@@ -249,7 +250,7 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             reply.type('text/xml').send(
               isAudio
                 ? '<?xml version="1.0" encoding="UTF-8"?><Response><Message>🎙️ קיבלתי את ההקלטה, מתמלל... תוך כ-15 שניות תקבל תשובה.</Message></Response>'
-                : '<?xml version="1.0" encoding="UTF-8"?><Response><Message>📥 קיבלתי את החשבונית, מעבד... תוך כ-20 שניות תקבל סיכום.</Message></Response>',
+                : '<?xml version="1.0" encoding="UTF-8"?><Response><Message>📥 קיבלתי, קורא את המסמך... תוך כ-20 שניות תקבל סיכום.</Message></Response>',
             );
             // Process + reply in the background. Errors logged but never crash.
             void (async () => {
@@ -278,6 +279,15 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
                   if (proposal) { await sendWhatsApp(from, proposal); return; }
                   await sendWhatsApp(from, '🤔 לא הבנתי. נסה שוב או שלח *עזרה*.');
                 } else {
+                  // First try the universal scanner (menu/checklist/employees/
+                  // suppliers/order list). It returns a preview+confirm string
+                  // for those, or null → fall through to invoice OCR unchanged.
+                  const scanReply = await tryHandleAdminScanMedia(mediaUrl, from);
+                  if (scanReply) {
+                    req.log.info({ from, media_url: mediaUrl }, '[whatsapp-agent] admin scan preview sent');
+                    await sendWhatsApp(from, scanReply);
+                    return;
+                  }
                   const invoiceReply = await handleAdminInvoiceMedia(mediaUrl, from);
                   req.log.info({ from, media_url: mediaUrl }, '[whatsapp-agent] admin invoice processed');
                   await sendWhatsApp(from, invoiceReply);
@@ -289,6 +299,27 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
                 } catch { /* best effort */ }
               }
             })();
+            return;
+          }
+          // (B-scan) Confirmation of a pending universal-scan import (כן/לא after
+          // a menu/checklist/employees/suppliers/order preview). Checked first so
+          // its כן/לא isn't swallowed by the generic action/invoice routers.
+          const scanConfirmReply = await tryConfirmPendingScan(from, body);
+          if (scanConfirmReply) {
+            await (prisma as any).whatsAppMessage.create({
+              data: {
+                twilio_sid: sid || null, direction: 'inbound', from_phone: from, to_phone: to,
+                contact_phone: from, body, num_media: numMedia, status: 'received',
+                raw: { ...params, admin_scan_confirm: true } as any, is_read: true,
+              },
+            }).catch(() => {});
+            req.log.info({ from, body: body.slice(0, 40) }, '[whatsapp-agent] scan confirm handled');
+            const escapedScan = scanConfirmReply
+              .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+            reply.type('text/xml').send(
+              `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapedScan}</Message></Response>`,
+            );
             return;
           }
           // (B0) Generic action confirmation (כן/לא following a 2-step proposal).
