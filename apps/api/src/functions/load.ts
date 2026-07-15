@@ -2680,6 +2680,22 @@ registerFn('sendWhatsAppBroadcast', async ({ body, user }) => {
   // Dedupe
   recipients = [...new Set(recipients)];
 
+  // Respect marketing opt-out (Israeli Spam Law §30A): exclude anyone who has
+  // explicitly unsubscribed. This audience is built from delivery/reservation
+  // phones which bypass the segment consent gate, so filter here against Customer.
+  const canonPhone = (s: string) => String(s || '').replace(/\D/g, '').replace(/^972/, '0');
+  const optedOut = new Set<string>();
+  try {
+    const outs: any[] = await (db as any).customer.findMany({
+      where: { OR: [{ marketing_consent: false }, { marketing_unsubscribed_at: { not: null } }] },
+      select: { phone: true },
+    });
+    for (const c of outs) { const p = canonPhone(c.phone); if (p) optedOut.add(p); }
+  } catch { /* consent fields absent → best-effort, don't block the send */ }
+  const beforeOptOut = recipients.length;
+  recipients = recipients.filter(p => !optedOut.has(canonPhone(p)));
+  const skippedOptOut = beforeOptOut - recipients.length;
+
   let sent = 0, failed = 0;
   for (const to of recipients) {
     try {
@@ -2691,7 +2707,7 @@ registerFn('sendWhatsAppBroadcast', async ({ body, user }) => {
     // Throttle so we don't hammer Twilio (60 req/sec is the default)
     await new Promise(r => setTimeout(r, 50));
   }
-  return { sent, failed, skipped: 0, total: recipients.length };
+  return { sent, failed, skipped: skippedOptOut, total: recipients.length };
 });
 
 registerFn('sendWhatsApp', async ({ body }) => {
@@ -4911,8 +4927,21 @@ registerFn('awardAvailabilityCoins', async ({ body }) => {
   if (!employee_id || !employee_name) {
     return { success: false, error: 'Missing required fields' };
   }
-  const coins = coinsToAward || (availableShifts ? availableShifts * 5 : 0);
+  // Server-authoritative amount — never trust the client's coinsToAward (it could
+  // request an arbitrary number). Cap at 5 × available-shifts (fallback 50).
+  const shifts = Math.max(0, Number(availableShifts) || 0);
+  const computed = shifts * 5;
+  const coins = Math.min(Math.max(0, Number(coinsToAward) || computed), computed || 50);
   if (coins <= 0) return { success: true, coinsAwarded: 0 };
+  // Idempotency — availability is submitted weekly; don't re-award if this employee
+  // already got availability coins in the last 6 days (blocks re-submit/edit farming).
+  try {
+    const since = new Date(Date.now() - 6 * 86400_000);
+    const prior = await db.coinTransaction.findFirst({
+      where: { employee_id, trigger: 'availability_submitted', createdAt: { gte: since } },
+    });
+    if (prior) return { success: true, coinsAwarded: 0, reason: 'already_awarded_this_week' };
+  } catch { /* dedup check failed → fall through and award (best-effort) */ }
   try {
     await db.coinTransaction.create({
       data: {
@@ -17253,7 +17282,10 @@ registerFn('cancelReservationByToken', async ({ body }) => {
   // Compute hours until reservation start
   const d = r.date instanceof Date ? r.date : new Date(r.date);
   const dateStr = d.toISOString().slice(0, 10);
-  const startMs = new Date(`${dateStr}T${r.time}:00`).getTime();
+  // r.time is Israel wall-clock; the container runs UTC, so a bare parse skews the
+  // start instant by 2-3h and misclassifies the late-cancel/deposit window. Pin the
+  // Israel offset (matches the +03:00 convention used elsewhere in this file).
+  const startMs = new Date(`${dateStr}T${r.time}:00+03:00`).getTime();
   const hoursTo = (startMs - Date.now()) / (60 * 60 * 1000);
   const lateCancel = hoursTo < 2 && hoursTo >= -1;  // within 2h window (or up to 1h after start)
   const status = lateCancel ? 'no_show' : 'cancelled';
@@ -22648,6 +22680,15 @@ async function autoCreditFromBeecomm(): Promise<{ ok: boolean; credited?: number
     return { ok: false, reason: 'need 2 snapshots today' };
   }
   const [now, prev] = recent;
+
+  // Idempotency: credit each latest-snapshot only ONCE. Without this, a stalled
+  // capture cycle (no new snapshot inserted) makes the 3.5-min cron — and the
+  // manual "test" button — re-credit the identical deltas every run (duplicate
+  // CoinTransaction + SaleEvent). Claim the pair by the newest snapshot id.
+  if (g.__lastCreditedSnapshotId === now.id) {
+    return { ok: true, credited: 0, reason: 'snapshot pair already credited' };
+  }
+  g.__lastCreditedSnapshotId = now.id;
 
   // Delta of top_dishes (dishId → qty diff)
   const nowDishes: any[] = Array.isArray(now.top_dishes) ? now.top_dishes : [];
