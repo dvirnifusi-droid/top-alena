@@ -59,7 +59,7 @@ export default function PageGuard({ pageName, pageTitle, children }) {
     try {
       const currentUser = await base44.auth.me();
       setUser(currentUser);
-      setIsAdmin(currentUser?.role === "admin");
+      setIsAdmin(currentUser?.role === "admin" || currentUser?.role === "owner");
 
       const permissions = await base44.entities.PagePermission.filter({ page_name: pageName });
       if (permissions.length > 0) {

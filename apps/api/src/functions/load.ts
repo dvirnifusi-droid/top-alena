@@ -2452,8 +2452,10 @@ registerFn('seatGuest', async ({ body }) => {
     },
   });
 
-  // Persist earned credits to the Customer record (loyalty balance)
-  if (entry?.phone && (entry.time_credits_earned ?? 0) > 0) {
+  // Persist earned credits to the Customer record (loyalty balance). Only on the
+  // FIRST transition to seated — this fn is public and can be re-POSTed; crediting
+  // every call would let anyone inflate a customer's coin_balance/visit_count.
+  if (entry?.status !== 'seated' && entry?.phone && (entry.time_credits_earned ?? 0) > 0) {
     try {
       const customer = await db.customer.findFirst({ where: { phone: entry.phone } });
       if (customer) {
@@ -2855,7 +2857,8 @@ registerFn('sendWhatsAppReply', async ({ body, user }) => {
   return { ok: true, sid, result };
 });
 
-registerFn('sendCustomerEmail', async ({ body }) => {
+registerFn('sendCustomerEmail', async ({ body, user }) => {
+  if (!user || ((user as any).role !== 'admin' && (user as any).role !== 'owner')) throw new Error('admin only');
   const { to, subject, body: text, html } = body as any;
   return sendEmail({ to, subject, text, html });
 });
@@ -3793,7 +3796,8 @@ registerFn('clubListCustomers', async ({ body, user }) => {
 
 // Preview: count + 5 sample customers matching the segment.
 // exclude_ids: customers the owner explicitly removed from this send.
-registerFn('previewCustomerSegment', async ({ body }) => {
+registerFn('previewCustomerSegment', async ({ body, user }) => {
+  if (!user || ((user as any).role !== 'admin' && (user as any).role !== 'owner')) throw new Error('admin only');
   const { segment, custom_filter, exclude_ids } = body as any;
   let where = buildSegmentWhere(segment || 'all_consented', custom_filter);
   if (Array.isArray(exclude_ids) && exclude_ids.length > 0) {
@@ -4086,7 +4090,7 @@ registerFn('useReferralCode', async ({ body }) => {
   const cleanPhone = String(used_by_phone).replace(/[^\d]/g, '');
   if (ref.customer_phone === cleanPhone) throw new Error('cannot_refer_self');
   // Already used by this phone?
-  const prior = await db.referralUse.findFirst({ where: { referral_code: code, used_by_phone: cleanPhone } });
+  const prior = await db.referralUse.findFirst({ where: { referral_code: String(code).toUpperCase(), used_by_phone: cleanPhone } });
   if (prior) return { use: prior, existing: true };
   const use = await db.referralUse.create({
     data: { referral_code: String(code).toUpperCase(), used_by_phone: cleanPhone, used_by_name: used_by_name || null, reservation_id: reservation_id || null },
@@ -4869,7 +4873,7 @@ registerFn('aiScoreCandidate', async ({ body }) => {
   });
   await db.jobCandidate.update({
     where: { id: candidate_id },
-    data: { ai_score: result.score, ai_reason: result.reason },
+    data: { score: Math.round(Number(result.score) || 0), ai_summary: result.reason },
   });
   return result;
 });
@@ -5701,7 +5705,7 @@ registerFn('getScheduleLaborCost', async ({ user, body }: any) => {
     let total = 0, hours = 0, hasRates = false;
     const byDay: Record<string, number> = {}, byShift: Record<string, number> = {};
     for (const sh of shifts) {
-      const ds = String(sh.date).slice(0, 10);
+      const ds = new Date(sh.date).toISOString().slice(0, 10);
       if (!dates.has(ds)) continue;
       const staff = Array.isArray(sh.assigned_staff) ? sh.assigned_staff : [];
       for (const a of staff) {
@@ -7503,7 +7507,8 @@ registerFn('searchReservationTable', async ({ body }) => {
 // AUTHED — "שבץ הכל": assign every unassigned reservation for a date, by priority.
 // Walks the day's reservations in time order; each assignment is written and
 // reflected in-memory so the next pick sees the table as taken (no batch double-book).
-registerFn('autoAssignAllReservations', async ({ body }: any) => {
+registerFn('autoAssignAllReservations', async ({ body, user }: any) => {
+  if (!user || !isAdminRole((user as any).role)) throw new Error('admin only');
   const { date } = body as any;
   if (!date) throw new Error('date required');
   const { start: dayStart, next: dayNext } = dayRange(date);
@@ -13132,7 +13137,8 @@ async function ensureAgentRunTable() {
   agentRunTableReady = true;
 }
 
-registerFn('runMarketingAgent', async ({ body }) => {
+registerFn('runMarketingAgent', async ({ body, user }) => {
+  if (!user || ((user as any).role !== 'admin' && (user as any).role !== 'owner')) throw new Error('admin only');
   const { agent_type, input } = (body || {}) as any;
   if (!agent_type || !AGENT_REGISTRY[agent_type]) {
     throw new Error(`Unknown agent_type: ${agent_type}`);
@@ -13414,7 +13420,8 @@ async function ensureCampaignBriefTable() {
 }
 
 // LLM drafts a complete brief from a goal + optional inputs from prior chain.
-registerFn('createCampaignBrief', async ({ body }) => {
+registerFn('createCampaignBrief', async ({ body, user }) => {
+  if (!user || ((user as any).role !== 'admin' && (user as any).role !== 'owner')) throw new Error('admin only');
   await ensureCampaignBriefTable();
   const { goal, copy_variants, image_base64, image_url, audience_hint, daily_budget_ils, lifetime_budget_ils, end_date, landing_url } = (body || {}) as any;
   if (!goal) throw new Error('goal required');
@@ -13779,7 +13786,8 @@ registerFn('launchCampaignBrief', async ({ body }) => {
 // reviews everything (copy, image, landing, audience, budget) and a single
 // confirm flips the brief approved+launched and creates the Meta entities
 // already in ACTIVE state so Meta moves into review and starts spending.
-registerFn('approveAndLaunchCampaignBrief', async ({ body }) => {
+registerFn('approveAndLaunchCampaignBrief', async ({ body, user }) => {
+  if (!user || ((user as any).role !== 'admin' && (user as any).role !== 'owner')) throw new Error('admin only');
   await ensureCampaignBriefTable();
   const { id } = (body || {}) as any;
   if (!id) throw new Error('id required');
@@ -13903,7 +13911,8 @@ async function pickBestInstagramPhoto(goal: string): Promise<{ url: string; perm
 // Owner gives a goal once. Pipeline runs Copywriter → (Instagram pick OR
 // Visual Designer) → createCampaignBrief, packaging the copy variants +
 // image into a Brief that's ready to approve & launch.
-registerFn('runFullPipeline', async ({ body }) => {
+registerFn('runFullPipeline', async ({ body, user }) => {
+  if (!user || ((user as any).role !== 'admin' && (user as any).role !== 'owner')) throw new Error('admin only');
   await ensureAgentRunTable();
   await ensureCampaignBriefTable();
   const { goal, channel = 'instagram', daily_budget_ils, landing_url, image_source = 'instagram' } = (body || {}) as any;
@@ -22381,9 +22390,9 @@ async function buildMorningReportData() {
     });
     if (histRow) {
       beecomm = {
-        total: Number(histRow.total_sum) || 0,
+        total: Number(histRow.net_total) || 0,
         tips: Number(histRow.total_tips) || 0,
-        diners: Number(histRow.total_diners) || 0,
+        diners: Number(histRow.diners) || 0,
         source: 'historical',
       };
     } else {

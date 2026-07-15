@@ -74,6 +74,7 @@ export const AuthProvider = ({ children }) => {
       register,
       logout,
       navigateToLogin,
+      refresh,
       checkAppState: refresh,
     }}>
       {children}

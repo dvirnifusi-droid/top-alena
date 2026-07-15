@@ -59,7 +59,7 @@ const adminLinks = [
   { title: "🤖 כלי AI", url: createPageUrl("AIHub"), icon: Sparkles, color: "gold" },
   { title: "🚀 בואו נתחיל", url: createPageUrl("Setup"), icon: Rocket, color: "gold" },
   { title: "🔍 סורק חכם", url: createPageUrl("Scanner"), icon: ScanLine, color: "gold" },
-  { title: "💰 עלויות תפעול", url: createPageUrl("OperatingCosts"), icon: Wallet, isSubItem: true, color: "gold" },
+  { title: "💰 עלויות תפעול", url: createPageUrl("OperatingCosts"), icon: Wallet, color: "gold" },
 
   { title: "תפעול המסעדה", url: "#", icon: Utensils, isCategory: true, color: "cinnamon" },
   { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "cinnamon" },

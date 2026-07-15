@@ -71,12 +71,12 @@ const RoleBasedHome = () => {
     base44.auth.me().then(u => setRole(u?.role || 'user')).catch(() => setRole('user'));
   }, []);
   if (role === null) return null;
-  if (role === 'admin') return <Navigate to="/Dashboard" replace />;
+  if (role === 'admin' || role === 'owner') return <Navigate to="/Dashboard" replace />;
   return <Navigate to="/EmployeeHome" replace />;
 };
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, refresh } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -94,6 +94,22 @@ const AuthenticatedApp = () => {
     } else if (authError.type === 'auth_required') {
       // Skip the intermediate "please log in" card — go straight to the login page.
       return <Navigate to="/login" replace />;
+    } else {
+      // Non-401 auth failure (type 'unknown' or anything else) — show a simple
+      // retry card instead of rendering the app with a null user.
+      return (
+        <div className="fixed inset-0 flex items-center justify-center p-4" dir="rtl">
+          <div className="text-center max-w-sm bg-white rounded-2xl shadow-lg p-8">
+            <h1 className="text-xl font-bold text-slate-900 mb-4">שגיאה בטעינת המשתמש</h1>
+            <button
+              onClick={() => refresh()}
+              className="bg-slate-800 hover:bg-slate-700 text-white font-bold py-2 px-6 rounded-xl"
+            >
+              נסה שוב
+            </button>
+          </div>
+        </div>
+      );
     }
   }
 
@@ -182,7 +198,6 @@ function App() {
           <Route path="/menu" element={<Waiter />} />
 
           {/* דורש התחברות */}
-          <Route path="/MarketingCampaigns" element={<MarketingCampaigns />} />
           <Route path="/*" element={
             <AuthProvider>
               <AuthenticatedApp />

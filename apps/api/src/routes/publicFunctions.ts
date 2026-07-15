@@ -68,11 +68,23 @@ export const publicFunctionsRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(400).send({ error: 'invalid_where_json' });
       }
     }
-    return delegate.findMany({
+    const rows = await delegate.findMany({
       where,
       orderBy: parseSort(sort),
       take: limit ? Number(limit) : 500,
     });
+    // QueueEntry is world-readable for the public /QueueJoin board, but the raw
+    // rows carry PII (phone, GPS, web-push subscription). Strip those from the
+    // enumerable LIST response so the queue can't be harvested. (The by-id path
+    // below still returns the full row — you must already know the entry id.)
+    if (name === 'QueueEntry' && Array.isArray(rows)) {
+      return rows.map((r: any) => {
+        const o = { ...r };
+        delete o.phone; delete o.last_lat; delete o.last_lng; delete o.push_subscription;
+        return o;
+      });
+    }
+    return rows;
   });
 
   app.get('/entities/:name/:id', async (req, reply) => {
