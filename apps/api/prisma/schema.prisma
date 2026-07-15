@@ -2782,6 +2782,7 @@ model EventSalesKit {
   upsells              Json?
   terms                Json?
   system_prompt        String?
+  intake_config        Json?     // per-tenant events-agent intake: { fields:[{label,instruction,required}] }
   payment_mode         String?
   deposit_pct          Int?
   max_discount_pct     Int?

@@ -88,6 +88,19 @@ export default function EventsSalesKit() {
   const addUpsell = () => setKit({ ...kit, upsells: [...upsells, blankUpsell()] });
   const removeUpsell = (idx) => setKit({ ...kit, upsells: upsells.filter((_, i) => i !== idx) });
 
+  // Intake fields — the details the events agent must collect (Stage 1: per-tenant).
+  const intakeFields = Array.isArray(kit.intake_config?.fields) ? kit.intake_config.fields : [];
+  const setIntakeFields = (fields) => setKit({ ...kit, intake_config: { ...(kit.intake_config || {}), fields } });
+  const updateIntakeField = (idx, patch) => setIntakeFields(intakeFields.map((f, i) => i === idx ? { ...f, ...patch } : f));
+  const addIntakeField = () => setIntakeFields([...intakeFields, { label: '', instruction: '', required: true }]);
+  const removeIntakeField = (idx) => setIntakeFields(intakeFields.filter((_, i) => i !== idx));
+  const seedDefaultIntake = () => setIntakeFields([
+    { label: 'שם מלא', instruction: 'שם פרטי + שם משפחה. אל תתקדם בלי שם משפחה — שאל "ומה שם המשפחה?".', required: true },
+    { label: 'טלפון נייד', instruction: 'נייד ישראלי תקין (05, 10 ספרות). קרא בחזרה לאישור.', required: true },
+    { label: 'מייל גיבוי', instruction: 'בקש פעם אחת לפני הסיכום. אם מדלגים — המשך.', required: false },
+    { label: 'סוג האירוע', instruction: 'יום הולדת / חברה / מסיבה וכו\'.', required: false },
+  ]);
+
   return (
     <div className="p-4 md:p-6 space-y-4" dir="rtl">
       {loadError && (
@@ -206,6 +219,56 @@ export default function EventsSalesKit() {
               השינוי נכנס לתוקף ב-turn הבא של כל שיחה. **הערה:** בזמן ריצה, שם מסעדה ישן שנשאר בטקסט יוחלף אוטומטית בשם המסעדה שלך + פרופיל העסק יזרם בראש הפרומפט.
             </p>
           </CardContent></Card>
+
+          {/* ── פרטים שהסוכן אוסף מהלקוח (פר-מסעדה) ── */}
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="text-lg">פרטים שהסוכן אוסף מהלקוח</CardTitle>
+              <CardDescription>
+                הגדר בדיוק אילו פרטים דנה חייבת לאסוף בכל פנייה — כל מסעדה לפי הצורך שלה.
+                {intakeFields.length === 0 && ' כרגע לא הוגדר — הסוכן משתמש בברירת המחדל (שם מלא · טלפון · מייל גיבוי).'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {intakeFields.length === 0 ? (
+                <Button variant="outline" onClick={seedDefaultIntake}>
+                  <Plus className="w-4 h-4 ml-1" /> התחל מברירת המחדל וערוך
+                </Button>
+              ) : (
+                <>
+                  {intakeFields.map((f, idx) => (
+                    <div key={idx} className="rounded-xl border border-[#EADFC8] bg-[#FBF6EA] p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={f.label || ''}
+                          onChange={(e) => updateIntakeField(idx, { label: e.target.value })}
+                          placeholder="שם השדה (למשל: מייל גיבוי)"
+                          className="flex-1 font-bold"
+                        />
+                        <label className="flex items-center gap-1 text-xs whitespace-nowrap">
+                          <input type="checkbox" checked={!!f.required} onChange={(e) => updateIntakeField(idx, { required: e.target.checked })} />
+                          חובה
+                        </label>
+                        <Button variant="ghost" size="sm" className="text-red-600" onClick={() => removeIntakeField(idx)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <Textarea
+                        rows={2}
+                        value={f.instruction || ''}
+                        onChange={(e) => updateIntakeField(idx, { instruction: e.target.value })}
+                        placeholder="הנחיה לסוכן — איך לבקש ולוודא את הפרט (למשל: קרא את הטלפון בחזרה לאישור)"
+                        className="text-xs"
+                      />
+                    </div>
+                  ))}
+                  <Button variant="outline" onClick={addIntakeField}>
+                    <Plus className="w-4 h-4 ml-1" /> הוסף שדה
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

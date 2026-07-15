@@ -8869,13 +8869,28 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     : `\n\n--- LANGUAGE DIRECTIVE ---\nThe customer is communicating in ${language}. The "reply" field MUST be written in ${language}, even if the rest of the prompt is in Hebrew. Be warm, natural, and use idiomatic ${language}. Field extraction (booking data, ai_summary, etc) should stay in Hebrew so the manager can read it.`;
   // Contact-quality rules — appended to EVERY events prompt (default OR a custom
   // kit.system_prompt), so a missing surname / bad phone can never lose a lead.
-  const contactRules =
+  // Per-tenant override: kit.intake_config.fields lets each restaurant define
+  // exactly which details Dana must collect (Stage 1 of "work once").
+  const DEFAULT_CONTACT_RULES =
     `\n--- כללי איסוף פרטי קשר (חובה — גובר על כל הנחיה אחרת) ---\n` +
     `• שם מלא: חובה פרטי + משפחה. אם הלקוח נתן רק מילה אחת (שם פרטי בלבד) — אל תתקדם לשאלה הבאה, שאל: "ומה שם המשפחה?". רק אחרי שיש שם משפחה המשך.\n` +
     `• טלפון: ודא נייד ישראלי תקין — 10 ספרות שמתחילות ב-05. קרא אותו בחזרה לאישור ("אז הטלפון הוא ..., נכון?"). אם לא תקין (לא מתחיל ב-05 או לא 10 ספרות) — בקש לתקן: "נראה שחסרה ספרה — תוכל/י לשלוח שוב את הנייד המלא?".\n` +
     `• מייל גיבוי: לפני הסיכום בקש פעם אחת את כתובת המייל ("ולסיום, מה המייל שלך? לגיבוי למקרה שלא נצליח להשיג בטלפון"). אם הלקוח מדלג — המשך בלי להתעקש.\n` +
     `• אל תעבור לשלב הסיכום/אישור לפני שיש שם מלא (כולל שם משפחה) וטלפון תקין.\n` +
     `--- סוף כללי פרטי קשר ---\n`;
+  const intakeFields = Array.isArray((kit as any)?.intake_config?.fields) ? (kit as any).intake_config.fields : [];
+  const contactRules = intakeFields.length
+    ? (() => {
+        const lines = intakeFields
+          .filter((f: any) => f && f.label)
+          .map((f: any) => `• ${String(f.label)}${f.required ? ' (חובה)' : ''}: ${String(f.instruction || '').trim() || 'אסוף פרט זה מהלקוח.'}`);
+        const req = intakeFields.filter((f: any) => f?.required && f.label).map((f: any) => String(f.label)).join(', ');
+        return `\n--- כללי איסוף פרטים (חובה — גובר על כל הנחיה אחרת) ---\n` +
+          lines.join('\n') + '\n' +
+          (req ? `• אל תעבור לשלב הסיכום/אישור לפני שאספת את כל שדות החובה: ${req}.\n` : '') +
+          `--- סוף כללי איסוף פרטים ---\n`;
+      })()
+    : DEFAULT_CONTACT_RULES;
   const prompt = `${systemPrompt}${dateContext}${kitContext}${closingInstructions}${contactRules}${langDirective}\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר JSON בלבד.`;
 
   let result: any;
@@ -11448,6 +11463,7 @@ registerFn('saveEventSalesKit', async ({ body, user }) => {
     upsells: incoming.upsells ?? existing?.upsells ?? [],
     terms: incoming.terms ?? existing?.terms ?? {},
     system_prompt: incoming.system_prompt ?? existing?.system_prompt ?? DEFAULT_EVENTS_PROMPT,
+    intake_config: incoming.intake_config ?? existing?.intake_config ?? null,
     payment_mode: incoming.payment_mode ?? existing?.payment_mode ?? 'stub',
     deposit_pct: typeof incoming.deposit_pct === 'number' ? incoming.deposit_pct : (existing?.deposit_pct ?? 20),
     max_discount_pct: typeof incoming.max_discount_pct === 'number' ? incoming.max_discount_pct : (existing?.max_discount_pct ?? 5),
@@ -17730,6 +17746,7 @@ if (!(globalThis as any).__startupDriftRepair) {
       await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "daily_hours_report_snapshot" JSONB;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "twilio_credentials" JSONB;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "cover_photo_url" TEXT;`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "EventSalesKit" ADD COLUMN IF NOT EXISTS "intake_config" JSONB;`);
       // PrepList columns for the par/order-list feature.
       await prisma.$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "list_type" TEXT;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "par_locked" BOOLEAN;`);
