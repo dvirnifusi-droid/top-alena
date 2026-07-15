@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import PageHeader from '@/components/shared/PageHeader';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Mail, Trash2, RefreshCw, ShieldOff, Plus } from 'lucide-react';
@@ -114,17 +115,9 @@ export default function EmailInvoiceSettingsPage() {
   };
 
   return (
-    <div className="p-4 sm:p-8 bg-gray-50 min-h-screen" dir="rtl">
+    <div className="p-4 sm:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] min-h-screen" dir="rtl">
       <div className="max-w-3xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <Mail className="w-8 h-8" />
-            תיבות מייל לחשבוניות
-          </h1>
-          <p className="text-lg text-slate-600 mt-2">
-            המערכת סורקת את התיבות המחוברות כל 10 דקות ומכניסה חשבוניות ספקים ל"בהמתנה".
-          </p>
-        </div>
+        <PageHeader title="תיבות מייל לחשבוניות" subtitle={'המערכת סורקת את התיבות המחוברות כל 10 דקות ומכניסה חשבוניות ספקים ל"בהמתנה".'} icon={Mail} />
 
         {msg && (
           <div className={`p-3 rounded-lg text-sm ${msg.kind === 'ok' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
