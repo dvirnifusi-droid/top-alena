@@ -15,7 +15,7 @@ export default function SalesGoalsBanner() {
 
     const load = async () => {
         try {
-            const data = await base44.functions.getActiveSalesGoals({});
+            const data = (await base44.functions.getActiveSalesGoals({}))?.data || {};
             setGoals(Array.isArray(data?.goals) ? data.goals : []);
             setShift(data.shift);
         } catch { /* swallow */ }

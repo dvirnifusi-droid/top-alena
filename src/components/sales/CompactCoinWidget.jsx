@@ -8,7 +8,7 @@ export default function CompactCoinWidget() {
 
     const load = async () => {
         try {
-            const d = await base44.functions.getActiveRewardsForMe({});
+            const d = (await base44.functions.getActiveRewardsForMe({}))?.data || {};
             setBalance(d.balance || 0);
         } catch { /* swallow */ }
     };

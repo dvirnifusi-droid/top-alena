@@ -14,7 +14,7 @@ export default function ShiftSupervisorPanel() {
 
     const load = async () => {
         try {
-            const data = await base44.functions.getActiveSalesGoals({});
+            const data = (await base44.functions.getActiveSalesGoals({}))?.data || {};
             setGoals(Array.isArray(data?.goals) ? data.goals : []);
             // Load on-shift staff so we can render per-waiter buttons even if they
             // haven't sold yet.

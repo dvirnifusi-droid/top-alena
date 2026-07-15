@@ -9,7 +9,7 @@ export default function ShiftLeaderboard({ myEmployeeId }) {
 
     const load = async () => {
         try {
-            const data = await base44.functions.getShiftLeaderboard({});
+            const data = (await base44.functions.getShiftLeaderboard({}))?.data || {};
             setBoard(Array.isArray(data?.board) ? data.board : []);
         } catch { /* swallow */ }
     };

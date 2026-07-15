@@ -7,7 +7,7 @@ export default function WeeklyPersonalGoal() {
 
     const load = async () => {
         try {
-            const data = await base44.functions.getMyWeeklyGoal();
+            const data = (await base44.functions.getMyWeeklyGoal())?.data || {};
             setGoal(data.goal);
         } catch { /* swallow */ }
     };
