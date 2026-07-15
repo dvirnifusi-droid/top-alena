@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/use-toast';
 import { base44 } from '@/api/base44Client';
 import { Brain, Download, Save, Trash2, CheckCircle2, Loader2 } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 /*
  * שאלון הצטרפות לעסק חדש → בונה את "ידע של דביר".
@@ -260,15 +261,11 @@ export default function OnboardingQuestionnaire() {
 
   return (
     <div dir="rtl" className="max-w-4xl mx-auto p-4 md:p-8 pb-24">
-      <div className="flex items-start gap-3 mb-2">
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-600 to-emerald-500 flex items-center justify-center text-white shrink-0">
-          <Brain className="w-7 h-7" />
-        </div>
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">שאלון הצטרפות לעסק חדש</h1>
-          <p className="text-slate-500 text-sm">התשובות נכנסות ל"ידע של דביר" — והצ'אט קורא מהן</p>
-        </div>
-      </div>
+      <PageHeader
+        title="שאלון הצטרפות לעסק חדש"
+        subtitle={`התשובות נכנסות ל"ידע של דביר" — והצ'אט קורא מהן`}
+        icon={Brain}
+      />
 
       <Card className="mb-4 border-amber-200 bg-amber-50/60">
         <CardContent className="p-4 text-sm text-slate-700 space-y-1">
@@ -338,7 +335,7 @@ export default function OnboardingQuestionnaire() {
 
       <Card className="mt-6 border-emerald-200 bg-emerald-50/60">
         <CardContent className="p-4 text-sm text-slate-700">
-          <p className="font-bold text-emerald-700 mb-1">✅ מה קורה אחרי שמירה?</p>
+          <p className="font-bold text-emerald-700 mb-1">מה קורה אחרי שמירה?</p>
           נוצר קובץ ב"ידע של דביר" עם כל התשובות, הוא נשלח ל-Gemini, ומאותו רגע הצ'אט של Dvir AI עונה מהתוכן — בדיוק כמו שאתה היית עונה.
         </CardContent>
       </Card>

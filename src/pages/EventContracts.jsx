@@ -15,6 +15,7 @@ import { FileText, Plus, Send, Copy, Check, ExternalLink, Eye, Pencil, Calendar,
 import { renderEventTerms } from '@/data/eventContractTerms';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { isMainAlena } from '@/lib/tenant';
+import PageHeader from '@/components/shared/PageHeader';
 
 // Default catalogue mirrored from the owner's Word sign-off form.
 // Editable manually in the dialog after pre-checking what's relevant.
@@ -143,20 +144,16 @@ export default function EventContracts() {
     <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-amber-50 to-[#F4ECD8]" dir="rtl">
       <div className="max-w-7xl mx-auto space-y-6">
 
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <FileText className="w-8 h-8 text-amber-600" />
-              חוזי אירועים דיגיטליים
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              חוזה דיגיטלי עם חתימה אונליין — לכל אירוע ננעל
-            </p>
-          </div>
-          <Button onClick={() => setShowCreate(true)} className="bg-amber-600 hover:bg-amber-700">
-            <Plus className="w-4 h-4 ml-1" /> חוזה חדש
-          </Button>
-        </div>
+        <PageHeader
+          title="חוזי אירועים דיגיטליים"
+          subtitle="חוזה דיגיטלי עם חתימה אונליין — לכל אירוע ננעל"
+          icon={FileText}
+          action={(
+            <Button onClick={() => setShowCreate(true)} className="bg-amber-600 hover:bg-amber-700">
+              <Plus className="w-4 h-4 ml-1" /> חוזה חדש
+            </Button>
+          )}
+        />
 
         {/* Status counters */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

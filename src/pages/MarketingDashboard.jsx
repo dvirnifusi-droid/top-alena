@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Mail, MessageSquare, Send, TrendingUp, Users } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from 'recharts';
 import { format, subDays, parseISO, startOfDay } from 'date-fns';
+import PageHeader from '@/components/shared/PageHeader';
 
 export default function MarketingDashboard() {
     const [logs, setLogs] = useState([]);
@@ -60,22 +61,20 @@ export default function MarketingDashboard() {
 
     return (
         <div className="p-4 md:p-8 space-y-6" dir="rtl">
-            <div className="flex justify-between items-center flex-wrap gap-3">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <TrendingUp className="w-6 h-6 text-[#44512C]" />
-                        דאשבורד שיווקי
-                    </h1>
-                    <p className="text-gray-500 text-sm mt-1">מעקב אחרי קמפיינים, שליחות מייל ו-SMS</p>
-                </div>
-                <Tabs value={period} onValueChange={setPeriod}>
-                    <TabsList>
-                        <TabsTrigger value="7">7 ימים</TabsTrigger>
-                        <TabsTrigger value="30">30 ימים</TabsTrigger>
-                        <TabsTrigger value="90">90 ימים</TabsTrigger>
-                    </TabsList>
-                </Tabs>
-            </div>
+            <PageHeader
+                title="דאשבורד שיווקי"
+                subtitle="מעקב אחרי קמפיינים, שליחות מייל ו-SMS"
+                icon={TrendingUp}
+                action={
+                    <Tabs value={period} onValueChange={setPeriod}>
+                        <TabsList>
+                            <TabsTrigger value="7">7 ימים</TabsTrigger>
+                            <TabsTrigger value="30">30 ימים</TabsTrigger>
+                            <TabsTrigger value="90">90 ימים</TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+                }
+            />
 
             {/* KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

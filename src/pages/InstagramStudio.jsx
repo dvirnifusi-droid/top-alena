@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ScatterChart, Scatter } from 'recharts';
 import DriveImagePicker from '@/components/instagram/DriveImagePicker';
+import PageHeader from '@/components/shared/PageHeader';
 
 const TONES = [
   { value: 'חמים ומזמין', label: '😊 חמים ומזמין' },
@@ -210,15 +211,11 @@ export default function InstagramStudio() {
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6" dir="rtl">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#A04A2E] via-[#A04A2E] to-orange-400 flex items-center justify-center">
-          <Instagram className="w-6 h-6 text-white" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold">Instagram Studio</h1>
-          <p className="text-muted-foreground text-sm">AI יוצר פוסטים מקצועיים לאינסטגרם + תזמון וגלריה</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Instagram Studio"
+        subtitle="AI יוצר פוסטים מקצועיים לאינסטגרם + תזמון וגלריה"
+        icon={Instagram}
+      />
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -234,7 +231,7 @@ export default function InstagramStudio() {
         {/* Left - Generator */}
         <div className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-base">⚙️ הגדרות הפוסט</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">הגדרות הפוסט</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">נושא הפוסט</label>
@@ -285,7 +282,7 @@ export default function InstagramStudio() {
           {/* Generated Caption */}
           {generatedCaption && (
             <Card>
-              <CardHeader><CardTitle className="text-base">✏️ טקסט הפוסט</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base">טקסט הפוסט</CardTitle></CardHeader>
               <CardContent>
                 <Textarea
                   value={generatedCaption}
@@ -301,7 +298,7 @@ export default function InstagramStudio() {
         {/* Right - Image + Publish */}
         <div className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-base">🖼️ תמונה לפוסט</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">תמונה לפוסט</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {imagePrompt && (
                 <Textarea
@@ -440,7 +437,7 @@ export default function InstagramStudio() {
         {/* TAB 2: GALLERY */}
         <TabsContent value="gallery" className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-base">📸 גלריית פוסטים</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">גלריית פוסטים</CardTitle></CardHeader>
             <CardContent>
               {scheduledPosts.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">אין פוסטים עדיין</p>
@@ -495,7 +492,7 @@ export default function InstagramStudio() {
         {/* TAB 3: GANTT SCHEDULE */}
         <TabsContent value="schedule" className="space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-base">📅 לוח זמנים (Gantt Chart)</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">לוח זמנים (Gantt Chart)</CardTitle></CardHeader>
             <CardContent>
               {ganttData.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">אין פוסטים מתוזמנים</p>
@@ -511,7 +508,7 @@ export default function InstagramStudio() {
                         labelFormatter={(label) => `יום ${label}`}
                         contentStyle={{ backgroundColor: 'rgba(0,0,0,0.75)', border: 'none', borderRadius: '8px', color: 'white' }}
                       />
-                      <Bar dataKey="duration" fill="#a855f7" name="ימים מהיצירה לפרסום" />
+                      <Bar dataKey="duration" fill="#A04A2E" name="ימים מהיצירה לפרסום" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

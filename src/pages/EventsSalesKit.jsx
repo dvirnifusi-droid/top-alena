@@ -10,6 +10,7 @@ import { Loader2, Plus, Trash2, Save, Utensils, Sparkles, Settings, MessageSquar
 import { base44 } from '@/api/base44Client';
 import toast from 'react-hot-toast';
 import { OFFICIAL_EVENT_GROUP_MENU } from '@/data/eventGroupMenu';
+import PageHeader from '@/components/shared/PageHeader';
 
 const blankMenu = () => ({ id: `m_${Date.now()}`, name: '', description: '', price_per_person_ils: 0, min_guests: 10, max_guests: 60, dishes: [] });
 const blankUpsell = () => ({ id: `u_${Date.now()}`, name: '', price_ils: 0, unit: 'per_event' });
@@ -95,15 +96,16 @@ export default function EventsSalesKit() {
           <Button size="sm" variant="outline" onClick={load}>טען מחדש</Button>
         </div>
       )}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Utensils className="w-6 h-6 text-emerald-600" /> Sales Kit לאירועים</h1>
-          <p className="text-sm text-muted-foreground">תפריטים, אפסיילים, תנאים ופרומפט הסוכן. השינויים נכנסים מיידית.</p>
-        </div>
-        <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
-          {saving ? <><Loader2 className="w-4 h-4 ml-1 animate-spin" /> שומר…</> : <><Save className="w-4 h-4 ml-1" /> שמור</>}
-        </Button>
-      </div>
+      <PageHeader
+        title="Sales Kit לאירועים"
+        subtitle="תפריטים, אפסיילים, תנאים ופרומפט הסוכן. השינויים נכנסים מיידית."
+        icon={Utensils}
+        action={
+          <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+            {saving ? <><Loader2 className="w-4 h-4 ml-1 animate-spin" /> שומר…</> : <><Save className="w-4 h-4 ml-1" /> שמור</>}
+          </Button>
+        }
+      />
 
       <Tabs defaultValue="menus" className="w-full">
         <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 md:grid md:grid-cols-4">

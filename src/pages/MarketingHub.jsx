@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Megaphone, Users, Send, MessageSquare, QrCode, Image, FileText } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 import MarketingDashboard from './MarketingDashboard';
 import CustomerClub from './CustomerClub';
 import MarketingCampaigns from './MarketingCampaigns';
@@ -28,10 +29,7 @@ export default function MarketingHub() {
     const onChange = (v) => { setTab(v); if (typeof window !== 'undefined') window.location.hash = v; };
     return (
         <div className="p-4" dir="rtl">
-            <h1 className="text-2xl font-bold mb-3 flex items-center gap-2">
-                <Megaphone className="w-6 h-6 text-[#44512C]" />
-                שיווק ולקוחות
-            </h1>
+            <PageHeader title="שיווק ולקוחות" icon={Megaphone} />
             <Tabs value={tab} onValueChange={onChange}>
                 <div className="sticky top-0 z-10 bg-white -mx-4 px-4 pb-2 mb-3 border-b">
                     <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 justify-start md:grid md:grid-cols-7">

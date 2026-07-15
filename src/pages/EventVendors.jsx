@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, Loader2, Users, Megaphone } from 'lucide-react';
 import { createPageUrl } from '@/utils';
+import PageHeader from '@/components/shared/PageHeader';
 
 export const VENDOR_CATEGORIES = [
     { key: 'producer', label: '🎯 מפיק/ת אירועים' },
@@ -55,29 +56,27 @@ export default function EventVendors() {
     }, [q, category, status]);
 
     return (
-        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-b from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
+        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
             <div className="max-w-6xl mx-auto">
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-                    <div>
-                        <h1 className="text-3xl md:text-4xl font-black text-gray-800 flex items-center gap-2">
-                            <Users className="w-8 h-8 text-[#A04A2E]" />
-                            ספקי אירועים
-                        </h1>
-                        <p className="text-sm text-gray-500">מפיקים, צלמים, DJ, מובילי טיולים — כל מי שעובד איתנו באירועים</p>
-                    </div>
-                    <div className="flex gap-2">
-                        <Link to={createPageUrl('EventVendorCampaign')}>
-                            <Button variant="outline" className="border-[#44512C] text-[#44512C]">
-                                <Megaphone className="w-4 h-4 ml-1" /> דיוור לספקים
-                            </Button>
-                        </Link>
-                        <Link to={createPageUrl('EventVendorDetails?id=new')}>
-                            <Button className="bg-[#A04A2E] hover:bg-[#7A3722] text-white">
-                                <Plus className="w-4 h-4 ml-1" /> ספק חדש
-                            </Button>
-                        </Link>
-                    </div>
-                </div>
+                <PageHeader
+                    title="ספקי אירועים"
+                    subtitle="מפיקים, צלמים, DJ, מובילי טיולים — כל מי שעובד איתנו באירועים"
+                    icon={Users}
+                    action={
+                        <div className="flex gap-2">
+                            <Link to={createPageUrl('EventVendorCampaign')}>
+                                <Button variant="outline" className="border-[#44512C] text-[#44512C]">
+                                    <Megaphone className="w-4 h-4 ml-1" /> דיוור לספקים
+                                </Button>
+                            </Link>
+                            <Link to={createPageUrl('EventVendorDetails?id=new')}>
+                                <Button className="bg-[#A04A2E] hover:bg-[#7A3722] text-white">
+                                    <Plus className="w-4 h-4 ml-1" /> ספק חדש
+                                </Button>
+                            </Link>
+                        </div>
+                    }
+                />
 
                 <Card className="mb-4">
                     <CardContent className="p-4">

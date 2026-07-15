@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { createPageUrl } from '@/utils';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
+import { Calendar } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 // Owner-controllable AI threshold: candidates with score >= this get the
 // auto-interview slot picker in the chat. Lower the threshold on high-pressure
@@ -54,7 +56,8 @@ function MinScoreControl({ currentScore, onSaved }) {
           step="5"
           value={val}
           onChange={(e) => setVal(e.target.value)}
-          className="flex-1 accent-indigo-600"
+          className="flex-1"
+          style={{ accentColor: 'var(--brand-primary, #A04A2E)' }}
         />
         <input
           type="number"
@@ -119,7 +122,7 @@ function RecruitmentCriteriaControl({ criteria, onSaved }) {
               <input type="number" min="14" max="80" value={c.min_age} onChange={(e) => set('min_age', e.target.value)} className="mt-0.5 w-full text-sm border border-slate-300 rounded-lg py-1.5 px-2" />
             </label>
             <label className="text-[11px] text-slate-600 flex items-center gap-2 pb-2">
-              <input type="checkbox" checked={c.weekend_required} onChange={(e) => set('weekend_required', e.target.checked)} className="w-4 h-4 accent-indigo-600" />
+              <input type="checkbox" checked={c.weekend_required} onChange={(e) => set('weekend_required', e.target.checked)} className="w-4 h-4" style={{ accentColor: 'var(--brand-primary, #A04A2E)' }} />
               זמינות סופ"ש חובה
             </label>
           </div>
@@ -346,15 +349,16 @@ export default function RecruitmentInterviews() {
 
   return (
     <div dir="rtl" className="max-w-5xl mx-auto p-4 space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-black text-slate-800">ראיונות וגיוס</h1>
-          <p className="text-slate-500 text-sm">ראיונות קרובים, ציר התלמדות, מי מחכה לחזרה</p>
-        </div>
-        <a href={createPageUrl('InterviewSettings')} className="text-sm bg-white border border-slate-300 hover:bg-slate-50 rounded-xl px-3 py-2 font-bold text-slate-700">
-          ⚙️ הגדרת סלוטים
-        </a>
-      </div>
+      <PageHeader
+        title="ראיונות וגיוס"
+        subtitle="ראיונות קרובים, ציר התלמדות, מי מחכה לחזרה"
+        icon={Calendar}
+        action={
+          <a href={createPageUrl('InterviewSettings')} className="text-sm bg-white border border-slate-300 hover:bg-slate-50 rounded-xl px-3 py-2 font-bold text-slate-700">
+            ⚙️ הגדרת סלוטים
+          </a>
+        }
+      />
 
       {loading && <p className="text-slate-400 text-center py-6">טוען…</p>}
 
@@ -362,7 +366,7 @@ export default function RecruitmentInterviews() {
       {inbox.funnel && (
         <section className="bg-gradient-to-br from-[#F4ECD8] to-[#F4ECD8] rounded-2xl shadow border border-indigo-200 p-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="font-black text-slate-800">📊 משפך הגיוס</p>
+            <p className="font-black text-slate-800">משפך הגיוס</p>
             <span className="text-xs text-slate-500">סה"כ במאגר: {inbox.funnel.total}</span>
           </div>
           {/* Conversion-aware funnel — each step shows % vs previous step */}
@@ -515,7 +519,7 @@ export default function RecruitmentInterviews() {
 
       {/* Upcoming interviews */}
       <section className="bg-white rounded-2xl shadow border border-slate-200 p-4">
-        <p className="font-black text-slate-800 mb-3">📅 ראיונות קרובים ({inbox.upcoming.length})</p>
+        <p className="font-black text-slate-800 mb-3">ראיונות קרובים ({inbox.upcoming.length})</p>
         {inbox.upcoming.length === 0 ? (
           <p className="text-slate-400 text-sm">אין כרגע ראיונות מתוזמנים.</p>
         ) : (
@@ -565,7 +569,7 @@ export default function RecruitmentInterviews() {
 
       {/* Top candidates (80+) not yet scheduled */}
       <section className="bg-white rounded-2xl shadow border border-amber-200 p-4">
-        <p className="font-black text-slate-800 mb-1">🌟 מועמדים מעולים — לשבץ ({inbox.topUnscheduled?.length || 0})</p>
+        <p className="font-black text-slate-800 mb-1">מועמדים מעולים — לשבץ ({inbox.topUnscheduled?.length || 0})</p>
         <p className="text-xs text-slate-500 mb-3">מועמדים עם 80+ שעדיין לא נכנסו לראיון. תוכל לקבוע להם ראיון או לפנות בוואטסאפ.</p>
         {(inbox.topUnscheduled || []).length === 0 ? (
           <p className="text-slate-400 text-sm">אין כרגע מועמדים ממתינים.</p>
@@ -650,7 +654,7 @@ export default function RecruitmentInterviews() {
 
       {/* To call back: candidates 50-79 */}
       <section className="bg-white rounded-2xl shadow border border-slate-200 p-4">
-        <p className="font-black text-slate-800 mb-3">📞 לחזור אליהם ({inbox.toCallBack.length})</p>
+        <p className="font-black text-slate-800 mb-3">לחזור אליהם ({inbox.toCallBack.length})</p>
         <p className="text-xs text-slate-500 mb-3">מועמדים עם ציון 50–79. אם תרצה לזמן אותם — שלח להם בוואטסאפ.</p>
         {inbox.toCallBack.length === 0 ? (
           <p className="text-slate-400 text-sm">אין מועמדים ממתינים.</p>
@@ -699,7 +703,7 @@ export default function RecruitmentInterviews() {
 
       {/* Training pipeline */}
       <section className="bg-white rounded-2xl shadow border border-slate-200 p-4">
-        <p className="font-black text-slate-800 mb-1">🎓 ציר ההתלמדות ({(inbox.trainees || []).length})</p>
+        <p className="font-black text-slate-800 mb-1">ציר ההתלמדות ({(inbox.trainees || []).length})</p>
         <p className="text-xs text-slate-500 mb-3">{FLOW_TEXT}</p>
 
         {(inbox.trainees || []).length === 0 ? (
@@ -733,7 +737,7 @@ export default function RecruitmentInterviews() {
 
       {/* Abandoned mid-chat — started but never completed screening */}
       <section className="bg-white rounded-2xl shadow border border-orange-200 p-4">
-        <p className="font-black text-slate-800 mb-1">🚪 נטשו באמצע הראיון ({(inbox.abandoned || []).length})</p>
+        <p className="font-black text-slate-800 mb-1">נטשו באמצע הראיון ({(inbox.abandoned || []).length})</p>
         <p className="text-xs text-slate-500 mb-3">פתחו את צ'אט הגיוס אבל לא סיימו. בכל אחד מסומן השלב שבו עזב — תוכל לפנות לו ולעודד לסיים.</p>
         {(inbox.abandoned || []).length === 0 ? (
           <p className="text-slate-400 text-sm">אין כרגע נטישות פעילות.</p>

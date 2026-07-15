@@ -9,6 +9,7 @@
 import React, { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CalendarHeart, Utensils, FileText, Wine, BarChart3 } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 import EventsDashboard from './EventsDashboard';
 import EventsPrivate from './EventsPrivate';
 import EventsSalesKit from './EventsSalesKit';
@@ -29,15 +30,11 @@ export default function EventsHub() {
 
     return (
         <div className="p-4" dir="rtl">
-            <div className="mb-4">
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <CalendarHeart className="w-6 h-6 text-[#A04A2E]" />
-                    אירועים פרטיים — מרכז ניהול
-                </h1>
-                <p className="text-sm text-gray-600 mt-1">
-                    לידים מהסוכן, תפריטים, חוזים דיגיטליים, וראש מלצרים — הכל במקום אחד.
-                </p>
-            </div>
+            <PageHeader
+                title="אירועים פרטיים — מרכז ניהול"
+                subtitle="לידים מהסוכן, תפריטים, חוזים דיגיטליים, וראש מלצרים — הכל במקום אחד."
+                icon={CalendarHeart}
+            />
 
             <Tabs value={tab} onValueChange={onTabChange}>
                 <div className="sticky top-0 z-10 bg-white -mx-4 px-4 pb-2 mb-3 border-b">

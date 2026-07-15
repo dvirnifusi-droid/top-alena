@@ -129,7 +129,7 @@ export default function EventVendorDetails() {
     if (loading) return <div className="p-6 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>;
 
     return (
-        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-b from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
+        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
             <div className="max-w-5xl mx-auto">
                 <div className="flex items-center justify-between mb-4">
                     <Link to={createPageUrl('EventVendors')} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
@@ -141,7 +141,7 @@ export default function EventVendorDetails() {
                                 <Button onClick={quickWhatsApp} variant="outline" size="sm" className="border-emerald-300 text-emerald-700">
                                     <MessageCircle className="w-4 h-4 ml-1" /> שלח WhatsApp
                                 </Button>
-                                <Button onClick={quickEmail} variant="outline" size="sm" className="border-purple-300 text-purple-700">
+                                <Button onClick={quickEmail} variant="outline" size="sm" style={{ borderColor: 'var(--brand-primary, #A04A2E)', color: 'var(--brand-primary, #A04A2E)' }}>
                                     <Mail className="w-4 h-4 ml-1" /> שלח מייל
                                 </Button>
                                 <Button onClick={remove} variant="outline" size="sm" className="border-red-300 text-red-700">
@@ -270,7 +270,7 @@ export default function EventVendorDetails() {
                             <p className="text-[11px] text-gray-500">בכל אירוע ספציפי אפשר לעקוף את הערכים האלה.</p>
 
                             <div className="border-t pt-3 mt-3">
-                                <h4 className="text-sm font-bold mb-2">🏦 פרטי תשלום עמלות</h4>
+                                <h4 className="text-sm font-bold mb-2">פרטי תשלום עמלות</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <Field label="שם הבנק"><Input value={vendor.bank_name || ''} onChange={e => set('bank_name', e.target.value)} /></Field>
                                     <Field label="סניף"><Input value={vendor.bank_branch || ''} onChange={e => set('bank_branch', e.target.value)} /></Field>
@@ -285,14 +285,14 @@ export default function EventVendorDetails() {
                     <TabsContent value="docs">
                         <Card><CardContent className="p-4 space-y-4">
                             <div>
-                                <h4 className="text-sm font-bold mb-2">🛡️ תעודת ביטוח</h4>
+                                <h4 className="text-sm font-bold mb-2">תעודת ביטוח</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <Field label="קובץ (URL)"><Input value={vendor.insurance_url || ''} onChange={e => set('insurance_url', e.target.value)} placeholder="https://..." /></Field>
                                     <Field label="תוקף עד"><Input type="date" value={vendor.insurance_expiry || ''} onChange={e => set('insurance_expiry', e.target.value)} /></Field>
                                 </div>
                             </div>
                             <div className="border-t pt-3">
-                                <h4 className="text-sm font-bold mb-2">📜 רישיון עסק</h4>
+                                <h4 className="text-sm font-bold mb-2">רישיון עסק</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <Field label="קובץ (URL)"><Input value={vendor.business_license_url || ''} onChange={e => set('business_license_url', e.target.value)} placeholder="https://..." /></Field>
                                     <Field label="תוקף עד"><Input type="date" value={vendor.business_license_expiry || ''} onChange={e => set('business_license_expiry', e.target.value)} /></Field>
@@ -301,7 +301,7 @@ export default function EventVendorDetails() {
                             {!isNew && (
                                 <div className="border-t pt-3">
                                     <div className="flex items-center justify-between mb-2">
-                                        <h4 className="text-sm font-bold">📄 הסכמים</h4>
+                                        <h4 className="text-sm font-bold">הסכמים</h4>
                                         <Button size="sm" variant="outline" onClick={async () => {
                                             const title = prompt('שם ההסכם:'); if (!title) return;
                                             const file_url = prompt('URL לקובץ:'); if (!file_url) return;
@@ -385,7 +385,7 @@ export default function EventVendorDetails() {
                     <TabsContent value="timeline">
                         <Card><CardContent className="p-4">
                             <div className="flex justify-between items-center mb-3">
-                                <h4 className="text-sm font-bold">📨 לוג פעילות</h4>
+                                <h4 className="text-sm font-bold">לוג פעילות</h4>
                                 <Button size="sm" variant="outline" onClick={async () => {
                                     const kind = prompt('סוג (call/meeting/note):', 'call'); if (!kind) return;
                                     const subj = prompt('כותרת:');

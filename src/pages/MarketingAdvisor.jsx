@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
+import PageHeader from '@/components/shared/PageHeader';
+import { Lightbulb } from 'lucide-react';
 
 // ─── The questionnaire — grouped into sections so the owner answers in batches ───
 const QUESTIONS = [
@@ -153,12 +155,12 @@ export default function MarketingAdvisor() {
 
   return (
     <div dir="rtl" className="max-w-4xl mx-auto p-3 sm:p-5 space-y-4">
-      <header className="text-center">
-        <div className="text-4xl mb-2">🚀</div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900">היועץ השיווקי שלך</h1>
-        <p className="text-slate-500 text-sm">שואל אותך, מבין את העסק, ומכין לך תכנית 6 חודשים עם משימות יומיות</p>
-        {profile && (
-          <div className="mt-3 inline-flex items-center gap-2 bg-white border border-slate-200 rounded-full px-3 py-1.5 text-xs">
+      <PageHeader
+        title="היועץ השיווקי שלך"
+        subtitle="שואל אותך, מבין את העסק, ומכין לך תכנית 6 חודשים עם משימות יומיות"
+        icon={Lightbulb}
+        action={profile && (
+          <div className="inline-flex items-center gap-2 bg-white border border-slate-200 rounded-full px-3 py-1.5 text-xs">
             <span className="font-bold text-slate-700">{profile.business_name || '—'}</span>
             <span className="text-slate-400">·</span>
             <span className="text-slate-500">השלמת פרופיל: {completion}%</span>
@@ -167,7 +169,7 @@ export default function MarketingAdvisor() {
             </div>
           </div>
         )}
-      </header>
+      />
 
       {/* Tabs */}
       <nav className="bg-white border border-slate-200 rounded-2xl p-1.5 flex flex-wrap gap-1.5 sticky top-0 z-10 shadow-sm">

@@ -6,6 +6,7 @@ import RecruitmentInterviews from './RecruitmentInterviews';
 import InterviewSettings from './InterviewSettings';
 import Training from './Training';
 import TrainingVideos from './TrainingVideos';
+import PageHeader from '@/components/shared/PageHeader';
 
 const TABS = [
     { id: 'interviews', label: 'ראיונות וגיוס', icon: Users, C: RecruitmentInterviews },
@@ -22,10 +23,7 @@ export default function RecruitmentHub() {
     const onChange = (v) => { setTab(v); if (typeof window !== 'undefined') window.location.hash = v; };
     return (
         <div className="p-4" dir="rtl">
-            <h1 className="text-2xl font-bold mb-3 flex items-center gap-2">
-                <GraduationCap className="w-6 h-6 text-[#A04A2E]" />
-                גיוס והכשרה
-            </h1>
+            <PageHeader title="גיוס והכשרה" subtitle="ראיונות, סלוטים, הכשרות וסרטוני הדרכה" icon={GraduationCap} />
             <Tabs value={tab} onValueChange={onChange}>
                 <div className="sticky top-0 z-10 bg-white -mx-4 px-4 pb-2 mb-3 border-b">
                     <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 justify-start md:grid md:grid-cols-4 md:max-w-3xl">

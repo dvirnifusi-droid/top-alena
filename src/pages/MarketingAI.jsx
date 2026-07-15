@@ -13,6 +13,7 @@ import {
     TestTube2,
     Archive
 } from "lucide-react";
+import PageHeader from '@/components/shared/PageHeader';
 
 import BrainstormingPanel from '../components/marketing/BrainstormingPanel';
 import GoalsTracker from '../components/marketing/GoalsTracker';
@@ -241,23 +242,21 @@ export default function MarketingAIPage() {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-[#F4ECD8] via-[#F4ECD8] to-[#F4ECD8]">
+            <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]">
                 <Loader2 className="w-12 h-12 text-[#A04A2E] animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[#F4ECD8] via-[#F4ECD8] to-[#F4ECD8] p-6" dir="rtl">
+        <div className="min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] p-6" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-8">
                 {/* Header */}
-                <div className="text-center">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center justify-center gap-3">
-                        <Brain className="w-10 h-10 text-[#A04A2E]" />
-                        יועץ השיווק החכם 🚀
-                    </h1>
-                    <p className="text-gray-600 text-lg">המערכת שתכפיל את המכירות שלך תוך 6 חודשים</p>
-                </div>
+                <PageHeader
+                    title="יועץ השיווק החכם"
+                    subtitle="המערכת שתכפיל את המכירות שלך תוך 6 חודשים"
+                    icon={Brain}
+                />
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -292,7 +291,7 @@ export default function MarketingAIPage() {
                                     <p className="text-[#F4ECD8]">יעדים פעילים</p>
                                     <p className="text-3xl font-bold">{goals.length}</p>
                                 </div>
-                                <TrendingUp className="w-10 h-10 text-purple-200" />
+                                <TrendingUp className="w-10 h-10 text-[#E8D9B5]" />
                             </div>
                         </CardContent>
                     </Card>

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Send, Eye, Sparkles, History as HistoryIcon, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import PageHeader from '@/components/shared/PageHeader';
 
 // === Predefined segments with default templates =============================
 const SEGMENTS = [
@@ -351,15 +352,13 @@ export default function MarketingCampaigns() {
     })();
 
     return (
-        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-b from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
+        <div className="p-4 md:p-6 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
             <div className="max-w-6xl mx-auto">
-                <div className="mb-6">
-                    <h1 className="text-3xl md:text-4xl font-black text-gray-800 mb-2 flex items-center gap-2">
-                        <Sparkles className="w-8 h-8 text-[#A04A2E]" />
-                        קמפיינים שיווקיים
-                    </h1>
-                    <p className="text-gray-600 text-sm">בחר סגמנט → ערוך טמפלייט → ראה תצוגה מקדימה → שלח</p>
-                </div>
+                <PageHeader
+                    title="קמפיינים שיווקיים"
+                    subtitle="בחר סגמנט → ערוך טמפלייט → ראה תצוגה מקדימה → שלח"
+                    icon={Sparkles}
+                />
 
                 <Tabs value={tab} onValueChange={setTab} className="space-y-4">
                     <TabsList className="grid grid-cols-3 max-w-2xl">
