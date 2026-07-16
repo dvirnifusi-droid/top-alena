@@ -9072,16 +9072,22 @@ registerFn('getReportRecipients', async ({ user }: any) => {
 registerFn('saveReportRecipients', async ({ user, body }: any) => {
   if (!['admin', 'owner', 'manager', 'restaurant_manager'].includes(String(user?.role))) throw new Error('forbidden');
   const raw = Array.isArray((body as any)?.recipients) ? (body as any).recipients : [];
-  const clean = raw.map((r: any) => ({
+  // A valid Israeli number has a 9-digit subscriber part (05X-XXX-XXXX → strip
+  // the leading 0 or 972 → 9 digits). Reject shorter numbers so a typo like a
+  // 9-digit mobile (a digit missing) can't be saved and then silently never match.
+  const subscriberLen = (p: string) => String(p || '').replace(/\D/g, '').replace(/^972/, '').replace(/^0/, '').length;
+  const all = raw.map((r: any) => ({
     phone: String(r?.phone || '').trim(),
     name: String(r?.name || '').trim().slice(0, 60),
     permission: r?.permission === 'co_owner' ? 'co_owner' : 'receive_only',
-  })).filter((r: any) => r.phone.replace(/\D/g, '').length >= 9).slice(0, 30);
+  }));
+  const clean = all.filter((r: any) => subscriberLen(r.phone) === 9).slice(0, 30);
+  const rejected = all.filter((r: any) => r.phone && subscriberLen(r.phone) !== 9).map((r: any) => `${r.name || ''} ${r.phone}`.trim());
   const jsonStr = JSON.stringify(clean);
   const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "RestaurantProfile" LIMIT 1`).catch(() => []);
   if (!rows?.[0]?.id) throw new Error('לא נמצא פרופיל מסעדה.');
   await (prisma as any).$executeRawUnsafe(`UPDATE "RestaurantProfile" SET report_recipients = $1::jsonb WHERE id = $2`, jsonStr, rows[0].id);
-  return { ok: true, count: clean.length, recipients: clean };
+  return { ok: true, count: clean.length, recipients: clean, rejected };
 });
 
 // ─── Gear-Up / Gear-Return dialog config (per tenant + per position) ────────
