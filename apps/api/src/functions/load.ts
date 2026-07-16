@@ -9003,6 +9003,43 @@ registerFn('testAllTriggersWhatsApp', async ({ body }: any) => {
   return { ok: true, phone, sent, total: samples.length, failed };
 }, { public: true });
 
+// ─── Report recipients (managed from AdminWhatsApp) ─────────────────────────
+// The per-tenant list of numbers that receive ALL owner notifications (reports,
+// briefs, alerts, pushover-mirror). permission 'co_owner' also grants full bot
+// command rights (is_owner); 'receive_only' gets notifications only.
+registerFn('getReportRecipients', async ({ user }: any) => {
+  if (!['admin', 'owner', 'manager', 'restaurant_manager'].includes(String(user?.role))) throw new Error('forbidden');
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT report_recipients FROM "RestaurantProfile" LIMIT 1`).catch(() => []);
+  const recipients = Array.isArray(rows?.[0]?.report_recipients) ? rows[0].report_recipients : [];
+  // The registered owner (platform registry) + env admins are shown read-only so
+  // the manager sees who already receives everything by default.
+  let registryOwner: any = null;
+  try {
+    const slug = process.env.TENANT_SLUG || '';
+    if (slug) {
+      const t: any[] = await (prisma as any).$queryRawUnsafe(`SELECT owner_name, owner_phone FROM public."Tenant" WHERE slug = $1 LIMIT 1`, slug);
+      if (t?.[0]?.owner_phone) registryOwner = { name: t[0].owner_name || 'בעלים', phone: t[0].owner_phone };
+    }
+  } catch { /* registry unreachable */ }
+  const envAdmins = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s: string) => s.trim()).filter(Boolean);
+  return { recipients, registry_owner: registryOwner, env_admins: envAdmins };
+});
+
+registerFn('saveReportRecipients', async ({ user, body }: any) => {
+  if (!['admin', 'owner', 'manager', 'restaurant_manager'].includes(String(user?.role))) throw new Error('forbidden');
+  const raw = Array.isArray((body as any)?.recipients) ? (body as any).recipients : [];
+  const clean = raw.map((r: any) => ({
+    phone: String(r?.phone || '').trim(),
+    name: String(r?.name || '').trim().slice(0, 60),
+    permission: r?.permission === 'co_owner' ? 'co_owner' : 'receive_only',
+  })).filter((r: any) => r.phone.replace(/\D/g, '').length >= 9).slice(0, 30);
+  const jsonStr = JSON.stringify(clean);
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "RestaurantProfile" LIMIT 1`).catch(() => []);
+  if (!rows?.[0]?.id) throw new Error('לא נמצא פרופיל מסעדה.');
+  await (prisma as any).$executeRawUnsafe(`UPDATE "RestaurantProfile" SET report_recipients = $1::jsonb WHERE id = $2`, jsonStr, rows[0].id);
+  return { ok: true, count: clean.length, recipients: clean };
+});
+
 // Diagnostic: call this to verify the Pushover pipe is alive. Returns the count of
 // employees with pushover_user_key, whether the env token is present, and how many
 // devices got the test message.
@@ -18112,6 +18149,10 @@ if (!(globalThis as any).__startupDriftRepair) {
       await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "daily_hours_report_snapshot" JSONB;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "twilio_credentials" JSONB;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "cover_photo_url" TEXT;`);
+      // report_recipients: per-tenant list [{phone,name,permission:'co_owner'|'receive_only'}]
+      // that drives ALL owner notifications (reports, briefs, alerts, pushover-mirror)
+      // and grants co_owner numbers is_owner in resolveAccessScope. Managed from AdminWhatsApp.
+      await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "report_recipients" JSONB;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "EventSalesKit" ADD COLUMN IF NOT EXISTS "intake_config" JSONB;`);
       // Interview.type — manager booking (bookInterviewByManager) writes it to
       // distinguish interview vs menu_exam. Guarantee the column so the insert

@@ -293,6 +293,132 @@ function TwilioCredsSection() {
     );
 }
 
+// Owner + report-recipient registry. Everyone listed here receives every
+// report/alert (hours, morning, end-of-day, incidents, tips...). co_owner may
+// also command the bot; receive_only just reads. registry_owner + env_admins
+// always receive and are shown read-only.
+function ReportRecipientsSection() {
+    const [recipients, setRecipients] = useState([]);
+    const [registryOwner, setRegistryOwner] = useState(null);
+    const [envAdmins, setEnvAdmins] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [result, setResult] = useState(null);
+
+    const load = async () => {
+        setLoading(true); setError(null);
+        try {
+            const res = await base44.functions.getReportRecipients({});
+            const data = res?.data ?? res;
+            setRecipients(Array.isArray(data?.recipients) ? data.recipients : []);
+            setRegistryOwner(data?.registry_owner ?? null);
+            setEnvAdmins(Array.isArray(data?.env_admins) ? data.env_admins : []);
+        } catch (e) {
+            setError(e?.message || String(e));
+        } finally { setLoading(false); }
+    };
+
+    useEffect(() => { load(); }, []);
+
+    const updateRow = (idx, field, value) =>
+        setRecipients(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+    const removeRow = (idx) => setRecipients(prev => prev.filter((_, i) => i !== idx));
+    const addRow = () => setRecipients(prev => [...prev, { phone: '', name: '', permission: 'receive_only' }]);
+
+    const save = async () => {
+        const clean = recipients
+            .map(r => ({
+                phone: (r.phone || '').trim(),
+                name: (r.name || '').trim(),
+                permission: r.permission === 'co_owner' ? 'co_owner' : 'receive_only',
+            }))
+            .filter(r => r.phone.replace(/\D/g, '').length >= 9);
+        setSaving(true); setResult(null);
+        try {
+            const res = await base44.functions.saveReportRecipients({ recipients: clean });
+            const data = res?.data ?? res;
+            if (data?.ok) {
+                setResult({ ok: `נשמר — ${data.count ?? clean.length} מקבלים` });
+                setRecipients(Array.isArray(data?.recipients) ? data.recipients : clean);
+            } else {
+                setResult({ err: data?.error || 'שמירה נכשלה' });
+            }
+        } catch (e) {
+            setResult({ err: e?.message || String(e) });
+        } finally { setSaving(false); }
+    };
+
+    return (
+        <Card className="mb-4" dir="rtl">
+            <CardContent className="p-4">
+                <h3 className="font-bold text-lg flex items-center gap-2 mb-2">
+                    <Users className="w-5 h-5 text-[#44512C]" />
+                    👥 בעלים ומקבלי דוחות
+                </h3>
+                <p className="text-xs text-gray-600 mb-3">
+                    כל המספרים כאן מקבלים את כל הדוחות וההתראות (דוח שעות, בוקר, סוף-יום, תקלות, טיפים...). <b>קו-בעלים</b> גם יכול לתת פקודות לבוט; <b>קבלה בלבד</b> רק מקבל.
+                </p>
+
+                {loading && <div className="text-center py-4"><Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" /></div>}
+                {error && !loading && <p className="text-red-700 text-sm mb-2">❌ {error}</p>}
+
+                {!loading && (
+                    <>
+                        {(registryOwner || envAdmins.length > 0) && (
+                            <div className="bg-gray-50 border border-gray-200 rounded p-3 mb-3 text-sm">
+                                <div className="font-bold text-gray-700 mb-1">מקבלים תמיד</div>
+                                {registryOwner && (
+                                    <div className="text-gray-600">
+                                        {registryOwner.name || 'בעלים'} · <span dir="ltr" className="font-mono">{registryOwner.phone}</span>
+                                        <span className="text-xs text-gray-400"> (בעלים ראשי — קבוע)</span>
+                                    </div>
+                                )}
+                                {envAdmins.map((p, i) => (
+                                    <div key={i} className="text-gray-600">
+                                        <span dir="ltr" className="font-mono">{p}</span>
+                                        <span className="text-xs text-gray-400"> (בעלים ראשי — קבוע)</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            {recipients.map((r, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                    <Input value={r.name || ''} onChange={e => updateRow(idx, 'name', e.target.value)} placeholder="שם" className="flex-1" />
+                                    <Input value={r.phone || ''} onChange={e => updateRow(idx, 'phone', e.target.value)} placeholder="05X-XXXXXXX" dir="ltr" className="flex-1" />
+                                    <select
+                                        value={r.permission === 'co_owner' ? 'co_owner' : 'receive_only'}
+                                        onChange={e => updateRow(idx, 'permission', e.target.value)}
+                                        className="border border-gray-200 rounded-md h-10 px-2 text-sm bg-white"
+                                    >
+                                        <option value="co_owner">קו-בעלים</option>
+                                        <option value="receive_only">קבלה בלבד</option>
+                                    </select>
+                                    <Button size="sm" variant="outline" onClick={() => removeRow(idx)} className="text-red-600 border-red-200 hover:bg-red-50">✕</Button>
+                                </div>
+                            ))}
+                            {recipients.length === 0 && <p className="text-xs text-gray-400">אין מקבלים נוספים עדיין.</p>}
+                        </div>
+
+                        <div className="flex gap-2 flex-wrap mt-3">
+                            <Button size="sm" variant="outline" onClick={addRow}>➕ הוסף מקבל</Button>
+                            <Button onClick={save} disabled={saving} className="bg-[#44512C] hover:bg-[#44512C] text-white">
+                                {saving ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
+                                שמור
+                            </Button>
+                        </div>
+
+                        {result?.ok && <p className="text-emerald-700 text-sm mt-2">✅ {result.ok}</p>}
+                        {result?.err && <p className="text-red-700 text-sm mt-2">❌ {result.err}</p>}
+                    </>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function AdminWhatsApp() {
     const brandName = useTenantBranding()?.name || 'המסעדה';
     return (
@@ -307,6 +433,7 @@ export default function AdminWhatsApp() {
             <TwilioCredsSection />
             <TestSendSection />
             <BroadcastSection />
+            <ReportRecipientsSection />
 
             <Card className="mt-6 bg-gray-50">
                 <CardContent className="p-4 text-xs text-gray-600 space-y-2">

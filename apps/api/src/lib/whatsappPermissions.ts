@@ -100,20 +100,50 @@ async function getTenantOwnerDigits(): Promise<string | null> {
   return (await loadTenantOwner()).digits;
 }
 
-// Recipients for tenant-scoped owner reports (daily-hours, morning/EoD brief,
-// weekly insights, alerts). Sends to the tenant's OWN owner (from the platform
-// registry). Falls back to the shared WHATSAPP_ADMIN_NUMBERS env ONLY on the
-// platform tenant (alena) — a real tenant with no registered owner sends to
-// NOBODY rather than spamming the shared admin across every container (which is
-// what caused the owner to receive one copy of every tenant's report).
+// Per-tenant extra recipients, managed from the AdminWhatsApp settings page and
+// stored in RestaurantProfile.report_recipients. Cached 60s.
+export type ReportRecipient = { phone: string; name?: string; permission?: 'co_owner' | 'receive_only' };
+let _recipCache: { list: ReportRecipient[]; at: number } | null = null;
+async function loadReportRecipients(): Promise<ReportRecipient[]> {
+  if (_recipCache && Date.now() - _recipCache.at < 60_000) return _recipCache.list;
+  let list: ReportRecipient[] = [];
+  try {
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT report_recipients FROM "RestaurantProfile" LIMIT 1`);
+    const v = rows?.[0]?.report_recipients;
+    if (Array.isArray(v)) list = v.filter((r: any) => r && r.phone);
+  } catch { list = []; }
+  _recipCache = { list, at: Date.now() };
+  return list;
+}
+
+// Recipients for tenant-scoped owner notifications (daily-hours, morning/EoD
+// brief, weekly insights, alerts, pushover-mirror). Sends to the tenant's OWN
+// registered owner PLUS every number in the per-tenant recipient list. Falls
+// back to the shared WHATSAPP_ADMIN_NUMBERS env ONLY on the platform tenant
+// (alena) when nothing else is configured — a real tenant with no owner and no
+// recipients sends to NOBODY rather than spamming the shared admin.
 export async function reportRecipientPhones(): Promise<string[]> {
   const { raw } = await loadTenantOwner();
-  if (raw) return [raw];
+  const extra = await loadReportRecipients();
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const add = (p: any) => { const d = normalizePhone(p); if (p && d && !seen.has(d)) { seen.add(d); out.push(String(p)); } };
+  if (raw) add(raw);
+  for (const r of extra) add(r.phone);
+  if (out.length) return out;
   const slug = String(process.env.TENANT_SLUG || '').trim().toLowerCase();
   if (!slug || slug === 'alena') {
     return (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map(s => s.trim()).filter(Boolean);
   }
   return [];
+}
+
+// A co_owner in the recipient list gets full command rights (is_owner). A
+// receive_only number gets notifications but no elevated bot access.
+async function isCoOwnerRecipient(phoneDigits: string): Promise<boolean> {
+  if (!phoneDigits) return false;
+  const list = await loadReportRecipients();
+  return list.some(r => r.permission === 'co_owner' && normalizePhone(r.phone) === phoneDigits);
 }
 
 export async function resolveAccessScope(rawPhone: string): Promise<AccessScope> {
@@ -158,6 +188,21 @@ export async function resolveAccessScope(rawPhone: string): Promise<AccessScope>
         is_owner: true,
       };
     }
+  }
+
+  // ── 1c. Co-owner in the per-tenant recipient list → full owner rights ──
+  if (phoneDigits && await isCoOwnerRecipient(phoneDigits)) {
+    return {
+      role: 'owner',
+      employee_id: null,
+      employee_name: 'בעלים (משותף)',
+      phone,
+      can_write: true,
+      visible_departments: 'all',
+      visible_employee_ids: 'all',
+      role_label_he: 'בעלים',
+      is_owner: true,
+    };
   }
 
   // ── 2. Match an Employee by phone (any format variant) ──────────────
