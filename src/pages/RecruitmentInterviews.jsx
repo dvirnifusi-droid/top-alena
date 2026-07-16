@@ -79,6 +79,18 @@ function MinScoreControl({ currentScore, onSaved }) {
   );
 }
 
+// Which screening questions the AI recruiter can be told to SKIP. Name, age and
+// phone are always asked (not skippable). The toggle shown to the owner is
+// framed positively — ON = "שואל" (key NOT in skip_questions), OFF = "מדלג".
+const SKIPPABLE_QUESTIONS = [
+  { key: 'role', label: 'התפקיד המבוקש' },
+  { key: 'experience', label: 'ניסיון קודם' },
+  { key: 'shifts', label: 'מספר משמרות בשבוע' },
+  { key: 'weekend', label: 'זמינות לסופי שבוע' },
+  { key: 'start_date', label: 'מתי אפשר להתחיל' },
+  { key: 'city', label: 'עיר מגורים' },
+];
+
 // Per-tenant recruitment criteria — the AI recruiter screens + scores candidates
 // by THESE instead of the hardcoded defaults. Structured fields for the common
 // knobs + a free-text box for anything else / scoring priorities.
@@ -89,12 +101,19 @@ function RecruitmentCriteriaControl({ criteria, onSaved }) {
     min_experience: cr?.min_experience || '',
     location_pref: cr?.location_pref || '',
     extra: cr?.extra || '',
+    skip_questions: Array.isArray(cr?.skip_questions) ? cr.skip_questions : [],
   });
   const [c, setC] = useState(() => norm(criteria));
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
   useEffect(() => { setC(norm(criteria)); }, [criteria]);
   const set = (k, v) => setC((p) => ({ ...p, [k]: v }));
+  // ON = asks (remove from skip list) · OFF = skips (add to skip list)
+  const toggleQuestion = (key, asks) => setC((p) => {
+    const skip = new Set(p.skip_questions || []);
+    if (asks) skip.delete(key); else skip.add(key);
+    return { ...p, skip_questions: Array.from(skip) };
+  });
   const save = async () => {
     setSaving(true);
     try {
@@ -135,6 +154,27 @@ function RecruitmentCriteriaControl({ criteria, onSaved }) {
           <label className="block text-[11px] text-slate-600">קריטריונים נוספים + מה לתעדף בניקוד (חופשי)
             <textarea value={c.extra} onChange={(e) => set('extra', e.target.value)} rows={3} placeholder="כל דרישה נוספת — למשל: העדפה לניסיון בבר, רישיון נהיגה, זמינות למשמרות בוקר, תעדף דוברי שפות…" className="mt-0.5 w-full text-sm border border-slate-300 rounded-lg py-1.5 px-2" />
           </label>
+
+          {/* Which screening questions the agent asks — skip the irrelevant ones */}
+          <div className="pt-2.5 border-t border-indigo-100">
+            <p className="text-[11px] font-semibold text-slate-700">❓ שאלות שהסוכן שואל</p>
+            <p className="text-[10px] text-slate-500 mb-2">כבה שאלות שלא רלוונטיות לעסק (למשל בעסק עם תפקיד אחד — כבה 'התפקיד המבוקש').</p>
+            <div className="space-y-1.5">
+              {SKIPPABLE_QUESTIONS.map((q) => {
+                const asks = !(c.skip_questions || []).includes(q.key);
+                return (
+                  <label key={q.key} className="flex items-center justify-between gap-2 text-[11px] text-slate-600 bg-white rounded-lg border border-slate-200 px-2.5 py-1.5 cursor-pointer">
+                    <span className="font-semibold">{q.label}</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className={`font-bold ${asks ? 'text-emerald-600' : 'text-slate-400'}`}>{asks ? 'שואל' : 'מדלג'}</span>
+                      <input type="checkbox" checked={asks} onChange={(e) => toggleQuestion(q.key, e.target.checked)} className="w-4 h-4" style={{ accentColor: 'var(--brand-primary, #A04A2E)' }} />
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
           <button onClick={save} disabled={saving} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50">
             {saving ? 'שומר…' : '💾 שמור קריטריונים'}
           </button>

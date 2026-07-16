@@ -85,7 +85,7 @@ const RECRUITMENT_SYSTEM_PROMPT_TEMPLATE = `אתה מנהל הגיוס הדיג�
 
 חוקי סינון (לאכוף בקפדנות):
 - אם הגיל מתחת ל-{min_age}: השב "תודה על הפנייה! כרגע המיונים הם לגילאי {min_age} ומעלה. נשמור את פרטיך לעתיד 🙏" וסיים (complete=true, rejected=true, rejection_reason="גיל מתחת ל-{min_age}").
-{weekend_rule}{extra_criteria}
+{weekend_rule}{extra_criteria}{skip_directive}
 
 בסיום איסוף כל 8 הפרטים (כשהוא לא נדחה):
 - חשב ציון התאמה 0-100 לפי: {scoring_factors}.
@@ -650,12 +650,23 @@ registerFn('chatJobApplication', async ({ body }) => {
   if (String(crit.extra || '').trim()) extraParts.push(String(crit.extra).trim());
   const extraCriteria = extraParts.length ? `\nקריטריונים ספציפיים של העסק (גוברים על ברירת המחדל, אכוף אותם):\n${extraParts.join('\n')}\n` : '';
 
+  // Per-business skipped questions (e.g. a single-role juice bar skips 'role').
+  const skipQuestions: string[] = Array.isArray(crit.skip_questions) ? crit.skip_questions.map(String) : [];
+  const SKIP_LABELS: Record<string, string> = {
+    role: 'התפקיד המבוקש', experience: 'ניסיון קודם', shifts: 'מספר משמרות בשבוע',
+    weekend: 'זמינות לסופי שבוע', start_date: 'מתי אפשר להתחיל', city: 'עיר מגורים',
+  };
+  const skipDirective = skipQuestions.length
+    ? `\n⚠️ חשוב: בעסק הזה אין צורך לשאול על: ${skipQuestions.map((k) => SKIP_LABELS[k]).filter(Boolean).join(', ')}. דלג על השאלות האלה לחלוטין — אל תשאל אותן, אל תזכיר אותן, ואל תחכה לתשובה עליהן.\n`
+    : '';
+
   const RECRUITMENT_SYSTEM_PROMPT = RECRUITMENT_SYSTEM_PROMPT_TEMPLATE
     .replaceAll('{brand}', brandName)
     .replaceAll('{min_age}', String(minAge))
     .replace('{weekend_rule}', weekendRule)
     .replace('{scoring_factors}', scoringFactors)
-    .replace('{extra_criteria}', extraCriteria);
+    .replace('{extra_criteria}', extraCriteria)
+    .replace('{skip_directive}', skipDirective);
   const prompt = `${bpBlock}${RECRUITMENT_SYSTEM_PROMPT}${kashrutClause}${langDirective}\n\n--- שיחה עד כה ---\n${transcript || '(אין עדיין הודעות — זו תחילת השיחה)'}${newPart}\n\nהחזר את התגובה הבאה כ-JSON בלבד.`;
 
   const result: any = await invokeLLM({
@@ -858,6 +869,19 @@ registerFn('chatJobApplication', async ({ body }) => {
       notes: extracted.notes || c.notes || null,
     };
 
+    // Deterministic age capture — the extraction LLM sometimes returns null for
+    // a bare numeric answer ("17"), which made the missing-field guard re-ask
+    // "ומה הגיל?" forever. If age is still missing, take a plausible bare number
+    // from the latest message, then fall back to any previously-saved value.
+    if (d.age == null) {
+      const m = /^\s*(\d{2})\s*$/.exec(String(message || ''));
+      if (m) { const n = parseInt(m[1], 10); if (n >= 14 && n <= 99) d.age = n; }
+      if (d.age == null && existingPartial?.age != null) d.age = existingPartial.age;
+    }
+    // Businesses that skip the 'role' question have a single de-facto role —
+    // default it so downstream scoring/kashrut logic still works.
+    if (!d.role_applied && skipQuestions.includes('role')) d.role_applied = 'כללי';
+
     // Score fallback: if LLM forgot to return a score on a non-rejected
     // complete chat, compute a simple heuristic so the candidate doesn't get
     // stuck in pending+null limbo (which masquerades as "abandoned" + blocks
@@ -893,16 +917,18 @@ registerFn('chatJobApplication', async ({ body }) => {
         typeof extracted.weekend_availability === 'boolean' ||
         typeof c.weekend_availability === 'boolean' ||
         (typeof c.weekend_availability === 'string' && c.weekend_availability.trim() !== '');
-      const missingPrompts: Array<[boolean, string]> = [
+      // Third tuple element = the skip-key; when that question is disabled for
+      // the business, the field never blocks completion.
+      const missingPrompts: Array<[boolean, string, string?]> = [
         [!d.full_name || d.full_name === 'מועמד', 'רק שאוודא — מה השם המלא שלך?'],
         [d.age == null, 'ומה הגיל שלך?'],
         [!d.phone, 'מה מספר הטלפון שלך? (חשוב לצורך יצירת קשר)'],
-        [!d.role_applied, 'לאיזה תפקיד את/ה פונה? (מלצרות / מטבח / בר / מארחת / אחמש)'],
-        [!d.experience, 'ספר/י בקצרה על ניסיון קודם במסעדות — איפה עבדת וכמה זמן.'],
-        [d.shifts_per_week == null, 'כמה משמרות בשבוע את/ה יכול/ה לעבוד? (מספר בין 1 ל-7)'],
-        [!hasWeekendAnswer, 'האם את/ה זמין/ה לעבוד בסופי שבוע — חמישי בערב ומוצ"ש?'],
+        [!d.role_applied, 'לאיזה תפקיד את/ה פונה? (מלצרות / מטבח / בר / מארחת / אחמש)', 'role'],
+        [!d.experience, 'ספר/י בקצרה על ניסיון קודם במסעדות — איפה עבדת וכמה זמן.', 'experience'],
+        [d.shifts_per_week == null, 'כמה משמרות בשבוע את/ה יכול/ה לעבוד? (מספר בין 1 ל-7)', 'shifts'],
+        [!hasWeekendAnswer, 'האם את/ה זמין/ה לעבוד בסופי שבוע — חמישי בערב ומוצ"ש?', 'weekend'],
       ];
-      const nextMissing = missingPrompts.find(([isMissing]) => isMissing);
+      const nextMissing = missingPrompts.find(([isMissing, , skipKey]) => isMissing && !(skipKey && skipQuestions.includes(skipKey)));
       if (nextMissing) {
         return {
           reply: `כמעט סיימנו — חסר לי עוד פרט אחד 🌿\n${nextMissing[1]}`,
@@ -1017,7 +1043,11 @@ registerFn('getAvailableInterviewSlots', async ({ body }) => {
   if (!candidate_id) throw new Error('candidate_id required');
   const cand = await db.jobCandidate.findUnique({ where: { id: candidate_id } });
   if (!cand) throw new Error('candidate_not_found');
-  if ((cand.score ?? 0) < 80) return { slots: [], reason: 'below_threshold' };
+  // Use the tenant's configured min score (recruitment_min_score) instead of a
+  // hardcoded 80, so a business can auto-book more candidates for interviews.
+  const rp: any = await db.restaurantProfile.findFirst({ select: { recruitment_min_score: true } }).catch(() => null);
+  const minScore = Number.isFinite(Number(rp?.recruitment_min_score)) ? Number(rp.recruitment_min_score) : 80;
+  if ((cand.score ?? 0) < minScore) return { slots: [], reason: 'below_threshold', min_score: minScore, your_score: cand.score ?? 0 };
   if (cand.status === 'rejected') return { slots: [], reason: 'rejected' };
 
   const templates = await db.interviewSlotTemplate.findMany({ where: { active: true } });
@@ -1488,12 +1518,17 @@ registerFn('updateRecruitmentMinScore', async ({ body }) => {
 registerFn('updateRecruitmentCriteria', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   const c = ((body || {}).criteria || {}) as any;
+  const VALID_SKIP = ['role', 'experience', 'shifts', 'weekend', 'start_date', 'city'];
   const clean = {
     min_age: Number.isFinite(Number(c.min_age)) && Number(c.min_age) > 0 ? Math.min(80, Math.round(Number(c.min_age))) : 17,
     weekend_required: c.weekend_required !== false,
     min_experience: String(c.min_experience || '').slice(0, 300),
     location_pref: String(c.location_pref || '').slice(0, 120),
     extra: String(c.extra || '').slice(0, 1500),
+    // Questions this business does NOT need the recruiter to ask (e.g. a single-
+    // role juice bar skips 'role'). Skipped fields are never asked and never
+    // block completion.
+    skip_questions: Array.isArray(c.skip_questions) ? [...new Set(c.skip_questions.map(String).filter((k: string) => VALID_SKIP.includes(k)))] : [],
   };
   const profile = await db.restaurantProfile.findFirst();
   if (!profile) throw new Error('no_profile');
