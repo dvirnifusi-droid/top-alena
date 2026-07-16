@@ -2286,6 +2286,45 @@ type=${exec.type || '?'} · נשלח לפני ${Math.round((Date.now() - new Dat
 אם ההודעה הבאה היא תיקון לפרטים שלמעלה — השתמש ב-modify_pending_proposal.`;
 }
 
+// TEMP diagnostic — replicates the agent's first-turn request and returns the
+// raw Gemini outcome so the empty-reply bug can be pinpointed over HTTPS.
+export async function debugAgentFirstTurn(phone: string, userMessage: string): Promise<any> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { error: 'no_key' };
+  const history = await loadHistory(phone);
+  const contents: any[] = [];
+  for (const t of history) contents.push({ role: t.role, parts: [{ text: t.text }] });
+  contents.push({ role: 'user', parts: [{ text: userMessage }] });
+  let systemPrompt = '';
+  try { systemPrompt = await buildSystemPrompt(phone); } catch (e: any) { return { error: 'buildSystemPrompt: ' + (e?.message || e) }; }
+  const body: any = {
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    contents,
+    tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+    generationConfig: { maxOutputTokens: 4000, temperature: 0.3 },
+  };
+  const res = await fetch(`${GEMINI_BASE}/models/${MODEL}:generateContent?key=${apiKey}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const data: any = await res.json().catch(() => ({}));
+  const cand = data?.candidates?.[0];
+  const parts: any[] = cand?.content?.parts || [];
+  return {
+    httpStatus: res.status,
+    finishReason: cand?.finishReason,
+    blockReason: data?.promptFeedback?.blockReason,
+    partsCount: parts.length,
+    fnCall: (parts.find((p: any) => p.functionCall) || {}).functionCall?.name || null,
+    text: parts.map((p: any) => p.text || '').join('').slice(0, 120) || null,
+    contentsRoles: contents.map((c: any) => c.role).join(','),
+    contentsCount: contents.length,
+    toolsN: TOOL_DECLARATIONS.length,
+    systemPromptLen: systemPrompt.length,
+    model: MODEL,
+    rawWhenEmpty: parts.length ? undefined : JSON.stringify(data).slice(0, 500),
+  };
+}
+
 export async function runConversationAgent(phone: string, userMessage: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return '⚠️ עוזר ה-AI לא מוגדר (GEMINI_API_KEY חסר).';

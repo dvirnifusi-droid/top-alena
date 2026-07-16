@@ -8987,6 +8987,21 @@ registerFn('eventsDiagnostics', async ({ body }) => {
 }, { public: true });
 
 // Public Pushover test fire — proves the pipe end-to-end without auth.
+// TEMP diagnostic for the WhatsApp agent empty-reply bug — call over HTTPS.
+registerFn('debugAgent', async ({ body }: any) => {
+  const phone = String((body as any)?.phone || '').trim();
+  const message = String((body as any)?.message || 'מה הסידור היום');
+  const norm = (p: any) => String(p || '').replace(/\D/g, '').replace(/^0/, '972');
+  const envAdmins = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map(norm).filter(Boolean);
+  let allowed = envAdmins.includes(norm(phone));
+  if (!allowed) {
+    try { const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js'); allowed = (await reportRecipientPhones()).map(norm).includes(norm(phone)); } catch { /* deny */ }
+  }
+  if (!allowed) throw new Error('phone not an admin/recipient of this tenant');
+  const { debugAgentFirstTurn } = await import('../lib/whatsappConversation.js');
+  return await debugAgentFirstTurn(phone, message);
+}, { public: true });
+
 registerFn('firePushoverTest', async () => {
   const result = await pushoverEventsOwners(
     '🔔 בדיקה ידנית של Pushover',
