@@ -6673,7 +6673,9 @@ registerFn('analyzeEmployeeChurn', async ({ user }: any) => {
   const q = async (sql: string): Promise<any[]> => { try { return await db.$queryRawUnsafe(sql); } catch { return []; } };
   const [employees, tracking, workShifts, tipReports, avail, swaps, leaves, coins, shouts, trainings, checklistRuns] = await Promise.all([
     q(`SELECT id, full_name, role, department, hire_date, status FROM "Employee" WHERE status='active'`),
-    q(`SELECT employee_id, employee_name, clock_in_time, clock_out_time FROM "ShiftTracking" WHERE clock_in_time > NOW() - INTERVAL '56 days'`),
+    q(`SELECT employee_id, employee_name, shift_start, shift_end, total_hours, effective_hours,
+              atmosphere_rating, sales_feeling_rating, effort_rating, personal_notes
+       FROM "ShiftTracking" WHERE shift_start > NOW() - INTERVAL '56 days'`),
     q(`SELECT date, start_time, assigned_staff FROM "WorkShift" WHERE date > NOW() - INTERVAL '56 days' AND date <= NOW()`),
     q(`SELECT date, staff_details FROM "TipReport" WHERE date > NOW() - INTERVAL '56 days'`),
     q(`SELECT employee_id, employee_name, availability_type, "createdAt" FROM "EmployeeAvailability" WHERE "createdAt" > NOW() - INTERVAL '56 days'`),
@@ -6704,9 +6706,15 @@ registerFn('analyzeEmployeeChurn', async ({ user }: any) => {
     s.tenure_days = emp.hire_date ? Math.floor((now - new Date(emp.hire_date).getTime()) / DAY) : null;
 
     const myTrack = tracking.filter((t: any) => matches(emp, t.employee_id, t.employee_name));
-    const hrs = (rows: any[]) => rows.reduce((sum, t) => { const a = new Date(t.clock_in_time).getTime(); const b = t.clock_out_time ? new Date(t.clock_out_time).getTime() : a; return sum + Math.max(0, (b - a) / 3_600_000); }, 0);
-    const trRecent = myTrack.filter((t: any) => isRecent(t.clock_in_time));
-    const trPrev = myTrack.filter((t: any) => isPrev(t.clock_in_time));
+    const hrs = (rows: any[]) => rows.reduce((sum, t) => {
+      const pre = Number(t.effective_hours ?? t.total_hours ?? 0);
+      if (pre > 0) return sum + pre;
+      const a = new Date(t.shift_start).getTime();
+      const b = t.shift_end ? new Date(t.shift_end).getTime() : a;
+      return sum + Math.max(0, (b - a) / 3_600_000);
+    }, 0);
+    const trRecent = myTrack.filter((t: any) => isRecent(t.shift_start));
+    const trPrev = myTrack.filter((t: any) => isPrev(t.shift_start));
     s.shifts_recent = trRecent.length; s.shifts_prev = trPrev.length; s.shifts_trend_pct = trend(trRecent.length, trPrev.length);
     s.hours_recent = Math.round(hrs(trRecent)); s.hours_prev = Math.round(hrs(trPrev)); s.hours_trend_pct = trend(s.hours_recent, s.hours_prev);
 
@@ -6718,15 +6726,30 @@ registerFn('analyzeEmployeeChurn', async ({ user }: any) => {
       if (!mine) continue;
       scheduled++;
       const dayStr = String(ws.date).slice(0, 10);
-      const clocked = myTrack.find((t: any) => String(t.clock_in_time).slice(0, 10) === dayStr);
+      const clocked = myTrack.find((t: any) => String(t.shift_start).slice(0, 10) === dayStr);
       if (!clocked) { absences++; continue; }
       if (ws.start_time && /^\d{2}:\d{2}/.test(String(ws.start_time))) {
         const [hh, mm] = String(ws.start_time).slice(0, 5).split(':').map(Number);
-        const sched = new Date(clocked.clock_in_time); sched.setHours(hh, mm, 0, 0);
-        if (new Date(clocked.clock_in_time).getTime() - sched.getTime() > 20 * 60_000) late++;
+        const sched = new Date(clocked.shift_start); sched.setHours(hh, mm, 0, 0);
+        if (new Date(clocked.shift_start).getTime() - sched.getTime() > 20 * 60_000) late++;
       }
     }
     s.scheduled_shifts = scheduled; s.absences = absences; s.late_count = late;
+
+    // the employee's OWN end-of-shift feedback (atmosphere/sales/effort 1-5 +
+    // personal notes) — the most direct satisfaction signal we have
+    const selfAvg = (rows: any[]) => {
+      const vals: number[] = [];
+      for (const t of rows) for (const f of ['atmosphere_rating', 'sales_feeling_rating', 'effort_rating']) {
+        const v = Number((t as any)[f]); if (v > 0) vals.push(v);
+      }
+      return vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : null;
+    };
+    s.self_feedback_recent = selfAvg(trRecent);
+    s.self_feedback_prev = selfAvg(trPrev);
+    s.recent_personal_notes = trRecent
+      .map((t: any) => String(t.personal_notes || '').trim()).filter(Boolean)
+      .slice(0, 3).map((n: string) => n.slice(0, 120));
 
     // tips per hour trend from TipReport.staff_details (defensive JSON walk)
     const tipRows: Array<{ when: any; tip: number; hours: number }> = [];
@@ -6786,6 +6809,8 @@ registerFn('analyzeEmployeeChurn', async ({ user }: any) => {
     if (s.swap_out_recent >= 2) { score += 12; flags.push(`${s.swap_out_recent} בקשות החלפה/העברת משמרת בחודש האחרון`); }
     if (s.absences >= 2) { score += 12; flags.push(`${s.absences} משמרות משובצות ללא החתמה`); }
     if (s.scheduled_shifts >= 4 && s.late_count / Math.max(1, s.scheduled_shifts - s.absences) >= 0.3) { score += 8; flags.push(`איחורים ב-${s.late_count} משמרות`); }
+    if (s.self_feedback_prev != null && s.self_feedback_recent != null && s.self_feedback_recent <= s.self_feedback_prev - 0.8) { score += 15; flags.push(`ירידה במשוב האישי בסוף משמרת (${s.self_feedback_prev}→${s.self_feedback_recent} מתוך 5)`); }
+    if (s.self_feedback_recent != null && s.self_feedback_recent <= 2.5) { score += 10; flags.push(`משוב אישי נמוך בסוף משמרות (${s.self_feedback_recent}/5)`); }
     if (s.coins_prev >= 20 && s.coins_trend_pct <= -50) { score += 6; flags.push(`ירידה חדה במעורבות (מטבעות: ${s.coins_prev}→${s.coins_recent})`); }
     if (s.sick_recent >= 2) { score += 7; flags.push(`${s.sick_recent} דיווחי מחלה בחודש האחרון`); }
     if (s.tenure_days != null && s.tenure_days < 60) { score += 5; flags.push(`עובד/ת חדש/ה (${s.tenure_days} ימי ותק) — תקופת נטישה שכיחה`); }
