@@ -2304,10 +2304,31 @@ const TOOL_GROUPS: Record<string, string[]> = {
   invoices: ['get_unpaid_invoices', 'search_invoice', 'propose_invoice_mark_paid'],
 };
 // When the intent is unclear, a modest common set (still far smaller than 54).
-const GENERAL_TOOLS = ['get_today_revenue', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'list_order_needs', 'list_incidents', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee', 'list_open_leads'];
+const GENERAL_TOOLS = ['get_today_revenue', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'propose_create_reservation', 'list_order_needs', 'list_incidents', 'propose_open_incident', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee'];
 const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_mark_sick'];
 
+// Deterministic keyword routing — covers the vast majority of phrasings without
+// an LLM call. Order matters: more specific intents first. The LLM classifier is
+// only a fallback for wording the keywords miss.
+const INTENT_KEYWORDS: Array<[string, RegExp]> = [
+  ['reservations', /יש מקום|מקום פנוי|(תזמין|להזמין|תרשום|תכניס).{0,12}(שולחן|מקום|הזמנה)|שולחן ל|סועדים|לשבת|רזרב|בטל.{0,10}הזמנה/],
+  ['orders', /ירקן|ספק|מה חסר|מה צריך להזמין|צריך להזמין|מלאי|הזמנתי מ|סמן שהזמנתי|מהבשר|מהאלכוהול/],
+  ['incidents', /תקלה|תקלות|התקלקל|נשבר|לא עובד|לא עובדת|מה פתוח|אירוע חריג|קלקול|דליפה|סגור.{0,10}תקלה/],
+  ['invoices', /חשבונית|חשבוניות|חשבונית ספק/],
+  ['events', /אירוע פרטי|ליד|לידים|הצעת מחיר|אשר.{0,10}אירוע|חתונה|מסיבה|אירוע של/],
+  ['schedule', /סידור|משמר|זמינות|שבץ|שיבוץ|מי עובד|פרסם.{0,10}סידור|מחלה|חולה|תוריד.{0,12}(מ|ממשמרת)|לו"?ז|עובד חדש|הזמן עובד/],
+  ['finance', /מכר|כמה מכרנו|כמה כסף|הכנס|מזומן|קופ|טיפ|הוצא|שילמתי|מחיר|עלות|פוד.?קוסט|רווח|מה המצב/],
+  ['tasks', /משימה|משימות|תזכורת|תזכיר|יומן|פגיש|תזכור|לעשות/],
+];
+function keywordIntent(message: string): string | null {
+  const m = String(message || '');
+  for (const [cat, re] of INTENT_KEYWORDS) if (re.test(m)) return cat;
+  return null;
+}
+
 async function classifyIntent(message: string): Promise<string> {
+  const kw = keywordIntent(message);
+  if (kw) return kw;
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return 'general';
   const prompt =
