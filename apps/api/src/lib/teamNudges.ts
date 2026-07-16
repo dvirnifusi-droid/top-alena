@@ -27,16 +27,16 @@ const APP_BASE = () =>
 // ── config ──────────────────────────────────────────────────────────────────
 export type NudgeConfig = {
   enabled: boolean;
-  availability: { days: number[]; hour: number };            // IL weekday (0=Sun) + hour to remind non-submitters
-  clockin: { delay_min: number };                            // minutes after shift start before nudging
-  checklist: { morning_hour: number; evening_hour: number }; // completion checkpoints
+  availability: { enabled: boolean; days: number[]; hour: number }; // IL weekday (0=Sun) + hour to remind non-submitters
+  clockin: { enabled: boolean; delay_min: number };                 // minutes after shift start before nudging
+  checklist: { enabled: boolean; morning_hour: number; evening_hour: number }; // completion checkpoints
 };
 
 const DEFAULTS: NudgeConfig = {
   enabled: (process.env.TENANT_SLUG || 'alena') === 'alena',
-  availability: { days: [3, 4], hour: 10 }, // Wed + Thu 10:00
-  clockin: { delay_min: 35 },
-  checklist: { morning_hour: 11, evening_hour: 19 },
+  availability: { enabled: true, days: [3, 4], hour: 10 }, // Wed + Thu 10:00
+  clockin: { enabled: true, delay_min: 35 },
+  checklist: { enabled: true, morning_hour: 11, evening_hour: 19 },
 };
 
 export async function getNudgeConfig(): Promise<NudgeConfig> {
@@ -120,6 +120,7 @@ const staffMatches = (emp: any, a: any) =>
 
 // ── nudge 1: availability not submitted ────────────────────────────────────
 async function checkAvailability(cfg: NudgeConfig) {
+  if (cfg.availability.enabled === false) return;
   const now = ilParts();
   if (!cfg.availability.days.includes(now.day) || now.hour !== cfg.availability.hour) return;
 
@@ -162,6 +163,7 @@ async function checkAvailability(cfg: NudgeConfig) {
 
 // ── nudge 2: scheduled but not clocked in ──────────────────────────────────
 async function checkClockIn(cfg: NudgeConfig) {
+  if (cfg.clockin.enabled === false) return;
   const now = ilParts();
   const nowMin = now.hour * 60 + now.minute;
   const shifts: any[] = await db.$queryRawUnsafe(
@@ -208,6 +210,7 @@ async function checkClockIn(cfg: NudgeConfig) {
 
 // ── nudge 3: shift checklist incomplete at checkpoint ──────────────────────
 async function checkChecklists(cfg: NudgeConfig) {
+  if (cfg.checklist.enabled === false) return;
   const now = ilParts();
   let slot: 'morning' | 'evening' | null = null;
   if (now.hour === cfg.checklist.morning_hour) slot = 'morning';

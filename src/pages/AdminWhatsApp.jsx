@@ -293,6 +293,110 @@ function TwilioCredsSection() {
     );
 }
 
+// Team nudges — the "always-awake ops manager": per-tenant on/off + per-nudge
+// toggles and times. Backed by RestaurantProfile.team_nudges via
+// get/setTeamNudgesConfig; runTeamNudgesNow fires an immediate check.
+function TeamNudgesSection() {
+    const [cfg, setCfg] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [running, setRunning] = useState(false);
+    const [result, setResult] = useState(null);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await base44.functions.getTeamNudgesConfig({});
+                setCfg((res?.data ?? res)?.config || null);
+            } catch (e) { setResult({ err: e?.message || String(e) }); }
+            setLoading(false);
+        })();
+    }, []);
+
+    const save = async (next) => {
+        setSaving(true); setResult(null);
+        try {
+            const res = await base44.functions.setTeamNudgesConfig({ config: next });
+            if ((res?.data ?? res)?.ok) setResult({ ok: 'נשמר ✓' });
+            else setResult({ err: 'שמירה נכשלה' });
+        } catch (e) { setResult({ err: e?.message || String(e) }); }
+        setSaving(false);
+    };
+
+    const set = (patch) => setCfg(prev => ({ ...prev, ...patch }));
+    const setSub = (key, patch) => setCfg(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+
+    const runNow = async () => {
+        setRunning(true); setResult(null);
+        try {
+            await base44.functions.runTeamNudgesNow({});
+            setResult({ ok: 'הבדיקה רצה — אם היה מה לשלוח, ההודעות בדרך (וסיכום אליך)' });
+        } catch (e) { setResult({ err: e?.message || String(e) }); }
+        setRunning(false);
+    };
+
+    const numInput = (val, onCh, w = 'w-16') => (
+        <input type="number" value={val} onChange={e => onCh(Number(e.target.value))}
+            className={`${w} border rounded-lg px-2 py-1 text-sm text-center`} />
+    );
+
+    if (loading) return <Card className="mb-4" dir="rtl"><CardContent className="p-4 text-sm text-gray-500">טוען מנהל אוטומטי...</CardContent></Card>;
+    if (!cfg) return null;
+
+    return (
+        <Card className="mb-4" dir="rtl">
+            <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                        🤖 מנהל אוטומטי — תזכורות אישיות לצוות
+                    </h3>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" checked={!!cfg.enabled} onChange={e => set({ enabled: e.target.checked })} className="w-5 h-5 accent-emerald-600" />
+                        <span className={`font-bold text-sm ${cfg.enabled ? 'text-emerald-700' : 'text-gray-400'}`}>{cfg.enabled ? 'פעיל' : 'כבוי'}</span>
+                    </label>
+                </div>
+                <p className="text-xs text-gray-500">כל תזכורת נשלחת אישית בוואטסאפ (+התראת אפליקציה) בדיוק למי שצריך, פעם אחת — והבעלים מקבל סיכום.</p>
+
+                <div className={`space-y-2 ${cfg.enabled ? '' : 'opacity-40 pointer-events-none'}`}>
+                    <div className="flex items-center gap-2 flex-wrap bg-gray-50 rounded-lg p-2 text-sm">
+                        <input type="checkbox" checked={cfg.availability?.enabled !== false} onChange={e => setSub('availability', { enabled: e.target.checked })} className="w-4 h-4 accent-emerald-600" />
+                        <span className="font-semibold">⏰ לא הגיש זמינות</span>
+                        <span className="text-gray-500">— רביעי+חמישי בשעה</span>
+                        {numInput(cfg.availability?.hour ?? 10, v => setSub('availability', { hour: v }))}
+                        <span className="text-gray-500">:00</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap bg-gray-50 rounded-lg p-2 text-sm">
+                        <input type="checkbox" checked={cfg.clockin?.enabled !== false} onChange={e => setSub('clockin', { enabled: e.target.checked })} className="w-4 h-4 accent-emerald-600" />
+                        <span className="font-semibold">🕐 שובץ ולא החתים כניסה</span>
+                        <span className="text-gray-500">— אחרי</span>
+                        {numInput(cfg.clockin?.delay_min ?? 35, v => setSub('clockin', { delay_min: v }))}
+                        <span className="text-gray-500">דקות מתחילת המשמרת</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap bg-gray-50 rounded-lg p-2 text-sm">
+                        <input type="checkbox" checked={cfg.checklist?.enabled !== false} onChange={e => setSub('checklist', { enabled: e.target.checked })} className="w-4 h-4 accent-emerald-600" />
+                        <span className="font-semibold">📋 צ'קליסט לא הושלם</span>
+                        <span className="text-gray-500">— בדיקה בבוקר בשעה</span>
+                        {numInput(cfg.checklist?.morning_hour ?? 11, v => setSub('checklist', { morning_hour: v }))}
+                        <span className="text-gray-500">ובערב בשעה</span>
+                        {numInput(cfg.checklist?.evening_hour ?? 19, v => setSub('checklist', { evening_hour: v }))}
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                    <Button onClick={() => save(cfg)} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : null} שמור
+                    </Button>
+                    <Button variant="outline" onClick={runNow} disabled={running || !cfg.enabled}>
+                        {running ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : null} הרץ בדיקה עכשיו
+                    </Button>
+                    {result?.ok && <span className="text-emerald-700 text-sm font-semibold">{result.ok}</span>}
+                    {result?.err && <span className="text-red-600 text-sm">{result.err}</span>}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 // Owner + report-recipient registry. Everyone listed here receives every
 // report/alert (hours, morning, end-of-day, incidents, tips...). co_owner may
 // also command the bot; receive_only just reads. registry_owner + env_admins
@@ -434,6 +538,7 @@ export default function AdminWhatsApp() {
             <TestSendSection />
             <BroadcastSection />
             <ReportRecipientsSection />
+            <TeamNudgesSection />
 
             <Card className="mt-6 bg-gray-50">
                 <CardContent className="p-4 text-xs text-gray-600 space-y-2">
