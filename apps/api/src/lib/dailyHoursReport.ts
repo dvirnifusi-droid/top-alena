@@ -16,13 +16,10 @@ import { prisma } from '../db.js';
 import { sendWhatsApp } from './twilio.js';
 import { pushoverToAdmins } from './pushover.js';
 import { sendEmail } from './email.js';
+import { reportRecipientPhones } from './whatsappPermissions.js';
 
 const db = prisma as any;
 const TZ = 'Asia/Jerusalem';
-
-function adminPhones(): string[] {
-  return (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map(s => s.trim()).filter(Boolean);
-}
 
 // Israel wall-clock date/time parts for a given instant.
 function ilParts(d: Date = new Date()) {
@@ -236,8 +233,10 @@ export async function sendDailyHoursReport(opts: { force?: boolean } = {}): Prom
 
   const report = await buildDailyHoursReport(since, now);
 
-  // WhatsApp → all admin numbers.
-  const phones = adminPhones();
+  // WhatsApp → this tenant's own owner (env admins only on the alena platform
+  // tenant). Prevents every tenant container from sending its report to the
+  // shared admin number.
+  const phones = await reportRecipientPhones();
   let waSent = 0;
   for (const p of phones) {
     try { await sendWhatsApp(p, report.text); waSent++; }
@@ -278,7 +277,7 @@ export async function sendDailyHoursReport(opts: { force?: boolean } = {}): Prom
 // TZ-safe scheduler tick — call every ~5 min. Fires once per slot (12h throttle).
 export async function checkDailyHoursReportSchedule(): Promise<void> {
   try {
-    if (!adminPhones().length) return; // scope to deployments with admins configured (Alena)
+    if (!(await reportRecipientPhones()).length) return; // no owner for this tenant → don't send
     const now = new Date();
     const { dow, minutes } = ilParts(now);
     const slot = SLOTS[dow];

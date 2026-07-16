@@ -8,14 +8,10 @@
 // for proactive out-of-session sends are a separate (Meta-approved) flow.
 
 import { sendWhatsApp } from './twilio.js';
-
-function adminPhones(): string[] {
-  const raw = process.env.WHATSAPP_ADMIN_NUMBERS || '';
-  return raw.split(',').map(s => s.trim()).filter(Boolean);
-}
+import { reportRecipientPhones } from './whatsappPermissions.js';
 
 export async function broadcastToAdmins(text: string): Promise<void> {
-  const phones = adminPhones();
+  const phones = await reportRecipientPhones();
   if (!phones.length) return;
   await Promise.all(phones.map(async (p) => {
     try { await sendWhatsApp(p, text); }

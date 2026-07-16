@@ -3,14 +3,11 @@
 // a deterministic SQL pass; we DON'T let the LLM hallucinate numbers.
 import { prisma } from '../db.js';
 import { sendWhatsApp } from './twilio.js';
+import { reportRecipientPhones } from './whatsappPermissions.js';
 
 const TZ = 'Asia/Jerusalem';
 function ymd(d: Date): string { return d.toLocaleDateString('en-CA', { timeZone: TZ }); }
 function addDays(d: Date, n: number): Date { const c = new Date(d); c.setUTCDate(c.getUTCDate() + n); return c; }
-
-function adminPhones(): string[] {
-  return (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map(s => s.trim()).filter(Boolean);
-}
 
 // ─── Insight builders ───────────────────────────────────────────────────────
 
@@ -158,7 +155,7 @@ export async function buildWeeklyInsights(): Promise<string> {
 }
 
 export async function sendWeeklyInsights(): Promise<{ sent: number; failed: number; details: Array<{ phone: string; ok: boolean; error?: string }> }> {
-  const phones = adminPhones();
+  const phones = await reportRecipientPhones();
   if (!phones.length) return { sent: 0, failed: 0, details: [] };
   const text = await buildWeeklyInsights();
   const results: Array<{ phone: string; ok: boolean; error?: string }> = [];

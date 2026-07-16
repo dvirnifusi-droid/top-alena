@@ -7,6 +7,7 @@ import { prisma } from '../db.js';
 import { sendWhatsApp } from './twilio.js';
 import { invokeLLM } from './llm.js';
 import { listTodayEvents, listOpenTasks } from './whatsappCalendar.js';
+import { reportRecipientPhones } from './whatsappPermissions.js';
 
 const ISRAEL_TZ = 'Asia/Jerusalem';
 function israelYMD(d: Date = new Date()): string {
@@ -25,10 +26,6 @@ function israelDayName(ymd: string): string {
   } catch { return ''; }
 }
 
-function adminPhones(): string[] {
-  const raw = process.env.WHATSAPP_ADMIN_NUMBERS || '';
-  return raw.split(',').map(s => s.trim()).filter(Boolean);
-}
 
 // ── Brief sections ──────────────────────────────────────────────────────────
 
@@ -347,8 +344,16 @@ async function eodTomorrowPreview(tomorrow: string): Promise<string> {
 }
 
 export async function buildEndOfDayBrief(forPhone?: string): Promise<string> {
-  const today = israelYMD();
-  const tomorrow = israelYMD(addDays(new Date(), 1));
+  // Day-boundary: the EoD brief fires after the last shift closes, often past
+  // midnight (e.g. 02:00). At 02:00 Thursday it is wrapping up WEDNESDAY's
+  // service, so "today" (the day being summarized) is the previous calendar day
+  // and "tomorrow" (the next service) is the current calendar day. Before ~06:00
+  // Israel we shift both back by one; a pre-midnight run keeps the natural dates.
+  const nowD = new Date();
+  const hourIL = parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: ISRAEL_TZ, hour: '2-digit', hour12: false }).format(nowD), 10);
+  const afterMidnight = hourIL < 6;
+  const today = israelYMD(afterMidnight ? addDays(nowD, -1) : nowD);
+  const tomorrow = israelYMD(afterMidnight ? nowD : addDays(nowD, 1));
   const todayName = israelDayName(today);
   const tomorrowName = israelDayName(tomorrow);
   const [sales, tips, incidents, leads, tomorrowPrev, myEventsTomorrow, myOpenTasks] = await Promise.all([
@@ -376,8 +381,8 @@ export async function buildEndOfDayBrief(forPhone?: string): Promise<string> {
 }
 
 export async function sendEndOfDayBrief(): Promise<{ sent: number; failed: number; details: Array<{ phone: string; ok: boolean; error?: string }> }> {
-  const phones = adminPhones();
-  if (!phones.length) { console.warn('[eod-brief] no admin phones'); return { sent: 0, failed: 0, details: [] }; }
+  const phones = await reportRecipientPhones();
+  if (!phones.length) { console.warn('[eod-brief] no recipient (tenant owner) configured'); return { sent: 0, failed: 0, details: [] }; }
   const results: Array<{ phone: string; ok: boolean; error?: string }> = [];
   for (const phone of phones) {
     try {
@@ -394,9 +399,9 @@ export async function sendEndOfDayBrief(): Promise<{ sent: number; failed: numbe
 // Each admin gets a brief PERSONALIZED with their own events + tasks
 // (so several admins don't all see the same person's calendar).
 export async function sendMorningBrief(): Promise<{ sent: number; failed: number; details: Array<{ phone: string; ok: boolean; error?: string }> }> {
-  const phones = adminPhones();
+  const phones = await reportRecipientPhones();
   if (!phones.length) {
-    console.warn('[morning-brief] no admin phones configured; skipping');
+    console.warn('[morning-brief] no recipient (tenant owner) configured; skipping');
     return { sent: 0, failed: 0, details: [] };
   }
   const results: Array<{ phone: string; ok: boolean; error?: string }> = [];

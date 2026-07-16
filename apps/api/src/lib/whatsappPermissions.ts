@@ -76,24 +76,44 @@ function normalizePhone(p: string): string {
 // each know their TENANT_SLUG). Cached per process (5-min TTL; a container serves
 // exactly one tenant so this is a single row). Lets every tenant recognize ITS
 // OWN owner as is_owner=true without touching the shared WHATSAPP_ADMIN_NUMBERS.
-let _ownerCache: { digits: string | null; at: number; ttl: number } | null = null;
-async function getTenantOwnerDigits(): Promise<string | null> {
+let _ownerCache: { raw: string | null; digits: string | null; at: number; ttl: number } | null = null;
+async function loadTenantOwner(): Promise<{ raw: string | null; digits: string | null }> {
   const slug = String(process.env.TENANT_SLUG || '').trim();
-  if (!slug) return null;
-  if (_ownerCache && Date.now() - _ownerCache.at < _ownerCache.ttl) return _ownerCache.digits;
+  if (!slug) return { raw: null, digits: null };
+  if (_ownerCache && Date.now() - _ownerCache.at < _ownerCache.ttl) return { raw: _ownerCache.raw, digits: _ownerCache.digits };
+  let raw: string | null = null;
   let digits: string | null = null;
   try {
     const rows: any[] = await (prisma as any).$queryRawUnsafe(
       `SELECT owner_phone FROM public."Tenant" WHERE slug = $1 LIMIT 1`, slug,
     );
-    const raw = rows?.[0]?.owner_phone;
-    digits = raw ? normalizePhone(raw) : null;
-  } catch { digits = null; /* registry unreachable — env + Employee paths still apply */ }
+    const val = rows?.[0]?.owner_phone;
+    if (val) { raw = String(val); digits = normalizePhone(val); }
+  } catch { raw = null; digits = null; /* registry unreachable — env + Employee paths still apply */ }
   // Cache a HIT for 5 min; a MISS/failure only 30s, so a cold-start transient
   // (Prisma still warming up right after a redeploy) doesn't leave the owner
   // unrecognized for the whole window — it retries within 30s.
-  _ownerCache = { digits, at: Date.now(), ttl: digits ? 300_000 : 30_000 };
-  return digits;
+  _ownerCache = { raw, digits, at: Date.now(), ttl: digits ? 300_000 : 30_000 };
+  return { raw, digits };
+}
+async function getTenantOwnerDigits(): Promise<string | null> {
+  return (await loadTenantOwner()).digits;
+}
+
+// Recipients for tenant-scoped owner reports (daily-hours, morning/EoD brief,
+// weekly insights, alerts). Sends to the tenant's OWN owner (from the platform
+// registry). Falls back to the shared WHATSAPP_ADMIN_NUMBERS env ONLY on the
+// platform tenant (alena) — a real tenant with no registered owner sends to
+// NOBODY rather than spamming the shared admin across every container (which is
+// what caused the owner to receive one copy of every tenant's report).
+export async function reportRecipientPhones(): Promise<string[]> {
+  const { raw } = await loadTenantOwner();
+  if (raw) return [raw];
+  const slug = String(process.env.TENANT_SLUG || '').trim().toLowerCase();
+  if (!slug || slug === 'alena') {
+    return (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map(s => s.trim()).filter(Boolean);
+  }
+  return [];
 }
 
 export async function resolveAccessScope(rawPhone: string): Promise<AccessScope> {
