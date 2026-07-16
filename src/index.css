@@ -105,3 +105,5 @@ h1, h2, h3,
   font-family: 'Frank Ruhl Libre', Georgia, 'Times New Roman', serif;
   letter-spacing: -0.01em;
 }
+/* deploy cache-bust — forces a new CSS content hash so poisoned SW caches miss */
+:root{--css-build:20260716a;}
