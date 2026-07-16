@@ -2368,57 +2368,6 @@ async function routedToolDeclarations(role: string, message: string): Promise<{ 
   return { decls: TOOL_DECLARATIONS.filter((d: any) => names.has(d.name)), group: cat };
 }
 
-// TEMP diagnostic — replicates the agent's first-turn request and returns the
-// raw Gemini outcome so the empty-reply bug can be pinpointed over HTTPS.
-export async function debugAgentFirstTurn(phone: string, userMessage: string): Promise<any> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return { error: 'no_key' };
-  const history = await loadHistory(phone);
-  const contents: any[] = [];
-  for (const t of history) contents.push({ role: t.role, parts: [{ text: t.text }] });
-  contents.push({ role: 'user', parts: [{ text: userMessage }] });
-  let systemPrompt = '';
-  try { systemPrompt = await buildSystemPrompt(phone); } catch (e: any) { return { error: 'buildSystemPrompt: ' + (e?.message || e) }; }
-  let decls = TOOL_DECLARATIONS;
-  let group = 'all';
-  try {
-    const { resolveAccessScope } = await import('./whatsappPermissions.js');
-    const role = (await resolveAccessScope(phone)).role;
-    const routed = await routedToolDeclarations(role, userMessage);
-    if (routed.decls.length) { decls = routed.decls; group = routed.group; }
-  } catch { /* keep full */ }
-  const body: any = {
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-    contents,
-    tools: [{ functionDeclarations: decls }],
-    generationConfig: { maxOutputTokens: 4000, temperature: 0.3 },
-  };
-  const res = await fetch(`${GEMINI_BASE}/models/${MODEL}:generateContent?key=${apiKey}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-  });
-  const data: any = await res.json().catch(() => ({}));
-  const cand = data?.candidates?.[0];
-  const parts: any[] = cand?.content?.parts || [];
-  return {
-    httpStatus: res.status,
-    finishReason: cand?.finishReason,
-    blockReason: data?.promptFeedback?.blockReason,
-    partsCount: parts.length,
-    fnCall: (parts.find((p: any) => p.functionCall) || {}).functionCall?.name || null,
-    text: parts.map((p: any) => p.text || '').join('').slice(0, 120) || null,
-    contentsRoles: contents.map((c: any) => c.role).join(','),
-    contentsCount: contents.length,
-    routerGroup: group,
-    keywordMatch: keywordIntent(userMessage),
-    msgLen: userMessage.length,
-    msgCodes: Array.from(userMessage).slice(0, 8).map((c) => c.codePointAt(0)).join(','),
-    toolsN: decls.length,
-    systemPromptLen: systemPrompt.length,
-    model: MODEL,
-    rawWhenEmpty: parts.length ? undefined : JSON.stringify(data).slice(0, 500),
-  };
-}
-
 export async function runConversationAgent(phone: string, userMessage: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return '⚠️ עוזר ה-AI לא מוגדר (GEMINI_API_KEY חסר).';
