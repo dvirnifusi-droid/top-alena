@@ -2325,7 +2325,10 @@ async function classifyIntent(message: string): Promise<string> {
   try {
     const res = await fetch(`${GEMINI_BASE}/models/${MODEL}:generateContent?key=${apiKey}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0, maxOutputTokens: 20 } }),
+      // thinkingBudget:0 — 2.5-flash is a thinking model; without this the small
+      // token budget is consumed by thinking and the classifier returns nothing
+      // (→ always "general"). Disable thinking so it answers directly.
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0, maxOutputTokens: 30, thinkingConfig: { thinkingBudget: 0 } } }),
     });
     const data: any = await res.json().catch(() => ({}));
     const raw = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('').toLowerCase();
