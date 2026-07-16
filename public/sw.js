@@ -2,7 +2,7 @@
 // Bump CACHE on any deploy that must purge stale clients — activate deletes
 // every cache whose name !== CACHE, so a version bump force-refreshes assets
 // for every browser (fixes stale bundles cached by an older SW).
-const CACHE = 'topapollo-v5';
+const CACHE = 'topapollo-v6';
 const SHELL = ['/', '/manifest.json', '/icons/icon-192.png?v=3', '/icons/icon-512.png?v=3'];
 
 self.addEventListener('install', (event) => {
@@ -43,8 +43,13 @@ self.addEventListener('fetch', (event) => {
         (hit) =>
           hit ||
           fetch(req).then((res) => {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+            // Only cache successful responses — caching a 404 (e.g. an asset that
+            // was briefly missing mid-deploy) would pin the broken state on the
+            // client forever. Never store a non-OK response.
+            if (res && res.ok) {
+              const copy = res.clone();
+              caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+            }
             return res;
           }),
       ),
