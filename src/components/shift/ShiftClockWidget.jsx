@@ -57,7 +57,20 @@ export default function ShiftClockWidget() {
     const [myDevices, setMyDevices] = useState({ ipad: null, terminal: null });
     const [pendingEndShift, setPendingEndShift] = useState(false);
     const [scheduledEnd, setScheduledEnd] = useState(null); // Date — pulls from WorkShift assignment
+    const [gearConfig, setGearConfig] = useState(null); // GearConfig — when to show gear up/return dialogs
     const timerRef = useRef(null);
+
+    // Does the employee's position match the admin's allow-list?
+    // Empty/missing list = everyone allowed. Case-insensitive substring
+    // match either direction (e.g. "מלצר" matches "מלצר בכיר").
+    const positionAllowed = (allowList, candidatePositions) => {
+        if (!Array.isArray(allowList) || allowList.length === 0) return true;
+        const cands = (candidatePositions || []).map(p => String(p || '').trim().toLowerCase()).filter(Boolean);
+        return allowList.some(a => {
+            const al = String(a || '').trim().toLowerCase();
+            return cands.some(c => c.includes(al) || al.includes(c));
+        });
+    };
 
     // Load the scheduled end time for the current shift assignment, so we can highlight
     // the 'סיום משמרת' button once the time has passed.
@@ -99,6 +112,12 @@ export default function ShiftClockWidget() {
             setUser(u);
             loadActiveShift(u);
         }).catch(() => setLoading(false));
+        // Non-fatal: gear-dialog gating config (per-tenant, admin-managed).
+        // Missing/failed load → default behavior (enabled, kitchen heuristic).
+        base44.functions.getGearConfig().then(res => {
+            const data = res?.data ?? res;
+            if (data) setGearConfig(data);
+        }).catch(() => {});
     }, []);
 
     // Geofence heartbeat — only while a shift is active. Server auto-closes
@@ -301,7 +320,19 @@ export default function ShiftClockWidget() {
                     return empPositions.some(p => KITCHEN_POSITIONS.some(k => p.includes(k.toLowerCase())));
                 } catch { return false; }
             })();
-            if (!isKitchen) setShowGearUp(true);
+            // Config-aware gate (GearConfig) — admin can disable the dialog or
+            // limit it to specific positions. gearConfig may be stale here
+            // (loaded once at mount) — acceptable.
+            const cfg = gearConfig || {};
+            const gearInEnabled = cfg.clock_in_enabled !== false;
+            const inPositions = Array.isArray(cfg.clock_in_positions) ? cfg.clock_in_positions : [];
+            const candidateNames = [
+                assignmentForGearCheck?.position,
+                ...((employeeRecordForGearCheck?.positions || []).map(p => p?.position_name)),
+            ].filter(Boolean);
+            // Explicit position list overrides the kitchen heuristic; empty list keeps it.
+            const showGear = gearInEnabled && (inPositions.length ? positionAllowed(inPositions, candidateNames) : !isKitchen);
+            if (showGear) setShowGearUp(true);
         } catch (err) {
             // If even ShiftTracking.create fails, surface a real error to the user.
             const data = err?.data || {};
@@ -381,6 +412,31 @@ export default function ShiftClockWidget() {
     };
 
     const endShift = async () => {
+        // Config-aware gate (GearConfig) — admin can disable the gear-return
+        // dialog or limit it to specific positions.
+        const cfg = gearConfig || {};
+        const outEnabled = cfg.clock_out_enabled !== false;
+        const outPositions = Array.isArray(cfg.clock_out_positions) ? cfg.clock_out_positions : [];
+        let outAllowed = outEnabled;
+        if (outAllowed && outPositions.length) {
+            // Component may have been remounted mid-shift (refresh), so state
+            // from clock-in isn't reliable — resolve the Employee record fresh
+            // (same pattern as submitEndShift).
+            let candidateNames = [];
+            try {
+                const employeeRecord = await findEmployeeRecord(user);
+                candidateNames = (employeeRecord?.positions || []).map(p => p?.position_name).filter(Boolean);
+            } catch { /* no record resolved → empty candidates → not in allow-list */ }
+            outAllowed = positionAllowed(outPositions, candidateNames);
+        }
+        if (!outAllowed) {
+            // Skip gear return — go straight to the end-shift feedback dialog,
+            // exactly like handleGearReturnDone does.
+            setPendingEndShift(true);
+            setShowGearReturn(false);
+            setShowEndShiftDialog(true);
+            return;
+        }
         // טען ציוד פעיל של העובד לפני פתיחת דיאלוג החזרה
         if (user) await loadMyDevices(user.id);
         setPendingEndShift(true);

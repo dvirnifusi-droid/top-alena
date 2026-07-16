@@ -9040,6 +9040,39 @@ registerFn('saveReportRecipients', async ({ user, body }: any) => {
   return { ok: true, count: clean.length, recipients: clean };
 });
 
+// ─── Gear-Up / Gear-Return dialog config (per tenant + per position) ────────
+// Controls whether the equipment pickup dialog shows at clock-in and the
+// equipment return dialog at clock-out, optionally restricted to specific
+// positions. Missing/partial config falls back to today's behavior (enabled,
+// kitchen excluded by the widget's built-in heuristic).
+registerFn('getGearConfig', async () => {
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT gear_config FROM "RestaurantProfile" LIMIT 1`).catch(() => []);
+  const c: any = rows?.[0]?.gear_config || {};
+  return {
+    clock_in_enabled: c.clock_in_enabled !== false,
+    clock_in_positions: Array.isArray(c.clock_in_positions) ? c.clock_in_positions : [],
+    clock_out_enabled: c.clock_out_enabled !== false,
+    clock_out_positions: Array.isArray(c.clock_out_positions) ? c.clock_out_positions : [],
+    configured: !!rows?.[0]?.gear_config,
+  };
+}, { public: true });
+
+registerFn('saveGearConfig', async ({ user, body }: any) => {
+  if (!['admin', 'owner', 'manager', 'restaurant_manager'].includes(String(user?.role))) throw new Error('forbidden');
+  const b: any = body || {};
+  const cleanPos = (v: any) => Array.isArray(v) ? v.map((p: any) => String(p).trim()).filter(Boolean).slice(0, 50) : [];
+  const clean = {
+    clock_in_enabled: b.clock_in_enabled !== false,
+    clock_in_positions: cleanPos(b.clock_in_positions),
+    clock_out_enabled: b.clock_out_enabled !== false,
+    clock_out_positions: cleanPos(b.clock_out_positions),
+  };
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "RestaurantProfile" LIMIT 1`).catch(() => []);
+  if (!rows?.[0]?.id) throw new Error('לא נמצא פרופיל מסעדה.');
+  await (prisma as any).$executeRawUnsafe(`UPDATE "RestaurantProfile" SET gear_config = $1::jsonb WHERE id = $2`, JSON.stringify(clean), rows[0].id);
+  return { ok: true, gear_config: clean };
+});
+
 // Diagnostic: call this to verify the Pushover pipe is alive. Returns the count of
 // employees with pushover_user_key, whether the env token is present, and how many
 // devices got the test message.
@@ -18153,6 +18186,9 @@ if (!(globalThis as any).__startupDriftRepair) {
       // that drives ALL owner notifications (reports, briefs, alerts, pushover-mirror)
       // and grants co_owner numbers is_owner in resolveAccessScope. Managed from AdminWhatsApp.
       await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "report_recipients" JSONB;`);
+      // gear_config: per-tenant Gear-Up/Return dialog gating
+      // {clock_in_enabled, clock_in_positions[], clock_out_enabled, clock_out_positions[]}
+      await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "gear_config" JSONB;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "EventSalesKit" ADD COLUMN IF NOT EXISTS "intake_config" JSONB;`);
       // Interview.type — manager booking (bookInterviewByManager) writes it to
       // distinguish interview vs menu_exam. Guarantee the column so the insert

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import { Tablet, CreditCard, Plus, Trash2, Wrench, CheckCircle, Clock, Camera, Loader2 } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { format } from 'date-fns';
@@ -21,8 +22,61 @@ export default function DevicesDashboard() {
     const [newDevice, setNewDevice] = useState({ device_type: 'ipad', device_number: '' });
     const [saving, setSaving] = useState(false);
     const [selectedPhoto, setSelectedPhoto] = useState(null);
+    // ⚙️ GearConfig — מתי מוצג דיאלוג ציוד (כניסה/יציאה, לפי תפקידים)
+    const [gearConfig, setGearConfig] = useState(null);
+    const [positions, setPositions] = useState([]);
+    const [gearSaving, setGearSaving] = useState(false);
+    const [gearMessage, setGearMessage] = useState(null); // { type: 'success'|'error', text }
 
     useEffect(() => { loadDevices(); }, []);
+
+    useEffect(() => {
+        base44.functions.getGearConfig().then(res => {
+            const data = res?.data ?? res;
+            if (data) setGearConfig({
+                clock_in_enabled: data.clock_in_enabled !== false,
+                clock_in_positions: Array.isArray(data.clock_in_positions) ? data.clock_in_positions : [],
+                clock_out_enabled: data.clock_out_enabled !== false,
+                clock_out_positions: Array.isArray(data.clock_out_positions) ? data.clock_out_positions : [],
+            });
+        }).catch(() => {});
+        base44.entities.WorkPosition.list().then(all => {
+            setPositions((all || []).filter(p => p.is_active !== false));
+        }).catch(() => {});
+    }, []);
+
+    const toggleGearPosition = (field, name) => {
+        setGearConfig(prev => {
+            const list = prev?.[field] || [];
+            const next = list.includes(name) ? list.filter(n => n !== name) : [...list, name];
+            return { ...prev, [field]: next };
+        });
+        setGearMessage(null);
+    };
+
+    const saveGearSettings = async () => {
+        if (!gearConfig) return;
+        setGearSaving(true);
+        setGearMessage(null);
+        try {
+            const res = await base44.functions.saveGearConfig({
+                clock_in_enabled: gearConfig.clock_in_enabled !== false,
+                clock_in_positions: gearConfig.clock_in_positions || [],
+                clock_out_enabled: gearConfig.clock_out_enabled !== false,
+                clock_out_positions: gearConfig.clock_out_positions || [],
+            });
+            const data = res?.data ?? res;
+            if (data?.ok) {
+                setGearMessage({ type: 'success', text: '✅ ההגדרות נשמרו' });
+            } else {
+                setGearMessage({ type: 'error', text: 'השמירה לא אושרה ע"י השרת' });
+            }
+        } catch (e) {
+            setGearMessage({ type: 'error', text: 'שגיאה בשמירה: ' + (e?.data?.message || e?.message || 'בלתי ידועה') });
+        } finally {
+            setGearSaving(false);
+        }
+    };
 
     const loadDevices = async () => {
         setLoading(true);
@@ -124,6 +178,47 @@ export default function DevicesDashboard() {
                         <Trash2 className="w-3 h-3" />
                     </Button>
                 </div>
+            </div>
+        );
+    };
+
+    const GearBlock = ({ title, subtitle, enabledField, positionsField }) => {
+        const enabled = gearConfig?.[enabledField] !== false;
+        const selected = gearConfig?.[positionsField] || [];
+        // תפקידים פעילים + שמות שנשמרו בהגדרות אך כבר לא קיימים (כדי שאפשר להסירם)
+        const chipNames = [
+            ...positions.map(p => p.position_name),
+            ...selected.filter(n => !positions.some(p => p.position_name === n)),
+        ].filter(Boolean);
+        return (
+            <div className="bg-white border rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                    <div>
+                        <p className="font-bold text-sm text-slate-800">{title}</p>
+                        <p className="text-xs text-slate-500">{subtitle}</p>
+                    </div>
+                    <Switch
+                        checked={enabled}
+                        onCheckedChange={(v) => { setGearConfig(prev => ({ ...prev, [enabledField]: v })); setGearMessage(null); }}
+                    />
+                </div>
+                {enabled && (
+                    chipNames.length === 0 ? (
+                        <p className="text-xs text-slate-400">אין תפקידים מוגדרים במערכת — הדיאלוג יוצג לכולם</p>
+                    ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                            {chipNames.map(name => (
+                                <button
+                                    key={name}
+                                    onClick={() => toggleGearPosition(positionsField, name)}
+                                    className={`px-3 py-1 rounded-full border text-xs font-medium transition-all ${selected.includes(name) ? 'border-[#44512C] bg-[#F4ECD8] text-[#44512C]' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+                                >
+                                    {name}
+                                </button>
+                            ))}
+                        </div>
+                    )
+                )}
             </div>
         );
     };
@@ -230,6 +325,43 @@ export default function DevicesDashboard() {
                     </div>
                 </>
             )}
+
+            {/* ⚙️ הגדרות: מתי מוצג דיאלוג ציוד */}
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base">⚙️ מתי מוצג דיאלוג ציוד</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    {!gearConfig ? (
+                        <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-slate-300" /></div>
+                    ) : (
+                        <>
+                            <GearBlock
+                                title="כניסה למשמרת (Gear Up)"
+                                subtitle="דיאלוג קבלת אייפד/מסופון בכניסה לשעון"
+                                enabledField="clock_in_enabled"
+                                positionsField="clock_in_positions"
+                            />
+                            <GearBlock
+                                title="סיום משמרת (החזרת ציוד)"
+                                subtitle="דיאלוג החזרת ציוד ביציאה מהשעון"
+                                enabledField="clock_out_enabled"
+                                positionsField="clock_out_positions"
+                            />
+                            <p className="text-xs text-slate-500">💡 לא נבחר אף תפקיד = כולם (מטבח מוחרג אוטומטית בכניסה)</p>
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <Button onClick={saveGearSettings} disabled={gearSaving} className="bg-[#44512C] hover:bg-[#44512C] text-white">
+                                    {gearSaving ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <CheckCircle className="w-4 h-4 ml-1" />}
+                                    שמור
+                                </Button>
+                                {gearMessage && (
+                                    <p className={`text-sm font-medium ${gearMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>{gearMessage.text}</p>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </CardContent>
+            </Card>
 
             {/* הוספת מכשיר */}
             <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
