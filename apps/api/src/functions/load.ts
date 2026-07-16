@@ -637,21 +637,30 @@ registerFn('chatJobApplication', async ({ body }) => {
   // to Rishon LeZion) when the owner hasn't set anything.
   const rprofile = await db.restaurantProfile.findFirst().catch(() => null);
   const crit = (rprofile?.recruitment_criteria || {}) as any;
+  // Per-business skipped questions (e.g. a single-role juice bar skips 'role').
+  // A skipped question is never asked, never blocks completion, and — crucially —
+  // must not drag the candidate's score (below).
+  const skipQuestions: string[] = Array.isArray(crit.skip_questions) ? crit.skip_questions.map(String) : [];
   const minAge = Number.isFinite(Number(crit.min_age)) && Number(crit.min_age) > 0 ? Math.round(Number(crit.min_age)) : 17;
-  const weekendRequired = crit.weekend_required !== false; // default: required
+  // Weekend rejection applies only if the business both requires weekends AND still asks about them.
+  const weekendRequired = crit.weekend_required !== false && !skipQuestions.includes('weekend');
   const weekendRule = weekendRequired
     ? `- אם המועמד מציין שלא יכול לעבוד כלל בסופ"ש: השב "תודה על הכנות! עבודה בסופי שבוע (חמישי ערב / מוצש) היא חלק בלתי נפרד מהעבודה אצלנו. לצערי לא נוכל להתקדם הפעם 🙏" וסיים (complete=true, rejected=true, rejection_reason="אין זמינות לסופי שבוע").\n`
     : '';
   const locationPref = String(crit.location_pref || '').trim();
-  const scoringFactors = `ניסיון רלוונטי, זמינות, גיל${locationPref ? `, קרבה ל${locationPref}` : ''}`;
+  // Score only on factors the business actually asks about.
+  const factorParts: string[] = ['התאמה כללית וגיל'];
+  if (!skipQuestions.includes('experience')) factorParts.push('ניסיון רלוונטי');
+  if (!skipQuestions.includes('weekend')) factorParts.push('זמינות לסופי שבוע');
+  if (!skipQuestions.includes('shifts')) factorParts.push('היקף משרה');
+  if (locationPref && !skipQuestions.includes('city')) factorParts.push(`קרבה ל${locationPref}`);
+  const scoringFactors = factorParts.join(', ');
   const extraParts: string[] = [];
   if (String(crit.min_experience || '').trim()) extraParts.push(`- ניסיון נדרש/מועדף: ${String(crit.min_experience).trim()}.`);
   if (locationPref) extraParts.push(`- אזור מועדף: ${locationPref}.`);
   if (String(crit.extra || '').trim()) extraParts.push(String(crit.extra).trim());
   const extraCriteria = extraParts.length ? `\nקריטריונים ספציפיים של העסק (גוברים על ברירת המחדל, אכוף אותם):\n${extraParts.join('\n')}\n` : '';
 
-  // Per-business skipped questions (e.g. a single-role juice bar skips 'role').
-  const skipQuestions: string[] = Array.isArray(crit.skip_questions) ? crit.skip_questions.map(String) : [];
   const SKIP_LABELS: Record<string, string> = {
     role: 'התפקיד המבוקש', experience: 'ניסיון קודם', shifts: 'מספר משמרות בשבוע',
     weekend: 'זמינות לסופי שבוע', start_date: 'מתי אפשר להתחיל', city: 'עיר מגורים',
