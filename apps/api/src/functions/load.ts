@@ -6515,17 +6515,37 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
 // days — who prepped what, when, with which photo — are kept), then clear the
 // daily fields. Scoped to one list when list_id is given, else the whole sheet.
 // ── Live checklist run (prep-sheet-style shared marking) ───────────────────
-// A single shared ChecklistExecution per (checklist, Israel-day) that everyone
-// marks together, so cooks + the kitchen manager see the same live picture —
-// exactly like the prep sheet. Deterministic id → open is idempotent (no
-// duplicate runs when two people open at once).
+// A single shared ChecklistExecution per (checklist, Israel-day) that BOTH run
+// modes (wizard + live prep view) mark together, so everyone sees the same
+// live picture. Deterministic id → open is idempotent (no duplicate runs when
+// two people open at once). The run persists until an EXPLICIT finish
+// (finishChecklistLiveRun → archive) or manager reset — never on reload.
+// After a finish, the next open starts a fresh run (_r2, _r3, …) same day.
+const ilToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
 registerFn('openChecklistLiveRun', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   const checklistId = String((body || {}).checklist_id || '');
   if (!checklistId) throw new Error('missing_checklist');
-  const ilDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
-  const id = `live_${checklistId}_${ilDate}`;
+  const ilDate = ilToday();
+  const baseId = `live_${checklistId}_${ilDate}`;
   const byName = user.full_name || user.fullName || user.email || '';
+  // Join today's ACTIVE (non-completed) run if one exists.
+  const active: any[] = await db.$queryRawUnsafe(
+    `SELECT id, results, status, notes FROM "ChecklistExecution"
+     WHERE (id = $1 OR id LIKE $2) AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')
+     ORDER BY id DESC LIMIT 1`,
+    baseId, `${baseId}\\_r%`,
+  );
+  if (active[0]) return { execution: active[0] };
+  // No active run → create the next one. Counter = finished runs today + 1, so
+  // a post-finish reopen starts clean. Deterministic id keeps the open
+  // idempotent: two simultaneous openers compute the same id and join it.
+  const doneRows: any[] = await db.$queryRawUnsafe(
+    `SELECT COUNT(*)::int AS n FROM "ChecklistExecution" WHERE id = $1 OR id LIKE $2`,
+    baseId, `${baseId}\\_r%`,
+  );
+  const n = Number(doneRows[0]?.n || 0);
+  const id = n === 0 ? baseId : `${baseId}_r${n + 1}`;
   await db.$executeRawUnsafe(
     `INSERT INTO "ChecklistExecution" ("id","checklist_id","executed_by","executed_by_name","execution_date","status","results","createdAt","updatedAt")
      VALUES ($1,$2,$3,$4,NOW(),'in_progress','{}'::jsonb,NOW(),NOW())
@@ -6536,8 +6556,10 @@ registerFn('openChecklistLiveRun', async ({ user, body }: any) => {
   return { execution: rows[0] || null };
 });
 
-// Toggle ONE item atomically (jsonb_set on the shared run) so simultaneous marks
-// by different cooks never clobber each other's items.
+// Toggle/patch ONE item atomically. MERGE semantics (existing || patch) on the
+// shared run so simultaneous marks by different people never clobber each
+// other's items — and so the wizard's richer fields (notes, performed_by,
+// photo_urls, ai_review) coexist with the live view's quick checkmarks.
 registerFn('toggleChecklistLiveItem', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   const b = (body || {}) as any;
@@ -6545,15 +6567,92 @@ registerFn('toggleChecklistLiveItem', async ({ user, body }: any) => {
   const itemKey = String(b.item_key || '');
   if (!execId || !itemKey) throw new Error('missing_params');
   const byName = user.full_name || user.fullName || user.email || 'עובד';
-  const val = b.checked
-    ? { checked: true, checked_by: byName, checked_at: new Date().toISOString(), ...(b.photo_url ? { photo_url: b.photo_url } : {}) }
-    : { checked: false };
+  // Whitelisted extra fields the wizard may patch alongside the checkmark.
+  const patch: any = {};
+  const src = (b.patch && typeof b.patch === 'object') ? b.patch : {};
+  for (const f of ['notes', 'performed_by', 'photo_urls', 'photo_url', 'ai_review', 'requires_followup']) {
+    if (src[f] !== undefined) patch[f] = src[f];
+  }
+  if (b.photo_url !== undefined) patch.photo_url = b.photo_url; // back-compat arg
+  if (b.checked !== undefined) {
+    patch.checked = !!b.checked;
+    if (b.checked) { patch.checked_by = byName; patch.checked_at = new Date().toISOString(); }
+    else { patch.checked_by = null; patch.checked_at = null; }
+  }
   await db.$executeRawUnsafe(
-    `UPDATE "ChecklistExecution" SET results = jsonb_set(COALESCE(results,'{}'::jsonb), ARRAY[$2]::text[], $3::jsonb, true), "updatedAt"=NOW() WHERE id=$1`,
-    execId, itemKey, JSON.stringify(val),
+    `UPDATE "ChecklistExecution"
+     SET results = jsonb_set(COALESCE(results,'{}'::jsonb), ARRAY[$2]::text[],
+                             COALESCE(results->$2,'{}'::jsonb) || $3::jsonb, true),
+         "updatedAt"=NOW()
+     WHERE id=$1`,
+    execId, itemKey, JSON.stringify(patch),
   );
   const rows: any[] = await db.$queryRawUnsafe(`SELECT results FROM "ChecklistExecution" WHERE id=$1 LIMIT 1`, execId);
   return { ok: true, results: rows[0]?.results || {} };
+});
+
+// Explicit finish — the ONLY non-reset way a shared run closes. Stamps the
+// signature + score on the run; the client then writes the archive row
+// (ChecklistExecutionArchive) exactly as before.
+registerFn('finishChecklistLiveRun', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const b = (body || {}) as any;
+  const execId = String(b.execution_id || '');
+  if (!execId) throw new Error('missing_execution');
+  const status = b.status === 'requires_attention' ? 'requires_attention' : 'completed';
+  const beforeRows: any[] = await db.$queryRawUnsafe(`SELECT * FROM "ChecklistExecution" WHERE id=$1 LIMIT 1`, execId);
+  await db.$executeRawUnsafe(
+    `UPDATE "ChecklistExecution"
+     SET status=$2, overall_score=$3, notes=COALESCE($4, notes), ai_summary=COALESCE($5, ai_summary),
+         approving_manager_name=COALESCE($6, approving_manager_name), follow_up_required=$7,
+         completion_time_minutes=COALESCE($8, completion_time_minutes), "updatedAt"=NOW()
+     WHERE id=$1`,
+    execId, status,
+    b.overall_score != null ? Number(b.overall_score) : null,
+    b.notes != null ? String(b.notes) : null,
+    b.ai_summary != null ? String(b.ai_summary) : null,
+    b.approving_manager_name != null ? String(b.approving_manager_name) : null,
+    !!b.follow_up_required,
+    b.completion_time_minutes != null ? Number(b.completion_time_minutes) : null,
+  );
+  const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM "ChecklistExecution" WHERE id=$1 LIMIT 1`, execId);
+  // Raw SQL bypasses entity events — fire the "checklist completed" alert
+  // (WhatsApp/Pushover to the owner) explicitly, with the checklist's title.
+  try {
+    const cl: any[] = rows[0]?.checklist_id
+      ? await db.$queryRawUnsafe(`SELECT title FROM "Checklist" WHERE id=$1 LIMIT 1`, rows[0].checklist_id)
+      : [];
+    const { fireTriggers } = await import('../lib/triggers.js');
+    void fireTriggers('ChecklistExecution', 'updated', { ...rows[0], checklist_name: cl[0]?.title }, beforeRows[0]);
+  } catch { /* alert is best-effort */ }
+  return { ok: true, execution: rows[0] ? { id: rows[0].id, status: rows[0].status, results: rows[0].results } : null };
+});
+
+// Manager-only mid-day reset of ONE checklist's active run (no archive).
+registerFn('resetChecklistLiveRun', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!['admin', 'owner'].includes(String(user.role))) throw new Error('forbidden');
+  const checklistId = String((body || {}).checklist_id || '');
+  if (!checklistId) throw new Error('missing_checklist');
+  const baseId = `live_${checklistId}_${ilToday()}`;
+  const res = await db.$executeRawUnsafe(
+    `DELETE FROM "ChecklistExecution"
+     WHERE (id = $1 OR id LIKE $2) AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')`,
+    baseId, `${baseId}\\_r%`,
+  );
+  return { ok: true, deleted: Number(res) || 0 };
+});
+
+// Manager-only "reset day" — clears ALL of today's active shared runs at once.
+registerFn('resetChecklistDay', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!['admin', 'owner'].includes(String(user.role))) throw new Error('forbidden');
+  const res = await db.$executeRawUnsafe(
+    `DELETE FROM "ChecklistExecution"
+     WHERE id LIKE $1 AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')`,
+    `live\\_%\\_${ilToday()}%`,
+  );
+  return { ok: true, deleted: Number(res) || 0 };
 });
 
 // ── Supplier ordering lists + schedule reminders ───────────────────────────

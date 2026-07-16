@@ -117,12 +117,14 @@ on('Incident', 'created', async (row) => {
 on('ChecklistExecution', 'updated', async (row, prev) => {
   if (prev?.status === 'completed') return;
   if (row.status !== 'completed') return;
-  // results is the JSON output; some flows use `items`. Handle both.
+  // results is the JSON output: legacy array, the shared live run's object
+  // ({key: {checked,...}}), or some flows' `items`. Handle all three.
   const items: any[] = Array.isArray(row.results)
     ? row.results
+    : (row.results && typeof row.results === 'object') ? Object.values(row.results)
     : Array.isArray(row.items) ? row.items : [];
-  const failed = items.filter((i) => i && (i.status === 'failed' || i.status === 'issue' || i.has_issue === true));
-  const passed = items.filter((i) => i && (i.status === 'ok' || i.status === 'passed' || i.status === 'done'));
+  const failed = items.filter((i) => i && (i.status === 'failed' || i.status === 'issue' || i.has_issue === true || i.checked === false));
+  const passed = items.filter((i) => i && (i.status === 'ok' || i.status === 'passed' || i.status === 'done' || i.checked === true));
   const verdict = failed.length === 0 ? '✅ הכל תקין' : `⚠️ ${failed.length} בעיות`;
   const failedSample = failed.slice(0, 3).map((f) =>
     `• ${f.label || f.name || '-'}${f.notes ? ` (${shortText(f.notes, 50)})` : ''}`,

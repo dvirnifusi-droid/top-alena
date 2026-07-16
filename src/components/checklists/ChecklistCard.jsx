@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Play, Edit, Trash2, MoreHorizontal, CheckSquare, User, Users, Download, ClipboardList } from "lucide-react";
+import { Play, Edit, Trash2, MoreHorizontal, CheckSquare, User, Users, Download, ClipboardList, RotateCcw } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -29,7 +29,7 @@ const SHIFT_LABELS = {
     all:      { label: 'כל המשמרות',  emoji: '🔁' },
 };
 
-export default function ChecklistCard({ checklist, onStart, executions, onEdit, onDelete, onAssignTasks, onLiveRun }) {
+export default function ChecklistCard({ checklist, onStart, executions, onEdit, onDelete, onAssignTasks, onLiveRun, onResetToday }) {
     const [isDeleting, setIsDeleting] = useState(false);
     const branding = useTenantBranding();
 
@@ -95,7 +95,10 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
 
     const getLastExecution = () => {
         const today = new Date().toISOString().split('T')[0];
-        return executions.find(e => (e.execution_date||'').startsWith(today));
+        const todays = executions.filter(e => (e.execution_date||'').startsWith(today));
+        // Prefer the ACTIVE shared run (the one both modes are marking right
+        // now) over an earlier completed one, so the card shows live progress.
+        return todays.find(e => e.status === 'in_progress') || todays[0];
     };
 
     const lastExecution = getLastExecution();
@@ -159,6 +162,12 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                             <Download className="w-4 h-4 ml-2" />
                             ייצוא PDF להדפסה
                         </DropdownMenuItem>
+                        {onResetToday && (
+                            <DropdownMenuItem onClick={() => onResetToday(checklist)} className="text-orange-600 focus:text-orange-600 rounded-xl">
+                                <RotateCcw className="w-4 h-4 ml-2" />
+                                איפוס צ'קליסט להיום
+                            </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem 
                             onClick={handleDelete}
                             className="text-red-600 focus:text-red-600 rounded-xl"

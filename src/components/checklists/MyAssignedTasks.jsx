@@ -16,37 +16,42 @@ export default function MyAssignedTasks({ currentEmployee }) {
         loadAssignedTasks();
     }, [currentEmployee?.id]);
 
+    // SAME item key scheme as the shared daily run (wizard + live view) so a
+    // mark here shows up there instantly, and vice versa.
+    const itemKeyOf = (item, i) => String(item?.id || (item?.order != null ? `o${item.order}` : `i${i}`));
+
     const loadAssignedTasks = async () => {
         const checklists = await base44.entities.Checklist.filter({ status: 'active' });
         const items = [];
         for (const cl of checklists) {
-            for (const item of (cl.items || [])) {
+            (cl.items || []).forEach((item, i) => {
                 if (item.assigned_to_employee_id === currentEmployee.id) {
-                    items.push({ ...item, checklist_id: cl.id, checklist_title: cl.title });
+                    items.push({ ...item, checklist_id: cl.id, checklist_title: cl.title, item_key: itemKeyOf(item, i) });
                 }
-            }
+            });
         }
         setAssignedItems(items);
 
-        // load today's executions to check completion
-        const today = new Date().toISOString().slice(0, 10);
-        const executions = await base44.entities.ChecklistExecution.filter({ execution_date: today });
+        // Read completion from today's SHARED runs (deterministic live_* ids).
+        const ilToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+        const executions = await base44.entities.ChecklistExecution.list('-execution_date', 200).catch(() => []);
         const cm = {};
         const pm = {};
-        for (const ex of executions) {
-            for (const result of (ex.results || [])) {
-                if (result.assigned_to_employee_id === currentEmployee.id) {
-                    const key = `${ex.checklist_id}_${result.order}`;
-                    if (result.completed) cm[key] = true;
-                    if (result.photo_url) pm[key] = result.photo_url;
-                }
-            }
+        for (const item of items) {
+            const prefix = `live_${item.checklist_id}_${ilToday}`;
+            const runs = executions.filter(e => String(e.id || '').startsWith(prefix));
+            const run = runs.find(e => e.status === 'in_progress') || runs[0];
+            const r = run?.results?.[item.item_key];
+            if (!r) continue;
+            const key = getKey(item);
+            if (r.checked) cm[key] = true;
+            if (r.photo_url) pm[key] = r.photo_url;
         }
         setCompletedMap(cm);
         setPhotoMap(pm);
     };
 
-    const getKey = (item) => `${item.checklist_id}_${item.order}`;
+    const getKey = (item) => `${item.checklist_id}_${item.item_key}`;
 
     const handleToggle = async (item) => {
         const key = getKey(item);
@@ -65,38 +70,23 @@ export default function MyAssignedTasks({ currentEmployee }) {
         await syncToExecution(item, { completed: completedMap[key] || false, photo_url: file_url });
     };
 
+    // Write through the shared-run API (atomic per-item merge) — never a full
+    // results replace, so parallel marks from other screens are never lost.
     const syncToExecution = async (item, { completed, photo_url }) => {
-        const today = new Date().toISOString().slice(0, 10);
-        const executions = await base44.entities.ChecklistExecution.filter({
-            checklist_id: item.checklist_id,
-            execution_date: today
-        });
-
-        let execution = executions[0];
-        const resultEntry = {
-            order: item.order,
-            area: item.area,
-            task: item.task,
-            assigned_to_employee_id: currentEmployee.id,
-            assigned_to_employee_name: currentEmployee.full_name,
-            completed,
-            photo_url: photo_url || null,
-        };
-
-        if (execution) {
-            const results = [...(execution.results || [])];
-            const idx = results.findIndex(r => r.order === item.order);
-            if (idx >= 0) results[idx] = { ...results[idx], ...resultEntry };
-            else results.push(resultEntry);
-            await base44.entities.ChecklistExecution.update(execution.id, { results });
-        } else {
-            await base44.entities.ChecklistExecution.create({
-                checklist_id: item.checklist_id,
-                execution_date: today,
-                status: 'in_progress',
-                results: [resultEntry],
+        try {
+            const res = await base44.functions.openChecklistLiveRun({ checklist_id: item.checklist_id });
+            const ex = (res?.data || res)?.execution;
+            if (!ex?.id) return;
+            await base44.functions.toggleChecklistLiveItem({
+                execution_id: ex.id,
+                item_key: item.item_key,
+                checked: completed,
+                patch: {
+                    performed_by: currentEmployee.full_name,
+                    ...(photo_url ? { photo_url, photo_urls: [photo_url] } : {}),
+                },
             });
-        }
+        } catch (e) { console.warn('sync assigned task', e); }
     };
 
     if (assignedItems.length === 0) return null;

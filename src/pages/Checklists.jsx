@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckSquare, Clock, CheckCircle, AlertTriangle, FileText, Pencil, Plus, Sparkles, Loader2, Upload } from "lucide-react";
+import { CheckSquare, Clock, CheckCircle, AlertTriangle, FileText, Pencil, Plus, Sparkles, Loader2, Upload, RotateCcw } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
@@ -183,6 +183,30 @@ function ChecklistsInner() {
         setIsExecuting(true);
     };
 
+    const isManager = ['admin', 'owner'].includes(String(user?.role || ''));
+
+    // Manager-only: wipe ALL of today's shared runs at once (no archive).
+    const handleResetDay = async () => {
+        if (!window.confirm('לאפס את כל הצ\'קליסטים של היום? כל הסימונים של היום יימחקו לכל העובדים (בלי ארכיון).')) return;
+        try {
+            await base44.functions.resetChecklistDay({});
+            await loadData();
+        } catch (e) {
+            alert('איפוס היום נכשל: ' + (e?.message || ''));
+        }
+    };
+
+    // Manager-only: wipe one checklist's shared run for today.
+    const handleResetChecklistToday = async (checklist) => {
+        if (!window.confirm(`לאפס את "${checklist.title}" להיום? הסימונים של היום יימחקו לכל העובדים.`)) return;
+        try {
+            await base44.functions.resetChecklistLiveRun({ checklist_id: checklist.id });
+            await loadData();
+        } catch (e) {
+            alert('האיפוס נכשל: ' + (e?.message || ''));
+        }
+    };
+
     const finishExecution = () => {
         setIsExecuting(false);
         setSelectedChecklist(null);
@@ -316,6 +340,11 @@ function ChecklistsInner() {
                                 ))}
                             </div>
                             <div className="flex items-center gap-2 flex-wrap">
+                                {isManager && (
+                                    <Button variant="outline" onClick={handleResetDay} className="gap-1 text-orange-700 border-orange-300 hover:bg-orange-50">
+                                        <RotateCcw className="w-4 h-4" /> איפוס יום
+                                    </Button>
+                                )}
                                 <Button variant="outline" onClick={runAiSuggestChecklists} disabled={aiSuggesting} className="gap-1">
                                     {aiSuggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                                     {aiSuggesting ? 'AI...' : 'הצע לפי הפרופיל'}
@@ -428,6 +457,7 @@ function ChecklistsInner() {
                                         onDelete={handleDeleteChecklist}
                                         onAssignTasks={() => setAssigningTasksFor(checklist)}
                                         onLiveRun={setLiveRunChecklist}
+                                        onResetToday={isManager ? handleResetChecklistToday : null}
                                     />
                                 </div>
                             ))}
