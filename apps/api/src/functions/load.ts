@@ -6667,7 +6667,8 @@ export async function runSupplierOrderAlerts() {
     ].filter((x) => x != null).join('\n');
     try { await pushoverToAdmins(`🛒 הזמנה — ${s.name}`, lines); } catch { /* ignore */ }
     try {
-      const nums = String(process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((x) => x.trim()).filter(Boolean);
+      const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
+      const nums = await reportRecipientPhones();
       const { sendWhatsApp } = await import('../lib/twilio.js');
       for (const n of nums) await sendWhatsApp(n, lines).catch(() => {});
     } catch { /* ignore */ }
@@ -10621,7 +10622,8 @@ ${JSON.stringify(empSummary, null, 2)}
   const { createdShifts } = await persistScheduleAssignments(assignments, weekDates, opts.division || null);
 
   // Notify owner via WhatsApp
-  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
+  const adminNumbers = await reportRecipientPhones();
   if (adminNumbers.length) {
     const { sendWhatsApp } = await import('../lib/twilio.js');
     const missingNames = missing.map((m) => m.full_name).join(', ') || 'אף אחד';
@@ -10677,7 +10679,8 @@ export async function runInvoiceClassifier() {
   }
   if (!anomalies.length) return { ok: true, no_anomalies: true, checked: newInvoices.length };
 
-  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
+  const adminNumbers = await reportRecipientPhones();
   const { sendWhatsApp } = await import('../lib/twilio.js');
   const msg = `🧾 *חשבוניות חריגות מאתמול*\n\n${anomalies.join('\n')}\n\nכל הפרטים: ${APP_BASE_URL}/Invoices`;
   for (const p of adminNumbers) {
@@ -10712,7 +10715,8 @@ export async function runCrisisAgent() {
 
   if (!alerts.length) return { ok: true, checked: recent.length, alerts: 0 };
 
-  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
+  const adminNumbers = await reportRecipientPhones();
   const { sendWhatsApp } = await import('../lib/twilio.js');
   const msg = `${alerts.join('\n')}\n\nכל האירועים: ${APP_BASE_URL}/Incidents`;
   for (const p of adminNumbers) {
@@ -10756,7 +10760,8 @@ ${quotes.join('\n')}
   const story = parsed?.story || '';
   const post = parsed?.post || '';
 
-  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
+  const adminNumbers = await reportRecipientPhones();
   const { sendWhatsApp } = await import('../lib/twilio.js');
   const msg = `🎨 *תוכן לאישור — מבוסס ${surveys.length} ביקורות 5⭐ מאתמול*\n\n📱 *סטורי:*\n${story}\n\n📝 *פוסט:*\n${post}\n\nהעתק/י ופרסם/י כשמתאים. 🚀`;
   for (const p of adminNumbers) {
@@ -10828,7 +10833,8 @@ export async function runNoShowWatcher() {
       .filter(Boolean)
   );
 
-  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
+  const adminNumbers = await reportRecipientPhones();
   if (!adminNumbers.length) return { ok: true, no_admins: true };
 
   const noShows: Array<{ name: string; position: string; lateBy: number; phone: string | null }> = [];
@@ -11293,7 +11299,8 @@ export async function runCashFlowAgent() {
   }
   if (minBal >= 0) return { ok: true, safe: true, min_balance: Math.round(bal) };
 
-  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
+  const adminNumbers = await reportRecipientPhones();
   const { sendWhatsApp } = await import('../lib/twilio.js');
   const msg = `💸 *התראת תזרים*\n\nהיתרה הצפויה צוללת ל-₪${Math.round(minBal).toLocaleString()} ב-${minDay}.\n\n🔗 פירוט: ${APP_BASE_URL || 'https://topalena.com'}/CashFlow`;
   for (const p of adminNumbers) {
@@ -15572,7 +15579,8 @@ registerFn('requestTenantSignup', async ({ body }) => {
   }
 
   // 3) Admin WhatsApp — keeps existing behavior as a redundant channel.
-  const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
+  const adminNumbers = await reportRecipientPhones();
   if (adminNumbers.length) {
     const { sendWhatsApp } = await import('../lib/twilio.js');
     const waMsg = `🌟 *בקשת רישום חדשה למערכת*\n\n` +
