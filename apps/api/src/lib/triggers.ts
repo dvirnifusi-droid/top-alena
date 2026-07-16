@@ -85,10 +85,16 @@ const sevLabel = (s: any) =>
   String(s || '-');
 const join = (lines: (string | null | undefined)[]) => lines.filter(Boolean).join('\n');
 
+// Deep-link back into the tenant's app. Falls back to the topalena.com host
+// for the current TENANT_SLUG when no explicit base URL is configured.
+const APP_BASE = () => (process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || `https://${process.env.TENANT_SLUG || 'topalena'}.topalena.com`).replace(/\/$/, '');
+const link = (path: string) => `🔗 ${APP_BASE()}${path}`;
+
 // ─────────────────── Pushover (to admins) ───────────────────
 
 // 1. Incident — every field that's set goes into the push
 on('Incident', 'created', async (row) => {
+  const openN = await db.incident.count({ where: { OR: [{ status: { in: ['open', 'in_progress', 'reported', 'pending', 'new'] } }, { status: null }] } }).catch(() => null);
   const lines = [
     row.incident_number ? `🔢 ${row.incident_number}` : null,
     row.category ? `🏷️ קטגוריה: ${row.category}` : null,
@@ -101,6 +107,8 @@ on('Incident', 'created', async (row) => {
     row.estimated_cost ? `💰 עלות מוערכת: ${fmtMoney(row.estimated_cost)}` : null,
     row.description ? `📝 ${shortText(row.description, 200)}` : null,
     row.follow_up_required ? '🔔 דורש מעקב' : null,
+    openN ? `🔴 סה"כ ${openN} תקלות פתוחות כרגע` : null,
+    link('/Incidents'),
   ];
   await pushoverToAdmins(`🚨 תקרית חדשה: ${row.title || '—'}`, join(lines));
 });
@@ -132,12 +140,26 @@ on('ChecklistExecution', 'updated', async (row, prev) => {
       row.approving_manager_name ? `👤 אישר: ${row.approving_manager_name}` : null,
       row.notes ? `📝 ${shortText(row.notes, 100)}` : null,
       row.follow_up_required ? '🔔 דורש מעקב' : null,
+      link('/Checklists'),
     ]),
   );
 });
 
 // 3. New reservation through the public booking flow
 on('Reservation', 'created', async (row) => {
+  // Same-day context: how busy is the book already for that date.
+  const dayCtx = await (async () => {
+    try {
+      const d = new Date(row.date);
+      if (isNaN(d.getTime())) return null;
+      const from = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0));
+      const to = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999));
+      const dayRows = await db.reservation.findMany({ where: { date: { gte: from, lte: to } } }).catch(() => []);
+      const active = (dayRows || []).filter((r: any) => r && r.status !== 'cancelled' && r.status !== 'no_show');
+      const guests = active.reduce((sum: number, r: any) => sum + (Number(r.party_size) || 0), 0);
+      return `📊 היום: ${active.length} הזמנות · ${guests} סועדים`;
+    } catch { return null; }
+  })().catch(() => null);
   const lines = [
     `👤 ${row.customer_name || '-'}${row.customer_phone ? ` · ${row.customer_phone}` : ''}`,
     `📅 ${fmtDate(row.date)} · 🕐 ${row.time || '-'}${row.reservation_end_time ? `-${row.reservation_end_time}` : ''}`,
@@ -146,6 +168,8 @@ on('Reservation', 'created', async (row) => {
     row.special_occasion ? `🎉 ${row.special_occasion}` : null,
     row.special_requests ? `📝 ${shortText(row.special_requests, 120)}` : null,
     row.status && row.status !== 'pending' ? `סטטוס: ${statusLabel(row.status)}` : null,
+    dayCtx,
+    link('/Reservations'),
   ];
   await pushoverToAdmins(
     `📅 הזמנה חדשה — ${fmtDate(row.date)} ${row.time || ''}`.trim(),
@@ -169,6 +193,7 @@ on('CustomerFeedback', 'created', async (row) => {
     row.comments ? `💬 ${shortText(row.comments, 140)}` : null,
     row.incident_created ? '🚨 נפתחה תקרית מהמשוב' : null,
     row.was_redirected_to_google ? '🌐 הופנה לביקורת ב-Google' : null,
+    link('/CustomerFeedback'),
   ];
   await pushoverToAdmins(
     isNegative ? `🚨 משוב לקוח שלילי (${rating}/5)` : `⭐ משוב לקוח חיובי (${rating}/5)`,
@@ -181,6 +206,20 @@ on('TipReport', 'updated', async (row, prev) => {
   if (prev?.status === 'locked') return;
   if (row.status !== 'locked') return;
   const total = row.total_tips_collected ?? row.total_tips ?? row.amount;
+  // Per-employee distribution breakdown (defensive on shape — different flows
+  // use different field names for name/amount/hours).
+  const staffLines: string[] = [];
+  if (Array.isArray(row.staff_details) && row.staff_details.length) {
+    staffLines.push('— חלוקה לפי עובד:');
+    for (const s of row.staff_details.slice(0, 8)) {
+      if (!s) continue;
+      const name = s.employee_name || s.name || s.full_name || '-';
+      const amount = s.tip_amount ?? s.amount ?? s.total ?? s.final_amount;
+      const hours = s.hours;
+      const money = fmtMoney(amount);
+      staffLines.push(`• ${name}${money ? ` — ${money}` : ''}${hours != null ? ` (${hours} שע')` : ''}`);
+    }
+  }
   const lines = [
     `📅 ${fmtDate(row.date || row.shift_date)} · ${shiftLabel(row.shift_type)}`,
     total != null ? `💵 סה"כ נאסף: ${fmtMoney(total)}` : null,
@@ -191,6 +230,9 @@ on('TipReport', 'updated', async (row, prev) => {
     row.tip_per_hour != null ? `⏱️ טיפ לשעה: ${fmtMoney(row.tip_per_hour)}` : null,
     row.locked_by ? `🔒 ננעל ע"י: ${row.locked_by}` : null,
     row.notes ? `📝 ${shortText(row.notes, 100)}` : null,
+    ...staffLines,
+    '↩️ פרטים מלאים ב-/Tips',
+    link('/Tips'),
   ];
   await pushoverToAdmins(
     `💰 טיפים ננעלו — ${shiftLabel(row.shift_type)} ${fmtDate(row.date || row.shift_date)}`,
@@ -217,6 +259,7 @@ on('ShiftEndReport', 'created', async (row) => {
     row.z_report_number ? `📄 Z: ${row.z_report_number}` : null,
     row.inventory_issues ? `📦 ${shortText(row.inventory_issues, 80)}` : null,
     row.customer_feedback ? `💬 ${shortText(row.customer_feedback, 80)}` : null,
+    link('/ShiftReports'),
   ];
   await pushoverToAdmins(`📋 דוח סיום משמרת — ${shiftLabel(row.shift_type)} ${fmtDate(row.shift_date)}`, join(lines));
 });
@@ -243,6 +286,7 @@ on('EmployeeAvailability', 'created', async (row) => {
     row.department ? `🏢 מחלקה: ${row.department}` : null,
     Array.isArray(row.positions) && row.positions.length ? `🎯 תפקידים: ${row.positions.join(', ')}` : null,
     row.reason ? `📝 ${shortText(row.reason, 100)}` : null,
+    link('/AvailabilityRequests'),
   ];
   await pushoverToAdmins(`📅 הגשת זמינות — ${row.employee_name || '-'}`, join(lines));
 });
@@ -258,6 +302,7 @@ on('ShiftTracking', 'created', async (row) => {
     `📅 ${fmtDate(row.date || row.shift_start)} · ${shiftLabel(typ)}`,
     row.last_lat && row.last_lng ? `📍 ${Number(row.last_lat).toFixed(4)}, ${Number(row.last_lng).toFixed(4)}` : null,
     row.status && row.status !== 'active' ? `סטטוס: ${row.status}` : null,
+    link('/LaborCost'),
   ];
   await pushoverToAdmins(`⏰ כניסה למשמרת — ${row.employee_name || '-'}`, join(lines));
 });
@@ -274,6 +319,7 @@ on('ShiftTracking', 'updated', async (row, prev) => {
       row.total_break_minutes ? `☕ הפסקות: ${row.total_break_minutes} דק'` : null,
       row.shift_start ? `🕐 התחיל ב-${fmtTime(row.shift_start)}` : null,
       row.had_meal ? `🍽️ אכל: ${row.meal_details || 'כן'}` : null,
+      link('/LaborCost'),
     ];
     await pushoverToAdmins(`⚠️ חריגה בשעות משמרת — ${row.employee_name || '-'}`, join(lines));
   }
@@ -284,6 +330,7 @@ on('ShiftTracking', 'updated', async (row, prev) => {
       `📅 ${fmtDate(row.date)} · ${fmtTime(row.shift_start)}-${fmtTime(row.shift_end)}`,
       row.auto_close_reason ? `📍 סיבה: ${row.auto_close_reason}` : null,
       row.total_hours != null ? `⏱️ סה"כ ${Number(row.total_hours).toFixed(1)} שעות` : null,
+      link('/LaborCost'),
     ];
     await pushoverToAdmins(`🚪 משמרת נסגרה אוטומטית — ${row.employee_name || '-'}`, join(lines));
   }
@@ -300,6 +347,7 @@ on('DailyBrief', 'updated', async (row, prev) => {
     row.service_focus ? `🛎️ דגש שירות: ${shortText(row.service_focus, 80)}` : null,
     row.operational_focus ? `🏭 דגש תפעולי: ${shortText(row.operational_focus, 80)}` : null,
     row.story_of_the_day ? `🎯 סיפור היום: ${shortText(row.story_of_the_day, 80)}` : null,
+    link('/DailyBrief'),
   ];
   await pushoverToAdmins(`📢 תדריך פורסם — ${shiftLabel(row.shift_type)} ${fmtDate(row.date)}`, join(lines));
 });
@@ -312,6 +360,8 @@ on('ShiftSwapRequest', 'created', async (row) => {
     row.position ? `🎯 תפקיד: ${row.position}` : null,
     row.start_time || row.end_time ? `🕐 ${row.start_time || ''}${row.end_time ? `-${row.end_time}` : ''}` : null,
     row.message ? `📝 ${shortText(row.message, 120)}` : null,
+    '↩️ אפשר לאשר/לדחות מהאפליקציה',
+    link('/ShiftSwaps'),
   ];
   await pushoverToAdmins(`🔄 בקשת החלפת משמרת`, join(lines));
 });
@@ -332,6 +382,8 @@ on('LeaveRequest', 'created', async (row) => {
     `🌴 סוג: ${row.leave_type || '-'}`,
     `📅 ${fmtDate(row.start_date)} → ${fmtDate(row.end_date)}${days ? ` (${days} ימים)` : ''}`,
     row.reason ? `📝 סיבה: ${shortText(row.reason, 120)}` : null,
+    `↩️ השב *"אשר חופשה של ${row.employee_name || '-'}"* או *"דחה"*`,
+    link('/LeaveRequests'),
   ];
   await pushoverToAdmins(`🌴 בקשת חופשה חדשה — ${row.employee_name || '-'}`, join(lines));
 });
@@ -344,6 +396,7 @@ on('LeaveRequest', 'updated', async (row, prev) => {
     `🌴 ${row.leave_type || ''} · ${fmtDate(row.start_date)} → ${fmtDate(row.end_date)}`,
     `סטטוס: ${statusLabel(row.status)}`,
     row.manager_notes ? `📝 ${shortText(row.manager_notes, 120)}` : null,
+    link('/LeaveRequests'),
   ];
   await pushoverToAdmins(`🌴 עדכון סטטוס חופשה`, join(lines));
 });
@@ -361,6 +414,8 @@ on('Interview', 'created', async (row) => {
     row.duration_minutes ? `⏱️ ${row.duration_minutes} דק'` : null,
     `🎯 ${typeLabel}`,
     row.notes ? `📝 ${shortText(row.notes, 120)}` : null,
+    '↩️ נקבע אוטומטית · פרטים ב-/Recruitment',
+    link('/Recruitment'),
   ];
   await pushoverToAdmins(`📅 ראיון חדש נקבע — ${row.candidate_name || '-'}`, join(lines));
 });
@@ -378,6 +433,7 @@ on('JobCandidate', 'created', async (row) => {
     (!row.full_name || row.full_name === 'מועמד בתהליך' || row.full_name === 'מועמד אנונימי') &&
     !row.phone;
   if (isPlaceholder) return;
+  const weekN = await db.jobCandidate.count({ where: { createdAt: { gte: new Date(Date.now() - 7 * 86400000) } } }).catch(() => null);
   const scoreEmoji =
     row.score == null ? '❓' :
     row.score >= 80 ? '🟢' :
@@ -394,6 +450,8 @@ on('JobCandidate', 'created', async (row) => {
     row.source ? `📥 מקור: ${row.source}` : null,
     row.score != null ? `${scoreEmoji} ציון: ${row.score}/100` : null,
     row.ai_summary ? `🤖 ${shortText(row.ai_summary, 140)}` : null,
+    weekN != null ? `📈 מועמדים השבוע: ${weekN}` : null,
+    link('/Recruitment'),
   ];
   await pushoverToAdmins(`🎯 מועמד גיוס חדש — ${row.full_name || '-'}`, join(lines));
 });
@@ -421,14 +479,19 @@ on('EventBooking', 'updated', async (row, prev) => {
   if (approvalChanged && row.approval_status === 'approved') {
     await pushoverEventsOwners(
       row.short_notice ? `⚡ אירוע same-day נסגר!` : `🎉 אירוע נסגר — אישר ע"י מנהל`,
-      join([...baseLines, row.approval_notes ? `📝 הערות: ${shortText(row.approval_notes, 100)}` : null]),
+      join([
+        ...baseLines,
+        row.payment_status ? `💳 סטטוס תשלום: ${row.payment_status}` : null,
+        row.approval_notes ? `📝 הערות: ${shortText(row.approval_notes, 100)}` : null,
+        link('/EventBookings'),
+      ]),
     );
     return;
   }
   if (approvalChanged && row.approval_status === 'rejected') {
     await pushoverEventsOwners(
       `❌ אירוע נדחה ע"י מנהל`,
-      join([...baseLines, row.approval_notes ? `📝 סיבה: ${shortText(row.approval_notes, 120)}` : null]),
+      join([...baseLines, row.approval_notes ? `📝 סיבה: ${shortText(row.approval_notes, 120)}` : null, link('/EventBookings')]),
     );
     return;
   }
@@ -438,7 +501,7 @@ on('EventBooking', 'updated', async (row, prev) => {
       row.status === 'pending_manager_callback'
         ? `🎯 אירוע נסגר — התקשר ללקוח`
         : `🎉 אירוע אושר`,
-      join(baseLines),
+      join([...baseLines, link('/EventBookings')]),
     );
   }
 });
@@ -453,6 +516,7 @@ on('EventBooking', 'created', async (row) => {
     row.deposit_amount_ils != null ? `💳 מקדמה: ${fmtMoney(row.deposit_amount_ils)}` : null,
     row.source ? `📥 מקור: ${row.source}` : null,
     row.short_notice ? '⚡ same-day!' : null,
+    link('/EventBookings'),
   ];
   await pushoverEventsOwners(`📋 הזמנת אירוע נוצרה — ${row.customer_name || '-'}`, join(lines));
 });
