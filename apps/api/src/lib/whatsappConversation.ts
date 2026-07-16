@@ -66,7 +66,23 @@ async function loadHistory(phone: string): Promise<Turn[]> {
       ts: r.created_at ? new Date(r.created_at).getTime() : Date.now(),
     });
   }
-  return turns.reverse().slice(-HISTORY_WINDOW);
+  const chrono = turns.reverse().slice(-HISTORY_WINDOW);
+  // Gemini needs an alternating user/model sequence that STARTS with 'user'.
+  // Agent replies aren't always persisted, so the raw history is frequently a
+  // run of consecutive 'user' turns — which makes gemini-2.5 return an EMPTY
+  // candidate (finishReason STOP), surfacing as "not sure how to help".
+  // Collapse consecutive same-role turns (keep the latest of a run), drop any
+  // leading 'model' turns, and drop a trailing 'user' turn — the caller appends
+  // the current user message right after this history.
+  const seq: Turn[] = [];
+  for (const t of chrono) {
+    if (String(t.text).startsWith('[pending]')) continue; // internal stash rows
+    if (seq.length && seq[seq.length - 1].role === t.role) { seq[seq.length - 1] = t; continue; }
+    seq.push(t);
+  }
+  while (seq.length && seq[0].role === 'model') seq.shift();
+  if (seq.length && seq[seq.length - 1].role === 'user') seq.pop();
+  return seq;
 }
 
 // ─── Tool definitions for Gemini function-calling ──────────────────────────
@@ -2333,7 +2349,19 @@ export async function runConversationAgent(phone: string, userMessage: string): 
 
     // Plain text reply
     const text = parts.map(p => p.text || '').join('').trim();
-    if (text) return text;
+    if (text) {
+      // Persist the reply as an outbound row so the NEXT turn's loadHistory has a
+      // 'model' turn to alternate against (otherwise history is all-user → empty).
+      await (prisma as any).whatsAppMessage.create({
+        data: {
+          twilio_sid: null, direction: 'outbound',
+          from_phone: process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+system',
+          to_phone: phone, contact_phone: phone,
+          body: text.slice(0, 2000), num_media: 0, status: 'agent_reply', is_read: true,
+        },
+      }).catch(() => {});
+      return text;
+    }
     // Empty candidate — log WHY (gemini-2.5 returns an empty candidate with
     // finishReason MALFORMED_FUNCTION_CALL when it fails to build a valid call,
     // or blocks on safety). This is what surfaces as an unhelpful "not sure".

@@ -198,7 +198,15 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
         // before the admin voice agent. ACK fast, transcribe in background.
         if (numMedia >= 1 && params.MediaUrl0 && String(params.MediaContentType0 || '').toLowerCase().startsWith('audio/')) {
           try {
-            if (await isOnboardingActive(from)) {
+            // Same guard as the text path: a recognized owner/co-owner/employee
+            // of an existing tenant is never a new-tenant signup, so a stale
+            // onboarding session must not hijack their voice note either.
+            let isKnownBusinessMember = false;
+            try {
+              const { resolveAccessScope } = await import('../lib/whatsappPermissions.js');
+              isKnownBusinessMember = (await resolveAccessScope(from)).role !== 'guest';
+            } catch { /* treat as unknown → allow onboarding */ }
+            if (!isKnownBusinessMember && await isOnboardingActive(from)) {
               reply.type('text/xml').send(
                 '<?xml version="1.0" encoding="UTF-8"?><Response><Message>🎙️ קיבלתי את ההקלטה, רגע מתמלל...</Message></Response>',
               );
