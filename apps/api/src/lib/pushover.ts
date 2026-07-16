@@ -6,18 +6,14 @@ import { prisma } from '../db.js';
 // swallowed — the Pushover fire-and-forget contract must be preserved.
 async function mirrorToWhatsApp(title: string, message: string) {
   try {
-    const admins: any[] = await (prisma as any).user.findMany({ where: { role: 'admin' } });
-    const employees: any[] = await (prisma as any).employee.findMany({
-      where: { phone: { not: null } },
-    });
-    const phones = new Set<string>();
-    for (const admin of admins) {
-      const emp = employees.find(
-        (e: any) => e.email?.toLowerCase?.() === admin.email?.toLowerCase?.() && e.phone,
-      );
-      if (emp?.phone) phones.add(String(emp.phone).trim());
-    }
-    if (!phones.size) return;
+    // Use the SAME per-tenant recipient list as the scheduled reports (the
+    // tenant's own owner, env admins only on alena). The old logic matched
+    // role=admin Users to Employees-with-phones, which resolved to nobody when
+    // the owner wasn't set up that exact way — so the mirror silently sent to
+    // no one. Unifying it means every Pushover alert reaches the owner.
+    const { reportRecipientPhones } = await import('./whatsappPermissions.js');
+    const phones = await reportRecipientPhones();
+    if (!phones.length) return;
     const { sendWhatsApp } = await import('./twilio.js');
     const body = `🔔 ${title}\n\n${message}`;
     for (const phone of phones) {

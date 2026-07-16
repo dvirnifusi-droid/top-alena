@@ -8951,6 +8951,58 @@ registerFn('firePushoverTest', async () => {
   return result;
 }, { public: true });
 
+// Sends a labeled WhatsApp sample of EVERY notification trigger to the given
+// phone, so the owner can confirm the WhatsApp channel works end-to-end for each
+// one. Gated: the phone must be an admin/recipient of THIS tenant (not a public
+// spam vector). Sends directly (bypasses the recipient lookup) so it's a pure
+// delivery test.
+registerFn('testAllTriggersWhatsApp', async ({ body }: any) => {
+  const phone = String((body as any)?.phone || '').trim();
+  if (!phone) throw new Error('phone required');
+  const norm = (p: any) => String(p || '').replace(/\D/g, '').replace(/^0/, '972');
+  const target = norm(phone);
+  const envAdmins = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map(norm).filter(Boolean);
+  let allowed = envAdmins.includes(target);
+  if (!allowed) {
+    try {
+      const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
+      allowed = (await reportRecipientPhones()).map(norm).includes(target);
+    } catch { /* DB unavailable — fall through to deny */ }
+  }
+  if (!allowed) throw new Error('phone is not an admin/recipient of this tenant');
+
+  const samples: Array<{ t: string; b: string }> = [
+    { t: '🚨 תקרית חדשה', b: 'המקרר במטבח התקלקל · חומרה: גבוהה · דיווח: דני' },
+    { t: "✅ צ'קליסט הושלם", b: 'פתיחת בוקר — מטבח · 12/12 משימות · דני כהן' },
+    { t: '📅 הזמנה חדשה', b: 'משפחת כהן · 4 סועדים · מחר 20:00' },
+    { t: '⭐ משוב לקוח חדש', b: 'דירוג 5/5 · "אוכל מדהים ושירות מעולה"' },
+    { t: '💸 טיפים עודכנו', b: 'משמרת ערב · סה"כ ₪1,240 · 8 עובדים' },
+    { t: '📋 דוח סיום משמרת', b: 'ערב · מכירות ₪8,500 · 42 שולחנות' },
+    { t: '📅 הגשת זמינות', b: 'דני כהן הגיש זמינות לשבוע הבא' },
+    { t: '⏰ כניסה למשמרת', b: 'מיה לוי נכנסה למשמרת ב-16:02' },
+    { t: '⚠️ חריגה בשעות משמרת', b: 'יוסי לוי — 11.5 שעות (מעל הרגיל)' },
+    { t: '🚪 משמרת נסגרה אוטומטית', b: 'רון — לא הוחתמה יציאה, נסגר ב-02:00' },
+    { t: '📢 תדריך פורסם', b: 'תדריך ערב · יש אירוע פרטי ב-21:00' },
+    { t: '🔄 בקשת החלפת משמרת', b: 'דני מבקש להחליף עם מיה — שבת ערב' },
+    { t: '🌴 בקשת חופשה חדשה', b: 'יוסי — חופשה 20-22/07' },
+    { t: '🌴 עדכון סטטוס חופשה', b: 'בקשת החופשה של יוסי אושרה' },
+    { t: '📅 ראיון חדש נקבע', b: 'מועמד: אבי כהן — מחר 14:00' },
+    { t: '🎯 מועמד גיוס חדש', b: 'שירה לוי — מלצרית · ניסיון 3 שנים' },
+    { t: '🎉 אירוע אושר', b: 'אירוע של משפחת לוי — 15/08 · 50 איש' },
+    { t: '📋 הזמנת אירוע נוצרה', b: 'אירוע חדש — כהן · 30 סועדים · 15/08' },
+  ];
+  const { sendWhatsApp } = await import('../lib/twilio.js');
+  let sent = 0;
+  const failed: string[] = [];
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i];
+    const msg = `🧪 *בדיקת טריגר ${i + 1}/${samples.length}*\n\n${s.t}\n${s.b}\n\n_(הודעת בדיקה — כך תיראה ההתראה האמיתית)_`;
+    try { await sendWhatsApp(phone, msg); sent++; }
+    catch (e: any) { failed.push(`${i + 1}:${e?.message || 'err'}`); }
+  }
+  return { ok: true, phone, sent, total: samples.length, failed };
+}, { public: true });
+
 // Diagnostic: call this to verify the Pushover pipe is alive. Returns the count of
 // employees with pushover_user_key, whether the env token is present, and how many
 // devices got the test message.
