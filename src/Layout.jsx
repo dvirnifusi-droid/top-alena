@@ -102,6 +102,7 @@ const adminLinks = [
   { title: "הגדרות פלטפורמה 🧩", url: createPageUrl("PlatformSettings"), icon: LayoutGrid, isSubItem: true, color: "espresso" },
   { title: "מיתוג המסעדה 🎨", url: createPageUrl("Branding"), icon: Sparkles, isSubItem: true, color: "espresso" },
   { title: "חיבורים חיצוניים 🔌", url: createPageUrl("Integrations"), icon: Zap, isSubItem: true, color: "espresso" },
+  { title: "🤖 סוכן WhatsApp ומקבלי דוחות", url: createPageUrl("AdminWhatsApp"), icon: Zap, isSubItem: true, color: "espresso" },
   { title: "📨 WhatsApp Templates", url: createPageUrl("AdminWhatsAppTemplates"), icon: Zap, isSubItem: true, color: "espresso" },
   { title: "ייצוא דאטה", url: createPageUrl("DataExport"), icon: Download, isSubItem: true, color: "espresso" },
   { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell, isSubItem: true, color: "espresso" },
