@@ -10,10 +10,9 @@ import { EmployeeRiskAnalysis } from '@/entities/EmployeeRiskAnalysis';
 import { MenuItemAnalysis } from '@/entities/MenuItemAnalysis';
 import { DailySales } from '@/entities/DailySales';
 import { Reservation } from '@/entities/Reservation';
-import { Employee } from '@/entities/Employee';
-import { Shift } from '@/entities/Shift';
 import { MenuItem } from '@/entities/MenuItem';
 import { InvokeLLM } from "@/integrations/Core";
+import { base44 } from '@/api/base44Client';
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { 
@@ -345,103 +344,29 @@ ${JSON.stringify(reservedCoversByDate, null, 2)}
         }
     };
 
+    // v2 — server-side analysis over REAL signals (clock-ins, schedule,
+    // tips-per-hour, availability submissions, swap requests, sick leaves,
+    // gamification coins, shoutouts, training, checklist participation).
+    // Deterministic trend score; the LLM only writes the narrative for the
+    // top-risk employees. Returns coverage so we show what it's based on.
     const analyzeEmployeeRisks = async () => {
         setLoading(true);
         try {
-            const [employees, shifts] = await Promise.all([
-                Employee.list(),
-                Shift.list('-date', 100) // Last 100 shifts
-            ]);
-
-            // Clear existing risks
-            const existingRisks = await EmployeeRiskAnalysis.list();
-            for (const risk of existingRisks) {
-                await EmployeeRiskAnalysis.delete(risk.id);
-            }
-            
-            const newEmployeeRisks = [];
-
-            for (const employee of employees) {
-                if (employee.status !== 'active') continue;
-
-                const employeeShifts = shifts.filter(s => s.employee_id === employee.id);
-                
-                if (employeeShifts.length < 5) continue; // Skip if less than 5 shifts for meaningful analysis
-
-                // Calculate performance metrics
-                const recentShifts = employeeShifts.slice(0, 10).sort((a, b) => new Date(b.date) - new Date(a.date)); // Get latest 10 shifts
-                const avgRating = recentShifts.length > 0 ? recentShifts.reduce((sum, s) => sum + (s.manager_rating || 3), 0) / recentShifts.length : 3;
-                const avgServiceRating = recentShifts.length > 0 ? recentShifts.reduce((sum, s) => sum + (s.customer_service_rating || 50), 0) / recentShifts.length : 50;
-
-                const prompt = `
-נתח את הנתונים הבאים של העובד ${employee.full_name} וקבע את הסיכון לעזיבה (Attrition Risk):
-
-**פרטי עובד:**
-- תפקיד: ${employee.role}
-- תאריך הצטרפות: ${employee.hire_date ? format(new Date(employee.hire_date), 'dd/MM/yyyy') : 'לא ידוע'}
-- סטטוס: ${employee.status}
-
-**נתוני ביצועים אחרונים (ממוצעים מ-${recentShifts.length} משמרות אחרונות):**
-- דירוג מנהל ממוצע: ${avgRating.toFixed(1)}/5
-- דירוג שירות לקוחות ממוצע: ${avgServiceRating.toFixed(1)}%
-- מספר משמרות בתקופה: ${recentShifts.length}
-
-**נתוני משמרות אחרונות (עד 10 האחרונות):**
-${JSON.stringify(recentShifts.map(s => ({
-    date: s.date,
-    rating: s.manager_rating,
-    service_rating: s.customer_service_rating,
-    hours: s.hours_worked,
-    notes: s.notes
-})), null, 2)}
-
-חזה את הסיכון לעזיבת העובד (low, medium, high, critical) וספק ציון סיכון (0-100). בנוסף, ספק גורמי סיכון עיקריים, מגמות ביצועים, אינדיקטורים לשביעות רצון (או חוסר שביעות רצון), פעולות מומלצות למנהל, נקודות לשיחה עם העובד ואסטרטגיית מוטיבציה.
-                `;
-
-                const aiResponse = await InvokeLLM({
-                    prompt: prompt,
-                    response_json_schema: {
-                        type: "object",
-                        properties: {
-                            risk_level: { type: "string", enum: ["low", "medium", "high", "critical"] },
-                            risk_score: { type: "number" },
-                            risk_factors: { type: "array", items: { type: "string" } },
-                            performance_trend: { type: "string" },
-                            satisfaction_indicators: { type: "array", items: { type: "string" } },
-                            recommended_actions: { type: "array", items: { type: "string" } },
-                            conversation_talking_points: { type: "array", items: { type: "string" } },
-                            motivation_strategy: { type: "string" }
-                        },
-                        required: ["risk_level", "risk_score", "risk_factors", "performance_trend", "recommended_actions"]
-                    }
-                });
-
-                // Save only high-risk employees
-                if (aiResponse.risk_level === 'high' || aiResponse.risk_level === 'critical') {
-                    const createdRisk = await EmployeeRiskAnalysis.create({
-                        employee_id: employee.id,
-                        employee_name: employee.full_name,
-                        risk_level: aiResponse.risk_level,
-                        risk_score: aiResponse.risk_score,
-                        risk_factors: aiResponse.risk_factors,
-                        performance_trend: aiResponse.performance_trend,
-                        attendance_score: avgRating * 20, // Convert to 100 scale, approximation
-                        satisfaction_indicators: aiResponse.satisfaction_indicators || [],
-                        conversation_talking_points: aiResponse.conversation_talking_points || [],
-                        motivation_strategy: aiResponse.motivation_strategy || '',
-                        recommended_actions: aiResponse.recommended_actions,
-                        last_analysis_date: new Date().toISOString()
-                    });
-                    newEmployeeRisks.push(createdRisk);
-                }
-            }
-
-            setEmployeeRisks(newEmployeeRisks); // Update state with newly created risks
-            alert('ניתוח סיכוני עזיבה הושלם! 📊');
-
+            const res = await base44.functions.analyzeEmployeeChurn({});
+            const data = res?.data || res;
+            setEmployeeRisks(data?.risks || []);
+            const c = data?.coverage || {};
+            alert(
+                `ניתוח סיכוני עזיבה הושלם! 📊\n` +
+                `נותחו ${data?.analyzed ?? 0} עובדים פעילים · ${data?.risks?.length ?? 0} בסיכון גבוה\n\n` +
+                `מבוסס על (56 יום): ${c.shift_clockins_56d ?? 0} החתמות שעון · ${c.scheduled_shifts_56d ?? 0} משמרות בסידור · ` +
+                `${c.tip_reports_56d ?? 0} דוחות טיפים · ${c.availability_submissions_56d ?? 0} הגשות זמינות · ` +
+                `${c.swap_requests_56d ?? 0} בקשות החלפה · ${c.leave_requests_56d ?? 0} בקשות חופש/מחלה · ` +
+                `${c.coin_transactions_56d ?? 0} מטבעות · ${c.checklist_runs_56d ?? 0} ריצות צ'קליסט`
+            );
         } catch (error) {
             console.error('Error analyzing employee risks:', error);
-            alert('שגיאה בניתוח עובדים: ' + error.message);
+            alert('שגיאה בניתוח עובדים: ' + (error?.message || ''));
         } finally {
             setLoading(false);
         }

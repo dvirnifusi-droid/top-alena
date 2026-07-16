@@ -6659,6 +6659,202 @@ registerFn('resetChecklistDay', async ({ user }: any) => {
   return { ok: true, deleted: Number(res) || 0 };
 });
 
+// ── Employee churn analysis v2 — REAL signals, server-side ─────────────────
+// The old client-side flow fed the LLM manager ratings that nobody fills.
+// This computes deterministic trends from data the restaurant actually
+// produces (recent 28d vs previous 28d), scores each employee, and only then
+// asks Gemini for the narrative (top-risk only). Every signal degrades
+// gracefully when its table is empty, and the response reports coverage so
+// the owner sees exactly what the analysis is based on.
+registerFn('analyzeEmployeeChurn', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!['admin', 'owner'].includes(String(user.role)) && !(user as any).managed_department) throw new Error('forbidden');
+
+  const q = async (sql: string): Promise<any[]> => { try { return await db.$queryRawUnsafe(sql); } catch { return []; } };
+  const [employees, tracking, workShifts, tipReports, avail, swaps, leaves, coins, shouts, trainings, checklistRuns] = await Promise.all([
+    q(`SELECT id, full_name, role, department, hire_date, status FROM "Employee" WHERE status='active'`),
+    q(`SELECT employee_id, employee_name, clock_in_time, clock_out_time FROM "ShiftTracking" WHERE clock_in_time > NOW() - INTERVAL '56 days'`),
+    q(`SELECT date, start_time, assigned_staff FROM "WorkShift" WHERE date > NOW() - INTERVAL '56 days' AND date <= NOW()`),
+    q(`SELECT date, staff_details FROM "TipReport" WHERE date > NOW() - INTERVAL '56 days'`),
+    q(`SELECT employee_id, employee_name, availability_type, "createdAt" FROM "EmployeeAvailability" WHERE "createdAt" > NOW() - INTERVAL '56 days'`),
+    q(`SELECT requester_employee_id, requester_name, status, "createdAt" FROM "ShiftSwapRequest" WHERE "createdAt" > NOW() - INTERVAL '56 days'`),
+    q(`SELECT employee_id, employee_name, leave_type, "createdAt" FROM "LeaveRequest" WHERE "createdAt" > NOW() - INTERVAL '56 days'`),
+    q(`SELECT employee_id, employee_name, amount, "createdAt" FROM "CoinTransaction" WHERE "createdAt" > NOW() - INTERVAL '56 days' AND amount > 0`),
+    q(`SELECT recipient_id, recipient_name, "createdAt" FROM "ShoutOut" WHERE "createdAt" > NOW() - INTERVAL '56 days'`),
+    q(`SELECT employee_name, score_overall, completed_full, training_date FROM "MenuTrainingResult" WHERE training_date > NOW() - INTERVAL '180 days'`),
+    q(`SELECT results, "updatedAt" FROM "ChecklistExecution" WHERE id LIKE 'live\\_%' AND "updatedAt" > NOW() - INTERVAL '56 days'`),
+  ]);
+
+  const now = Date.now();
+  const DAY = 86_400_000;
+  const isRecent = (d: any) => { const t = new Date(d).getTime(); return t > now - 28 * DAY; };
+  const isPrev = (d: any) => { const t = new Date(d).getTime(); return t <= now - 28 * DAY && t > now - 56 * DAY; };
+  const norm = (s: any) => String(s || '').trim().toLowerCase();
+  // id-or-name matching (same lesson as the hours report — many JSON blobs
+  // carry only a name).
+  const matches = (emp: any, id: any, name: any) =>
+    (id && String(id) === String(emp.id)) || (name && norm(name) === norm(emp.full_name));
+
+  // pct change recent vs prev, per-week normalized (both windows are 28d)
+  const trend = (recent: number, prev: number) => (prev <= 0 ? (recent > 0 ? 100 : 0) : Math.round(((recent - prev) / prev) * 100));
+
+  const profiles: any[] = [];
+  for (const emp of employees) {
+    const s: any = { employee_id: emp.id, employee_name: emp.full_name, role: emp.role, department: emp.department };
+    s.tenure_days = emp.hire_date ? Math.floor((now - new Date(emp.hire_date).getTime()) / DAY) : null;
+
+    const myTrack = tracking.filter((t: any) => matches(emp, t.employee_id, t.employee_name));
+    const hrs = (rows: any[]) => rows.reduce((sum, t) => { const a = new Date(t.clock_in_time).getTime(); const b = t.clock_out_time ? new Date(t.clock_out_time).getTime() : a; return sum + Math.max(0, (b - a) / 3_600_000); }, 0);
+    const trRecent = myTrack.filter((t: any) => isRecent(t.clock_in_time));
+    const trPrev = myTrack.filter((t: any) => isPrev(t.clock_in_time));
+    s.shifts_recent = trRecent.length; s.shifts_prev = trPrev.length; s.shifts_trend_pct = trend(trRecent.length, trPrev.length);
+    s.hours_recent = Math.round(hrs(trRecent)); s.hours_prev = Math.round(hrs(trPrev)); s.hours_trend_pct = trend(s.hours_recent, s.hours_prev);
+
+    // scheduled-but-never-clocked (absences) + lateness vs the shift's start
+    let absences = 0, late = 0, scheduled = 0;
+    for (const ws of workShifts) {
+      const staff = Array.isArray(ws.assigned_staff) ? ws.assigned_staff : [];
+      const mine = staff.find((a: any) => matches(emp, a?.employee_id || a?.id, a?.name || a?.employee_name || a?.full_name));
+      if (!mine) continue;
+      scheduled++;
+      const dayStr = String(ws.date).slice(0, 10);
+      const clocked = myTrack.find((t: any) => String(t.clock_in_time).slice(0, 10) === dayStr);
+      if (!clocked) { absences++; continue; }
+      if (ws.start_time && /^\d{2}:\d{2}/.test(String(ws.start_time))) {
+        const [hh, mm] = String(ws.start_time).slice(0, 5).split(':').map(Number);
+        const sched = new Date(clocked.clock_in_time); sched.setHours(hh, mm, 0, 0);
+        if (new Date(clocked.clock_in_time).getTime() - sched.getTime() > 20 * 60_000) late++;
+      }
+    }
+    s.scheduled_shifts = scheduled; s.absences = absences; s.late_count = late;
+
+    // tips per hour trend from TipReport.staff_details (defensive JSON walk)
+    const tipRows: Array<{ when: any; tip: number; hours: number }> = [];
+    for (const tr of tipReports) {
+      const details = Array.isArray(tr.staff_details) ? tr.staff_details : [];
+      for (const d of details) {
+        if (!d || typeof d !== 'object') continue;
+        if (!matches(emp, (d as any).employee_id || (d as any).id, (d as any).name || (d as any).employee_name || (d as any).full_name)) continue;
+        const tip = Number((d as any).tip_amount ?? (d as any).tips ?? (d as any).tip ?? (d as any).amount ?? 0) || 0;
+        const hours = Number((d as any).hours ?? (d as any).hours_worked ?? 0) || 0;
+        tipRows.push({ when: tr.date, tip, hours });
+      }
+    }
+    const tph = (rows: any[]) => { const t = rows.reduce((a, r) => a + r.tip, 0); const h = rows.reduce((a, r) => a + r.hours, 0); return h > 0 ? t / h : 0; };
+    s.tip_per_hour_recent = Math.round(tph(tipRows.filter((r) => isRecent(r.when))) * 10) / 10;
+    s.tip_per_hour_prev = Math.round(tph(tipRows.filter((r) => isPrev(r.when))) * 10) / 10;
+    s.tip_trend_pct = trend(s.tip_per_hour_recent, s.tip_per_hour_prev);
+
+    // availability submission activity (creation time = engagement moment)
+    const myAvail = avail.filter((a: any) => matches(emp, a.employee_id, a.employee_name));
+    s.avail_recent = myAvail.filter((a: any) => isRecent(a.createdAt)).length;
+    s.avail_prev = myAvail.filter((a: any) => isPrev(a.createdAt)).length;
+    s.avail_trend_pct = trend(s.avail_recent, s.avail_prev);
+
+    s.swap_out_recent = swaps.filter((x: any) => matches(emp, x.requester_employee_id, x.requester_name) && isRecent(x.createdAt)).length;
+    s.leaves_recent = leaves.filter((x: any) => matches(emp, x.employee_id, x.employee_name) && isRecent(x.createdAt)).length;
+    s.sick_recent = leaves.filter((x: any) => matches(emp, x.employee_id, x.employee_name) && isRecent(x.createdAt) && /sick|מחלה/i.test(String(x.leave_type))).length;
+
+    const myCoins = coins.filter((c: any) => matches(emp, c.employee_id, c.employee_name));
+    s.coins_recent = Math.round(myCoins.filter((c: any) => isRecent(c.createdAt)).reduce((a: number, c: any) => a + Number(c.amount || 0), 0));
+    s.coins_prev = Math.round(myCoins.filter((c: any) => isPrev(c.createdAt)).reduce((a: number, c: any) => a + Number(c.amount || 0), 0));
+    s.coins_trend_pct = trend(s.coins_recent, s.coins_prev);
+    s.shoutouts_recent = shouts.filter((x: any) => matches(emp, x.recipient_id, x.recipient_name) && isRecent(x.createdAt)).length;
+    const myTraining = trainings.filter((t: any) => norm(t.employee_name) === norm(emp.full_name));
+    s.training_done = myTraining.some((t: any) => t.completed_full);
+    s.training_score = myTraining.length ? Math.round(Math.max(...myTraining.map((t: any) => Number(t.score_overall || 0)))) : null;
+
+    // checklist participation (checked_by names inside shared-run results)
+    let ckRecent = 0, ckPrev = 0;
+    for (const run of checklistRuns) {
+      const res = run.results && typeof run.results === 'object' && !Array.isArray(run.results) ? run.results : {};
+      for (const v of Object.values(res) as any[]) {
+        if (!v?.checked || norm(v.checked_by) !== norm(emp.full_name)) continue;
+        const when = v.checked_at || run.updatedAt;
+        if (isRecent(when)) ckRecent++; else if (isPrev(when)) ckPrev++;
+      }
+    }
+    s.checklist_marks_recent = ckRecent; s.checklist_marks_prev = ckPrev;
+
+    // ── deterministic risk score ──
+    let score = 0; const flags: string[] = [];
+    const active = s.shifts_prev >= 2 || s.shifts_recent >= 2; // enough signal to judge
+    if (active && s.shifts_trend_pct <= -35) { score += 18; flags.push(`ירידה של ${Math.abs(s.shifts_trend_pct)}% בכמות משמרות (${s.shifts_prev}→${s.shifts_recent})`); }
+    if (active && s.hours_trend_pct <= -35) { score += 12; flags.push(`ירידה של ${Math.abs(s.hours_trend_pct)}% בשעות עבודה (${s.hours_prev}→${s.hours_recent})`); }
+    if (s.tip_per_hour_prev > 0 && s.tip_trend_pct <= -20) { score += 10; flags.push(`ירידה של ${Math.abs(s.tip_trend_pct)}% בטיפ לשעה (₪${s.tip_per_hour_prev}→₪${s.tip_per_hour_recent})`); }
+    if (s.avail_prev >= 3 && s.avail_trend_pct <= -50) { score += 15; flags.push(`הפסיק/ה כמעט להגיש זמינות (${s.avail_prev}→${s.avail_recent} הגשות)`); }
+    if (s.swap_out_recent >= 2) { score += 12; flags.push(`${s.swap_out_recent} בקשות החלפה/העברת משמרת בחודש האחרון`); }
+    if (s.absences >= 2) { score += 12; flags.push(`${s.absences} משמרות משובצות ללא החתמה`); }
+    if (s.scheduled_shifts >= 4 && s.late_count / Math.max(1, s.scheduled_shifts - s.absences) >= 0.3) { score += 8; flags.push(`איחורים ב-${s.late_count} משמרות`); }
+    if (s.coins_prev >= 20 && s.coins_trend_pct <= -50) { score += 6; flags.push(`ירידה חדה במעורבות (מטבעות: ${s.coins_prev}→${s.coins_recent})`); }
+    if (s.sick_recent >= 2) { score += 7; flags.push(`${s.sick_recent} דיווחי מחלה בחודש האחרון`); }
+    if (s.tenure_days != null && s.tenure_days < 60) { score += 5; flags.push(`עובד/ת חדש/ה (${s.tenure_days} ימי ותק) — תקופת נטישה שכיחה`); }
+    s.risk_score = Math.min(100, score);
+    s.risk_flags = flags;
+    s.risk_level = score >= 65 ? 'critical' : score >= 45 ? 'high' : score >= 25 ? 'medium' : 'low';
+    profiles.push(s);
+  }
+
+  // narrative from Gemini for the top-risk only (one call, compact profiles)
+  const risky = profiles.filter((p) => p.risk_score >= 25).sort((a, b) => b.risk_score - a.risk_score).slice(0, 12);
+  let narratives: Record<string, any> = {};
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (apiKey && risky.length) {
+    try {
+      const prompt = `אתה יועץ HR למסעדות. לפני כל עובד מוצג פרופיל מדדים (מגמות 28 יום מול 28 יום קודמים) ודגלי סיכון שחושבו דטרמיניסטית. עבור כל עובד החזר JSON עם: employee_id, performance_trend (משפט), satisfaction_indicators (מערך), recommended_actions (מערך 2-4 פעולות קונקרטיות למנהל), conversation_talking_points (מערך 2-3 נקודות לשיחה אישית), motivation_strategy (משפט-שניים). החזר מערך JSON בלבד.\n\n${JSON.stringify(risky, null, 1)}`;
+      const res = await fetch(`${process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta'}/models/${process.env.GEMINI_MODEL || 'gemini-2.5-flash'}:generateContent?key=${apiKey}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 8000, responseMimeType: 'application/json' } }),
+      });
+      const data: any = await res.json().catch(() => ({}));
+      const txt = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('');
+      const arr = JSON.parse(txt.replace(/^```json?\s*|```\s*$/g, ''));
+      if (Array.isArray(arr)) for (const n of arr) if (n?.employee_id) narratives[String(n.employee_id)] = n;
+    } catch (e: any) { console.warn('[churn] narrative LLM failed:', e?.message); }
+  }
+
+  // persist high/critical to EmployeeRiskAnalysis (the existing UI reads it)
+  await db.$executeRawUnsafe(`DELETE FROM "EmployeeRiskAnalysis"`).catch(() => {});
+  const saved: any[] = [];
+  for (const p of profiles.filter((x) => x.risk_level === 'high' || x.risk_level === 'critical')) {
+    const n = narratives[String(p.employee_id)] || {};
+    try {
+      const rows: any[] = await db.$queryRawUnsafe(
+        `INSERT INTO "EmployeeRiskAnalysis" ("id","employee_id","employee_name","risk_level","risk_score","risk_factors","performance_trend","attendance_score","satisfaction_indicators","conversation_talking_points","motivation_strategy","recommended_actions","last_analysis_date","createdAt","updatedAt")
+         VALUES (gen_random_uuid()::text,$1,$2,$3,$4,$5::jsonb,$6,$7,$8::jsonb,$9::jsonb,$10,$11::jsonb,NOW(),NOW(),NOW()) RETURNING *`,
+        p.employee_id, p.employee_name, p.risk_level, p.risk_score,
+        JSON.stringify(p.risk_flags),
+        String(n.performance_trend || (p.shifts_trend_pct < 0 ? 'מגמת ירידה בפעילות' : 'יציב')),
+        Math.max(0, 100 - (p.absences * 20 + p.late_count * 10)),
+        JSON.stringify(n.satisfaction_indicators || []),
+        JSON.stringify(n.conversation_talking_points || []),
+        String(n.motivation_strategy || ''),
+        JSON.stringify(n.recommended_actions || ['לקבוע שיחה אישית', 'לבדוק שביעות רצון מהמשמרות']),
+      );
+      if (rows[0]) saved.push(rows[0]);
+    } catch (e: any) { console.warn('[churn] save failed:', e?.message); }
+  }
+
+  return {
+    ok: true,
+    analyzed: profiles.length,
+    risks: saved,
+    all_profiles: profiles.sort((a, b) => b.risk_score - a.risk_score),
+    coverage: {
+      shift_clockins_56d: tracking.length,
+      scheduled_shifts_56d: workShifts.length,
+      tip_reports_56d: tipReports.length,
+      availability_submissions_56d: avail.length,
+      swap_requests_56d: swaps.length,
+      leave_requests_56d: leaves.length,
+      coin_transactions_56d: coins.length,
+      shoutouts_56d: shouts.length,
+      training_results_180d: trainings.length,
+      checklist_runs_56d: checklistRuns.length,
+    },
+  };
+});
+
 // ── Supplier ordering lists + schedule reminders ───────────────────────────
 async function ensureSupplierOrderTable() {
   await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SupplierOrderList" (
