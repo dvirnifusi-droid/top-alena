@@ -1871,6 +1871,48 @@ if (!(globalThis as any).__dailyHoursReportTimer) {
   }, 90 * 1000);
 }
 
+// ── Team nudges scheduler — the "always-awake ops manager" ───────────────────
+// Personal WhatsApp reminders: availability not submitted (Wed+Thu 10:00),
+// scheduled-but-not-clocked-in (35min into a shift), checklist incomplete at
+// checkpoints. Deduped per event; owner gets a batch summary. Enabled per
+// tenant via RestaurantProfile.team_nudges. See lib/teamNudges.ts.
+if (!(globalThis as any).__teamNudgesTimer) {
+  (globalThis as any).__teamNudgesTimer = setTimeout(function loop() {
+    import('../lib/teamNudges.js')
+      .then((m) => m.checkTeamNudges())
+      .catch((e: any) => console.error('[nudge] tick failed:', e?.message))
+      .finally(() => {
+        (globalThis as any).__teamNudgesTimer = setTimeout(loop, 5 * 60 * 1000);
+      });
+  }, 120 * 1000);
+}
+
+// Manual trigger for hand-testing a nudge check (admin only). body.check:
+// 'availability' | 'clockin' | 'checklist' | omitted = all (respects config).
+registerFn('runTeamNudgesNow', async ({ user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const m = await import('../lib/teamNudges.js');
+  await m.checkTeamNudges();
+  return { ok: true };
+});
+
+registerFn('getTeamNudgesConfig', async ({ user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const m = await import('../lib/teamNudges.js');
+  return { config: await m.getNudgeConfig() };
+});
+
+registerFn('setTeamNudgesConfig', async ({ user, body }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const cfg = (body as any)?.config;
+  if (!cfg || typeof cfg !== 'object') throw new Error('missing config');
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "team_nudges" JSONB`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "RestaurantProfile" SET team_nudges = $1::jsonb`, JSON.stringify(cfg),
+  );
+  return { ok: true };
+});
+
 // Preview the daily-hours report text WITHOUT sending (admin hand-test).
 registerFn('previewDailyHoursReport', async ({ user }) => {
   if (!isAdminRole((user as any)?.role)) throw new Error('admin only');

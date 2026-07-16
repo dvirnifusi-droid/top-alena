@@ -504,6 +504,19 @@ const TOOL_DECLARATIONS = [
   },
   // ─── Team / schedule / events (manager + owner) ────────────────────────────
   {
+    name: 'propose_team_broadcast',
+    description: 'הצע לשלוח הודעה אישית בוואטסאפ לקבוצת עובדים (כל אחד מקבל 1:1). טריגרים: "תגיד לכל העובדים ש...", "תודיע למלצרים של הערב...", "שלח לכל המטבח...". audience: all=כל העובדים הפעילים, department=מחלקה/תפקיד מסוים, tonight=המשובצים להיום. דורש הרשאת בעלים.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        message: { type: 'STRING', description: 'תוכן ההודעה שתישלח לעובדים (בלי הפתיח — הוא נוסף אוטומטית)' },
+        audience: { type: 'STRING', description: "'all' | 'department' | 'tonight'" },
+        department: { type: 'STRING', description: 'שם מחלקה/תפקיד כשה-audience הוא department (למשל: מלצרים, מטבח, בר)' },
+      },
+      required: ['message', 'audience'],
+    },
+  },
+  {
     name: 'propose_invite_employee',
     description: 'הצע להזמין עובד חדש לצוות. טריגרים: "תזמין עובד חדש", "הוסף עובד דני 052...", "צרף עובד לצוות". שולח לעובד קישור וואטסאפ להשלמת פרטים (תפקיד + מייל). דורש הרשאת בעלים.',
     parameters: {
@@ -975,6 +988,26 @@ async function tool_propose_set_dish_price(args: any, phone: string): Promise<an
 }
 
 // ─── Team / schedule / events ──────────────────────────────────────────────
+async function tool_propose_team_broadcast(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.is_owner) return { error: 'רק הבעלים יכול לשלוח הודעה לכל הצוות.' };
+  const message = String(args.message || '').trim();
+  if (message.length < 3) return { error: 'צריך תוכן הודעה.' };
+  const audience = ['all', 'department', 'tonight', 'today'].includes(String(args.audience)) ? String(args.audience) : 'all';
+  const department = args.department ? String(args.department) : undefined;
+  const { resolveBroadcastRecipients } = await import('./teamNudges.js');
+  const recipients = await resolveBroadcastRecipients(audience, department);
+  if (!recipients.length) return { error: `לא נמצאו עובדים עם טלפון לקהל המבוקש (${audience === 'tonight' ? 'משובצי היום' : department || 'כולם'}).` };
+  await stashPendingAction(phone, { type: 'team_broadcast', message, audience, department: department || '', target_phone: phone });
+  const sample = recipients.slice(0, 6).map((r: any) => r.full_name).join(', ');
+  const audLabel = audience === 'tonight' || audience === 'today' ? 'המשובצים להיום' : audience === 'department' ? `מחלקת ${department}` : 'כל העובדים הפעילים';
+  return {
+    proposal: `📢 שליחת הודעה אישית ל-*${recipients.length} עובדים* (${audLabel}):\n"${message}"\n\nנמענים: ${sample}${recipients.length > 6 ? ` ועוד ${recipients.length - 6}` : ''}`,
+    awaiting_confirmation: true,
+  };
+}
+
 async function tool_propose_invite_employee(args: any, phone: string): Promise<any> {
   const { resolveAccessScope } = await import('./whatsappPermissions.js');
   const scope = await resolveAccessScope(phone);
@@ -2145,6 +2178,7 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   propose_mark_expense_paid: tool_propose_mark_expense_paid,
   propose_set_dish_price: tool_propose_set_dish_price,
   propose_invite_employee: tool_propose_invite_employee,
+  propose_team_broadcast: tool_propose_team_broadcast,
   propose_remove_from_shift: tool_propose_remove_from_shift,
   propose_publish_schedule: tool_propose_publish_schedule,
   propose_approve_event: tool_propose_approve_event,
@@ -2173,7 +2207,7 @@ const SYSTEM_PROMPT_BASE_TEMPLATE = `אתה העוזר האישי של בעל מ
 - *טיפים*: "נעל את הטיפים של אתמול" → propose_lock_tips (ברירת מחדל: אתמול).
 - *תקלות*: "תפתח תקלה: ..." → propose_open_incident · "מה פתוח?" → list_incidents · "סגור את התקלה של X" → propose_resolve_incident.
 - *הוצאות ומחירים*: "סמן שההוצאה ל-X שולמה"/"שילמתי ל-Y" → propose_mark_expense_paid · "עדכן מחיר X ל-N" → propose_set_dish_price.
-- *צוות ואירועים*: "תזמין עובד חדש ..." → propose_invite_employee (בעלים בלבד) · "תוריד את X ממחר ערב" → propose_remove_from_shift · "פרסם את הסידור" → propose_publish_schedule · "אשר את האירוע של X" → propose_approve_event (בעלים בלבד).
+- *צוות ואירועים*: "תזמין עובד חדש ..." → propose_invite_employee (בעלים בלבד) · "תוריד את X ממחר ערב" → propose_remove_from_shift · "פרסם את הסידור" → propose_publish_schedule · "אשר את האירוע של X" → propose_approve_event (בעלים בלבד) · "תגיד לכל העובדים / למלצרים של הערב ש..." → propose_team_broadcast (בעלים בלבד — כל עובד מקבל הודעה אישית).
 
 *חוקי זמן — קריטי*:
 - שעות שמשתמש כותב הן *תמיד* שעון ישראל (Asia/Jerusalem).
@@ -2302,6 +2336,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
   events: ['propose_approve_event', 'list_open_leads', 'search_lead', 'propose_lead_set_stage', 'propose_event_add', 'propose_event_add_batch'],
   tasks: ['propose_task_add', 'propose_task_done', 'list_open_tasks', 'propose_task_add_batch', 'propose_remind_me', 'list_today_events', 'update_scheduled_event', 'cancel_scheduled_event'],
   invoices: ['get_unpaid_invoices', 'search_invoice', 'propose_invoice_mark_paid'],
+  team: ['propose_team_broadcast', 'search_employee', 'list_today_schedule'],
 };
 // When the intent is unclear, a modest common set (still far smaller than 54).
 const GENERAL_TOOLS = ['get_today_revenue', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'propose_create_reservation', 'list_order_needs', 'list_incidents', 'propose_open_incident', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee'];
@@ -2311,6 +2346,7 @@ const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_
 // an LLM call. Order matters: more specific intents first. The LLM classifier is
 // only a fallback for wording the keywords miss.
 const INTENT_KEYWORDS: Array<[string, RegExp]> = [
+  ['team', /תגיד לכל|תודיע לכל|שלח לכל|הודעה לכל|תעדכן את (כל|ה)|לכל העובדים|לכל הצוות|תגיד למלצרים|תגיד לטבחים|תגיד למטבח/],
   ['reservations', /יש מקום|מקום פנוי|(תזמין|להזמין|תרשום|תכניס).{0,12}(שולחן|מקום|הזמנה)|שולחן ל|סועדים|לשבת|רזרב|בטל.{0,10}הזמנה/],
   ['orders', /ירקן|ספק|מה חסר|מה צריך להזמין|צריך להזמין|מלאי|הזמנתי מ|סמן שהזמנתי|מהבשר|מהאלכוהול/],
   ['incidents', /תקלה|תקלות|התקלקל|נשבר|לא עובד|לא עובדת|מה פתוח|אירוע חריג|קלקול|דליפה|סגור.{0,10}תקלה/],
@@ -2341,6 +2377,7 @@ async function classifyIntent(message: string): Promise<string> {
     `events = אירוע פרטי/ליד/הצעת מחיר/אשר אירוע\n` +
     `tasks = משימה/תזכורת/יומן/פגישה/תזכיר לי\n` +
     `invoices = חשבונית ספק/סמן ששולמה/חפש חשבונית\n` +
+    `team = תגיד לכל העובדים/תודיע לצוות/שלח הודעה למלצרים\n` +
     `general = ברכה/שאלה כללית/לא ברור\n` +
     `בקשה: "${String(message).slice(0, 300)}"`;
   try {
@@ -2353,7 +2390,7 @@ async function classifyIntent(message: string): Promise<string> {
     });
     const data: any = await res.json().catch(() => ({}));
     const raw = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('').toLowerCase();
-    const cat = (raw.match(/finance|schedule|reservations|orders|incidents|events|tasks|invoices|general/) || ['general'])[0];
+    const cat = (raw.match(/finance|schedule|reservations|orders|incidents|events|tasks|invoices|team|general/) || ['general'])[0];
     return cat;
   } catch { return 'general'; }
 }

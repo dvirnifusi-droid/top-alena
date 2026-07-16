@@ -1042,6 +1042,15 @@ async function executeAction(exec: any): Promise<string> {
       } catch { /* recompute helper unavailable — sale_price still saved */ }
       return `🍽️ מחיר המנה *${exec.recipe_name}* עודכן ל-₪${exec.sale_price}.`;
     }
+    case 'team_broadcast': {
+      // Personal 1:1 WhatsApp (+push backup) to every resolved recipient — the
+      // official API has no group support, and personal beats group anyway.
+      const { sendTeamBroadcast } = await import('./teamNudges.js');
+      const r = await sendTeamBroadcast(String(exec.message || ''), String(exec.audience || 'all'), exec.department ? String(exec.department) : undefined);
+      const names = r.names.slice(0, 10).join(', ');
+      return `📢 ההודעה נשלחה אישית ל-${r.sent}/${r.total} עובדים.\n${names}${r.total > 10 ? ` ועוד ${r.total - 10}` : ''}${r.sent < r.total ? `\n⚠️ ${r.total - r.sent} לא נשלחו בוואטסאפ (כנראה בלי שיחה פתוחה מול הסוכן) — קיבלו התראת אפליקציה.` : ''}`;
+    }
+
     case 'invite_employee': {
       // Mirror inviteEmployeeViaWhatsApp (load.ts:23268): token + PendingInvitation
       // row + WhatsApp link to /EmployeeComplete.
