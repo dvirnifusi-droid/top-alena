@@ -2297,10 +2297,19 @@ export async function debugAgentFirstTurn(phone: string, userMessage: string): P
   contents.push({ role: 'user', parts: [{ text: userMessage }] });
   let systemPrompt = '';
   try { systemPrompt = await buildSystemPrompt(phone); } catch (e: any) { return { error: 'buildSystemPrompt: ' + (e?.message || e) }; }
+  let decls = TOOL_DECLARATIONS;
+  try {
+    const { resolveAccessScope } = await import('./whatsappPermissions.js');
+    const role = (await resolveAccessScope(phone)).role;
+    if (role === 'staff' || role === 'guest') {
+      const S = new Set(['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_mark_sick']);
+      decls = TOOL_DECLARATIONS.filter((d: any) => S.has(d.name));
+    }
+  } catch { /* keep full */ }
   const body: any = {
     systemInstruction: { parts: [{ text: systemPrompt }] },
     contents,
-    tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+    tools: [{ functionDeclarations: decls }],
     generationConfig: { maxOutputTokens: 4000, temperature: 0.3 },
   };
   const res = await fetch(`${GEMINI_BASE}/models/${MODEL}:generateContent?key=${apiKey}`, {
@@ -2338,12 +2347,29 @@ export async function runConversationAgent(phone: string, userMessage: string): 
   contents.push({ role: 'user', parts: [{ text: userMessage }] });
 
   const systemPrompt = await buildSystemPrompt(phone);
-  const body = {
+
+  // Scope the tool list to the caller's role. Handing all ~54 owner tools to a
+  // staff member both leaks intent and — more importantly — makes gemini-2.5
+  // unreliable (it returns an empty candidate on many phrasings when the tool
+  // list is huge). A waiter only needs their 4 self-service tools, so a small,
+  // focused list means the model maps almost any phrasing to the right tool.
+  let activeDecls = TOOL_DECLARATIONS;
+  try {
+    const { resolveAccessScope } = await import('./whatsappPermissions.js');
+    const role = (await resolveAccessScope(phone)).role;
+    if (role === 'staff' || role === 'guest') {
+      const STAFF_TOOLS = new Set(['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_mark_sick']);
+      activeDecls = TOOL_DECLARATIONS.filter((d: any) => STAFF_TOOLS.has(d.name));
+    }
+  } catch { /* keep full list on scope error */ }
+
+  const body: any = {
     systemInstruction: { parts: [{ text: systemPrompt }] },
     contents,
-    tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+    tools: [{ functionDeclarations: activeDecls }],
     generationConfig: { maxOutputTokens: 4000, temperature: 0.3 },
   };
+  let retriedEmpty = false;
 
   // Up to 5 tool-loop iterations
   for (let iter = 0; iter < 5; iter++) {
@@ -2414,10 +2440,16 @@ export async function runConversationAgent(phone: string, userMessage: string): 
         toolsN: TOOL_DECLARATIONS.length,
       }).slice(0, 500));
     } catch { /* noop */ }
-    // A malformed-function-call empty on the FIRST turn usually means the model
-    // choked on the large tool list. Retry once with tools disabled so the user
-    // at least gets a plain answer instead of "not sure".
-    if (cand?.finishReason === 'MALFORMED_FUNCTION_CALL' && (body as any).tools) {
+    // gemini-2.5 intermittently returns an EMPTY candidate (finishReason STOP or
+    // MALFORMED_FUNCTION_CALL) — often transient, or the model choked on the tool
+    // list for a particular phrasing. Retry the SAME request once (usually
+    // succeeds); if it's still empty, drop the tools so the user at least gets a
+    // plain-text answer instead of the unhelpful "not sure".
+    if (!retriedEmpty) {
+      retriedEmpty = true;
+      continue;
+    }
+    if ((body as any).tools) {
       delete (body as any).tools;
       continue;
     }
