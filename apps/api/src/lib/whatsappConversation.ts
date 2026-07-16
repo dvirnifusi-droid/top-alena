@@ -2334,6 +2334,26 @@ export async function runConversationAgent(phone: string, userMessage: string): 
     // Plain text reply
     const text = parts.map(p => p.text || '').join('').trim();
     if (text) return text;
+    // Empty candidate — log WHY (gemini-2.5 returns an empty candidate with
+    // finishReason MALFORMED_FUNCTION_CALL when it fails to build a valid call,
+    // or blocks on safety). This is what surfaces as an unhelpful "not sure".
+    try {
+      console.warn('[conversation] EMPTY', JSON.stringify({
+        iter,
+        finishReason: cand?.finishReason,
+        block: data?.promptFeedback?.blockReason,
+        candN: data?.candidates?.length,
+        contentsN: contents.length,
+        toolsN: TOOL_DECLARATIONS.length,
+      }).slice(0, 500));
+    } catch { /* noop */ }
+    // A malformed-function-call empty on the FIRST turn usually means the model
+    // choked on the large tool list. Retry once with tools disabled so the user
+    // at least gets a plain answer instead of "not sure".
+    if (cand?.finishReason === 'MALFORMED_FUNCTION_CALL' && (body as any).tools) {
+      delete (body as any).tools;
+      continue;
+    }
     return '🤔 לא בטוח איך לעזור עם זה. תוכל להרחיב?';
   }
   return '🤔 התקבלו יותר מדי קריאות לכלים. נסה שוב עם בקשה פשוטה יותר.';
