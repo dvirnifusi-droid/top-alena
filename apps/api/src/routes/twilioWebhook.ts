@@ -171,14 +171,25 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
         // ran — so office files were never read. When there's an attachment, let
         // the audio/file branches handle it; text-only messages come here.
         if (body && numMedia === 0) {
+          // A recognized owner / co-owner / manager / employee of an EXISTING
+          // tenant is NOT a new-tenant signup — a stale onboarding session must
+          // never shadow the owner agent for them (this is why a co-owner kept
+          // getting "let's finish setting up the restaurant" instead of a reply).
+          let isKnownBusinessMember = false;
           try {
-            const handled = await tryHandleOnboardingMessage(from, body);
-            if (handled) {
-              reply.type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
-              return;
+            const { resolveAccessScope } = await import('../lib/whatsappPermissions.js');
+            isKnownBusinessMember = (await resolveAccessScope(from)).role !== 'guest';
+          } catch { /* treat as unknown → allow onboarding */ }
+          if (!isKnownBusinessMember) {
+            try {
+              const handled = await tryHandleOnboardingMessage(from, body);
+              if (handled) {
+                reply.type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+                return;
+              }
+            } catch (e: any) {
+              req.log.warn({ err: e?.message }, '[whatsapp-agent] onboarding handler failed');
             }
-          } catch (e: any) {
-            req.log.warn({ err: e?.message }, '[whatsapp-agent] onboarding handler failed');
           }
         }
         // ── Onboarding VOICE note: an owner mid-onboarding sent an audio

@@ -128,14 +128,17 @@ export async function reportRecipientPhones(): Promise<string[]> {
   const out: string[] = [];
   const seen = new Set<string>();
   const add = (p: any) => { const d = normalizePhone(p); if (p && d && !seen.has(d)) { seen.add(d); out.push(String(p)); } };
+  const slug = String(process.env.TENANT_SLUG || '').trim().toLowerCase();
+  // On the alena platform tenant the env admins are the "primary owner — fixed"
+  // the UI promises: ALWAYS notified, on TOP of the registry owner + recipients
+  // — not merely a fallback when the list is empty (adding a co-owner must never
+  // drop the primary owner). Other tenants never use the shared env (would spam).
+  if (!slug || slug === 'alena') {
+    for (const p of (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map(s => s.trim()).filter(Boolean)) add(p);
+  }
   if (raw) add(raw);
   for (const r of extra) add(r.phone);
-  if (out.length) return out;
-  const slug = String(process.env.TENANT_SLUG || '').trim().toLowerCase();
-  if (!slug || slug === 'alena') {
-    return (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map(s => s.trim()).filter(Boolean);
-  }
-  return [];
+  return out;
 }
 
 // A co_owner in the recipient list gets full command rights (is_owner). A
