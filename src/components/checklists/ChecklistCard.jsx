@@ -95,13 +95,9 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
 
     const getLastExecution = () => {
         // Prefer the ACTIVE shared run (the one both modes are marking right
-        // now) — matched by recency, not calendar date, so a closing checklist
-        // that crossed midnight still shows as "in progress" (05:00 boundary).
-        const fresh = (e) => {
-            const t = new Date(e.execution_date || e.created_date || 0).getTime();
-            return t && (Date.now() - t) < 18 * 3600 * 1000;
-        };
-        const active = executions.find(e => e.status === 'in_progress' && fresh(e));
+        // now) — regardless of when it started: runs never auto-reset by clock
+        // (tenants operate in different timezones); only finish/reset close them.
+        const active = executions.find(e => e.status === 'in_progress' && String(e.id || '').startsWith('live_'));
         if (active) return active;
         const today = new Date().toISOString().split('T')[0];
         return executions.find(e => (e.execution_date||'').startsWith(today));

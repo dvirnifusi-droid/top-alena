@@ -6521,8 +6521,10 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
 // two people open at once). The run persists until an EXPLICIT finish
 // (finishChecklistLiveRun → archive) or manager reset — never on reload.
 // After a finish, the next open starts a fresh run (_r2, _r3, …) same day.
-// "Business day" rolls at 05:00 Israel time, NOT midnight — a bar-closing
-// checklist that starts 23:30 must survive past midnight without resetting.
+// NO automatic day-rollover (owner rule: tenants run in Israel AND the US —
+// clock-based resets are wrong somewhere). A run stays active until someone
+// EXPLICITLY finishes it (→ archive) or a manager resets it. The date in the
+// id is just the creation date for readability, nothing keys off it.
 const ilBizDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(Date.now() - 5 * 3600_000));
 registerFn('openChecklistLiveRun', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
@@ -6530,13 +6532,11 @@ registerFn('openChecklistLiveRun', async ({ user, body }: any) => {
   if (!checklistId) throw new Error('missing_checklist');
   const baseId = `live_${checklistId}_${ilBizDate()}`;
   const byName = user.full_name || user.fullName || user.email || '';
-  // Join the latest ACTIVE (non-completed) recent run — matched by checklist,
-  // not by the id's date, so a run that crossed midnight is still joined.
+  // Join the latest ACTIVE (non-completed) run — regardless of when it started.
   const active: any[] = await db.$queryRawUnsafe(
     `SELECT id, results, status, notes FROM "ChecklistExecution"
      WHERE checklist_id = $1 AND id LIKE 'live\\_%'
        AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')
-       AND "createdAt" > NOW() - INTERVAL '18 hours'
      ORDER BY "createdAt" DESC LIMIT 1`,
     checklistId,
   );
@@ -6641,22 +6641,20 @@ registerFn('resetChecklistLiveRun', async ({ user, body }: any) => {
   const res = await db.$executeRawUnsafe(
     `DELETE FROM "ChecklistExecution"
      WHERE checklist_id = $1 AND id LIKE 'live\\_%'
-       AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')
-       AND "createdAt" > NOW() - INTERVAL '18 hours'`,
+       AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')`,
     checklistId,
   );
   return { ok: true, deleted: Number(res) || 0 };
 });
 
-// Manager-only "reset day" — clears ALL of today's active shared runs at once.
+// Manager-only "reset day" — clears ALL active shared runs at once.
 registerFn('resetChecklistDay', async ({ user }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   if (!['admin', 'owner'].includes(String(user.role))) throw new Error('forbidden');
   const res = await db.$executeRawUnsafe(
     `DELETE FROM "ChecklistExecution"
      WHERE id LIKE 'live\\_%'
-       AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')
-       AND "createdAt" > NOW() - INTERVAL '18 hours'`,
+       AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')`,
   );
   return { ok: true, deleted: Number(res) || 0 };
 });
