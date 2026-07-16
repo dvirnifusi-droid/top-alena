@@ -76,11 +76,11 @@ function normalizePhone(p: string): string {
 // each know their TENANT_SLUG). Cached per process (5-min TTL; a container serves
 // exactly one tenant so this is a single row). Lets every tenant recognize ITS
 // OWN owner as is_owner=true without touching the shared WHATSAPP_ADMIN_NUMBERS.
-let _ownerCache: { digits: string | null; at: number } | null = null;
+let _ownerCache: { digits: string | null; at: number; ttl: number } | null = null;
 async function getTenantOwnerDigits(): Promise<string | null> {
   const slug = String(process.env.TENANT_SLUG || '').trim();
   if (!slug) return null;
-  if (_ownerCache && Date.now() - _ownerCache.at < 300_000) return _ownerCache.digits;
+  if (_ownerCache && Date.now() - _ownerCache.at < _ownerCache.ttl) return _ownerCache.digits;
   let digits: string | null = null;
   try {
     const rows: any[] = await (prisma as any).$queryRawUnsafe(
@@ -89,7 +89,10 @@ async function getTenantOwnerDigits(): Promise<string | null> {
     const raw = rows?.[0]?.owner_phone;
     digits = raw ? normalizePhone(raw) : null;
   } catch { digits = null; /* registry unreachable — env + Employee paths still apply */ }
-  _ownerCache = { digits, at: Date.now() };
+  // Cache a HIT for 5 min; a MISS/failure only 30s, so a cold-start transient
+  // (Prisma still warming up right after a redeploy) doesn't leave the owner
+  // unrecognized for the whole window — it retries within 30s.
+  _ownerCache = { digits, at: Date.now(), ttl: digits ? 300_000 : 30_000 };
   return digits;
 }
 
