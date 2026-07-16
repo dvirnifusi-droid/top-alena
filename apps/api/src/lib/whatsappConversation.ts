@@ -2286,6 +2286,64 @@ type=${exec.type || '?'} · נשלח לפני ${Math.round((Date.now() - new Dat
 אם ההודעה הבאה היא תיקון לפרטים שלמעלה — השתמש ב-modify_pending_proposal.`;
 }
 
+// ─── Tool router ────────────────────────────────────────────────────────────
+// Handing all ~54 owner tools to gemini-2.5 in one call is unreliable — it
+// returns empty candidates or picks the wrong tool on many phrasings. So we
+// first classify the message into ONE intent group with a cheap LLM call and
+// expose only that group's tools (6-12) plus a few universal ones. A short,
+// focused list makes tool selection accurate for almost any wording.
+const UNIVERSAL_TOOLS = ['list_pending_proposals', 'modify_pending_proposal', 'cancel_pending_proposal'];
+const TOOL_GROUPS: Record<string, string[]> = {
+  finance: ['get_today_revenue', 'get_cash_balance', 'list_unpaid_expenses', 'list_expected_income', 'get_recent_tips', 'propose_mark_expense_paid', 'propose_lock_tips', 'get_recipe_cost', 'list_high_food_cost', 'update_ingredient_price', 'get_my_recipe_summary', 'propose_set_dish_price'],
+  schedule: ['list_today_schedule', 'build_schedule_now', 'add_scheduling_rule', 'list_scheduling_rules', 'propose_shift_assign', 'propose_employee_shifts_batch', 'propose_remove_from_shift', 'propose_publish_schedule', 'search_employee', 'propose_invite_employee', 'propose_mark_sick'],
+  reservations: ['check_availability', 'propose_create_reservation', 'propose_cancel_reservation'],
+  orders: ['list_order_needs', 'propose_mark_supplier_ordered'],
+  incidents: ['propose_open_incident', 'list_incidents', 'propose_resolve_incident'],
+  events: ['propose_approve_event', 'list_open_leads', 'search_lead', 'propose_lead_set_stage', 'propose_event_add', 'propose_event_add_batch'],
+  tasks: ['propose_task_add', 'propose_task_done', 'list_open_tasks', 'propose_task_add_batch', 'propose_remind_me', 'list_today_events', 'update_scheduled_event', 'cancel_scheduled_event'],
+  invoices: ['get_unpaid_invoices', 'search_invoice', 'propose_invoice_mark_paid'],
+};
+// When the intent is unclear, a modest common set (still far smaller than 54).
+const GENERAL_TOOLS = ['get_today_revenue', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'list_order_needs', 'list_incidents', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee', 'list_open_leads'];
+const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_mark_sick'];
+
+async function classifyIntent(message: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return 'general';
+  const prompt =
+    `סווג את בקשת המשתמש לעסק לקטגוריה אחת בלבד. החזר אך ורק את מילת המפתח באנגלית, בלי שום דבר נוסף.\n` +
+    `finance = מכירות/הכנסות/כמה מכרנו/מזומן/קופה/טיפים/הוצאות/תשלום לספק/מחיר מנה/עלות מזון/פוד קוסט\n` +
+    `schedule = סידור עבודה/משמרות/מי עובד/זמינות/שבץ/תוריד ממשמרת/פרסם סידור/הוסף עובד/דיווח מחלה\n` +
+    `reservations = הזמנת שולחן/יש מקום/תזמין/בטל הזמנה\n` +
+    `orders = הזמנות מספקים/מה חסר/מה צריך להזמין/סמן שהזמנתי/מלאי\n` +
+    `incidents = תקלה/אירוע חריג/מה פתוח/סגור תקלה\n` +
+    `events = אירוע פרטי/ליד/הצעת מחיר/אשר אירוע\n` +
+    `tasks = משימה/תזכורת/יומן/פגישה/תזכיר לי\n` +
+    `invoices = חשבונית ספק/סמן ששולמה/חפש חשבונית\n` +
+    `general = ברכה/שאלה כללית/לא ברור\n` +
+    `בקשה: "${String(message).slice(0, 300)}"`;
+  try {
+    const res = await fetch(`${GEMINI_BASE}/models/${MODEL}:generateContent?key=${apiKey}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { temperature: 0, maxOutputTokens: 20 } }),
+    });
+    const data: any = await res.json().catch(() => ({}));
+    const raw = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('').toLowerCase();
+    const cat = (raw.match(/finance|schedule|reservations|orders|incidents|events|tasks|invoices|general/) || ['general'])[0];
+    return cat;
+  } catch { return 'general'; }
+}
+
+// Resolve the focused tool declarations for a caller + message.
+async function routedToolDeclarations(role: string, message: string): Promise<{ decls: any[]; group: string }> {
+  if (role === 'staff' || role === 'guest') {
+    return { decls: TOOL_DECLARATIONS.filter((d: any) => STAFF_TOOLS.includes(d.name)), group: 'self' };
+  }
+  const cat = await classifyIntent(message);
+  const names = new Set<string>([...UNIVERSAL_TOOLS, ...(TOOL_GROUPS[cat] || GENERAL_TOOLS)]);
+  return { decls: TOOL_DECLARATIONS.filter((d: any) => names.has(d.name)), group: cat };
+}
+
 // TEMP diagnostic — replicates the agent's first-turn request and returns the
 // raw Gemini outcome so the empty-reply bug can be pinpointed over HTTPS.
 export async function debugAgentFirstTurn(phone: string, userMessage: string): Promise<any> {
@@ -2298,13 +2356,12 @@ export async function debugAgentFirstTurn(phone: string, userMessage: string): P
   let systemPrompt = '';
   try { systemPrompt = await buildSystemPrompt(phone); } catch (e: any) { return { error: 'buildSystemPrompt: ' + (e?.message || e) }; }
   let decls = TOOL_DECLARATIONS;
+  let group = 'all';
   try {
     const { resolveAccessScope } = await import('./whatsappPermissions.js');
     const role = (await resolveAccessScope(phone)).role;
-    if (role === 'staff' || role === 'guest') {
-      const S = new Set(['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_mark_sick']);
-      decls = TOOL_DECLARATIONS.filter((d: any) => S.has(d.name));
-    }
+    const routed = await routedToolDeclarations(role, userMessage);
+    if (routed.decls.length) { decls = routed.decls; group = routed.group; }
   } catch { /* keep full */ }
   const body: any = {
     systemInstruction: { parts: [{ text: systemPrompt }] },
@@ -2327,7 +2384,8 @@ export async function debugAgentFirstTurn(phone: string, userMessage: string): P
     text: parts.map((p: any) => p.text || '').join('').slice(0, 120) || null,
     contentsRoles: contents.map((c: any) => c.role).join(','),
     contentsCount: contents.length,
-    toolsN: TOOL_DECLARATIONS.length,
+    routerGroup: group,
+    toolsN: decls.length,
     systemPromptLen: systemPrompt.length,
     model: MODEL,
     rawWhenEmpty: parts.length ? undefined : JSON.stringify(data).slice(0, 500),
@@ -2348,19 +2406,17 @@ export async function runConversationAgent(phone: string, userMessage: string): 
 
   const systemPrompt = await buildSystemPrompt(phone);
 
-  // Scope the tool list to the caller's role. Handing all ~54 owner tools to a
-  // staff member both leaks intent and — more importantly — makes gemini-2.5
-  // unreliable (it returns an empty candidate on many phrasings when the tool
-  // list is huge). A waiter only needs their 4 self-service tools, so a small,
-  // focused list means the model maps almost any phrasing to the right tool.
+  // Route to a FOCUSED tool set (see routedToolDeclarations): staff get their 4
+  // self-service tools; owners/managers get only the group matching the message
+  // intent (+ universal). A short list makes gemini-2.5 map almost any phrasing
+  // to the right tool instead of returning empty or picking the wrong one.
   let activeDecls = TOOL_DECLARATIONS;
   try {
     const { resolveAccessScope } = await import('./whatsappPermissions.js');
     const role = (await resolveAccessScope(phone)).role;
-    if (role === 'staff' || role === 'guest') {
-      const STAFF_TOOLS = new Set(['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_mark_sick']);
-      activeDecls = TOOL_DECLARATIONS.filter((d: any) => STAFF_TOOLS.has(d.name));
-    }
+    const routed = await routedToolDeclarations(role, userMessage);
+    activeDecls = routed.decls.length ? routed.decls : TOOL_DECLARATIONS;
+    console.log('[conversation] router', JSON.stringify({ role, group: routed.group, tools: activeDecls.length }));
   } catch { /* keep full list on scope error */ }
 
   const body: any = {
