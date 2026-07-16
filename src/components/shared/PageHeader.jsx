@@ -14,8 +14,10 @@ export function PageShell({ children, className = '' }) {
 }
 
 export default function PageHeader({ title, subtitle, icon: Icon, action, accent = 'var(--brand-primary, #A04A2E)' }) {
+    // Mobile: stack title above actions (side-by-side squeezes the text column
+    // to ~1ch when the action block is wide — letters render vertically).
     return (
-        <div className="flex items-start justify-between gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
             <div className="flex items-center gap-3 min-w-0">
                 {Icon && (
                     <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm" style={{ background: accent }}>

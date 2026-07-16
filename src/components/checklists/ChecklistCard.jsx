@@ -94,11 +94,17 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
     const shiftInfo = SHIFT_LABELS[checklist.shift] || null;
 
     const getLastExecution = () => {
-        const today = new Date().toISOString().split('T')[0];
-        const todays = executions.filter(e => (e.execution_date||'').startsWith(today));
         // Prefer the ACTIVE shared run (the one both modes are marking right
-        // now) over an earlier completed one, so the card shows live progress.
-        return todays.find(e => e.status === 'in_progress') || todays[0];
+        // now) — matched by recency, not calendar date, so a closing checklist
+        // that crossed midnight still shows as "in progress" (05:00 boundary).
+        const fresh = (e) => {
+            const t = new Date(e.execution_date || e.created_date || 0).getTime();
+            return t && (Date.now() - t) < 18 * 3600 * 1000;
+        };
+        const active = executions.find(e => e.status === 'in_progress' && fresh(e));
+        if (active) return active;
+        const today = new Date().toISOString().split('T')[0];
+        return executions.find(e => (e.execution_date||'').startsWith(today));
     };
 
     const lastExecution = getLastExecution();
@@ -245,17 +251,19 @@ export default function ChecklistCard({ checklist, onStart, executions, onEdit, 
                 <div className="mt-6">
                     <Button
                         onClick={() => onStart(checklist)}
-                        className={`w-full h-12 text-lg font-bold rounded-2xl shadow-sm transition-all duration-300 hover:shadow-md text-white bg-gradient-to-r ${
+                        className={`w-full h-12 text-base sm:text-lg font-bold rounded-2xl shadow-sm transition-all duration-300 hover:shadow-md text-white bg-gradient-to-r ${
                             lastExecution && lastExecution.status === 'completed'
                                 ? 'from-[#B89556] to-[#A0824A] hover:from-[#a8854c] hover:to-[#8f7442]'
                                 : 'from-[#A04A2E] to-[#8B3D24] hover:from-[#8B3D24] hover:to-[#7A3722]'
                         }`}
                     >
-                        <Play className="w-6 h-6 ml-3" />
-                        {lastExecution && lastExecution.status === 'completed'
-                            ? '🔄 התחל מחדש (הושלם היום)'
-                            : '🚀 התחל ביצוע'
-                        }
+                        <Play className="w-5 h-5 ml-2 shrink-0" />
+                        <span className="truncate">
+                            {lastExecution && lastExecution.status === 'completed'
+                                ? '🔄 התחל מחדש (הושלם היום)'
+                                : '🚀 התחל ביצוע'
+                            }
+                        </span>
                     </Button>
                     {onLiveRun && (
                         <Button

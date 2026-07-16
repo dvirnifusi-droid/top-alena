@@ -6521,20 +6521,24 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
 // two people open at once). The run persists until an EXPLICIT finish
 // (finishChecklistLiveRun → archive) or manager reset — never on reload.
 // After a finish, the next open starts a fresh run (_r2, _r3, …) same day.
-const ilToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+// "Business day" rolls at 05:00 Israel time, NOT midnight — a bar-closing
+// checklist that starts 23:30 must survive past midnight without resetting.
+const ilBizDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(Date.now() - 5 * 3600_000));
 registerFn('openChecklistLiveRun', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   const checklistId = String((body || {}).checklist_id || '');
   if (!checklistId) throw new Error('missing_checklist');
-  const ilDate = ilToday();
-  const baseId = `live_${checklistId}_${ilDate}`;
+  const baseId = `live_${checklistId}_${ilBizDate()}`;
   const byName = user.full_name || user.fullName || user.email || '';
-  // Join today's ACTIVE (non-completed) run if one exists.
+  // Join the latest ACTIVE (non-completed) recent run — matched by checklist,
+  // not by the id's date, so a run that crossed midnight is still joined.
   const active: any[] = await db.$queryRawUnsafe(
     `SELECT id, results, status, notes FROM "ChecklistExecution"
-     WHERE (id = $1 OR id LIKE $2) AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')
-     ORDER BY id DESC LIMIT 1`,
-    baseId, `${baseId}\\_r%`,
+     WHERE checklist_id = $1 AND id LIKE 'live\\_%'
+       AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')
+       AND "createdAt" > NOW() - INTERVAL '18 hours'
+     ORDER BY "createdAt" DESC LIMIT 1`,
+    checklistId,
   );
   if (active[0]) return { execution: active[0] };
   // No active run → create the next one. Counter = finished runs today + 1, so
@@ -6634,11 +6638,12 @@ registerFn('resetChecklistLiveRun', async ({ user, body }: any) => {
   if (!['admin', 'owner'].includes(String(user.role))) throw new Error('forbidden');
   const checklistId = String((body || {}).checklist_id || '');
   if (!checklistId) throw new Error('missing_checklist');
-  const baseId = `live_${checklistId}_${ilToday()}`;
   const res = await db.$executeRawUnsafe(
     `DELETE FROM "ChecklistExecution"
-     WHERE (id = $1 OR id LIKE $2) AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')`,
-    baseId, `${baseId}\\_r%`,
+     WHERE checklist_id = $1 AND id LIKE 'live\\_%'
+       AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')
+       AND "createdAt" > NOW() - INTERVAL '18 hours'`,
+    checklistId,
   );
   return { ok: true, deleted: Number(res) || 0 };
 });
@@ -6649,8 +6654,9 @@ registerFn('resetChecklistDay', async ({ user }: any) => {
   if (!['admin', 'owner'].includes(String(user.role))) throw new Error('forbidden');
   const res = await db.$executeRawUnsafe(
     `DELETE FROM "ChecklistExecution"
-     WHERE id LIKE $1 AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')`,
-    `live\\_%\\_${ilToday()}%`,
+     WHERE id LIKE 'live\\_%'
+       AND COALESCE(status,'in_progress') NOT IN ('completed','requires_attention')
+       AND "createdAt" > NOW() - INTERVAL '18 hours'`,
   );
   return { ok: true, deleted: Number(res) || 0 };
 });

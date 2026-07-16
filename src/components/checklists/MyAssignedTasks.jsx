@@ -32,13 +32,14 @@ export default function MyAssignedTasks({ currentEmployee }) {
         }
         setAssignedItems(items);
 
-        // Read completion from today's SHARED runs (deterministic live_* ids).
-        const ilToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+        // Read completion from the current SHARED runs (deterministic live_*
+        // ids; the ACTIVE run is the source of truth — the server decides the
+        // business-day boundary, so no date math here).
         const executions = await base44.entities.ChecklistExecution.list('-execution_date', 200).catch(() => []);
         const cm = {};
         const pm = {};
         for (const item of items) {
-            const prefix = `live_${item.checklist_id}_${ilToday}`;
+            const prefix = `live_${item.checklist_id}_`;
             const runs = executions.filter(e => String(e.id || '').startsWith(prefix));
             const run = runs.find(e => e.status === 'in_progress') || runs[0];
             const r = run?.results?.[item.item_key];
