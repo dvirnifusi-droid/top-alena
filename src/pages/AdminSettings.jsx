@@ -6,7 +6,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import PageHeader from '@/components/shared/PageHeader';
-import { Settings, Zap, MessageCircle, Tablet, MapPin, RefreshCw, CreditCard, FormInput, Tv, Bell, Database, Mic, Mail } from 'lucide-react';
+import { Settings, Zap, MessageCircle, Tablet, MapPin, RefreshCw, CreditCard, FormInput, Tv, Bell, Database, Mic, Mail, Rocket, FileText, Send, SlidersHorizontal, DollarSign } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 
 // Tailwind's JIT can't see interpolated class names (bg-${accent}-50 etc.), so
@@ -57,6 +57,30 @@ export default function AdminSettings() {
         <div className="p-4 md:p-6 max-w-6xl mx-auto" dir="rtl">
             <PageHeader title="הגדרות ואינטגרציות" subtitle="כל החיבורים, ה-API-ים, וההגדרות מאחורי הקלעים במקום אחד." icon={Settings} />
 
+            <Section title="התחלה מהירה" emoji="🚀">
+                <Tile
+                    to={createPageUrl('Setup')}
+                    title="בואו נתחיל"
+                    sub="אשף ההקמה — חבר את כל מה שצריך כדי שהמערכת תעבוד בשבילך"
+                    icon={Rocket}
+                    accent="orange"
+                />
+                <Tile
+                    to={createPageUrl('PlatformSettings')}
+                    title="הגדרות פלטפורמה"
+                    sub="הפעלה/כיבוי של מודולים במערכת לפי מה שהעסק צריך"
+                    icon={SlidersHorizontal}
+                    accent="slate"
+                />
+                <Tile
+                    to={createPageUrl('OperatingCosts')}
+                    title="עלויות תפעול"
+                    sub="עלויות קבועות ומשתנות — בסיס לתזרים ולרווחיות"
+                    icon={DollarSign}
+                    accent="emerald"
+                />
+            </Section>
+
             <Section title="חיבורים חיצוניים" emoji="🔌">
                 <Tile
                     to={createPageUrl('BeecommLive')}
@@ -85,6 +109,20 @@ export default function AdminSettings() {
                     sub="הודעות נכנסות מלקוחות, תגובה ישירה מהמסך"
                     icon={MessageCircle}
                     accent="emerald"
+                />
+                <Tile
+                    to={createPageUrl('AdminWhatsAppTemplates')}
+                    title="WhatsApp Templates"
+                    sub="תבניות הודעה מאושרות (Twilio) לשליחה יזומה ללקוחות"
+                    icon={FileText}
+                    accent="emerald"
+                />
+                <Tile
+                    to={createPageUrl('PushNotifications')}
+                    title="שליחת פוש ידני"
+                    sub="שלח התראת Push למנהלים/לצוות באופן ידני"
+                    icon={Send}
+                    accent="rose"
                 />
                 <Tile
                     to={createPageUrl('DepositSettings')}
