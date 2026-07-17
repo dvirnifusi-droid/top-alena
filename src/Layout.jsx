@@ -57,9 +57,9 @@ const adminLinks = [
   { title: "לוח בקרה", url: createPageUrl("Dashboard"), icon: LayoutGrid, color: "cinnamon" },
 
   { title: "🤖 כלי AI", url: createPageUrl("AIHub"), icon: Sparkles, color: "gold" },
-  { title: "🚀 בואו נתחיל", url: createPageUrl("Setup"), icon: Rocket, color: "gold" },
   { title: "🔍 סורק חכם", url: createPageUrl("Scanner"), icon: ScanLine, color: "gold" },
-  { title: "💰 עלויות תפעול", url: createPageUrl("OperatingCosts"), icon: Wallet, color: "gold" },
+  // "בואו נתחיל" (Setup) + "עלויות תפעול" (OperatingCosts) moved to the
+  // settings hub (מרכז הגדרות וחיבורים) to declutter the sidebar.
 
   { title: "תפעול המסעדה", url: "#", icon: Utensils, isCategory: true, color: "cinnamon" },
   { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "cinnamon" },
@@ -77,8 +77,7 @@ const adminLinks = [
   { title: "📞 תור והזמנות", url: createPageUrl("QueueHub"), icon: QrCode, color: "gold" },
 
   { title: "כספים ודוחות", url: "#", icon: TrendingUp, isCategory: true, color: "olive" },
-  { title: "📥 WhatsApp Inbox", url: createPageUrl("AdminWhatsAppInbox"), icon: Zap, isSubItem: true, color: "olive" },
-  { title: "📊 קופה Live", url: createPageUrl("BeecommLive"), icon: Zap, isSubItem: true, color: "olive" },
+  // "WhatsApp Inbox" + "קופה Live" (BeecommLive) moved to the settings hub.
   { title: "דוחות", url: createPageUrl("Reports"), icon: BarChart3, isSubItem: true, color: "olive" },
   { title: "💰 תזרים מזומנים", url: createPageUrl("CashFlow"), icon: Wallet, isSubItem: true, color: "olive" },
   { title: "👥 עלות שכר", url: createPageUrl("LaborCost"), icon: BarChart3, isSubItem: true, color: "olive" },
