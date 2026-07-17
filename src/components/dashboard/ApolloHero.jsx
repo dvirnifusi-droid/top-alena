@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 import ActiveEmployeesWidget from './ActiveEmployeesWidget';
-import { Loader2, RefreshCw, Brain, Target, ScanLine, Users, CalendarDays, AlertTriangle, ClipboardCheck, Sparkles } from 'lucide-react';
+import { Loader2, RefreshCw, Brain, Target, ScanLine, Users, CalendarDays, AlertTriangle, ClipboardCheck, Sparkles, ChevronDown } from 'lucide-react';
 
 const A = {
   gold: '#C9A15A', goldHi: '#EBD08A', goldLo: '#7c5626', espresso: '#241811', espresso2: '#33241a',
@@ -28,6 +28,7 @@ export default function ApolloHero() {
   const [d, setD] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pct, setPct] = useState(0);
+  const [showShift, setShowShift] = useState(false);
   const reduce = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const raf = useRef(0);
 
@@ -61,7 +62,7 @@ export default function ApolloHero() {
   const R = 46, C = 2 * Math.PI * R, off = C - (C * (pct / 100));
 
   const tiles = [
-    { icon: Users, label: 'במשמרת', value: active.length, tone: A.good },
+    { icon: Users, label: 'במשמרת', value: active.length, tone: A.good, toggle: true },
     { icon: CalendarDays, label: 'הזמנות היום', value: d.reservations_today ?? 0, tone: A.blue, to: 'Reservations' },
     ...(d.sales_today != null ? [{ icon: Target, label: 'מכירות היום', value: `₪${Number(d.sales_today).toLocaleString()}`, tone: A.gold }] : []),
     { icon: ClipboardCheck, label: 'צ׳קליסטים · בוצע/נשאר', value: `${d.checklists?.done ?? 0}/${d.checklists?.total ?? 0}`, tone: A.goldLo, to: 'Checklists' },
@@ -129,28 +130,29 @@ export default function ApolloHero() {
 
       {/* ── CREAM BODY ──────────────────────────────────────────────────────── */}
       <div style={{ background: `linear-gradient(168deg,${A.creamHi} 0%,${A.cream} 60%,#EEDFBF 100%)` }}>
-        {/* live tiles (clickable when they have a destination) */}
+        {/* live tiles — clickable (Link) or a toggle (במשמרת opens the shift panel) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 pt-4">
           {tiles.map((t, i) => {
             const inner = (
               <>
                 <t.icon className="w-4 h-4 shrink-0" style={{ color: t.tone }} />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="font-black text-[15px] leading-none" style={{ color: A.espresso, fontVariantNumeric: 'tabular-nums' }}>{t.value}</div>
                   <div className="text-[10px] font-semibold truncate" style={{ color: A.muted }}>{t.label}</div>
                 </div>
+                {t.toggle && <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${showShift ? 'rotate-180' : ''}`} style={{ color: A.muted }} />}
               </>
             );
-            const cls = 'rounded-2xl px-3 py-2.5 flex items-center gap-2';
+            const cls = 'rounded-2xl px-3 py-2.5 flex items-center gap-2 text-right w-full';
             const st = { background: '#fffaf0', border: `1px solid ${A.line}` };
-            return t.to
-              ? <Link key={i} to={createPageUrl(t.to)} className={`${cls} hover:shadow-sm transition-shadow`} style={st}>{inner}</Link>
-              : <div key={i} className={cls} style={st}>{inner}</div>;
+            if (t.toggle) return <button key={i} onClick={() => setShowShift(s => !s)} className={`${cls} hover:shadow-sm transition-shadow`} style={st}>{inner}</button>;
+            if (t.to) return <Link key={i} to={createPageUrl(t.to)} className={`${cls} hover:shadow-sm transition-shadow`} style={st}>{inner}</Link>;
+            return <div key={i} className={cls} style={st}>{inner}</div>;
           })}
         </div>
 
-        {/* who's on shift now — full widget (dept tabs + close-shift), inside the header */}
-        <div className="px-4 pt-3"><ActiveEmployeesWidget /></div>
+        {/* who's on shift now — opens on demand from the "במשמרת" tile */}
+        {showShift && <div className="px-4 pt-3"><ActiveEmployeesWidget /></div>}
 
         {/* agent feed */}
         {(d.feed || []).length > 0 && (
