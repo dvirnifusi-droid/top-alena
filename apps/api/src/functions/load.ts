@@ -6737,6 +6737,68 @@ registerFn('resetChecklistDay', async ({ user }: any) => {
     const m = await import('../lib/businessForecasts.js');
     return await m.forecastEventDemand();
   });
+
+  // Compact, REAL owner-dashboard insights — one call feeds all 6 KPI widgets.
+  // Every block is independent + try/caught: if a source has no data yet (no pay
+  // rates, no saved analysis) it returns undefined so the widget shows an honest
+  // "set this up / run analysis" CTA instead of a fabricated number.
+  registerFn('getOwnerInsights', async ({ user }: any) => {
+    if (!user?.id) throw new Error('unauthorized');
+    const m = await import('../lib/businessForecasts.js');
+    const dbx = prisma as any;
+    const out: any = {};
+
+    try {
+      const l = await m.forecastLaborCost();
+      out.labor = { pct: l?.week?.labor_pct ?? null, cost: l?.week?.cost ?? 0, revenue: l?.week?.expected_revenue ?? 0, flags: (l?.flags || []).length, missing_rates: (l?.missing_rates || []).length };
+    } catch (e: any) { console.warn('[insights] labor:', e?.message); }
+
+    try {
+      const c = await m.forecastCashFlow();
+      out.cashflow = { net: c?.week?.net ?? null, income: c?.week?.expected_in ?? 0, expense: c?.week?.expected_out ?? 0, alerts: (c?.alerts || []).length, unpaid_no_date: c?.unpaid_no_date?.total ?? 0 };
+    } catch (e: any) { console.warn('[insights] cashflow:', e?.message); }
+
+    try {
+      const rows: any[] = await dbx.$queryRawUnsafe(
+        `SELECT count(*)::int AS total, count(*) FILTER (WHERE risk_level='critical')::int AS critical,
+                MAX(last_analysis_date) AS last FROM "EmployeeRiskAnalysis"`);
+      out.churn = { count: rows[0]?.total ?? 0, critical: rows[0]?.critical ?? 0, last: rows[0]?.last ?? null };
+    } catch (e: any) { console.warn('[insights] churn:', e?.message); }
+
+    try {
+      const p = await m.detectSupplierPriceDrift();
+      out.price_drift = { count: (p?.items || []).length, top: p?.items?.[0] ? { product: p.items[0].product, drift_pct: p.items[0].drift_pct } : null };
+    } catch (e: any) { console.warn('[insights] price_drift:', e?.message); }
+
+    try {
+      // tomorrow's demand = weekday average of net_total + diners from recent POS
+      const TZ = 'Asia/Jerusalem';
+      const tomorrow = new Date(Date.now() + 24 * 3600_000);
+      const wd = Number(new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: undefined }).format(tomorrow)); // fallback below
+      const tomStr = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(tomorrow);
+      const tomWd = new Date(`${tomStr}T12:00:00Z`).getUTCDay();
+      const rows: any[] = await dbx.$queryRawUnsafe(
+        `SELECT AVG(net_total)::float AS rev, AVG(diners)::float AS covers, count(*)::int AS n
+         FROM "BeecommHistoricalDay"
+         WHERE date > to_char(NOW() - INTERVAL '56 days','YYYY-MM-DD')
+           AND EXTRACT(DOW FROM date::date) = $1`, tomWd);
+      if (rows[0]?.n > 0) {
+        out.demand = { weekday: tomWd, covers: Math.round(rows[0].covers || 0), revenue: Math.round(rows[0].rev || 0), based_on_days: rows[0].n };
+      } else { out.demand = { weekday: tomWd, covers: null, revenue: null, based_on_days: 0 }; }
+      void wd;
+    } catch (e: any) { console.warn('[insights] demand:', e?.message); }
+
+    try {
+      const cnt: any[] = await dbx.$queryRawUnsafe(`SELECT count(*)::int AS n FROM "MenuItemAnalysis"`);
+      if ((cnt[0]?.n ?? 0) > 0) {
+        const top: any[] = await dbx.$queryRawUnsafe(`SELECT menu_item_name, profitability_score FROM "MenuItemAnalysis" ORDER BY profitability_score DESC NULLS LAST LIMIT 1`);
+        const low: any[] = await dbx.$queryRawUnsafe(`SELECT menu_item_name, profitability_score FROM "MenuItemAnalysis" ORDER BY profitability_score ASC NULLS LAST LIMIT 1`);
+        out.menu = { analyzed: cnt[0].n, top: top[0]?.menu_item_name || null, bottom: low[0]?.menu_item_name || null };
+      } else { out.menu = { analyzed: 0 }; }
+    } catch (e: any) { console.warn('[insights] menu:', e?.message); }
+
+    return out;
+  });
 }
 
 // Edit an invoice's payment scheduling + supplier display name. Raw SQL (self-

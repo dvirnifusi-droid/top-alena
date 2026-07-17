@@ -25,31 +25,26 @@ export const EMPLOYEE_WIDGETS = [
 ];
 
 export const ADMIN_WIDGETS = [
+  { id: 'decision_kpis', label: 'מדדי החלטה · עלות עבודה/תזרים/עזיבות/ביקוש/ספקים/תפריט', emoji: '🎯', defaultOn: true },
   { id: 'beecomm_live', label: 'Beecomm Live · קופה בזמן אמת', emoji: '🔴', defaultOn: true },
   { id: 'gomiley_live', label: 'Gomiley Live · משלוחים בזמן אמת', emoji: '🛵', defaultOn: true },
   { id: 'gomiley_dashboard', label: 'Gomiley לוח · KPI ופלטפורמות', emoji: '📊', defaultOn: true },
   { id: 'shift_insights', label: 'תובנות משמרת · דורש תשומת לב', emoji: '🎯', defaultOn: true },
   { id: 'whatsapp_inbox', label: 'WhatsApp Inbox · פניות לקוחות', emoji: '💬', defaultOn: true },
-  { id: 'smart_tools', label: 'כלי עבודה חכמים', emoji: '🤖', defaultOn: true },
   { id: 'recruitment', label: 'דשבורד גיוס', emoji: '👥', defaultOn: true },
-  { id: 'quick_stats', label: 'מבט מהיר - סטטיסטיקות', emoji: '📊', defaultOn: true },
-  { id: 'user_guide', label: 'מדריך שימוש', emoji: '📖', defaultOn: true },
   { id: 'sales_chart', label: 'גרף מכירות', emoji: '📈', defaultOn: true },
-  { id: 'active_employees', label: 'עובדים פעילים', emoji: '👤', defaultOn: true },
-  { id: 'treats_report', label: 'דוח פינוקים', emoji: '🎁', defaultOn: true },
-  { id: 'brief_readers', label: 'קוראי תדריכים', emoji: '📋', defaultOn: false },
-  { id: 'recent_incidents', label: 'תקריות אחרונות', emoji: '⚠️', defaultOn: false },
-  { id: 'checklist_status', label: 'סטטוס צ\'קליסטים', emoji: '☑️', defaultOn: false },
   { id: 'today_tips', label: 'טיפים היום', emoji: '💰', defaultOn: true },
   { id: 'low_inventory', label: 'התראות מלאי', emoji: '📦', defaultOn: true },
-  { id: 'active_deliveries', label: 'משלוחים פעילים', emoji: '🚚', defaultOn: false },
   { id: 'pending_requests', label: 'בקשות ממתינות', emoji: '🔔', defaultOn: true },
   { id: 'weekly_leaderboard', label: 'מובילי השבוע', emoji: '🏆', defaultOn: true },
-  { id: 'queue_status', label: 'תור נוכחי', emoji: '🎫', defaultOn: false },
+  { id: 'today_reservations', label: 'הזמנות שולחנות היום', emoji: '📅', defaultOn: true },
+  { id: 'recent_incidents', label: 'תקריות אחרונות', emoji: '⚠️', defaultOn: false },
+  { id: 'checklist_status', label: 'סטטוס צ\'קליסטים', emoji: '☑️', defaultOn: false },
   { id: 'recent_feedback', label: 'סקרי לקוחות אחרונים', emoji: '📝', defaultOn: false },
-  { id: 'today_reservations', label: 'הזמנות שולחנות היום', emoji: '📅', defaultOn: false },
   { id: 'weekly_performance', label: 'גרף ביצועים שבועי', emoji: '📊', defaultOn: false },
-  { id: 'changelog', label: 'יומן שינויים (White Label)', emoji: '📋', defaultOn: true },
+  // delivery/queue widgets — only useful for tenants that run those channels
+  { id: 'active_deliveries', label: 'משלוחים פעילים (למשלוחים)', emoji: '🚚', defaultOn: false },
+  { id: 'queue_status', label: 'תור נוכחי (לעסק עם תור)', emoji: '🎫', defaultOn: false },
 ];
 
 function getStorageKey(userEmail, page) {

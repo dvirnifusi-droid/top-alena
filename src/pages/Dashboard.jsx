@@ -17,6 +17,7 @@ import TreatsReport from '../components/dashboard/TreatsReport';
 import AiQuickAdd from '../components/dashboard/AiQuickAdd';
 import OnboardingProgressCard from '../components/dashboard/OnboardingProgressCard';
 import ApolloHero from '../components/dashboard/ApolloHero';
+import InsightWidgets from '../components/dashboard/InsightWidgets';
 import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
 import InvoiceScanner from '../components/dashboard/InvoiceScanner';
 import ManualSurveyTool from '../components/dashboard/ManualSurveyTool';
@@ -281,33 +282,9 @@ function DashboardInner() {
     const widgetOrder = layout.map(w => w.id);
 
     const adminWidgets = {
-        smart_tools: isVisible('smart_tools') && (
-            <section key="smart_tools">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4 flex items-center gap-2">כלי עבודה חכמים <Badge className="bg-[#F4ECD8] text-indigo-800">AI</Badge></h2>
-                <SmartToolsPanel />
-            </section>
-        ),
+        decision_kpis: isVisible('decision_kpis') && <InsightWidgets key="decision_kpis" />,
         recruitment: isVisible('recruitment') && (
             <div key="recruitment" className="mt-6"><RecruitmentDashboard /></div>
-        ),
-        quick_stats: isVisible('quick_stats') && (
-            <section key="quick_stats">
-                <h2 className="text-2xl font-bold text-slate-900 mb-4">מבט מהיר</h2>
-                <QuickStats />
-            </section>
-        ),
-        user_guide: isVisible('user_guide') && (
-            <Link key="user_guide" to="/UserGuide">
-                <Card className="bg-gradient-to-r from-green-600 to-emerald-600 text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-                    <CardContent className="p-6 flex items-center justify-between">
-                        <div>
-                            <h3 className="text-xl font-bold mb-1 flex items-center gap-2"><BookOpen className="w-6 h-6" />מדריך שימוש במערכת</h3>
-                            <p className="text-green-100">הסברים מפורטים + סרטוני הדרכה לכל הכלים</p>
-                        </div>
-                        <ChevronRight className="w-8 h-8 opacity-70" />
-                    </CardContent>
-                </Card>
-            </Link>
         ),
         sales_chart: isVisible('sales_chart') && (
             <section key="sales_chart">
@@ -320,9 +297,9 @@ function DashboardInner() {
         gomiley_dashboard: isVisible('gomiley_dashboard') && <GomileyDashboardWidget key="gomiley_dashboard" />,
         shift_insights: isVisible('shift_insights') && <ShiftInsightsWidget key="shift_insights" />,
         whatsapp_inbox: isVisible('whatsapp_inbox') && <WhatsAppInboxWidget key="whatsapp_inbox" />,
-        // active_employees now renders once, right under the Apollo hero (above).
-        treats_report: isVisible('treats_report') && <TreatsReport key="treats_report" />,
-        brief_readers: isVisible('brief_readers') && <BriefReadersWidget key="brief_readers" />,
+        // active_employees now renders once under the Apollo hero; quick_stats /
+        // smart_tools / user_guide / treats_report / brief_readers / changelog
+        // consolidated into the Apollo hero + decision-KPIs row.
         recent_incidents: isVisible('recent_incidents') && <RecentIncidents key="recent_incidents" />,
         checklist_status: isVisible('checklist_status') && <ChecklistStatus key="checklist_status" />,
       today_tips: isVisible('today_tips') && <TodayTipsWidget key="today_tips" />,
@@ -334,7 +311,6 @@ function DashboardInner() {
       recent_feedback: isVisible('recent_feedback') && <RecentFeedbackWidget key="recent_feedback" />,
       today_reservations: isVisible('today_reservations') && <TodayReservationsWidget key="today_reservations" />,
       weekly_performance: isVisible('weekly_performance') && <WeeklyPerformanceWidget key="weekly_performance" />,
-      changelog: isVisible('changelog') && <ChangelogWidget key="changelog" />,
     };
 
     return (
