@@ -101,12 +101,9 @@ const adminLinks = [
   { title: "מרכז הגדרות וחיבורים", url: createPageUrl("AdminSettings"), icon: Settings, isSubItem: true, color: "espresso" },
   { title: "הגדרות פלטפורמה 🧩", url: createPageUrl("PlatformSettings"), icon: LayoutGrid, isSubItem: true, color: "espresso" },
   { title: "מיתוג המסעדה 🎨", url: createPageUrl("Branding"), icon: Sparkles, isSubItem: true, color: "espresso" },
-  { title: "חיבורים חיצוניים 🔌", url: createPageUrl("Integrations"), icon: Zap, isSubItem: true, color: "espresso" },
-  { title: "🤖 סוכן WhatsApp ומקבלי דוחות", url: createPageUrl("AdminWhatsApp"), icon: Zap, isSubItem: true, color: "espresso" },
-  { title: "📨 WhatsApp Templates", url: createPageUrl("AdminWhatsAppTemplates"), icon: Zap, isSubItem: true, color: "espresso" },
-  { title: "ייצוא דאטה", url: createPageUrl("DataExport"), icon: Download, isSubItem: true, color: "espresso" },
-  { title: "שליחת Push ידני", url: createPageUrl("PushNotifications"), icon: Bell, isSubItem: true, color: "espresso" },
-  { title: "פופ-אפים מתוזמנים 🔔", url: createPageUrl("Popups"), icon: Megaphone, isSubItem: true, color: "espresso" },
+  // Integrations / AdminWhatsApp / WhatsApp Templates / DataExport / PushNotifications /
+  // Popups moved into the "מרכז הגדרות וחיבורים" hub (AdminSettings) to declutter
+  // the sidebar — one entry point for all setup/integration tools.
 ];
 
 // Employee menu — full brand palette (cinnamon/olive/gold/espresso).

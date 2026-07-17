@@ -6,7 +6,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import PageHeader from '@/components/shared/PageHeader';
-import { Settings, Zap, MessageCircle, Tablet, MapPin, RefreshCw, CreditCard, FormInput, Tv, Bell, Database, Mic, Mail, Rocket, FileText, Send, SlidersHorizontal, DollarSign } from 'lucide-react';
+import { Settings, Zap, MessageCircle, Tablet, MapPin, RefreshCw, CreditCard, FormInput, Tv, Bell, Database, Mic, Mail, Rocket, FileText, Send, SlidersHorizontal, DollarSign, Download, Megaphone } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 
 // Tailwind's JIT can't see interpolated class names (bg-${accent}-50 etc.), so
@@ -125,6 +125,20 @@ export default function AdminSettings() {
                     accent="rose"
                 />
                 <Tile
+                    to={createPageUrl('Integrations')}
+                    title="חיבורים חיצוניים"
+                    sub="כל האינטגרציות והחיבורים החיצוניים במקום אחד"
+                    icon={Zap}
+                    accent="amber"
+                />
+                <Tile
+                    to={createPageUrl('DataExport')}
+                    title="ייצוא דאטה"
+                    sub="ייצוא נתונים מהמערכת (לקוחות, מכירות, דוחות)"
+                    icon={Download}
+                    accent="slate"
+                />
+                <Tile
                     to={createPageUrl('DepositSettings')}
                     title="פיקדון אונליין"
                     sub="הגדרות סליקה לפיקדון הזמנות (PayPlus)"
@@ -154,6 +168,13 @@ export default function AdminSettings() {
                     sub="דוח בוקרי, סטטוס push, Auto-credit מ-Beecomm"
                     icon={Bell}
                     accent="amber"
+                />
+                <Tile
+                    to={createPageUrl('Popups')}
+                    title="פופ-אפים מתוזמנים"
+                    sub="ניהול פופ-אפים שיווקיים ללקוחות — תזמון והצגה"
+                    icon={Megaphone}
+                    accent="rose"
                 />
             </Section>
 
