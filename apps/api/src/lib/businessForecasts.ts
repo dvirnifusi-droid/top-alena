@@ -65,14 +65,31 @@ export async function forecastCashFlow(): Promise<any> {
   const start = new Date(`${todayStr}T00:00:00Z`);
   const revByWd = await weekdayRevenueAverages();
 
-  const [planned, recurring, unpaidInv] = await Promise.all([
+  const [planned, recurring, openInv] = await Promise.all([
     q(`SELECT date, type, category, source, description, amount FROM "CashFlowEntry"
        WHERE status IN ('planned') AND date >= $1::date AND date < $1::date + INTERVAL '7 days'`, todayStr),
     q(`SELECT name, amount, day_of_month, category FROM "RecurringCost" WHERE active = true`),
-    q(`SELECT i.total_amount, i.invoice_date, s.name AS supplier FROM "Invoice" i
-       LEFT JOIN "Supplier" s ON s.id = i.supplier_id
-       WHERE COALESCE(i.payment_status,'unpaid') = 'unpaid'`),
+    // every not-yet-paid invoice + its scheduled due date (net-30 etc.)
+    q(`SELECT i.id, i.total_amount, i.due_date, i.payment_status,
+              COALESCE(i.supplier_name_override, s.company_name) AS supplier
+       FROM "Invoice" i LEFT JOIN "Supplier" s ON s.id = i.supplier_id
+       WHERE COALESCE(i.payment_status,'unpaid') <> 'paid'`),
   ]);
+  const windowEnd = new Date(start.getTime() + 7 * DAY);
+  const invByDay: Record<string, any[]> = {};
+  const scheduledBeyond: any[] = [];
+  let unpaidNoDate = 0, unpaidNoDateCount = 0;
+  for (const inv of openInv) {
+    const amt = Number(inv.total_amount || 0);
+    if (inv.due_date) {
+      const dd = ymd(new Date(inv.due_date));
+      const t = new Date(inv.due_date).getTime();
+      if (t >= start.getTime() && t < windowEnd.getTime()) { (invByDay[dd] ||= []).push(inv); }
+      else if (t >= windowEnd.getTime()) scheduledBeyond.push({ date: dd, supplier: inv.supplier, amount: round(amt) });
+      // due in the past & still unpaid → treat as due today (overdue)
+      else if (t < start.getTime()) { (invByDay[todayStr] ||= []).push({ ...inv, _overdue: true }); }
+    } else { unpaidNoDate += amt; unpaidNoDateCount++; }
+  }
 
   const days: any[] = [];
   let weekIn = 0, weekOut = 0;
@@ -93,24 +110,30 @@ export async function forecastCashFlow(): Promise<any> {
     for (const rc of recurring) {
       if (Number(rc.day_of_month) === dom) { expOut += Number(rc.amount || 0); outItems.push({ name: `${rc.name} (קבוע)`, amount: round(Number(rc.amount || 0)) }); }
     }
+    for (const inv of (invByDay[ds] || [])) {
+      const amt = Number(inv.total_amount || 0);
+      expOut += amt;
+      outItems.push({ name: `${inv.supplier || 'ספק'}${inv._overdue ? ' (חוב עבר)' : ' (חשבונית)'}`, amount: round(amt) });
+    }
     weekIn += expIn; weekOut += expOut;
     days.push({
       date: ds, weekday: HE_DAYS[wd],
       expected_in: round(expIn), expected_out: round(expOut), net: round(expIn - expOut),
-      out_items: outItems.slice(0, 6),
+      out_items: outItems.slice(0, 8),
     });
   }
-  const unpaidTotal = unpaidInv.reduce((a: number, r: any) => a + Number(r.total_amount || 0), 0);
+  const beyondTotal = scheduledBeyond.reduce((a: number, r: any) => a + Number(r.amount || 0), 0);
   const alerts: string[] = [];
   for (const d of days) if (d.net < 0) alerts.push(`⚠️ ${d.weekday} ${d.date}: צפי שלילי של ₪${Math.abs(d.net).toLocaleString()}`);
-  if (unpaidTotal > 0) alerts.push(`📄 ${unpaidInv.length} חשבוניות ספקים לא משולמות בסך ₪${round(unpaidTotal).toLocaleString()} — לא משובצות לימים (אין תאריך פירעון)`);
+  if (unpaidNoDateCount > 0) alerts.push(`📄 ${unpaidNoDateCount} חשבוניות לא משולמות בסך ₪${round(unpaidNoDate).toLocaleString()} עדיין בלי תאריך תשלום — קבע להן "ישולם בתאריך" כדי שייכנסו לתזרים`);
 
   return {
     days,
     week: { expected_in: round(weekIn), expected_out: round(weekOut), net: round(weekIn - weekOut) },
-    unpaid_invoices: { count: unpaidInv.length, total: round(unpaidTotal) },
+    unpaid_no_date: { count: unpaidNoDateCount, total: round(unpaidNoDate) },
+    scheduled_beyond: { count: scheduledBeyond.length, total: round(beyondTotal), items: scheduledBeyond.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 12) },
     alerts,
-    based_on: `ממוצעי הכנסה לפי יום-בשבוע מ-56 ימי קופה אחרונים + ${planned.length} תנועות מתוכננות + ${recurring.length} הוצאות קבועות`,
+    based_on: `ממוצעי הכנסה לפי יום-בשבוע מ-56 ימי קופה אחרונים + ${planned.length} תנועות מתוכננות + ${recurring.length} הוצאות קבועות + חשבוניות משובצות לפי תאריך תשלום`,
   };
 }
 

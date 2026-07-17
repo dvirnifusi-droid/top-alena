@@ -6739,6 +6739,33 @@ registerFn('resetChecklistDay', async ({ user }: any) => {
   });
 }
 
+// Edit an invoice's payment scheduling + supplier display name. Raw SQL (self-
+// heals the columns) so it works even before boot drift-repair lands on a tenant.
+registerFn('updateInvoicePayment', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const b = (body || {}) as any;
+  const id = String(b.invoice_id || '');
+  if (!id) throw new Error('missing_invoice');
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "due_date" TIMESTAMP(3)`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "supplier_name_override" TEXT`).catch(() => {});
+  const sets: string[] = []; const params: any[] = []; let i = 1;
+  if (b.payment_status !== undefined) {
+    const ps = ['unpaid', 'paid', 'scheduled'].includes(String(b.payment_status)) ? String(b.payment_status) : 'unpaid';
+    sets.push(`"payment_status"=$${i++}`); params.push(ps);
+  }
+  if (b.due_date !== undefined) { sets.push(`"due_date"=$${i++}`); params.push(b.due_date ? new Date(b.due_date) : null); }
+  if (b.supplier_name_override !== undefined) {
+    const v = String(b.supplier_name_override || '').trim();
+    sets.push(`"supplier_name_override"=$${i++}`); params.push(v || null);
+  }
+  if (!sets.length) return { ok: true, noop: true };
+  sets.push(`"updatedAt"=NOW()`);
+  params.push(id);
+  await (prisma as any).$executeRawUnsafe(`UPDATE "Invoice" SET ${sets.join(', ')} WHERE id=$${i}`, ...params);
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, payment_status, due_date, supplier_name_override FROM "Invoice" WHERE id=$1 LIMIT 1`, id);
+  return { ok: true, invoice: rows[0] || null };
+});
+
 // ── Employee churn analysis v2 — REAL signals, server-side ─────────────────
 // The old client-side flow fed the LLM manager ratings that nobody fills.
 // This computes deterministic trends from data the restaurant actually
@@ -18644,6 +18671,10 @@ if (!(globalThis as any).__startupDriftRepair) {
       // {clock_in_enabled, clock_in_positions[], clock_out_enabled, clock_out_positions[]}
       await prisma.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "gear_config" JSONB;`);
       await prisma.$executeRawUnsafe(`ALTER TABLE "EventSalesKit" ADD COLUMN IF NOT EXISTS "intake_config" JSONB;`);
+      // Invoice payment scheduling — due_date drives the cash-flow forecast
+      // (net-30 etc.); supplier_name_override fixes mis-parsed import names.
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "due_date" TIMESTAMP(3);`);
+      await prisma.$executeRawUnsafe(`ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "supplier_name_override" TEXT;`);
       // Interview.type — manager booking (bookInterviewByManager) writes it to
       // distinguish interview vs menu_exam. Guarantee the column so the insert
       // never P2022s on a tenant whose Interview table predates it.

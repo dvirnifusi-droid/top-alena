@@ -102,6 +102,7 @@ export default function InvoiceFilters({ suppliers, onFilterChange }) {
                                 <SelectItem value="all">הכל</SelectItem>
                                 <SelectItem value="paid">שולם</SelectItem>
                                 <SelectItem value="unpaid">לא שולם</SelectItem>
+                                <SelectItem value="scheduled">ישולם בתאריך</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

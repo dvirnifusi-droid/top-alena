@@ -2,11 +2,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Invoice } from '@/entities/Invoice';
 import { Supplier } from '@/entities/Supplier';
+import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { FileText, Package, AlertCircle, CheckCircle, Eye, CreditCard, Mail, ClipboardCheck } from 'lucide-react';
+import { FileText, Package, AlertCircle, CheckCircle, Eye, CreditCard, Mail, ClipboardCheck, Pencil, Check, X, CalendarClock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { format } from 'date-fns';
@@ -29,6 +30,8 @@ export default function InvoicesPage() {
     });
     const [showExportDialog, setShowExportDialog] = useState(false);
     const [reviewInvoice, setReviewInvoice] = useState(null);
+    const [editingSupplierId, setEditingSupplierId] = useState(null);
+    const [supplierDraft, setSupplierDraft] = useState('');
 
     useEffect(() => {
         loadData();
@@ -56,15 +59,40 @@ export default function InvoicesPage() {
         }
     };
 
-    const handlePaymentStatusChange = async (invoiceId, newStatus) => {
+    // Optimistic partial update through the dedicated fn (payment_status /
+    // due_date / supplier_name_override). No full-record round-trip.
+    const patchInvoice = async (invoice, patch) => {
+        setInvoices(prev => prev.map(i => i.id === invoice.id ? { ...i, ...patch } : i));
         try {
-            const currentInvoice = invoices.find(inv => inv.id === invoiceId);
-            // Ensure all other properties are preserved when updating
-            await Invoice.update(invoiceId, { ...currentInvoice, payment_status: newStatus });
-            loadData(); // Refresh data
+            await base44.functions.updateInvoicePayment({ invoice_id: invoice.id, ...patch });
         } catch (error) {
-            console.error("Failed to update payment status:", error);
+            console.error("Failed to update invoice:", error);
+            loadData(); // reconcile on failure
         }
+    };
+
+    const net30 = () => {
+        const d = new Date(); d.setDate(d.getDate() + 30);
+        return format(d, 'yyyy-MM-dd');
+    };
+    const dueValue = (invoice) => {
+        if (!invoice.due_date) return '';
+        const d = new Date(invoice.due_date);
+        return isNaN(d) ? '' : format(d, 'yyyy-MM-dd');
+    };
+
+    const setPayment = (invoice, value) => {
+        if (value === 'scheduled') patchInvoice(invoice, { payment_status: 'scheduled', due_date: invoice.due_date || net30() });
+        else patchInvoice(invoice, { payment_status: value, due_date: null });
+    };
+
+    const startEditSupplier = (invoice, currentName) => {
+        setEditingSupplierId(invoice.id);
+        setSupplierDraft(invoice.supplier_name_override || currentName || '');
+    };
+    const saveSupplier = (invoice) => {
+        patchInvoice(invoice, { supplier_name_override: supplierDraft.trim() });
+        setEditingSupplierId(null);
     };
 
     const filteredInvoices = useMemo(() => {
@@ -102,7 +130,8 @@ export default function InvoicesPage() {
 
     const paymentStatusInfo = {
         paid: { icon: CheckCircle, color: 'text-green-600 bg-green-50', label: 'שולם' },
-        unpaid: { icon: CreditCard, color: 'text-red-600 bg-red-50', label: 'לא שולם' }
+        unpaid: { icon: CreditCard, color: 'text-red-600 bg-red-50', label: 'לא שולם' },
+        scheduled: { icon: CalendarClock, color: 'text-amber-700 bg-amber-50', label: 'ישולם בתאריך' },
     };
 
     if (loading) {
@@ -157,7 +186,31 @@ export default function InvoicesPage() {
                                         <TableRow key={invoice.id}>
                                             <TableCell className="font-medium">
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    {supplier?.company_name || 'לא ידוע'}
+                                                    {editingSupplierId === invoice.id ? (
+                                                        <span className="flex items-center gap-1">
+                                                            <input
+                                                                autoFocus
+                                                                value={supplierDraft}
+                                                                onChange={(e) => setSupplierDraft(e.target.value)}
+                                                                onKeyDown={(e) => { if (e.key === 'Enter') saveSupplier(invoice); if (e.key === 'Escape') setEditingSupplierId(null); }}
+                                                                className="border rounded-lg px-2 py-1 text-sm w-44"
+                                                                placeholder="שם ספק"
+                                                            />
+                                                            <button onClick={() => saveSupplier(invoice)} className="text-emerald-600 p-1" title="שמור"><Check className="w-4 h-4" /></button>
+                                                            <button onClick={() => setEditingSupplierId(null)} className="text-gray-400 p-1" title="בטל"><X className="w-4 h-4" /></button>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="flex items-center gap-1 group/sup">
+                                                            {invoice.supplier_name_override || supplier?.company_name || 'לא ידוע'}
+                                                            <button
+                                                                onClick={() => startEditSupplier(invoice, supplier?.company_name)}
+                                                                className="text-gray-300 hover:text-gray-600 opacity-0 group-hover/sup:opacity-100 transition-opacity p-0.5"
+                                                                title="ערוך שם ספק"
+                                                            >
+                                                                <Pencil className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </span>
+                                                    )}
                                                     {invoice.source === 'email' && (
                                                         <Badge variant="outline" className="flex items-center gap-1 text-blue-600 border-blue-200">
                                                             <Mail className="w-3 h-3" />
@@ -188,18 +241,25 @@ export default function InvoicesPage() {
                                                 </Badge>
                                             </TableCell>
                                             <TableCell>
-                                                <Button
-                                                    variant="ghost" 
-                                                    size="sm"
-                                                    className={`${paymentColor} border font-medium`}
-                                                    onClick={() => handlePaymentStatusChange(
-                                                        invoice.id, 
-                                                        invoice.payment_status === 'paid' ? 'unpaid' : 'paid'
+                                                <div className="flex flex-col gap-1">
+                                                    <select
+                                                        value={invoice.payment_status === 'scheduled' ? 'scheduled' : invoice.payment_status === 'paid' ? 'paid' : 'unpaid'}
+                                                        onChange={(e) => setPayment(invoice, e.target.value)}
+                                                        className={`border rounded-lg px-2 py-1.5 text-sm font-medium ${paymentColor}`}
+                                                    >
+                                                        <option value="unpaid">לא שולם</option>
+                                                        <option value="paid">שולם</option>
+                                                        <option value="scheduled">ישולם בתאריך</option>
+                                                    </select>
+                                                    {invoice.payment_status === 'scheduled' && (
+                                                        <input
+                                                            type="date"
+                                                            value={dueValue(invoice)}
+                                                            onChange={(e) => patchInvoice(invoice, { payment_status: 'scheduled', due_date: e.target.value })}
+                                                            className="border rounded-lg px-2 py-1 text-xs w-36"
+                                                        />
                                                     )}
-                                                >
-                                                    <CreditCard className="w-4 h-4 ml-2" />
-                                                    {paymentLabel}
-                                                </Button>
+                                                </div>
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-2">

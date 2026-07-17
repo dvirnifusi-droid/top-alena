@@ -1347,7 +1347,9 @@ model Invoice {
   total_amount                 Float
   file_url                     String?
   status                       String?  @default("pending_review")
-  payment_status               String?  @default("unpaid")
+  payment_status               String?  @default("unpaid") // unpaid | paid | scheduled
+  due_date                     DateTime?               // when payment is scheduled (e.g. net-30) — drives the cash-flow forecast
+  supplier_name_override       String?                 // per-invoice display name fix (import often mis-parses the supplier)
   source                       String?  @default("manual") // manual | whatsapp | email
   email_message_id             String?  @unique
   email_account                String?

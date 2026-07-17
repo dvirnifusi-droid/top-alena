@@ -85,6 +85,12 @@ function BusinessForecastsTab() {
                         </table></div>
                         <p className="text-sm font-bold">סה"כ שבוע: {ils(r.week?.expected_in)} הכנסה · {ils(r.week?.expected_out)} הוצאות · נטו {ils(r.week?.net)}</p>
                         {(r.alerts || []).map((a, i) => <p key={i} className="text-xs text-amber-700">{a}</p>)}
+                        {r.scheduled_beyond?.count > 0 && (
+                            <div className="mt-1 text-xs text-gray-600 bg-slate-50 rounded-lg p-2">
+                                <span className="font-semibold">📅 משובץ לתשלום אחרי השבוע ({ils(r.scheduled_beyond.total)}):</span>
+                                {' '}{r.scheduled_beyond.items.map((it) => `${it.supplier} ${it.date.slice(5)} (${ils(it.amount)})`).join(' · ')}
+                            </div>
+                        )}
                     </>
                 )}
             </ForecastCard>
