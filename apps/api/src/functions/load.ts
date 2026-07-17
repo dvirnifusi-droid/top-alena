@@ -6119,10 +6119,31 @@ registerFn('getOwnerDashboard', async ({ user }: any) => {
     select: { body: true, created_at: true },
   }).then((r: any[]) => r.map(x => ({ text: String(x.body || '').replace(/\s+/g, ' ').slice(0, 140), at: x.created_at })).filter(x => x.text)).catch(() => []);
 
+  // Extra "needs you" sources beyond the freedom trio.
+  const reqPending = await Promise.all([
+    db2.leaveRequest.count({ where: { status: 'pending' } }).catch(() => 0),
+    db2.shiftSwapRequest.count({ where: { status: 'pending' } }).catch(() => 0),
+  ]).then(([a, b]) => (a || 0) + (b || 0)).catch(() => 0);
+  const invoicesUnpaid = await db2.invoice.count({ where: { payment_status: 'unpaid' } }).catch(() => 0);
+  const inventoryLow = await db2.inventoryAlert.count({ where: { NOT: { status: 'resolved' } } }).catch(() =>
+    db2.inventoryAlert.count({}).catch(() => 0));
+
+  // Actionable breakdown: every item that needs the owner, WHAT it is + HOW to
+  // handle it + WHERE. Powers the clickable "X דברים דורשים אותך" panel.
+  const attention = [
+    out.incidents_open ? { key: 'incidents', label: 'תקריות פתוחות', count: out.incidents_open, how: 'עבור לתקריות — סגור או הפנה כל אחת', url: 'Incidents' } : null,
+    out.candidates_pending ? { key: 'candidates', label: 'מועמדים ממתינים לאישור', count: out.candidates_pending, how: 'אשר/דחה מועמד או קבע לו ראיון', url: 'RecruitmentInterviews' } : null,
+    reqPending ? { key: 'requests', label: 'בקשות חופש/החלפת משמרת', count: reqPending, how: 'אשר או דחה את הבקשות', url: 'LeaveRequests' } : null,
+    out.tips_unlocked ? { key: 'tips', label: 'דוחות טיפים לא נעולים', count: out.tips_unlocked, how: 'עבור על הדוח ונעל אותו', url: 'Tips' } : null,
+    invoicesUnpaid ? { key: 'invoices', label: 'חשבוניות ספקים לא משולמות', count: invoicesUnpaid, how: 'סמן ששולם או קבע תאריך תשלום', url: 'Invoices' } : null,
+    inventoryLow ? { key: 'inventory', label: 'התראות מלאי (חוסרים)', count: inventoryLow, how: 'הזמן מהספקים את מה שחסר', url: 'OrderList' } : null,
+  ].filter(Boolean);
+  out.attention = attention;
+
   // Freedom index — share of today's touchpoints Apollo auto-handled vs what
   // still needs the owner. Honest: 100% only when nothing is pending.
   const automated = (out.whatsapp_today || 0) + (out.reservations_today || 0) + clDone;
-  const pending = (out.incidents_open || 0) + (out.candidates_pending || 0) + (out.tips_unlocked || 0);
+  const pending = attention.reduce((s: number, a: any) => s + (a.count || 0), 0);
   out.freedom = {
     automated, pending,
     pct: (automated + pending) > 0 ? Math.round((automated / (automated + pending)) * 100) : 100,

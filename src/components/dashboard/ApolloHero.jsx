@@ -29,6 +29,7 @@ export default function ApolloHero() {
   const [loading, setLoading] = useState(true);
   const [pct, setPct] = useState(0);
   const [showShift, setShowShift] = useState(false);
+  const [showAttention, setShowAttention] = useState(false);
   const reduce = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const raf = useRef(0);
 
@@ -68,11 +69,9 @@ export default function ApolloHero() {
     { icon: ClipboardCheck, label: 'צ׳קליסטים · בוצע/נשאר', value: `${d.checklists?.done ?? 0}/${d.checklists?.total ?? 0}`, tone: A.goldLo, to: 'Checklists' },
   ];
 
-  const attention = [
-    d.incidents_open ? { icon: AlertTriangle, label: 'תקריות פתוחות', value: d.incidents_open, url: 'Incidents' } : null,
-    d.candidates_pending ? { icon: Users, label: 'מועמדים לאישור', value: d.candidates_pending, url: 'RecruitmentInterviews' } : null,
-    d.tips_unlocked ? { icon: Target, label: 'דוחות טיפים פתוחים', value: d.tips_unlocked, url: 'Tips' } : null,
-  ].filter(Boolean);
+  // Rich, actionable "needs you" list from the backend (label + count + how + url).
+  const ICONS = { incidents: AlertTriangle, candidates: Users, requests: CalendarDays, tips: Target, invoices: ScanLine, inventory: ClipboardCheck };
+  const attention = (d.attention || []).map((a) => ({ ...a, icon: ICONS[a.key] || AlertTriangle }));
 
   return (
     <div dir="rtl" className="rounded-3xl mb-5 overflow-hidden" style={{ border: `1px solid ${A.line}`, boxShadow: '0 22px 50px rgba(36,24,17,.20)' }}>
@@ -123,7 +122,12 @@ export default function ApolloHero() {
               {f.breakdown?.checklists ? `✅ ${f.breakdown.checklists} צ׳קליסטים` : ''}
               {!f.automated ? 'עוד לא בוצעו פעולות אוטומטיות היום.' : ''}
             </div>
-            {f.pending > 0 && <div className="text-[12px] mt-1.5 font-bold inline-flex items-center gap-1 rounded-full px-2.5 py-1" style={{ color: '#2a1c0e', background: A.goldHi }}>⚠️ {f.pending} דברים עדיין דורשים אותך</div>}
+            {f.pending > 0 && (
+              <button onClick={() => setShowAttention(s => !s)} className="text-[12px] mt-1.5 font-black inline-flex items-center gap-1 rounded-full px-3 py-1.5 hover:brightness-95 transition" style={{ color: '#2a1c0e', background: A.goldHi, boxShadow: '0 3px 10px rgba(0,0,0,.3)' }}>
+                ⚠️ {f.pending} דברים דורשים אותך — הצג ואיך לטפל
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAttention ? 'rotate-180' : ''}`} />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -171,15 +175,21 @@ export default function ApolloHero() {
           </div>
         )}
 
-        {/* needs attention */}
-        {attention.length > 0 && (
-          <div className="px-4 pt-3">
-            <div className="text-[11px] font-bold mb-1.5" style={{ color: A.muted }}>דורש אותך</div>
-            <div className="flex gap-2 flex-wrap">
+        {/* needs attention — the actionable "what needs you + how to handle" panel,
+            opened from the ⚠️ pill above. Each row: what · how · action button. */}
+        {showAttention && attention.length > 0 && (
+          <div className="mx-4 mt-3 rounded-2xl overflow-hidden" style={{ border: '1px solid #f0cba9' }}>
+            <div className="px-3 py-2 text-[12px] font-black" style={{ background: '#fff1e6', color: '#9b4a1a' }}>🎯 מה דורש אותך עכשיו</div>
+            <div className="divide-y" style={{ background: '#fffaf5' }}>
               {attention.map((a, i) => (
-                <Link key={i} to={createPageUrl(a.url)} className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[12px] font-bold" style={{ background: '#fff1e6', color: '#9b4a1a', border: '1px solid #f0cba9' }}>
-                  <a.icon className="w-3.5 h-3.5" /> {a.label} <span className="rounded-full px-1.5" style={{ background: '#9b4a1a', color: '#fff', fontSize: 11 }}>{a.value}</span>
-                </Link>
+                <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+                  <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#fff1e6' }}><a.icon className="w-4 h-4" style={{ color: '#c2410c' }} /></span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-bold" style={{ color: A.ink }}>{a.label} <span className="rounded-full px-1.5 text-white text-[11px]" style={{ background: '#c2410c' }}>{a.count}</span></div>
+                    <div className="text-[11.5px]" style={{ color: A.muted }}>{a.how}</div>
+                  </div>
+                  <Link to={createPageUrl(a.url)} className="shrink-0 rounded-xl px-3 py-1.5 text-[12px] font-bold text-white" style={{ background: '#c2410c' }}>טפל עכשיו</Link>
+                </div>
               ))}
             </div>
           </div>
