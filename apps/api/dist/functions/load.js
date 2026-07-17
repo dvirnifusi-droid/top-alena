@@ -7016,17 +7016,25 @@ registerFn('resetChecklistDay', async ({ user }) => {
             // only when there are no costed recipes yet.
             const rc = await dbx.$queryRawUnsafe(`SELECT name, food_cost_percent FROM "Recipe"
          WHERE food_cost_percent IS NOT NULL AND sale_price IS NOT NULL AND sale_price > 0`);
-            if (rc.length > 0) {
-                const pct = (r) => Number(r.food_cost_percent) || 0;
-                const sorted = [...rc].sort((a, b) => pct(a) - pct(b));
+            const pct = (r) => Number(r.food_cost_percent) || 0;
+            // Exclude implausible values (>150% = a data-entry error in the recipe's
+            // cost/price, e.g. a ₪34,000 total_cost) so one bad row can't blow up the
+            // average or hog the "worst" slot. Surface the count so the owner can fix them.
+            const plausible = rc.filter((r) => pct(r) > 0 && pct(r) <= 150);
+            const suspect = rc.length - plausible.length;
+            if (plausible.length > 0) {
+                const sorted = [...plausible].sort((a, b) => pct(a) - pct(b));
                 const best = sorted[0], worst = sorted[sorted.length - 1];
-                const avg = Math.round(rc.reduce((s, r) => s + pct(r), 0) / rc.length);
+                const avg = Math.round(plausible.reduce((s, r) => s + pct(r), 0) / plausible.length);
                 out.menu = {
-                    analyzed: rc.length, source: 'recipes', avg_food_cost_pct: avg,
+                    analyzed: plausible.length, source: 'recipes', avg_food_cost_pct: avg, suspect,
                     best: best?.name || null, best_pct: best ? Math.round(pct(best)) : null,
                     bottom: worst?.name || null, bottom_pct: worst ? Math.round(pct(worst)) : null,
-                    high_cost_count: rc.filter(r => pct(r) > 35).length,
+                    high_cost_count: plausible.filter((r) => pct(r) > 35).length,
                 };
+            }
+            else if (rc.length > 0) {
+                out.menu = { analyzed: 0, source: 'recipes', suspect };
             }
             else {
                 const cnt = await dbx.$queryRawUnsafe(`SELECT count(*)::int AS n FROM "MenuItemAnalysis"`);

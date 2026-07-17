@@ -111,12 +111,12 @@ export default function InsightWidgets() {
           tone={{ bg: '#F5ECD6', fg: '#a16207' }}
           cta={menu?.analyzed ? 'לניהול המתכונים →' : 'הזן עלויות במתכונים →'}>
           {!menu?.analyzed
-            ? <><Big color="#94a3b8">—</Big><Sub>הזן מחיר מכירה + עלות מרכיבים במתכונים</Sub></>
+            ? <><Big color="#94a3b8">—</Big><Sub>{menu?.suspect ? `${menu.suspect} מנות עם עלות חריגה — תקן במתכונים` : 'הזן מחיר מכירה + עלות מרכיבים במתכונים'}</Sub></>
             : menu.source === 'recipes'
               ? <><Big color={menu.avg_food_cost_pct > 32 ? '#e11d48' : '#15803d'}>{menu.avg_food_cost_pct}%</Big>
                   <div className="text-xs font-bold text-emerald-700 truncate">⬆ {menu.best} · {menu.best_pct}% פוד-קוסט</div>
                   <div className="text-xs font-bold text-rose-600 truncate">⬇ {menu.bottom} · {menu.bottom_pct}%</div>
-                  <Sub>פוד-קוסט ממוצע · {menu.analyzed} מנות מתומחרות{menu.high_cost_count ? ` · ${menu.high_cost_count} מעל 35%` : ''}</Sub></>
+                  <Sub>פוד-קוסט ממוצע · {menu.analyzed} מנות מתומחרות{menu.high_cost_count ? ` · ${menu.high_cost_count} מעל 35%` : ''}{menu.suspect ? ` · ⚠${menu.suspect} עלות חריגה` : ''}</Sub></>
               : <><div className="text-sm font-bold text-emerald-700 truncate">⬆ {menu.top || '—'}</div>
                   <div className="text-sm font-bold text-rose-600 truncate mt-0.5">⬇ {menu.bottom || '—'}</div>
                   <Sub>הכי / הכי פחות רווחית ({menu.analyzed} מנות)</Sub></>}
