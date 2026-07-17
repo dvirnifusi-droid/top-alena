@@ -57,7 +57,16 @@ export default function SalesChart() {
       const fromStr = format(from, 'yyyy-MM-dd');
       const toStr = format(to, 'yyyy-MM-dd');
 
-      const records = await base44.entities.DailySales.list('-date', 500);
+      // REAL revenue from the POS history (BeecommHistoricalDay via getDemandHistory).
+      // DailySales is empty in prod, which is why this chart showed ₪0.
+      let records = [];
+      try {
+        const res = await base44.functions.getDemandHistory({ days: 180 });
+        records = ((res?.data ?? res)?.history || []).map(r => ({ date: String(r.date).slice(0, 10), total_revenue: r.revenue }));
+      } catch { /* fall back to legacy table */ }
+      if (!records.length) {
+        records = await base44.entities.DailySales.list('-date', 500).catch(() => []);
+      }
 
       const filtered = records.filter(r => r.date >= fromStr && r.date <= toStr);
 

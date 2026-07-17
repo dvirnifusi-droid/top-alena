@@ -28,22 +28,16 @@ export const ADMIN_WIDGETS = [
   { id: 'decision_kpis', label: 'מדדי החלטה · עלות עבודה/תזרים/עזיבות/ביקוש/ספקים/תפריט', emoji: '🎯', defaultOn: true },
   { id: 'shift_money', label: 'כסף במשמרת · סגור/פתוח פר ערוץ', emoji: '💵', defaultOn: true },
   { id: 'deliveries_today', label: 'משלוחים היום · כמות + הכנסה', emoji: '🛵', defaultOn: true },
+  { id: 'sales_chart', label: 'גרף מכירות (נתוני קופה אמיתיים)', emoji: '📈', defaultOn: true },
   { id: 'shift_insights', label: 'תובנות משמרת · דורש תשומת לב', emoji: '🎯', defaultOn: true },
   { id: 'whatsapp_inbox', label: 'WhatsApp Inbox · פניות לקוחות', emoji: '💬', defaultOn: true },
   { id: 'recruitment', label: 'דשבורד גיוס', emoji: '👥', defaultOn: true },
-  { id: 'sales_chart', label: 'גרף מכירות', emoji: '📈', defaultOn: true },
   { id: 'today_tips', label: 'טיפים היום', emoji: '💰', defaultOn: true },
-  { id: 'low_inventory', label: 'התראות מלאי', emoji: '📦', defaultOn: true },
-  { id: 'pending_requests', label: 'בקשות ממתינות', emoji: '🔔', defaultOn: true },
-  { id: 'weekly_leaderboard', label: 'מובילי השבוע', emoji: '🏆', defaultOn: true },
-  { id: 'today_reservations', label: 'הזמנות שולחנות היום', emoji: '📅', defaultOn: true },
-  { id: 'recent_incidents', label: 'תקריות אחרונות', emoji: '⚠️', defaultOn: false },
-  { id: 'checklist_status', label: 'סטטוס צ\'קליסטים', emoji: '☑️', defaultOn: false },
-  { id: 'recent_feedback', label: 'סקרי לקוחות אחרונים', emoji: '📝', defaultOn: false },
-  { id: 'weekly_performance', label: 'גרף ביצועים שבועי', emoji: '📊', defaultOn: false },
-  // delivery/queue widgets — only useful for tenants that run those channels
-  { id: 'active_deliveries', label: 'משלוחים פעילים (למשלוחים)', emoji: '🚚', defaultOn: false },
-  { id: 'queue_status', label: 'תור נוכחי (לעסק עם תור)', emoji: '🎫', defaultOn: false },
+  // Removed as redundant/empty (2026-07-17, owner: "מה שלא משרת אותי להעיף"):
+  // low_inventory / pending_requests / recent_incidents → now in the hero
+  // "needs you" panel; today_reservations / checklist_status → hero tiles;
+  // active_deliveries → deliveries_today; weekly_leaderboard / weekly_performance
+  // / recent_feedback / queue_status → low owner value.
 ];
 
 function getStorageKey(userEmail, page) {
