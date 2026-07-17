@@ -232,12 +232,15 @@ function DashboardInner() {
         User.me().then(setUser).catch(() => setUser(null));
     }, []);
 
-    const isAdmin = !user || user.role === 'admin';
+    // Tenant OWNERS (role='owner') get the full Apollo admin dashboard too —
+    // not just 'admin'. Without this every tenant owner fell to the lesser
+    // employee view and lost the freedom index / Apollo hero.
+    const isAdmin = !user || user.role === 'admin' || user.role === 'owner';
     const page = isAdmin ? 'admin' : 'employee';
     const { layout, saveLayout, isVisible } = useDashboardLayout(user?.email, page);
 
     // תצוגה לעובדים רגילים
-    if (user && user.role !== 'admin') {
+    if (user && user.role !== 'admin' && user.role !== 'owner') {
         return (
             <div className="min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE] p-6" dir="rtl">
                 <div className="max-w-7xl mx-auto">
