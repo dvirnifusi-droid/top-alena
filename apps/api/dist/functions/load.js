@@ -7009,14 +7009,35 @@ registerFn('resetChecklistDay', async ({ user }) => {
             console.warn('[insights] demand:', e?.message);
         }
         try {
-            const cnt = await dbx.$queryRawUnsafe(`SELECT count(*)::int AS n FROM "MenuItemAnalysis"`);
-            if ((cnt[0]?.n ?? 0) > 0) {
-                const top = await dbx.$queryRawUnsafe(`SELECT menu_item_name, profitability_score FROM "MenuItemAnalysis" ORDER BY profitability_score DESC NULLS LAST LIMIT 1`);
-                const low = await dbx.$queryRawUnsafe(`SELECT menu_item_name, profitability_score FROM "MenuItemAnalysis" ORDER BY profitability_score ASC NULLS LAST LIMIT 1`);
-                out.menu = { analyzed: cnt[0].n, top: top[0]?.menu_item_name || null, bottom: low[0]?.menu_item_name || null };
+            // Prefer the owner's REAL recipe food-cost (Recipe.total_cost + sale_price →
+            // food_cost_percent; ingredient prices come from מחירי ספקים). A costed dish
+            // = has both food_cost_percent and a sale_price (preps have no sale_price).
+            // Lower food_cost% = more profitable. Fall back to the LLM MenuItemAnalysis
+            // only when there are no costed recipes yet.
+            const rc = await dbx.$queryRawUnsafe(`SELECT name, food_cost_percent FROM "Recipe"
+         WHERE food_cost_percent IS NOT NULL AND sale_price IS NOT NULL AND sale_price > 0`);
+            if (rc.length > 0) {
+                const pct = (r) => Number(r.food_cost_percent) || 0;
+                const sorted = [...rc].sort((a, b) => pct(a) - pct(b));
+                const best = sorted[0], worst = sorted[sorted.length - 1];
+                const avg = Math.round(rc.reduce((s, r) => s + pct(r), 0) / rc.length);
+                out.menu = {
+                    analyzed: rc.length, source: 'recipes', avg_food_cost_pct: avg,
+                    best: best?.name || null, best_pct: best ? Math.round(pct(best)) : null,
+                    bottom: worst?.name || null, bottom_pct: worst ? Math.round(pct(worst)) : null,
+                    high_cost_count: rc.filter(r => pct(r) > 35).length,
+                };
             }
             else {
-                out.menu = { analyzed: 0 };
+                const cnt = await dbx.$queryRawUnsafe(`SELECT count(*)::int AS n FROM "MenuItemAnalysis"`);
+                if ((cnt[0]?.n ?? 0) > 0) {
+                    const top = await dbx.$queryRawUnsafe(`SELECT menu_item_name, profitability_score FROM "MenuItemAnalysis" ORDER BY profitability_score DESC NULLS LAST LIMIT 1`);
+                    const low = await dbx.$queryRawUnsafe(`SELECT menu_item_name, profitability_score FROM "MenuItemAnalysis" ORDER BY profitability_score ASC NULLS LAST LIMIT 1`);
+                    out.menu = { analyzed: cnt[0].n, source: 'llm', top: top[0]?.menu_item_name || null, bottom: low[0]?.menu_item_name || null };
+                }
+                else {
+                    out.menu = { analyzed: 0 };
+                }
             }
         }
         catch (e) {
