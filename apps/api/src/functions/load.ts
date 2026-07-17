@@ -6701,6 +6701,44 @@ registerFn('resetChecklistDay', async ({ user }: any) => {
   return { ok: true, deleted: Number(res) || 0 };
 });
 
+// ── Business forecasts (SmartPrediction page) — see lib/businessForecasts.ts ─
+{
+  const gateForecast = (user: any) => {
+    if (!user?.id) throw new Error('unauthorized');
+    if (!['admin', 'owner'].includes(String(user.role)) && !(user as any).managed_department) throw new Error('forbidden');
+  };
+  registerFn('getDemandHistory', async ({ user, body }: any) => {
+    gateForecast(user);
+    const m = await import('../lib/businessForecasts.js');
+    return { history: await m.getDemandHistory(Number((body as any)?.days) || 60) };
+  });
+  registerFn('forecastCashFlow', async ({ user }: any) => {
+    gateForecast(user);
+    const m = await import('../lib/businessForecasts.js');
+    return await m.forecastCashFlow();
+  });
+  registerFn('predictNoShows', async ({ user }: any) => {
+    gateForecast(user);
+    const m = await import('../lib/businessForecasts.js');
+    return await m.predictNoShows();
+  });
+  registerFn('forecastLaborCost', async ({ user }: any) => {
+    gateForecast(user);
+    const m = await import('../lib/businessForecasts.js');
+    return await m.forecastLaborCost();
+  });
+  registerFn('detectSupplierPriceDrift', async ({ user }: any) => {
+    gateForecast(user);
+    const m = await import('../lib/businessForecasts.js');
+    return await m.detectSupplierPriceDrift();
+  });
+  registerFn('forecastEventDemand', async ({ user }: any) => {
+    gateForecast(user);
+    const m = await import('../lib/businessForecasts.js');
+    return await m.forecastEventDemand();
+  });
+}
+
 // ── Employee churn analysis v2 — REAL signals, server-side ─────────────────
 // The old client-side flow fed the LLM manager ratings that nobody fills.
 // This computes deterministic trends from data the restaurant actually

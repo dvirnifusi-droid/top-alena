@@ -23,6 +23,160 @@ import {
 } from 'lucide-react';
 import { format, addDays, subDays } from 'date-fns';
 
+// ── תחזיות עסקיות — 5 חיזויים דטרמיניסטיים על נתוני אמת (server-side) ──────
+function BusinessForecastsTab() {
+    const [results, setResults] = useState({});
+    const [busy, setBusy] = useState({});
+
+    const run = async (key, fnName) => {
+        setBusy(prev => ({ ...prev, [key]: true }));
+        try {
+            const res = await base44.functions[fnName]({});
+            setResults(prev => ({ ...prev, [key]: res?.data ?? res }));
+        } catch (e) {
+            setResults(prev => ({ ...prev, [key]: { error: e?.message || 'שגיאה' } }));
+        }
+        setBusy(prev => ({ ...prev, [key]: false }));
+    };
+
+    const ils = (n) => `₪${Number(n || 0).toLocaleString()}`;
+    const Th = ({ children }) => <th className="text-right px-2 py-1.5 font-semibold text-gray-600">{children}</th>;
+    const Td = ({ children, className = '' }) => <td className={`px-2 py-1.5 ${className}`}>{children}</td>;
+
+    const ForecastCard = ({ id, fn, icon, title, desc, children }) => (
+        <Card className="shadow-md">
+            <CardHeader className="pb-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                    <CardTitle className="text-lg flex items-center gap-2">{icon} {title}</CardTitle>
+                    <Button size="sm" onClick={() => run(id, fn)} disabled={busy[id]} className="bg-indigo-600 hover:bg-indigo-700">
+                        {busy[id] ? '⏳ מחשב...' : results[id] ? '🔄 חשב שוב' : '▶ חשב עכשיו'}
+                    </Button>
+                </div>
+                <p className="text-xs text-gray-500">{desc}</p>
+            </CardHeader>
+            <CardContent className="pt-1">
+                {results[id]?.error && <p className="text-sm text-red-600">שגיאה: {results[id].error}</p>}
+                {results[id] && !results[id].error && (
+                    <div className="space-y-2">
+                        {children(results[id])}
+                        {results[id].based_on && <p className="text-[11px] text-gray-400">מבוסס על: {results[id].based_on}</p>}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+
+    return (
+        <div className="space-y-4">
+            <ForecastCard id="cash" fn="forecastCashFlow" icon="💰" title="תחזית תזרים — 7 ימים"
+                desc="הכנסה צפויה לפי ממוצעי הקופה + הוצאות מתוכננות וקבועות, יום-יום">
+                {(r) => (
+                    <>
+                        <div className="overflow-x-auto"><table className="w-full text-sm">
+                            <thead><tr className="border-b"><Th>יום</Th><Th>הכנסה צפויה</Th><Th>הוצאות</Th><Th>נטו</Th></tr></thead>
+                            <tbody>{(r.days || []).map((d) => (
+                                <tr key={d.date} className="border-b border-gray-100">
+                                    <Td>{d.weekday} <span className="text-gray-400 text-xs">{d.date.slice(5)}</span></Td>
+                                    <Td className="text-emerald-700">{ils(d.expected_in)}</Td>
+                                    <Td className="text-rose-600">{ils(d.expected_out)}{d.out_items?.length ? <span className="text-[10px] text-gray-400 block">{d.out_items.map(o => o.name).join(', ')}</span> : null}</Td>
+                                    <Td className={d.net < 0 ? 'text-rose-600 font-bold' : 'font-semibold'}>{ils(d.net)}</Td>
+                                </tr>
+                            ))}</tbody>
+                        </table></div>
+                        <p className="text-sm font-bold">סה"כ שבוע: {ils(r.week?.expected_in)} הכנסה · {ils(r.week?.expected_out)} הוצאות · נטו {ils(r.week?.net)}</p>
+                        {(r.alerts || []).map((a, i) => <p key={i} className="text-xs text-amber-700">{a}</p>)}
+                    </>
+                )}
+            </ForecastCard>
+
+            <ForecastCard id="noshow" fn="predictNoShows" icon="👻" title="חיזוי No-Show להזמנות"
+                desc="ניקוד סיכון לכל הזמנה בשבוע הקרוב לפי היסטוריית הלקוח, גודל שולחן וסטטוס">
+                {(r) => (
+                    <>
+                        <p className="text-sm font-semibold">{r.summary}</p>
+                        {(r.high_risk || []).length > 0 && (
+                            <div className="overflow-x-auto"><table className="w-full text-sm">
+                                <thead><tr className="border-b"><Th>מתי</Th><Th>מי</Th><Th>סועדים</Th><Th>סיכון</Th><Th>למה</Th></tr></thead>
+                                <tbody>{r.high_risk.map((s, i) => (
+                                    <tr key={i} className="border-b border-gray-100">
+                                        <Td>{s.date.slice(5)} {s.time}</Td>
+                                        <Td>{s.name}<span className="text-[10px] text-gray-400 block" dir="ltr">{s.phone}</span></Td>
+                                        <Td>{s.party_size}</Td>
+                                        <Td><span className={`font-bold ${s.risk >= 70 ? 'text-rose-600' : 'text-amber-600'}`}>{s.risk}%</span></Td>
+                                        <Td className="text-xs text-gray-500">{(s.reasons || []).join(' · ')}</Td>
+                                    </tr>
+                                ))}</tbody>
+                            </table></div>
+                        )}
+                    </>
+                )}
+            </ForecastCard>
+
+            <ForecastCard id="labor" fn="forecastLaborCost" icon="👥" title="עלות עבודה חזויה מול הכנסה — השבוע"
+                desc="עלות הסידור (שעות × תעריפים) מול הכנסה צפויה, לפני שהשבוע קורה">
+                {(r) => (
+                    <>
+                        <div className="overflow-x-auto"><table className="w-full text-sm">
+                            <thead><tr className="border-b"><Th>יום</Th><Th>עובדים</Th><Th>שעות</Th><Th>עלות</Th><Th>הכנסה צפויה</Th><Th>% עבודה</Th></tr></thead>
+                            <tbody>{(r.days || []).map((d) => (
+                                <tr key={d.date} className="border-b border-gray-100">
+                                    <Td>{d.weekday} <span className="text-gray-400 text-xs">{d.date.slice(5)}</span></Td>
+                                    <Td>{d.staff}</Td><Td>{d.hours}</Td>
+                                    <Td>{ils(d.cost)}</Td><Td>{ils(d.expected_revenue)}</Td>
+                                    <Td><span className={`font-bold ${d.labor_pct > 32 ? 'text-rose-600' : d.labor_pct > 26 ? 'text-amber-600' : 'text-emerald-700'}`}>{d.labor_pct != null ? `${d.labor_pct}%` : '—'}</span></Td>
+                                </tr>
+                            ))}</tbody>
+                        </table></div>
+                        <p className="text-sm font-bold">שבוע: עלות {ils(r.week?.cost)} מול {ils(r.week?.expected_revenue)} צפי → <span className={r.week?.labor_pct > 32 ? 'text-rose-600' : 'text-emerald-700'}>{r.week?.labor_pct != null ? `${r.week.labor_pct}%` : '—'}</span></p>
+                        {(r.flags || []).map((f, i) => <p key={i} className="text-xs text-amber-700">{f}</p>)}
+                        {(r.missing_rates || []).length > 0 && <p className="text-xs text-gray-500">⚠️ בלי תעריף שכר (לא נכללו בעלות): {r.missing_rates.join(', ')}</p>}
+                    </>
+                )}
+            </ForecastCard>
+
+            <ForecastCard id="drift" fn="detectSupplierPriceDrift" icon="📈" title="התייקרות ספקים"
+                desc="השוואת מחירי יחידה מהחשבוניות — מה התייקר ב-30 הימים האחרונים מול החציון הקודם">
+                {(r) => (
+                    <>
+                        <p className="text-sm font-semibold">{r.summary}</p>
+                        {(r.items || []).length > 0 && (
+                            <div className="overflow-x-auto"><table className="w-full text-sm">
+                                <thead><tr className="border-b"><Th>מוצר</Th><Th>ספק</Th><Th>מחיר קודם</Th><Th>מחיר עדכני</Th><Th>שינוי</Th><Th>עלות נוספת</Th></tr></thead>
+                                <tbody>{r.items.map((it, i) => (
+                                    <tr key={i} className="border-b border-gray-100">
+                                        <Td>{it.product}</Td><Td className="text-xs text-gray-500">{it.supplier}</Td>
+                                        <Td>{ils(it.old_median)}</Td><Td>{ils(it.recent_avg)}</Td>
+                                        <Td><span className="font-bold text-rose-600">+{it.drift_pct}%</span></Td>
+                                        <Td>{ils(it.extra_cost_30d)}</Td>
+                                    </tr>
+                                ))}</tbody>
+                            </table></div>
+                        )}
+                    </>
+                )}
+            </ForecastCard>
+
+            <ForecastCard id="events" fn="forecastEventDemand" icon="🎉" title="ביקוש לאירועים פרטיים"
+                desc="משפך הלידים של דנה: לידים ← סגירות לפי חודש + צנרת האירועים הקרובה">
+                {(r) => (
+                    <>
+                        <div className="overflow-x-auto"><table className="w-full text-sm">
+                            <thead><tr className="border-b"><Th>חודש</Th><Th>לידים</Th><Th>נסגרו</Th><Th>המרה</Th></tr></thead>
+                            <tbody>{(r.monthly || []).map((m) => (
+                                <tr key={m.month} className="border-b border-gray-100">
+                                    <Td>{m.month}</Td><Td>{m.leads}</Td><Td>{m.booked}</Td><Td>{m.conversion_pct}%</Td>
+                                </tr>
+                            ))}</tbody>
+                        </table></div>
+                        <p className="text-sm font-bold">🗓️ בצנרת: {r.upcoming?.count || 0} אירועים · {r.upcoming?.guests || 0} אורחים · {ils(r.upcoming?.revenue)}</p>
+                        <p className="text-sm">🔮 חודש הבא: ~{r.projection?.next_month_leads || 0} לידים → ~{r.projection?.next_month_bookings || 0} סגירות <span className="text-xs text-gray-500">({r.projection?.note})</span></p>
+                    </>
+                )}
+            </ForecastCard>
+        </div>
+    );
+}
+
 export default function SmartPredictionPage() {
     const [predictions, setPredictions] = useState([]);
     const [settings, setSettings] = useState(null);
@@ -75,12 +229,17 @@ export default function SmartPredictionPage() {
 
     const loadHistoricalData = async () => {
         try {
-            // טעינת נתונים היסטוריים מ-30 יום אחורה
-            const endDate = new Date();
-            const startDate = subDays(endDate, 30);
-            
+            // REAL POS history (BeecommHistoricalDay) — DailySales is empty in
+            // prod, so the forecast now feeds on actual register days.
+            const res = await base44.functions.getDemandHistory({ days: 60 });
+            const rows = (res?.data ?? res)?.history || [];
+            if (rows.length) { setHistoricalData(rows); return; }
+        } catch (error) {
+            console.error('Error loading POS history:', error);
+        }
+        try {
             const salesData = await DailySales.list('-date');
-            setHistoricalData(salesData.slice(0, 30)); // 30 רשומות אחרונות
+            setHistoricalData(salesData.slice(0, 30)); // legacy fallback
         } catch (error) {
             console.error('Error loading historical data:', error);
         }
@@ -145,9 +304,9 @@ export default function SmartPredictionPage() {
             const historicalSummary = historicalData.map(day => ({
                 date: day.date,
                 covers: day.covers,
-                revenue: day.total_revenue,
-                weather: day.weather, // Assuming weather is string like 'sunny', 'rainy'
-                day_type: new Date(day.date).getDay() // 0 for Sunday, 6 for Saturday
+                revenue: day.revenue ?? day.total_revenue,
+                weather: day.weather || undefined,
+                day_type: day.day_type ?? new Date(day.date).getDay() // 0 for Sunday, 6 for Saturday
             }));
 
             // Collect reservations for the prediction period
@@ -529,10 +688,14 @@ ${JSON.stringify(salesData.map(sale => ({
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-                    <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 bg-white shadow-sm md:grid md:grid-cols-5">
+                    <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 bg-white shadow-sm md:grid md:grid-cols-6">
                         <TabsTrigger value="predictions" className="flex items-center gap-1.5 text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">
                             <Target className="w-4 h-4" />
                             חיזויים
+                        </TabsTrigger>
+                        <TabsTrigger value="business" className="flex items-center gap-1.5 text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">
+                            <TrendingUp className="w-4 h-4" />
+                            תחזיות עסקיות
                         </TabsTrigger>
                         <TabsTrigger value="analysis" className="flex items-center gap-1.5 text-sm px-3 py-2 whitespace-nowrap flex-shrink-0">
                             <BarChart3 className="w-4 h-4" />
@@ -551,6 +714,10 @@ ${JSON.stringify(salesData.map(sale => ({
                             הגדרות
                         </TabsTrigger>
                     </TabsList>
+
+                    <TabsContent value="business" className="space-y-6">
+                        <BusinessForecastsTab />
+                    </TabsContent>
 
                     {/* תוצאות החיזויים */}
                     <TabsContent value="predictions" className="space-y-6">
