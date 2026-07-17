@@ -30,6 +30,7 @@ export default function ApolloHero() {
   const [pct, setPct] = useState(0);
   const [showShift, setShowShift] = useState(false);
   const [showAttention, setShowAttention] = useState(false);
+  const [showRes, setShowRes] = useState(false);
   const reduce = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const raf = useRef(0);
 
@@ -63,8 +64,8 @@ export default function ApolloHero() {
   const R = 46, C = 2 * Math.PI * R, off = C - (C * (pct / 100));
 
   const tiles = [
-    { icon: Users, label: 'במשמרת', value: active.length, tone: A.good, toggle: true },
-    { icon: CalendarDays, label: 'הזמנות היום', value: d.reservations_today ?? 0, tone: A.blue, to: 'Reservations' },
+    { icon: Users, label: 'במשמרת', value: active.length, tone: A.good, toggle: 'shift' },
+    { icon: CalendarDays, label: 'הזמנות היום · מוזמנים ושעות', value: d.reservations_today ?? 0, tone: A.blue, toggle: 'res' },
     ...(d.sales_today != null ? [{ icon: Target, label: 'מכירות היום', value: `₪${Number(d.sales_today).toLocaleString()}`, tone: A.gold }] : []),
     { icon: ClipboardCheck, label: 'צ׳קליסטים · בוצע/נשאר', value: `${d.checklists?.done ?? 0}/${d.checklists?.total ?? 0}`, tone: A.goldLo, to: 'Checklists' },
   ];
@@ -144,12 +145,13 @@ export default function ApolloHero() {
                   <div className="font-black text-[15px] leading-none" style={{ color: A.espresso, fontVariantNumeric: 'tabular-nums' }}>{t.value}</div>
                   <div className="text-[10px] font-semibold truncate" style={{ color: A.muted }}>{t.label}</div>
                 </div>
-                {t.toggle && <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${showShift ? 'rotate-180' : ''}`} style={{ color: A.muted }} />}
+                {t.toggle && <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${(t.toggle === 'shift' ? showShift : showRes) ? 'rotate-180' : ''}`} style={{ color: A.muted }} />}
               </>
             );
             const cls = 'rounded-2xl px-3 py-2.5 flex items-center gap-2 text-right w-full';
             const st = { background: '#fffaf0', border: `1px solid ${A.line}` };
-            if (t.toggle) return <button key={i} onClick={() => setShowShift(s => !s)} className={`${cls} hover:shadow-sm transition-shadow`} style={st}>{inner}</button>;
+            if (t.toggle === 'shift') return <button key={i} onClick={() => setShowShift(s => !s)} className={`${cls} hover:shadow-sm transition-shadow`} style={st}>{inner}</button>;
+            if (t.toggle === 'res') return <button key={i} onClick={() => setShowRes(s => !s)} className={`${cls} hover:shadow-sm transition-shadow`} style={st}>{inner}</button>;
             if (t.to) return <Link key={i} to={createPageUrl(t.to)} className={`${cls} hover:shadow-sm transition-shadow`} style={st}>{inner}</Link>;
             return <div key={i} className={cls} style={st}>{inner}</div>;
           })}
@@ -157,6 +159,27 @@ export default function ApolloHero() {
 
         {/* who's on shift now — opens on demand from the "במשמרת" tile */}
         {showShift && <div className="px-4 pt-3"><ActiveEmployeesWidget /></div>}
+
+        {/* today's reservations — names + times, opens from the "הזמנות היום" tile */}
+        {showRes && (
+          <div className="mx-4 mt-3 rounded-2xl overflow-hidden" style={{ border: `1px solid ${A.line}` }}>
+            <div className="px-3 py-2 text-[12px] font-black flex items-center justify-between" style={{ background: '#eef4ff', color: '#2563eb' }}>
+              <span>📅 הזמנות להיום</span>
+              <Link to={createPageUrl('Reservations')} className="text-[11px] font-bold">לניהול המלא ←</Link>
+            </div>
+            {(d.reservations_list || []).length === 0
+              ? <div className="px-3 py-4 text-center text-[12px]" style={{ color: A.muted, background: '#fffaf5' }}>אין הזמנות להיום</div>
+              : <div className="divide-y max-h-64 overflow-y-auto" style={{ background: '#fffaf5' }}>
+                  {d.reservations_list.map((r, i) => (
+                    <div key={i} className="flex items-center gap-3 px-3 py-2">
+                      <span className="font-black text-[13px] tabular-nums shrink-0" style={{ color: '#2563eb' }}>{r.time || '—'}</span>
+                      <span className="flex-1 min-w-0 truncate text-[13px]" style={{ color: A.ink }}>{r.name || 'ללא שם'}</span>
+                      <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 shrink-0" style={{ background: '#eef4ff', color: '#2563eb' }}>{r.party || '?'} סועדים</span>
+                    </div>
+                  ))}
+                </div>}
+          </div>
+        )}
 
         {/* agent feed */}
         {(d.feed || []).length > 0 && (

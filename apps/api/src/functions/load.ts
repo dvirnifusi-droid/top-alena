@@ -6102,6 +6102,12 @@ registerFn('getOwnerDashboard', async ({ user }: any) => {
   }).then((r: any[]) => r.map(x => ({ name: x.employee_name, since: x.shift_start }))).catch(() => []);
 
   out.reservations_today = await db2.reservation.count({ where: { date: { gte: dayStart, lte: dayEnd } } }).catch(() => 0);
+  // Today's reservations list (names + times) — powers the clickable tile.
+  out.reservations_list = await db2.reservation.findMany({
+    where: { date: { gte: dayStart, lte: dayEnd }, NOT: { status: { in: ['cancelled', 'no_show'] } } },
+    orderBy: { time: 'asc' }, take: 40,
+    select: { customer_name: true, time: true, party_size: true, status: true },
+  }).then((r: any[]) => r.map((x) => ({ name: x.customer_name, time: x.time, party: x.party_size, status: x.status }))).catch(() => []);
   out.incidents_open = await db2.incident.count({ where: { NOT: { status: { in: ['resolved', 'closed'] } } } }).catch(() => 0);
   out.candidates_pending = await db2.jobCandidate.count({ where: { status: { in: ['pending', 'pending_review', 'new'] } } }).catch(() => 0);
   out.tips_unlocked = await db2.tipReport.count({ where: { date: ymd, NOT: { status: 'locked' } } }).catch(() => 0);
@@ -6150,6 +6156,20 @@ registerFn('getOwnerDashboard', async ({ user }: any) => {
     breakdown: { whatsapp: out.whatsapp_today || 0, reservations: out.reservations_today || 0, checklists: clDone },
   };
   return out;
+});
+
+// Bulk-approve all pending-review invoices in one click. SAFE: only clears the
+// review status (→ 'processed'); does NOT mass-apply inventory (that stays a
+// deliberate per-invoice action via emailInvoiceApprove). Empties the review
+// queue for accounting/export.
+registerFn('emailInvoiceApproveAll', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const res = await (prisma as any).invoice.updateMany({
+    where: { status: 'pending_review' },
+    data: { status: 'processed' },
+  }).catch(() => ({ count: 0 }));
+  return { ok: true, approved: Number(res?.count || 0) };
 });
 
 // Operating costs — real AI spend (platform.AiUsage this month) + a messaging

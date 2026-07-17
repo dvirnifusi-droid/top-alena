@@ -14,6 +14,7 @@ export default function InvoiceFilters({ suppliers, onFilterChange }) {
         date: null,
         supplierId: 'all',
         paymentStatus: 'all',
+        source: 'all',
         minAmount: '',
         maxAmount: ''
     };
@@ -103,6 +104,22 @@ export default function InvoiceFilters({ suppliers, onFilterChange }) {
                                 <SelectItem value="paid">שולם</SelectItem>
                                 <SelectItem value="unpaid">לא שולם</SelectItem>
                                 <SelectItem value="scheduled">ישולם בתאריך</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Source — where the invoice came from */}
+                    <div className="flex flex-col gap-1.5">
+                        <Label>מקור החשבונית</Label>
+                        <Select value={filters.source} onValueChange={(value) => setFilters(f => ({ ...f, source: value }))}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="כל המקורות" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">כל המקורות</SelectItem>
+                                <SelectItem value="email">📥 מייל</SelectItem>
+                                <SelectItem value="whatsapp">💬 וואטסאפ</SelectItem>
+                                <SelectItem value="manual">✍️ ידני</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

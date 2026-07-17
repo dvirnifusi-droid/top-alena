@@ -90,6 +90,24 @@ export default function InvoicesPage() {
         setEditingSupplierId(invoice.id);
         setSupplierDraft(invoice.supplier_name_override || currentName || '');
     };
+
+    // Bulk-approve every pending-review invoice in one click (clears the review
+    // queue; does not mass-apply inventory — that stays per-invoice).
+    const [approvingAll, setApprovingAll] = useState(false);
+    const pendingCount = invoices.filter(i => i.status === 'pending_review').length;
+    const approveAll = async () => {
+        if (!pendingCount) return;
+        if (!window.confirm(`לאשר את כל ${pendingCount} החשבוניות שממתינות לבדיקה? הן יעברו ל"עובדה". (מלאי לא יעודכן אוטומטית — זה נשאר פר חשבונית)`)) return;
+        setApprovingAll(true);
+        try {
+            const res = await base44.functions.emailInvoiceApproveAll({});
+            const n = (res?.data ?? res)?.approved ?? 0;
+            alert(`✅ אושרו ${n} חשבוניות.`);
+            await loadData();
+        } catch (e) {
+            alert('שגיאה באישור: ' + (e?.message || ''));
+        } finally { setApprovingAll(false); }
+    };
     const saveSupplier = (invoice) => {
         patchInvoice(invoice, { supplier_name_override: supplierDraft.trim() });
         setEditingSupplierId(null);
@@ -110,6 +128,9 @@ export default function InvoicesPage() {
             
             // Payment status filter
             if (filters.paymentStatus && filters.paymentStatus !== 'all' && invoice.payment_status !== filters.paymentStatus) return false;
+
+            // Source filter — where the invoice came from (email/whatsapp/manual)
+            if (filters.source && filters.source !== 'all' && (invoice.source || 'manual') !== filters.source) return false;
 
             // Amount filter
             const min = parseFloat(filters.minAmount);
@@ -146,9 +167,17 @@ export default function InvoicesPage() {
                     subtitle="היסטוריית כל החשבוניות שנסרקו למערכת."
                     icon={FileText}
                     action={
-                        <Button onClick={() => setShowExportDialog(true)}>
-                            ייצא לרו"ח
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            {pendingCount > 0 && (
+                                <Button onClick={approveAll} disabled={approvingAll} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                                    <ClipboardCheck className="w-4 h-4 ml-1.5" />
+                                    {approvingAll ? 'מאשר...' : `אשר הכל (${pendingCount})`}
+                                </Button>
+                            )}
+                            <Button variant="outline" onClick={() => setShowExportDialog(true)}>
+                                ייצא לרו"ח
+                            </Button>
+                        </div>
                     }
                 />
 
