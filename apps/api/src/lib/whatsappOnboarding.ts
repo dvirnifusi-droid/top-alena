@@ -723,11 +723,13 @@ export async function tryHandleOnboardingMessage(fromPhone: string, body: string
     const summary = await persistCoreData(tenant, data).catch(() => null);
     data._counts = data._counts || {};
     if (summary?.tables) data._counts.tables = summary.tables;
-    await setPhase(state.tenant_id, 'done', data);
-    await sendWhatsApp(fromPhone, buildDoneMessage(tenant, data));
+    // Persist state, but NEVER let a DB hiccup swallow the reply to the owner —
+    // sending the message is what keeps the conversation alive.
+    await setPhase(state.tenant_id, 'done', data).catch((e: any) => console.warn('[onboarding] setPhase done:', e?.message));
+    await sendWhatsApp(fromPhone, buildDoneMessage(tenant, data)).catch((e: any) => console.warn('[onboarding] send done:', e?.message));
   } else {
-    await setPhase(state.tenant_id, 'active', data);
-    await sendWhatsApp(fromPhone, reply);
+    await setPhase(state.tenant_id, 'active', data).catch((e: any) => console.warn('[onboarding] setPhase active:', e?.message));
+    await sendWhatsApp(fromPhone, reply).catch((e: any) => console.warn('[onboarding] send reply:', e?.message));
   }
   return true;
 }

@@ -189,6 +189,22 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
               }
             } catch (e: any) {
               req.log.warn({ err: e?.message }, '[whatsapp-agent] onboarding handler failed');
+              // A phone mid-onboarding is OWNED by the wizard. A transient
+              // failure (e.g. DB connection hiccup) must NOT fall through to the
+              // admin agent below — that forwards the client's message to the
+              // platform owner and leaves the client with no reply (exactly the
+              // "it disconnected him and messaged me" symptom). Soft-ack the
+              // client and stop here. If we truly can't tell (isOnboardingActive
+              // also failed), assume onboarding and absorb — safer than leaking.
+              const stillOnboarding = await isOnboardingActive(from).catch(() => true);
+              if (stillOnboarding) {
+                try {
+                  const { sendWhatsApp } = await import('../lib/twilio.js');
+                  await sendWhatsApp(from, 'רגע אחד ואני חוזר אליך 🙏 יש עומס קטן על המערכת — נסה לשלוח את ההודעה האחרונה שוב עוד רגע.');
+                } catch { /* best-effort */ }
+                reply.type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+                return;
+              }
             }
           }
         }
