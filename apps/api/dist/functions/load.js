@@ -7080,7 +7080,11 @@ registerFn('analyzeEmployeeChurn', async ({ user }) => {
         return [];
     } };
     const [employees, tracking, workShifts, tipReports, avail, swaps, leaves, coins, shouts, trainings, checklistRuns] = await Promise.all([
-        q(`SELECT id, full_name, role, department, hire_date, status FROM "Employee" WHERE status='active'`),
+        // NOTE: Employee has no hire_date column (base44 legacy) — using the
+        // literal name made this whole query throw → q() swallowed it → 0 employees
+        // analyzed. Use created_date (base44 original) then createdAt as the tenure
+        // proxy, aliased so the rest of the code reads emp.hire_date unchanged.
+        q(`SELECT id, full_name, role, department, COALESCE(created_date, "createdAt"::text) AS hire_date, status FROM "Employee" WHERE status='active'`),
         q(`SELECT employee_id, employee_name, shift_start, shift_end, total_hours, effective_hours,
               atmosphere_rating, sales_feeling_rating, effort_rating, personal_notes
        FROM "ShiftTracking" WHERE shift_start > NOW() - INTERVAL '56 days'`),
