@@ -104,7 +104,7 @@ async function resolveSlugFromToken(token: string): Promise<string | null> {
 
 export type TenantResolution = {
   slug: string;
-  source: 'prefix' | 'memory' | 'fallback';
+  source: 'prefix' | 'memory' | 'owner_phone' | 'fallback';
   bodyAfterPrefix?: string; // when source='prefix', body minus the "+slug" bit
 };
 
@@ -148,6 +148,32 @@ export async function resolveTenantFromMessage(
     } catch (e: any) {
       // eslint-disable-next-line no-console
       console.warn('[whatsappRouter] phone map lookup failed:', e?.message);
+    }
+  }
+
+  // 2.5. Owner-phone lookup — a tenant OWNER who never messaged before has no
+  // memory row, so without this their first message falls to alena and they get
+  // treated as a guest (or re-enter onboarding). Match the sender against every
+  // live tenant's owner_phone by trailing 9 digits, so any owner reaches their
+  // OWN agent on the very first message.
+  if (phone) {
+    try {
+      const digits = phone.replace(/\D/g, '');
+      const tail = digits.slice(-9);
+      if (tail.length === 9) {
+        const rows: any[] = await (prisma as any).$queryRawUnsafe(
+          `SELECT slug FROM public."Tenant"
+           WHERE status = 'live' AND owner_phone IS NOT NULL
+             AND right(regexp_replace(owner_phone, '\\D', '', 'g'), 9) = $1
+           ORDER BY live_at DESC NULLS LAST LIMIT 1`,
+          tail,
+        );
+        if (rows.length && rows[0].slug) {
+          return { slug: String(rows[0].slug).toLowerCase(), source: 'owner_phone' };
+        }
+      }
+    } catch (e: any) {
+      console.warn('[whatsappRouter] owner_phone lookup failed:', e?.message);
     }
   }
 
