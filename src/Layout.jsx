@@ -99,7 +99,6 @@ const adminLinks = [
 
   { title: "הגדרות ואינטגרציות ⚙️", url: "#", icon: Settings, isCategory: true, color: "espresso" },
   { title: "מרכז הגדרות וחיבורים", url: createPageUrl("AdminSettings"), icon: Settings, isSubItem: true, color: "espresso" },
-  { title: "הגדרות פלטפורמה 🧩", url: createPageUrl("PlatformSettings"), icon: LayoutGrid, isSubItem: true, color: "espresso" },
   { title: "מיתוג המסעדה 🎨", url: createPageUrl("Branding"), icon: Sparkles, isSubItem: true, color: "espresso" },
   // Integrations / AdminWhatsApp / WhatsApp Templates / DataExport / PushNotifications /
   // Popups moved into the "מרכז הגדרות וחיבורים" hub (AdminSettings) to declutter
