@@ -1,0 +1,200 @@
+// Weekly insights — sent Sunday 09:00 IL. Goal: highlight what changed
+// week-over-week so the manager spots trends early. Each insight comes from
+// a deterministic SQL pass; we DON'T let the LLM hallucinate numbers.
+import { prisma } from '../db.js';
+import { sendWhatsApp } from './twilio.js';
+import { reportRecipientPhones } from './whatsappPermissions.js';
+const TZ = 'Asia/Jerusalem';
+function ymd(d) { return d.toLocaleDateString('en-CA', { timeZone: TZ }); }
+function addDays(d, n) { const c = new Date(d); c.setUTCDate(c.getUTCDate() + n); return c; }
+// ─── Insight builders ───────────────────────────────────────────────────────
+async function insightSalesWoW(weekStart, weekEnd, prevStart, prevEnd) {
+    try {
+        const allOrders = await prisma.beecommOrder.findMany({ orderBy: { date: 'desc' }, take: 5000 });
+        const sum = (start, end) => allOrders
+            .filter((o) => {
+            const d = o.date instanceof Date ? o.date.toISOString().slice(0, 10) : String(o.date).slice(0, 10);
+            return d >= start && d <= end;
+        })
+            .reduce((s, o) => s + Number(o.total_ils ?? o.total ?? o.amount ?? 0), 0);
+        const thisWeek = sum(weekStart, weekEnd);
+        const lastWeek = sum(prevStart, prevEnd);
+        if (!thisWeek && !lastWeek)
+            return null;
+        const lines = [`השבוע: *₪${thisWeek.toLocaleString('he-IL')}*`];
+        if (lastWeek) {
+            const diff = thisWeek - lastWeek;
+            const pct = Math.round((diff / lastWeek) * 100);
+            const arrow = pct >= 0 ? '⬆️' : '⬇️';
+            lines.push(`שבוע שעבר: ₪${lastWeek.toLocaleString('he-IL')}  ${arrow} ${pct >= 0 ? '+' : ''}${pct}%`);
+        }
+        return lines.join('\n');
+    }
+    catch {
+        return null;
+    }
+}
+async function insightLeadsConversion(weekStart, weekEnd) {
+    try {
+        const all = await prisma.eventLead.findMany({ take: 1000, orderBy: { id: 'desc' } });
+        const newThisWeek = all.filter((l) => {
+            const d = l.created_date ? String(l.created_date).slice(0, 10) : '';
+            return d >= weekStart && d <= weekEnd;
+        });
+        const wonThisWeek = all.filter((l) => {
+            const d = l.updated_date ? String(l.updated_date).slice(0, 10) : '';
+            return d >= weekStart && d <= weekEnd && l.status === 'won';
+        });
+        const lostThisWeek = all.filter((l) => {
+            const d = l.updated_date ? String(l.updated_date).slice(0, 10) : '';
+            return d >= weekStart && d <= weekEnd && l.status === 'lost';
+        });
+        if (!newThisWeek.length && !wonThisWeek.length && !lostThisWeek.length)
+            return null;
+        const closed = wonThisWeek.length + lostThisWeek.length;
+        const conv = closed ? Math.round((wonThisWeek.length / closed) * 100) : 0;
+        const parts = [`חדשים: *${newThisWeek.length}*`];
+        if (wonThisWeek.length)
+            parts.push(`✅ נסגרו: ${wonThisWeek.length}`);
+        if (lostThisWeek.length)
+            parts.push(`❌ אבדו: ${lostThisWeek.length}`);
+        if (closed)
+            parts.push(`🎯 אחוז סגירה: ${conv}%`);
+        return parts.join(' · ');
+    }
+    catch {
+        return null;
+    }
+}
+async function insightTipsAvg(weekStart, weekEnd, prevStart, prevEnd) {
+    try {
+        const reports = await prisma.tipReport.findMany({ orderBy: { date: 'desc' }, take: 200 });
+        const inRange = (start, end) => reports.filter((r) => {
+            const d = r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10);
+            return d >= start && d <= end;
+        });
+        const thisR = inRange(weekStart, weekEnd);
+        const prevR = inRange(prevStart, prevEnd);
+        if (!thisR.length)
+            return null;
+        const sumTotal = (rs) => rs.reduce((s, r) => s + Number(r.total_tips_collected || 0), 0);
+        const totalThis = sumTotal(thisR);
+        const totalPrev = sumTotal(prevR);
+        const lines = [`סה"כ השבוע: *₪${totalThis.toFixed(0)}* (${thisR.length} משמרות)`];
+        if (totalPrev) {
+            const pct = Math.round(((totalThis - totalPrev) / totalPrev) * 100);
+            const arrow = pct >= 0 ? '⬆️' : '⬇️';
+            lines.push(`שבוע שעבר: ₪${totalPrev.toFixed(0)}  ${arrow} ${pct >= 0 ? '+' : ''}${pct}%`);
+        }
+        return lines.join('\n');
+    }
+    catch {
+        return null;
+    }
+}
+async function insightNoShows(weekStart, weekEnd) {
+    try {
+        // Best-effort: assignments in week vs ShiftTracking clock-ins.
+        const shifts = await prisma.workShift.findMany({ orderBy: { date: 'desc' }, take: 1500 });
+        const wks = shifts.filter((s) => {
+            const d = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
+            return d >= weekStart && d <= weekEnd;
+        });
+        if (!wks.length)
+            return null;
+        const expected = wks.flatMap((s) => (s.assigned_staff || []).map((a) => ({ employee_id: a.employee_id, date: (s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10)) })));
+        if (!expected.length)
+            return null;
+        const tracks = await prisma.shiftTracking.findMany({ orderBy: { shift_start: 'desc' }, take: 1000 }).catch(() => []);
+        const tracked = new Set(tracks.map((t) => {
+            const d = typeof t.date === 'string' ? t.date.slice(0, 10) : (t.date ? new Date(t.date).toISOString().slice(0, 10) : '');
+            return `${t.employee_id}|${d}`;
+        }));
+        const noShows = expected.filter((e) => {
+            // Only count past days (today's are still ongoing)
+            const today = ymd(new Date());
+            return e.date < today && !tracked.has(`${e.employee_id}|${e.date}`);
+        });
+        if (!noShows.length)
+            return null;
+        return `${noShows.length} שיבוצים בלי clock-in השבוע (לבדוק)`;
+    }
+    catch {
+        return null;
+    }
+}
+async function insightUnpaidGrowing() {
+    try {
+        const unpaid = await prisma.invoice.findMany({
+            where: { payment_status: 'unpaid' },
+            take: 500,
+        });
+        if (unpaid.length < 3)
+            return null;
+        const total = unpaid.reduce((s, i) => s + Number(i.total_amount || 0), 0);
+        return `${unpaid.length} חשבוניות פתוחות בסך *₪${total.toLocaleString('he-IL')}*`;
+    }
+    catch {
+        return null;
+    }
+}
+// ─── Top-level brief ───────────────────────────────────────────────────────
+export async function buildWeeklyInsights() {
+    // Week = Sun→Sat. We send Sunday morning, summarizing the JUST-ENDED week.
+    const now = new Date();
+    // Last week's Sunday → Saturday
+    const todayDow = now.getDay();
+    const lastSat = addDays(now, -1 - todayDow); // yesterday if today=Sunday
+    const lastSun = addDays(lastSat, -6);
+    const prevSat = addDays(lastSun, -1);
+    const prevSun = addDays(prevSat, -6);
+    const w0 = ymd(lastSun), w1 = ymd(lastSat);
+    const p0 = ymd(prevSun), p1 = ymd(prevSat);
+    const [sales, leads, tips, noshows, unpaid] = await Promise.all([
+        insightSalesWoW(w0, w1, p0, p1),
+        insightLeadsConversion(w0, w1),
+        insightTipsAvg(w0, w1, p0, p1),
+        insightNoShows(w0, w1),
+        insightUnpaidGrowing(),
+    ]);
+    const lines = [
+        `📊 *סיכום שבועי — ${w0} → ${w1}*`,
+        '',
+    ];
+    if (sales) {
+        lines.push('💰 *מכירות*', sales, '');
+    }
+    if (tips) {
+        lines.push('💸 *טיפים*', tips, '');
+    }
+    if (leads) {
+        lines.push('🎯 *לידים*', leads, '');
+    }
+    if (noshows) {
+        lines.push('🚷 *לא נכנסו לשעון*', noshows, '');
+    }
+    if (unpaid) {
+        lines.push('🧾 *חשבוניות פתוחות*', unpaid, '');
+    }
+    lines.push('_שבוע טוב 🌿_');
+    return lines.join('\n');
+}
+export async function sendWeeklyInsights() {
+    const phones = await reportRecipientPhones();
+    if (!phones.length)
+        return { sent: 0, failed: 0, details: [] };
+    const text = await buildWeeklyInsights();
+    const results = [];
+    for (const phone of phones) {
+        try {
+            await sendWhatsApp(phone, text);
+            results.push({ phone, ok: true });
+        }
+        catch (e) {
+            results.push({ phone, ok: false, error: e?.message || 'unknown' });
+            console.warn('[weekly] send failed', { phone, err: e?.message });
+        }
+    }
+    return { sent: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok).length, details: results };
+}
+//# sourceMappingURL=weeklyInsights.js.map

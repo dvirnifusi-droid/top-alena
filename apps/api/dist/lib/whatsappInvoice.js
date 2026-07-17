@@ -1,0 +1,287 @@
+// WhatsApp invoice OCR — admin sends a photo/PDF, we run OCR + supplier match,
+// reply with a structured draft. Confirmation flow (turn draft into a real
+// Invoice row) lands in the next commit.
+//
+// Flow:
+//   1. Twilio webhook sees NumMedia ≥ 1 from an admin number → calls
+//      handleAdminInvoiceMedia(mediaUrl, mimeType).
+//   2. We download the media using Twilio basic auth (the media URL is
+//      protected; only callers with the SID/Token can read it).
+//   3. Upload the file to our own MinIO so we own a permanent copy and the
+//      Gemini-vision call can fetch it via the relative /api/files/<key> URL.
+//   4. Call extractInvoiceFromFile (see invoiceExtraction.ts).
+//   5. Fuzzy-match supplier name to existing Supplier rows.
+//   6. Return a human-readable draft string for the WhatsApp reply.
+import { Readable } from 'node:stream';
+import { uploadStreamToS3 } from './storage.js';
+import { prisma } from '../db.js';
+import { extractInvoiceFromFile, fuzzyFindSupplier } from './invoiceExtraction.js';
+async function downloadTwilioMedia(mediaUrl) {
+    const sid = process.env.TWILIO_ACCOUNT_SID;
+    const token = process.env.TWILIO_AUTH_TOKEN;
+    if (!sid || !token)
+        throw new Error('twilio_creds_missing');
+    const creds = Buffer.from(`${sid}:${token}`).toString('base64');
+    // Twilio media URL serves a 302 redirect to a signed S3 URL. node fetch's
+    // default redirect:'follow' strips the Authorization header across hosts
+    // (security feature), so we end up at the S3 URL with no auth and S3 returns
+    // an XML/HTML access-denied page that Gemini Vision then interprets as
+    // "this is a website, not an invoice". Follow the redirect manually:
+    //   1) hit Twilio with auth, expect 302
+    //   2) hit the Location URL (already signed, no auth needed)
+    let currentUrl = mediaUrl;
+    let currentHeaders = { Authorization: `Basic ${creds}` };
+    for (let hops = 0; hops < 5; hops++) {
+        const res = await fetch(currentUrl, { headers: currentHeaders, redirect: 'manual' });
+        if (res.status >= 300 && res.status < 400) {
+            const next = res.headers.get('location');
+            if (!next)
+                throw new Error(`media_redirect_${res.status}_no_location`);
+            currentUrl = new URL(next, currentUrl).toString();
+            // S3 signed URLs work without auth; drop the Twilio creds so we don't
+            // accidentally trip cross-host header policies.
+            currentHeaders = {};
+            continue;
+        }
+        if (!res.ok)
+            throw new Error(`media_fetch_${res.status}`);
+        const mimeType = res.headers.get('content-type') || 'application/octet-stream';
+        const buf = Buffer.from(await res.arrayBuffer());
+        return { mimeType, buf };
+    }
+    throw new Error('media_redirect_too_many_hops');
+}
+// Extraction schema, ExtractedInvoice type, and the fuzzy supplier/inventory
+// matching helpers live in the shared invoiceExtraction.ts (also used by the
+// email import cron).
+// Internal: store the parsed draft on a WhatsAppMessage outbound row so the
+// next admin reply (אישור/ביטול) can find it. Keeps us off schema migrations.
+// We treat is_read=false as "not yet acted upon".
+async function storePendingInvoice(fromPhone, payload, previewText) {
+    await prisma.whatsAppMessage.create({
+        data: {
+            twilio_sid: null,
+            direction: 'outbound',
+            from_phone: process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+system',
+            to_phone: fromPhone,
+            contact_phone: fromPhone,
+            body: previewText,
+            num_media: 0,
+            status: 'pending_confirmation',
+            raw: { pending_invoice: payload },
+            is_read: false,
+        },
+    }).catch(() => { });
+}
+// Confirmation-side handler. Returns reply text if the admin message looks like
+// an approval/cancellation of the most recent pending invoice (within 15 min).
+// Returns null otherwise so the regular command router runs.
+export async function tryConfirmPendingInvoice(fromPhone, body) {
+    const trimmed = (body || '').trim();
+    if (!trimmed)
+        return null;
+    const isApprove = /^(אישור|אשר|כן|מאשר|מאשרת|ok|yes)\s*[.!]?$/i.test(trimmed);
+    const isCancel = /^(ביטול|ביטל|בטל|בטלי|לא|no|cancel)\s*[.!]?$/i.test(trimmed);
+    // Inline corrections BEFORE saving — critical when OCR didn't match the supplier:
+    //   "ספק: שם נכון"  ·  "סכום: 350"  ·  "מספר: 12345"
+    const supEdit = trimmed.match(/^(?:ספק|שם ספק)\s*[:\-–]\s*(.{2,})$/i);
+    const amtEdit = trimmed.match(/^(?:סכום|סה["״'׳]?כ|total)\s*[:\-–]?\s*([\d.,]+)\s*(?:₪|ש"?ח)?$/i);
+    const numEdit = trimmed.match(/^(?:מספר|מס['׳]|חשבונית)\s*[:\-–]\s*([\w\-\/]+)$/i);
+    const isEdit = !!(supEdit || amtEdit || numEdit);
+    if (!isApprove && !isCancel && !isEdit)
+        return null;
+    // Find most recent unread outbound with pending_invoice from <15 min ago.
+    // Column is created_at (snake_case in the WhatsAppMessage schema), not the
+    // default camelCase createdAt — that mismatch silently returned no rows.
+    const since = new Date(Date.now() - 15 * 60 * 1000);
+    const pending = await prisma.whatsAppMessage.findFirst({
+        where: {
+            direction: 'outbound',
+            contact_phone: fromPhone,
+            status: 'pending_confirmation',
+            is_read: false,
+            created_at: { gte: since },
+        },
+        orderBy: { id: 'desc' },
+    }).catch(() => null);
+    if (!pending)
+        return null; // no pending draft, let the command router try
+    const draft = pending.raw?.pending_invoice;
+    if (!draft)
+        return null;
+    // ── EDIT — patch the draft, keep it pending, refresh the 15-min window ──
+    if (isEdit) {
+        const ex = (draft.extracted = draft.extracted || {});
+        if (supEdit) {
+            ex.supplier_name = supEdit[1].trim().slice(0, 200);
+            draft.matched_supplier_id = null; // owner overrode the match → save under this name
+            draft.matched_supplier_name = null;
+        }
+        if (amtEdit)
+            ex.total_amount = Number(String(amtEdit[1]).replace(/,/g, '')) || ex.total_amount;
+        if (numEdit)
+            ex.invoice_number = numEdit[1].trim();
+        await prisma.whatsAppMessage.update({
+            where: { id: pending.id },
+            data: { raw: { pending_invoice: draft }, created_at: new Date() },
+        }).catch(() => { });
+        const L = ['✏️ *עודכן:*', ''];
+        L.push(`🏢 ספק: ${ex.supplier_name || '—'}`);
+        if (ex.invoice_number)
+            L.push(`#️⃣ חשבונית: ${ex.invoice_number}`);
+        L.push(`💰 סה"כ: ${(Number(ex.total_amount) || 0).toLocaleString('he-IL')} ₪`);
+        L.push('', 'ענה *אישור* לשמירה · *ביטול* · או שלח עוד תיקון (למשל "ספק: שם נכון").');
+        return L.join('\n');
+    }
+    // Mark as consumed so re-sending אישור doesn't double-create.
+    await prisma.whatsAppMessage.update({ where: { id: pending.id }, data: { is_read: true } }).catch(() => { });
+    if (isCancel) {
+        return '✋ ביטלתי. החשבונית לא נשמרה במערכת.\n(הקובץ נשאר ב-MinIO ל-30 יום אם תרצה לשחזר.)';
+    }
+    // === APPROVE — create Invoice row (and Supplier if needed) ===
+    try {
+        const ex = draft.extracted || {};
+        let supplierId = draft.matched_supplier_id || null;
+        let supplierName = draft.matched_supplier_name || null;
+        let supplierCreated = false;
+        if (!supplierId) {
+            // Create a new Supplier with minimal fields. Owner can flesh it out later
+            // in /Suppliers UI. tax_id goes into the supplier_id column (legacy name).
+            const newSup = await prisma.supplier.create({
+                data: {
+                    company_name: String(ex.supplier_name || '').slice(0, 200) || 'ספק לא זוהה',
+                    supplier_id: String(ex.supplier_tax_id || '').slice(0, 30),
+                    contact_person: '',
+                    email: '',
+                    phone: '',
+                    category: String(ex.category_guess || 'אחר').slice(0, 60),
+                    status: 'pending_approval',
+                },
+            });
+            supplierId = newSup.id;
+            supplierName = newSup.company_name;
+            supplierCreated = true;
+        }
+        // Parse invoice_date (YYYY-MM-DD) safely; fall back to today.
+        const isoOk = typeof ex.invoice_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ex.invoice_date);
+        const invoiceDate = isoOk ? new Date(`${ex.invoice_date}T00:00:00.000Z`) : new Date();
+        const created = await prisma.invoice.create({
+            data: {
+                supplier_id: supplierId,
+                invoice_number: String(ex.invoice_number || '').slice(0, 60) || null,
+                invoice_date: invoiceDate,
+                total_amount: Number(ex.total_amount) || 0,
+                file_url: draft.stored_url || null,
+                status: 'pending_review',
+                payment_status: 'unpaid',
+            },
+        });
+        const lines = ['✅ *החשבונית נשמרה במערכת*', ''];
+        lines.push(`🆔 מזהה: ${created.id.slice(-8)}`);
+        if (supplierCreated) {
+            lines.push(`🆕 נוצר ספק חדש: *${supplierName}* (סטטוס: ממתין לאישור — תוכל להשלים פרטים ב-/Suppliers)`);
+        }
+        else {
+            lines.push(`🏢 ספק: ${supplierName}`);
+        }
+        lines.push(`💰 ${created.total_amount.toLocaleString('he-IL')} ₪`);
+        lines.push(`📅 ${created.invoice_date.toISOString().slice(0, 10)}`);
+        lines.push('');
+        lines.push('🔗 לראיה ועריכה — דף /Invoices באפליקציה.');
+        return lines.join('\n');
+    }
+    catch (e) {
+        return `❌ שמירה נכשלה: ${e?.message || 'unknown'}\nהמידע המקורי לא אבד — שלח את התמונה שוב כדי לנסות מחדש.`;
+    }
+}
+// Top-level handler. Returns reply text for the WhatsApp message.
+export async function handleAdminInvoiceMedia(mediaUrl, fromPhone) {
+    let extracted = null;
+    let storedUrl = null;
+    try {
+        // 1. Download from Twilio
+        const { mimeType, buf } = await downloadTwilioMedia(mediaUrl);
+        // 2. Upload to our own storage (so we keep a permanent copy + get a key Gemini can fetch)
+        const ext = mimeType.startsWith('image/') ? '.' + (mimeType.split('/')[1] || 'jpg') : mimeType === 'application/pdf' ? '.pdf' : '.bin';
+        const stream = Readable.from(buf);
+        const { key } = await uploadStreamToS3(`whatsapp-invoice${ext}`, mimeType, stream);
+        // ALWAYS use the relative /api/files/<key> URL, never the public S3 URL.
+        // Reasons:
+        //   • In-process: fetchFileAsBase64 has a fast-path for /api/files/*
+        //     that streams bytes from MinIO via the s3 client (Gemini OCR uses this).
+        //   • In browser: the /api/files route streams the file with the correct
+        //     Content-Type so an <iframe> / <img> renders it. The S3_PUBLIC_URL
+        //     (/storage on this stack) currently isn't wired up in Caddy and
+        //     served the SPA HTML instead — invoices looked stuck loading.
+        storedUrl = `/api/files/${key}`;
+        // 3. OCR + extract.
+        // Pass the INTERNAL /api/files/<key> URL (storedUrl) — not the public
+        // S3_PUBLIC_URL. fetchFileAsBase64 inside invokeLLM has a fast-path for
+        // /api/files/* that reads bytes directly from MinIO via the s3 client.
+        // The public URL would make it do a real HTTP fetch back through Caddy,
+        // which on this stack serves the SPA HTML for unmatched paths → Gemini
+        // gets HTML, says "this is a website, not an invoice". The byte content
+        // is fine either way; the issue was purely the URL routing.
+        extracted = await extractInvoiceFromFile(storedUrl);
+    }
+    catch (e) {
+        return `❌ לא הצלחתי לעבד את הקובץ: ${e?.message || 'unknown'}\n\nנסה שוב או שלח מספר בפנים בידנית.`;
+    }
+    if (!extracted?.supplier_name || !extracted?.total_amount) {
+        return [
+            '🤔 חילצתי משהו אבל לא הצלחתי לזהות את הספק או את הסכום בבירור.',
+            extracted ? '\nמה שכן זיהיתי:' : '',
+            extracted ? '```' + JSON.stringify(extracted, null, 2).slice(0, 400) + '```' : '',
+            '\nאפשר לנסות שוב עם תמונה ברורה יותר?',
+        ].filter(Boolean).join('\n');
+    }
+    // 4. Supplier match
+    const { match: supplier, confidence } = await fuzzyFindSupplier(extracted.supplier_name, extracted.supplier_tax_id);
+    // 5. Build reply
+    const lines = ['📄 *נמצאה חשבונית*', ''];
+    if (supplier && confidence >= 0.9) {
+        lines.push(`🏢 ספק: *${supplier.company_name}* ✓ (זוהה במערכת)`);
+    }
+    else if (supplier && confidence >= 0.5) {
+        lines.push(`🏢 ספק: *${extracted.supplier_name}*`);
+        lines.push(`   _ייתכן שזה: ${supplier.company_name} (${Math.round(confidence * 100)}% התאמה)_`);
+    }
+    else {
+        lines.push(`🏢 ספק: *${extracted.supplier_name}* ⚠️ (לא קיים במערכת — ייווצר חדש בעת אישור)`);
+    }
+    if (extracted.supplier_tax_id)
+        lines.push(`🆔 ח.פ.: ${extracted.supplier_tax_id}`);
+    if (extracted.invoice_number)
+        lines.push(`#️⃣ חשבונית: ${extracted.invoice_number}`);
+    if (extracted.invoice_date)
+        lines.push(`📅 תאריך: ${extracted.invoice_date}`);
+    if (extracted.due_date)
+        lines.push(`💳 פירעון: ${extracted.due_date}`);
+    const currency = extracted.currency && extracted.currency !== 'ILS' ? ` ${extracted.currency}` : ' ₪';
+    lines.push(`💰 *סה"כ: ${extracted.total_amount.toLocaleString('he-IL')}${currency}*`);
+    if (extracted.vat_amount)
+        lines.push(`   (מע"מ: ${extracted.vat_amount.toLocaleString('he-IL')}${currency})`);
+    if (extracted.category_guess)
+        lines.push(`🏷️ קטגוריה משוערת: ${extracted.category_guess}`);
+    if (extracted.confidence_notes)
+        lines.push(`\n⚠️ ${extracted.confidence_notes}`);
+    lines.push('');
+    lines.push('✅ ענה *אישור* לשמירה · *ביטול*');
+    lines.push('✏️ לא זיהה נכון? תקן: "ספק: שם נכון" · "סכום: 350" · "מספר: 12345"');
+    lines.push('❌ ענה *ביטול* כדי לא לשמור');
+    lines.push('_(תקף ל-15 דקות)_');
+    const previewText = lines.join('\n');
+    // 6. Store draft so the next admin "אישור"/"ביטול" can act on it
+    if (fromPhone) {
+        const matchedHighConfidence = supplier && confidence >= 0.9;
+        await storePendingInvoice(fromPhone, {
+            extracted,
+            stored_url: storedUrl,
+            matched_supplier_id: matchedHighConfidence ? supplier.id : null,
+            matched_supplier_name: matchedHighConfidence ? supplier.company_name : null,
+            match_confidence: confidence,
+        }, previewText);
+    }
+    return previewText;
+}
+//# sourceMappingURL=whatsappInvoice.js.map

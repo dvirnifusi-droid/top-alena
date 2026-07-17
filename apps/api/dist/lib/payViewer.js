@@ -1,0 +1,28 @@
+// Single source for building the salary-privacy Viewer from a JWT user, so the
+// owner-flag + department + scope resolution can't drift between callers
+// (employeePay + laborCost). Fails closed: an unlinked user (no matching
+// Employee) gets employeeId=null and no scope, seeing nothing beyond the owner
+// flag. Owner is strictly role === 'owner' (no 'admin') to match the pay module.
+import { prisma } from '../db.js';
+export async function buildPayViewer(user) {
+    const isOwner = user?.role === 'owner';
+    let emp = null;
+    if (user?.email) {
+        // Employee.email is neither unique nor guaranteed distinct (synthetic/placeholder
+        // emails exist). If more than one row matches, the identity is ambiguous → fail
+        // CLOSED (no scope) rather than inherit a possibly-wrong department/pay_access_scope.
+        const matches = await prisma.employee.findMany({
+            where: { email: user.email },
+            select: { id: true, department: true, pay_access_scope: true },
+            take: 2,
+        }).catch(() => []);
+        emp = matches.length === 1 ? matches[0] : null;
+    }
+    return {
+        isOwner,
+        employeeId: emp?.id ?? null,
+        department: emp?.department ?? null,
+        payAccessScope: emp?.pay_access_scope ?? null,
+    };
+}
+//# sourceMappingURL=payViewer.js.map

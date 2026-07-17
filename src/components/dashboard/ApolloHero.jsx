@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 import ActiveEmployeesWidget from './ActiveEmployeesWidget';
-import { Loader2, RefreshCw, Brain, Target, ScanLine, Users, CalendarDays, AlertTriangle, ClipboardCheck, Sparkles, ChevronDown } from 'lucide-react';
+import { Loader2, RefreshCw, Brain, Target, ScanLine, Users, CalendarDays, AlertTriangle, ClipboardCheck, Sparkles, ChevronDown, CheckCircle2, Clock, Copy, ExternalLink, UserPlus, Menu, ListChecks, FileSpreadsheet } from 'lucide-react';
 
 const A = {
   gold: '#C9A15A', goldHi: '#EBD08A', goldLo: '#7c5626', espresso: '#241811', espresso2: '#33241a',
@@ -31,6 +31,10 @@ export default function ApolloHero() {
   const [showShift, setShowShift] = useState(false);
   const [showAttention, setShowAttention] = useState(false);
   const [showRes, setShowRes] = useState(false);
+  const [showChecklists, setShowChecklists] = useState(false);
+  const [showRecruit, setShowRecruit] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [copied, setCopied] = useState(false);
   const reduce = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const raf = useRef(0);
 
@@ -67,12 +71,21 @@ export default function ApolloHero() {
     { icon: Users, label: 'במשמרת', value: active.length, tone: A.good, toggle: 'shift' },
     { icon: CalendarDays, label: 'הזמנות היום · מוזמנים ושעות', value: d.reservations_today ?? 0, tone: A.blue, toggle: 'res' },
     ...(d.sales_today != null ? [{ icon: Target, label: 'מכירות היום', value: `₪${Number(d.sales_today).toLocaleString()}`, tone: A.gold }] : []),
-    { icon: ClipboardCheck, label: 'צ׳קליסטים · בוצע/נשאר', value: `${d.checklists?.done ?? 0}/${d.checklists?.total ?? 0}`, tone: A.goldLo, to: 'Checklists' },
+    { icon: ClipboardCheck, label: 'צ׳קליסטים · בוצע/בתהליך', value: `${d.checklists?.done ?? 0}/${d.checklists?.total ?? 0}`, tone: A.goldLo, toggle: 'checklist' },
   ];
+
+  // Which inline panel each toggle-tile opens (state + setter, generic).
+  const toggleMap = { shift: [showShift, setShowShift], res: [showRes, setShowRes], checklist: [showChecklists, setShowChecklists] };
 
   // Rich, actionable "needs you" list from the backend (label + count + how + url).
   const ICONS = { incidents: AlertTriangle, candidates: Users, requests: CalendarDays, tips: Target, invoices: ScanLine, inventory: ClipboardCheck };
   const attention = (d.attention || []).map((a) => ({ ...a, icon: ICONS[a.key] || AlertTriangle }));
+
+  // Shareable job-application link (tenant's own origin → /apply).
+  const applyUrl = (typeof window !== 'undefined' ? window.location.origin : '') + createPageUrl('JobApplication');
+  const copyApply = () => { try { navigator.clipboard.writeText(applyUrl); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* ignore */ } };
+  const cl = d.checklists_detail || { runs: [], not_started: 0 };
+  const rec = d.recruitment || { new_candidates: [], upcoming_interviews: [] };
 
   return (
     <div dir="rtl" className="rounded-3xl mb-5 overflow-hidden" style={{ border: `1px solid ${A.line}`, boxShadow: '0 22px 50px rgba(36,24,17,.20)' }}>
@@ -145,13 +158,12 @@ export default function ApolloHero() {
                   <div className="font-black text-[15px] leading-none" style={{ color: A.espresso, fontVariantNumeric: 'tabular-nums' }}>{t.value}</div>
                   <div className="text-[10px] font-semibold truncate" style={{ color: A.muted }}>{t.label}</div>
                 </div>
-                {t.toggle && <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${(t.toggle === 'shift' ? showShift : showRes) ? 'rotate-180' : ''}`} style={{ color: A.muted }} />}
+                {t.toggle && <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${toggleMap[t.toggle]?.[0] ? 'rotate-180' : ''}`} style={{ color: A.muted }} />}
               </>
             );
             const cls = 'rounded-2xl px-3 py-2.5 flex items-center gap-2 text-right w-full';
             const st = { background: '#fffaf0', border: `1px solid ${A.line}` };
-            if (t.toggle === 'shift') return <button key={i} onClick={() => setShowShift(s => !s)} className={`${cls} hover:shadow-sm transition-shadow`} style={st}>{inner}</button>;
-            if (t.toggle === 'res') return <button key={i} onClick={() => setShowRes(s => !s)} className={`${cls} hover:shadow-sm transition-shadow`} style={st}>{inner}</button>;
+            if (t.toggle) { const set = toggleMap[t.toggle][1]; return <button key={i} onClick={() => set(s => !s)} className={`${cls} hover:shadow-sm transition-shadow`} style={st}>{inner}</button>; }
             if (t.to) return <Link key={i} to={createPageUrl(t.to)} className={`${cls} hover:shadow-sm transition-shadow`} style={st}>{inner}</Link>;
             return <div key={i} className={cls} style={st}>{inner}</div>;
           })}
@@ -177,6 +189,44 @@ export default function ApolloHero() {
                       <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 shrink-0" style={{ background: '#eef4ff', color: '#2563eb' }}>{r.party || '?'} סועדים</span>
                     </div>
                   ))}
+                </div>}
+          </div>
+        )}
+
+        {/* checklists — inline summary: which finished, which mid-run + stage.
+            Opens from the "צ׳קליסטים" tile, never navigates away. */}
+        {showChecklists && (
+          <div className="mx-4 mt-3 rounded-2xl overflow-hidden" style={{ border: `1px solid ${A.line}` }}>
+            <div className="px-3 py-2 text-[12px] font-black flex items-center justify-between" style={{ background: '#f2f7ec', color: '#4d7a2e' }}>
+              <span className="flex items-center gap-1.5"><ListChecks className="w-4 h-4" /> צ׳קליסטים היום</span>
+              <Link to={createPageUrl('Checklists')} className="text-[11px] font-bold">לניהול המלא ←</Link>
+            </div>
+            {cl.runs.length === 0
+              ? <div className="px-3 py-4 text-center text-[12px]" style={{ color: A.muted, background: '#fffaf5' }}>
+                  עדיין לא נפתח צ׳קליסט היום{cl.not_started > 0 ? ` · ${cl.not_started} מוכנים להרצה` : ''}
+                </div>
+              : <div className="divide-y" style={{ background: '#fffaf5' }}>
+                  {cl.runs.map((c, i) => {
+                    const done = c.status === 'completed';
+                    const pct = c.total ? Math.round((c.done / c.total) * 100) : 0;
+                    return (
+                      <div key={i} className="px-3 py-2.5">
+                        <div className="flex items-center gap-2">
+                          {done
+                            ? <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: '#4d7a2e' }} />
+                            : <Clock className="w-4 h-4 shrink-0" style={{ color: '#c98a2e' }} />}
+                          <span className="flex-1 min-w-0 truncate text-[13px] font-bold" style={{ color: A.ink }}>{c.title}</span>
+                          <span className="text-[11px] font-black tabular-nums shrink-0" style={{ color: done ? '#4d7a2e' : '#c98a2e' }}>{c.done}/{c.total}</span>
+                        </div>
+                        <div className="mt-1.5 h-1.5 rounded-full overflow-hidden" style={{ background: '#ece3d0' }}>
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: done ? '#5F8B3D' : '#d8a24a' }} />
+                        </div>
+                        {!done && c.next && <div className="text-[11px] mt-1" style={{ color: A.muted }}>בשלב: {c.next}</div>}
+                        {done && <div className="text-[11px] mt-1" style={{ color: '#4d7a2e' }}>הושלם ✓{c.by ? ` · ${c.by}` : ''}</div>}
+                      </div>
+                    );
+                  })}
+                  {cl.not_started > 0 && <div className="px-3 py-2 text-[11.5px]" style={{ color: A.muted }}>+ {cl.not_started} צ׳קליסטים שטרם התחילו היום</div>}
                 </div>}
           </div>
         )}
@@ -218,12 +268,90 @@ export default function ApolloHero() {
           </div>
         )}
 
-        {/* AI tools rail */}
+        {/* AI tools rail — כלי AI navigates; גיוס + סורק open inline panels */}
         <div className="grid grid-cols-3 gap-2 px-4 py-4">
           <Link to={createPageUrl('AIHub')} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px]" style={{ background: `linear-gradient(160deg,${A.goldHi},${A.gold})`, color: '#2a1c0e', boxShadow: '0 6px 14px rgba(201,161,90,.35)' }}><Brain className="w-5 h-5" /> כלי AI</Link>
-          <Link to={createPageUrl('RecruitmentInterviews')} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px]" style={{ background: '#fff8ea', color: A.espresso, border: `1px solid ${A.line}` }}><Target className="w-5 h-5" style={{ color: A.goldLo }} /> סוכן גיוס</Link>
-          <Link to={createPageUrl('Invoices')} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px]" style={{ background: '#fff8ea', color: A.espresso, border: `1px solid ${A.line}` }}><ScanLine className="w-5 h-5" style={{ color: A.goldLo }} /> סורק AI</Link>
+          <button onClick={() => { setShowRecruit(s => !s); setShowScanner(false); }} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px] transition" style={{ background: showRecruit ? '#fff1cf' : '#fff8ea', color: A.espresso, border: `1px solid ${showRecruit ? A.gold : A.line}` }}><Target className="w-5 h-5" style={{ color: A.goldLo }} /> סוכן גיוס</button>
+          <button onClick={() => { setShowScanner(s => !s); setShowRecruit(false); }} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px] transition" style={{ background: showScanner ? '#fff1cf' : '#fff8ea', color: A.espresso, border: `1px solid ${showScanner ? A.gold : A.line}` }}><ScanLine className="w-5 h-5" style={{ color: A.goldLo }} /> סורק AI</button>
         </div>
+
+        {/* recruitment agent — inline: share link + new candidates + next interviews */}
+        {showRecruit && (
+          <div className="mx-4 mb-4 rounded-2xl overflow-hidden" style={{ border: `1px solid ${A.line}` }}>
+            <div className="px-3 py-2 text-[12px] font-black flex items-center justify-between" style={{ background: '#fff4e0', color: A.goldLo }}>
+              <span className="flex items-center gap-1.5"><UserPlus className="w-4 h-4" /> סוכן הגיוס</span>
+              <Link to={createPageUrl('RecruitmentInterviews')} className="text-[11px] font-bold">לניהול המלא ←</Link>
+            </div>
+            <div style={{ background: '#fffaf5' }}>
+              {/* share the application link */}
+              <div className="px-3 py-2.5 border-b" style={{ borderColor: A.line }}>
+                <div className="text-[11px] font-bold mb-1" style={{ color: A.muted }}>קישור להגשת מועמדות — שלח למועמדים:</div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0 truncate text-[12px] rounded-lg px-2 py-1.5" style={{ background: '#fff', border: `1px solid ${A.line}`, color: A.ink, direction: 'ltr' }}>{applyUrl}</div>
+                  <button onClick={copyApply} className="shrink-0 rounded-lg px-2.5 py-1.5 text-[12px] font-bold flex items-center gap-1" style={{ background: A.gold, color: '#2a1c0e' }}>
+                    {copied ? <><CheckCircle2 className="w-3.5 h-3.5" /> הועתק</> : <><Copy className="w-3.5 h-3.5" /> העתק</>}
+                  </button>
+                </div>
+              </div>
+              {/* new candidates */}
+              <div className="px-3 py-2">
+                <div className="text-[11px] font-black mb-1.5" style={{ color: A.espresso }}>מועמדים חדשים ({rec.new_candidates.length})</div>
+                {rec.new_candidates.length === 0
+                  ? <div className="text-[12px] pb-1" style={{ color: A.muted }}>אין מועמדים חדשים ממתינים</div>
+                  : <div className="space-y-1">
+                      {rec.new_candidates.map((c, i) => (
+                        <div key={i} className="flex items-center gap-2 text-[12px]">
+                          <span className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-black" style={{ background: '#fff1cf', color: A.goldLo }}>{(c.name || '?').slice(0, 1)}</span>
+                          <span className="font-bold truncate" style={{ color: A.ink }}>{c.name || 'מועמד'}</span>
+                          {c.role && <span className="text-[11px]" style={{ color: A.muted }}>· {c.role}</span>}
+                          {c.city && <span className="text-[11px]" style={{ color: A.muted }}>· {c.city}</span>}
+                        </div>
+                      ))}
+                    </div>}
+              </div>
+              {/* upcoming interviews */}
+              <div className="px-3 py-2 border-t" style={{ borderColor: A.line }}>
+                <div className="text-[11px] font-black mb-1.5" style={{ color: A.espresso }}>ראיונות קרובים ({rec.upcoming_interviews.length})</div>
+                {rec.upcoming_interviews.length === 0
+                  ? <div className="text-[12px] pb-1" style={{ color: A.muted }}>אין ראיונות מתוזמנים</div>
+                  : <div className="space-y-1">
+                      {rec.upcoming_interviews.map((iv, i) => (
+                        <div key={i} className="flex items-center gap-2 text-[12px]">
+                          <span className="font-black tabular-nums shrink-0" style={{ color: A.goldLo }}>{iv.date?.slice(5)} {iv.time}</span>
+                          <span className="flex-1 min-w-0 truncate" style={{ color: A.ink }}>{iv.name || 'מועמד'}</span>
+                        </div>
+                      ))}
+                    </div>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* AI scanner — inline: what it reads + open the scanner. (The rail button
+            used to land on Invoices by mistake; the scanner lives at /Scanner.) */}
+        {showScanner && (
+          <div className="mx-4 mb-4 rounded-2xl overflow-hidden" style={{ border: `1px solid ${A.line}` }}>
+            <div className="px-3 py-2 text-[12px] font-black flex items-center justify-between" style={{ background: '#fff4e0', color: A.goldLo }}>
+              <span className="flex items-center gap-1.5"><ScanLine className="w-4 h-4" /> סורק ה-AI</span>
+            </div>
+            <div className="px-3 py-3" style={{ background: '#fffaf5' }}>
+              <div className="text-[12px] leading-relaxed mb-2.5" style={{ color: A.ink }}>
+                צלם או העלה כל מסמך — <b>תפריט, רשימת עובדים, ספקים, צ׳ק-ליסט או רשימת הזמנה</b> — וה-AI מזהה מה זה, קורא, מציג תצוגה מקדימה ומייבא ישר למערכת.
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 mb-3">
+                {[{ i: Menu, t: 'תפריט' }, { i: Users, t: 'עובדים' }, { i: FileSpreadsheet, t: 'ספקים' }, { i: ListChecks, t: 'צ׳ק-ליסט' }, { i: ClipboardCheck, t: 'הזמנה' }, { i: ScanLine, t: 'חשבונית' }].map((x, i) => (
+                  <div key={i} className="rounded-xl py-1.5 flex flex-col items-center gap-0.5 text-[10.5px] font-bold" style={{ background: '#fff', border: `1px solid ${A.line}`, color: A.muted }}>
+                    <x.i className="w-4 h-4" style={{ color: A.goldLo }} />{x.t}
+                  </div>
+                ))}
+              </div>
+              <Link to={createPageUrl('Scanner')} className="rounded-xl py-2.5 flex items-center justify-center gap-1.5 font-bold text-[13px]" style={{ background: `linear-gradient(160deg,${A.goldHi},${A.gold})`, color: '#2a1c0e' }}>
+                <ScanLine className="w-4 h-4" /> פתח את הסורק <ExternalLink className="w-3.5 h-3.5" />
+              </Link>
+              <div className="text-[11px] mt-2 text-center" style={{ color: A.muted }}>💬 אפשר גם לשלוח את המסמך לסוכן בוואטסאפ והוא יסרוק אותו</div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

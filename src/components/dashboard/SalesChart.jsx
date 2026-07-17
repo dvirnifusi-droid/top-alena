@@ -57,13 +57,21 @@ export default function SalesChart() {
       const fromStr = format(from, 'yyyy-MM-dd');
       const toStr = format(to, 'yyyy-MM-dd');
 
-      // REAL revenue from the POS history (BeecommHistoricalDay via getDemandHistory).
-      // DailySales is empty in prod, which is why this chart showed ₪0.
+      // REAL daily revenue — getDailyRevenueSeries merges the closed-day backfill
+      // (BeecommHistoricalDay) with the LIVE Beecomm snapshots, so the recent
+      // period is always covered. (The old getDemandHistory read only the
+      // historical table, which froze on 2026-06-07 → the ₪0 chart.)
       let records = [];
       try {
-        const res = await base44.functions.getDemandHistory({ days: 180 });
-        records = ((res?.data ?? res)?.history || []).map(r => ({ date: String(r.date).slice(0, 10), total_revenue: r.revenue }));
-      } catch { /* fall back to legacy table */ }
+        const res = await base44.functions.getDailyRevenueSeries({ days: 200 });
+        records = ((res?.data ?? res)?.series || []).map(r => ({ date: String(r.date).slice(0, 10), total_revenue: r.revenue }));
+      } catch { /* fall back below */ }
+      if (!records.length) {
+        try {
+          const res = await base44.functions.getDemandHistory({ days: 180 });
+          records = ((res?.data ?? res)?.history || []).map(r => ({ date: String(r.date).slice(0, 10), total_revenue: r.revenue }));
+        } catch { /* fall back to legacy table */ }
+      }
       if (!records.length) {
         records = await base44.entities.DailySales.list('-date', 500).catch(() => []);
       }

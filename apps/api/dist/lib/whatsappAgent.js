@@ -1,0 +1,562 @@
+// WhatsApp admin agent — routes inbound messages from owner/manager phones to
+// READ-only commands and replies with a free-form WhatsApp message (works
+// inside the 24h session window which the inbound message itself opens).
+//
+// Hard rules baked into this file:
+//  • Only numbers in WHATSAPP_ADMIN_NUMBERS env get routed here.
+//  • READ commands only — no entity writes from inbound text. Write actions
+//    (assign staff, send contract, etc.) come in a later commit with a
+//    two-step confirmation flow.
+//  • Returns null when the message isn't a recognized command, so the regular
+//    inbox-archival flow continues to handle it.
+import { prisma } from '../db.js';
+import { buildTodayOverview, listOpenTasks } from './whatsappCalendar.js';
+import { buildConsentUrl, isGoogleConnected } from './googleSync.js';
+import { buildMorningBrief, buildEndOfDayBrief } from './morningBrief.js';
+import { sendDailyHoursReport } from './dailyHoursReport.js';
+// Strip 'whatsapp:+972...' / '+972...' / '0532...' down to a digit-only
+// canonical form so we can match against the env allowlist regardless of
+// how the user typed it.
+function canonicalizePhone(raw) {
+    if (!raw)
+        return '';
+    let s = String(raw).replace(/^whatsapp:/i, '').replace(/[^\d]/g, '');
+    if (s.startsWith('972'))
+        s = '0' + s.slice(3);
+    return s;
+}
+function adminAllowlist() {
+    const raw = process.env.WHATSAPP_ADMIN_NUMBERS || '';
+    return new Set(raw.split(',').map(s => canonicalizePhone(s.trim())).filter(Boolean));
+}
+export function isWhatsAppAdmin(fromPhone) {
+    const list = adminAllowlist();
+    return list.has(canonicalizePhone(fromPhone));
+}
+// Date helpers — everything is in Asia/Jerusalem because owner thinks in
+// local time and shifts are stored with date strings anchored to local-noon.
+const ISRAEL_TZ = 'Asia/Jerusalem';
+function israelYMD(d = new Date()) {
+    return d.toLocaleDateString('en-CA', { timeZone: ISRAEL_TZ });
+}
+function addDays(d, n) {
+    const c = new Date(d);
+    c.setUTCDate(c.getUTCDate() + n);
+    return c;
+}
+function israelDayName(ymd) {
+    const NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+    try {
+        const d = new Date(`${ymd}T12:00:00.000Z`);
+        return NAMES[d.getDay()];
+    }
+    catch {
+        return '';
+    }
+}
+// ── Commands ────────────────────────────────────────────────────────────────
+async function cmdHelp() {
+    const { getBrandName } = await import('./brandName.js');
+    return [
+        `👋 אני העוזר של ${await getBrandName()} ב-WhatsApp. הפקודות שלי:`,
+        '',
+        '🧠 *מה קורה* — לוח בקרה: מדד החופש, מי במשמרת, מה דורש אותך',
+        '🟢 *מי במשמרת* — עובדים פעילים כרגע',
+        '📤 *שלח דוח שעות* — שולח עכשיו את דוח השעות היומי',
+        '📋 *מה היום* — האירועים, המשימות והסידור שלך להיום',
+        '✅ *משימות* — רשימת המשימות הפתוחות שלך',
+        '🌅 *סיכום בוקר* — כל המידע הבוקרי + משפט מוטיבציה',
+        '🌙 *סיכום יום* — סיכום סוף-יום (מכירות, טיפים, מחר)',
+        '🔗 *חבר גוגל* — חיבור Google Calendar + Tasks (פעם אחת)',
+        '📅 *סידור היום* — מי משובץ היום',
+        '📅 *סידור מחר* — מי משובץ מחר',
+        '📅 *סידור שבוע* — סיכום השבוע',
+        '💰 *טיפים* — דוח טיפים של המשמרת האחרונה',
+        '💰 *הכנסות* — הכנסות היום',
+        '🎯 *לידים* — אירועים שמחכים שתחזור אליהם',
+        '👥 *זמינות חסרים* — מי לא הגיש זמינות לשבוע הבא',
+        '❓ *עזרה* — להציג את הרשימה שוב',
+        '',
+        '💡 בעתיד אוכל גם לבצע פעולות (החלפת מלצרים, אישור חוזים) — תמיד עם אישור שלך לפני.',
+    ].join('\n');
+}
+async function cmdScheduleForDate(targetYMD) {
+    const dayName = israelDayName(targetYMD);
+    // WorkShift.date is a DateTime — fetch a wide window and slice client-side.
+    const allShifts = await prisma.workShift.findMany({
+        orderBy: { date: 'desc' },
+        take: 2000,
+    });
+    const shifts = allShifts.filter((s) => {
+        const d = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
+        return d === targetYMD;
+    });
+    if (!shifts.length) {
+        return `📅 *${dayName} ${targetYMD}* — אין משמרות מוגדרות.`;
+    }
+    const lines = [`📅 *סידור ${dayName} ${targetYMD}*`];
+    for (const shiftType of ['lunch', 'dinner']) {
+        const label = shiftType === 'lunch' ? '☀️ צהריים' : '🌙 ערב';
+        const matching = shifts.filter((s) => s.shift_type === shiftType);
+        if (!matching.length) {
+            lines.push(`\n${label}: _אין_`);
+            continue;
+        }
+        const allStaff = matching.flatMap((s) => s.assigned_staff || []);
+        if (!allStaff.length) {
+            lines.push(`\n${label}: _ריק_`);
+            continue;
+        }
+        lines.push(`\n${label} (${allStaff.length}):`);
+        // Group by position
+        const byPos = {};
+        for (const a of allStaff) {
+            const pos = a.position || 'ללא תפקיד';
+            (byPos[pos] = byPos[pos] || []).push(`${a.employee_name}${a.start_time ? ` (${a.start_time}-${a.end_time || '?'})` : ''}`);
+        }
+        for (const [pos, names] of Object.entries(byPos)) {
+            lines.push(`  *${pos}*: ${names.join(' · ')}`);
+        }
+    }
+    return lines.join('\n');
+}
+async function cmdScheduleToday() {
+    return cmdScheduleForDate(israelYMD());
+}
+async function cmdScheduleTomorrow() {
+    return cmdScheduleForDate(israelYMD(addDays(new Date(), 1)));
+}
+async function cmdScheduleWeek() {
+    const today = new Date();
+    const startYMD = israelYMD(today);
+    // Sunday of current week:
+    const dow = today.getDay();
+    const sunday = addDays(today, -dow);
+    const days = Array.from({ length: 7 }, (_, i) => israelYMD(addDays(sunday, i)));
+    const allShifts = await prisma.workShift.findMany({
+        orderBy: { date: 'desc' },
+        take: 2000,
+    });
+    const lines = [`📅 *סיכום שבועי* (${days[0]} → ${days[6]})`];
+    for (const d of days) {
+        const dayShifts = allShifts.filter((s) => {
+            const sd = s.date instanceof Date ? s.date.toISOString().slice(0, 10) : String(s.date).slice(0, 10);
+            return sd === d;
+        });
+        const lunchN = dayShifts.filter((s) => s.shift_type === 'lunch').reduce((n, s) => n + (s.assigned_staff?.length || 0), 0);
+        const dinnerN = dayShifts.filter((s) => s.shift_type === 'dinner').reduce((n, s) => n + (s.assigned_staff?.length || 0), 0);
+        const flag = d === startYMD ? ' ⬅️ היום' : '';
+        lines.push(`*${israelDayName(d)} ${d.slice(5)}*  ☀️ ${lunchN}  🌙 ${dinnerN}${flag}`);
+    }
+    return lines.join('\n');
+}
+async function cmdTips() {
+    // Most recent TipReport. The TipReport.date is DateTime — sort desc, take 1.
+    const recent = await prisma.tipReport.findFirst({
+        orderBy: { date: 'desc' },
+    });
+    if (!recent)
+        return '💰 אין דוחות טיפים שמורים.';
+    const dateStr = recent.date instanceof Date ? recent.date.toISOString().slice(0, 10) : String(recent.date).slice(0, 10);
+    const shiftLabel = recent.shift_type === 'lunch' ? '☀️ צהריים' : '🌙 ערב';
+    const tot = Number(recent.total_tips_collected || 0);
+    const restCut = Number(recent.restaurant_deduction || 0);
+    const runnerCut = Number(recent.runner_deduction || 0);
+    const mgrCut = Math.round(tot * 0.05 * 100) / 100; // derived (no DB col)
+    const net = Number(recent.net_tips_for_distribution || 0);
+    const perHour = Number(recent.tip_per_hour || 0);
+    return [
+        `💰 *דוח טיפים — ${israelDayName(dateStr)} ${dateStr} · ${shiftLabel}*`,
+        `סה"כ נאסף: *₪${tot.toFixed(0)}*`,
+        `הפרשה למסעדה: ₪${restCut.toFixed(0)}`,
+        `הפרשה לראנרים: ₪${runnerCut.toFixed(0)}`,
+        `הפרשה למנהל משמרת (5%): ₪${mgrCut.toFixed(0)}`,
+        `קופה לחלוקה: *₪${net.toFixed(0)}*`,
+        `טיפ לשעה: *₪${perHour.toFixed(0)}*`,
+        `סטטוס: ${recent.status === 'locked' ? '🔒 נעול' : '📝 טיוטה'}`,
+    ].join('\n');
+}
+async function cmdIncomeToday() {
+    const today = israelYMD();
+    // Try Reservation + BeecommOrder revenue. Both have date / created_date fields.
+    // Best-effort: sum any 'total_ils' / 'total' / 'amount' fields on rows from today.
+    // Falls back to a friendly "not available" if entities aren't there.
+    try {
+        const orders = await prisma.beecommOrder.findMany({
+            where: { OR: [{ date: today }, { created_date: today }] },
+            take: 500,
+        }).catch(() => []);
+        const total = orders.reduce((sum, o) => sum + (Number(o.total_ils ?? o.total ?? o.amount ?? 0)), 0);
+        const count = orders.length;
+        return `💰 *הכנסות ${today}* (${israelDayName(today)})\nהזמנות: *${count}*\nסה"כ: *₪${total.toFixed(0)}*\n\n💡 כולל הזמנות BeeComm בלבד. הזמנות שולחן + טיפים יחושבו בנפרד.`;
+    }
+    catch (e) {
+        return `💰 הכנסות ${today} — לא מצאתי נתונים מתאימים (${e?.message || 'unknown'}).`;
+    }
+}
+async function cmdLeadsWaiting() {
+    // EventLeads with status='pending' OR 'contacted' OR 'quoted' (the manager
+    // workflow stages we set up earlier today). Sort by created_date desc.
+    try {
+        const leads = await prisma.eventLead.findMany({
+            where: { status: { in: ['pending', 'contacted', 'quoted'] } },
+            orderBy: { id: 'desc' },
+            take: 10,
+        });
+        if (!leads.length)
+            return '🎯 אין לידים פתוחים. כל הכבוד! 🌿';
+        const lines = [`🎯 *לידים שמחכים לחזרה* (${leads.length})`];
+        for (const l of leads) {
+            const stageLabel = { pending: '🟠 לטלפון', contacted: '📞 דיברנו', quoted: '💰 הצעה' }[l.status] || l.status;
+            lines.push(`\n*${l.contact_name || 'ללא שם'}* · 📞 ${l.contact_phone || '—'}\n  ${stageLabel} · ${l.event_date || '?'} · 👥 ${l.guest_count || '?'}${l.event_type ? ` · ${l.event_type}` : ''}`);
+        }
+        return lines.join('\n');
+    }
+    catch (e) {
+        return `🎯 בעיה בקריאת לידים (${e?.message || 'unknown'}).`;
+    }
+}
+async function cmdMissingAvailability() {
+    // Active employees who didn't submit an EmployeeAvailability row for any of
+    // the 7 days of next week.
+    try {
+        const today = new Date();
+        const dow = today.getDay();
+        const nextSun = addDays(today, 7 - dow);
+        const days = Array.from({ length: 7 }, (_, i) => israelYMD(addDays(nextSun, i)));
+        const [emps, avails] = await Promise.all([
+            prisma.employee.findMany({ where: { status: 'active' }, take: 500 }),
+            prisma.employeeAvailability.findMany({ take: 5000 }),
+        ]);
+        const submittedByEmp = new Set();
+        for (const a of avails) {
+            const d = a.date instanceof Date ? a.date.toISOString().slice(0, 10) : String(a.date).slice(0, 10);
+            if (days.includes(d))
+                submittedByEmp.add(a.employee_id);
+        }
+        const missing = emps.filter((e) => !submittedByEmp.has(e.id));
+        if (!missing.length)
+            return '✅ כל העובדים הפעילים הגישו זמינות לשבוע הבא.';
+        return `👥 *חסרי זמינות שבוע הבא* (${missing.length}/${emps.length}):\n${missing.map((e) => `• ${e.full_name}${e.phone ? ` (${e.phone})` : ''}`).join('\n')}`;
+    }
+    catch (e) {
+        return `👥 לא הצלחתי לחשב — ${e?.message || 'unknown'}.`;
+    }
+}
+// ── Router ──────────────────────────────────────────────────────────────────
+async function cmdSendAvailabilityReminderNow() {
+    // Fires the same WhatsApp broadcast the Monday-10:00 cron sends — reminders
+    // to every active employee who hasn't submitted for next week yet.
+    const { runWeeklyScheduleReminder } = await import('../functions/load.js');
+    const res = await runWeeklyScheduleReminder({ force: true }).catch((e) => ({ error: e?.message }));
+    if (res?.error)
+        return `⚠️ שגיאה: ${res.error}`;
+    return `📤 נשלחו ${res?.sent ?? 0} תזכורות למי שלא הגיש זמינות (סה"כ חסרים: ${res?.missing_count ?? 0}).`;
+}
+// Global pending-replace state — set when "בנה סידור" hits an existing week.
+// Also tracks the division the admin picked so "החלף" applies the same scope.
+// Cleared after 5min or after confirm/cancel. One-admin model.
+let pendingReplace = null;
+// The admin typed "בנה סידור" — we ask them which division to build. Until
+// they answer "פלור" / "מטבח", we don't touch the schedule.
+let pendingDivisionChoice = null;
+async function cmdBuildScheduleNow(applyPending = false, division) {
+    // Dynamic import — the fn lives in load.ts to avoid a circular dep.
+    const { runWeeklyScheduleBuild } = await import('../functions/load.js');
+    // "החלף" path — apply the plan we already built earlier, skip the LLM.
+    if (applyPending && pendingReplace && pendingReplace.expiresAt > Date.now()) {
+        const applied = await runWeeklyScheduleBuild({
+            force: true,
+            applyPlan: pendingReplace.plan,
+            division: pendingReplace.division,
+        });
+        const wasDiv = pendingReplace.division === 'floor' ? 'פלור' : 'מטבח';
+        pendingReplace = null;
+        const lines = [
+            `✅ *סידור חטיבת ${wasDiv} הוחלף.*`,
+            `📋 ${applied.createdShifts || 0} משמרות · ${applied.assignmentCount || 0} שיבוצים`,
+            `(החטיבה השנייה לא נגעה.)`,
+        ];
+        const base = process.env.APP_BASE_URL || 'https://topalena.com';
+        lines.push('', `🔗 לעריכה: ${base}/WorkScheduling`);
+        return lines.join('\n');
+    }
+    // First entry — no division chosen yet. Ask the admin which one to build.
+    if (!division) {
+        pendingDivisionChoice = { expiresAt: Date.now() + 5 * 60 * 1000 };
+        return [
+            `🏢 *איזה חטיבה לבנות?*`,
+            ``,
+            `השב *"פלור"* (מלצרים, ברמנים, מארחות, ראנרים...)`,
+            `או *"מטבח"* (טבחים, חומוס, שטיפה...)`,
+            ``,
+            `כל חטיבה נבנית לחוד — לא משפיע על השנייה.`,
+        ].join('\n');
+    }
+    const res = await runWeeklyScheduleBuild({ force: true, division });
+    if (res?.skipped)
+        return `⚠️ הבנייה דילגה: ${res.reason || 'לא ידוע'}`;
+    if (res?.empty_plan) {
+        const out = [
+            `⚠️ *התוכנית שנבנתה הייתה ריקה — הסידור הקיים לא נגע.*`,
+            `שבוע: ${res.target_week}`,
+            `קיים: ${res.existing_assignments} שיבוצים ב-${res.existing_count} משמרות.`,
+            ``,
+            `💡 סיבות אפשריות:`,
+            `• ה-LLM לא הצליח לפרש את הזמינויות (נסה שוב בעוד דקה)`,
+            `• עובדים בלי תפקיד מוגדר`,
+        ];
+        if (Array.isArray(res.insights) && res.insights.length) {
+            out.push('', 'תובנות שהתקבלו:', ...res.insights.map((i) => `  • ${i}`));
+        }
+        return out.join('\n');
+    }
+    if (res?.plan_too_small) {
+        return [
+            `⚠️ *לא החלפתי את הסידור הקיים.*`,
+            res.reason,
+            `שבוע: ${res.target_week}`,
+            ``,
+            `אם אתה בטוח שזה מה שרצית — מחק ידנית מ-WorkScheduling ונסה שוב.`,
+        ].join('\n');
+    }
+    if (res?.needs_confirmation) {
+        pendingReplace = {
+            weekStart: res.week_start,
+            plan: res.plan,
+            division: division,
+            expiresAt: Date.now() + 5 * 60 * 1000,
+        };
+        const divLabel = division === 'floor' ? 'פלור' : 'מטבח';
+        const diff = res.diff || { lines: [], changes_count: 0, total_old: 0, total_new: 0, truncated: false };
+        const out = [
+            `⚠️ *כבר יש סידור ${divLabel} לשבוע ${res.target_week}* (${diff.total_old} שיבוצים בחטיבה).`,
+            ``,
+            `📋 *הסידור החדש שבניתי (${divLabel}):* ${diff.total_new} שיבוצים.`,
+            ``,
+            `🔀 *הבדלים (${diff.changes_count} משמרות ישתנו):*`,
+        ];
+        if (diff.lines.length) {
+            out.push(...diff.lines);
+            if (diff.truncated)
+                out.push(`  ...(עוד ${diff.changes_count - diff.lines.length} שינויים)`);
+        }
+        else {
+            out.push('  • אין הבדלים — הסידור החדש זהה לקיים.');
+        }
+        out.push(``, `להחליף רק את חטיבת ${divLabel}? השב *"החלף"* או *"בטל"*. (החטיבה השנייה לא תיגע.)`);
+        return out.join('\n');
+    }
+    pendingReplace = null;
+    const divLabelDone = division === 'floor' ? 'פלור' : 'מטבח';
+    const lines = [`📋 *סידור ${divLabelDone} נבנה*`];
+    lines.push(`✅ ${res.createdShifts || 0} משמרות · ${res.assignmentCount || 0} שיבוצים`);
+    if (Array.isArray(res.missing) && res.missing.length) {
+        lines.push(`⚠️ לא הגישו זמינות: ${res.missing.join(', ')}`);
+    }
+    if (Array.isArray(res.insights) && res.insights.length) {
+        lines.push('', '💡 *תובנות:*');
+        for (const i of res.insights)
+            lines.push(`  • ${i}`);
+    }
+    const base = process.env.APP_BASE_URL || 'https://topalena.com';
+    lines.push('', `🔗 לאישור/עריכה: ${base}/WorkScheduling`);
+    return lines.join('\n');
+}
+// Recognized phrases → handler.
+// IMPORTANT: don't use \b in JS regex with Hebrew — Hebrew letters aren't
+// "word chars" by default, so /^עזרה\b/ matches nothing. Use (?:\s|$|[.,!?])
+// as an explicit end-of-token guard, or rely on the leading anchor + length.
+// ── Apollo control commands (WhatsApp = a control surface for the app) ──
+const ilNow = () => new Date();
+const ilYMD = (d = ilNow()) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+const ilHM = (iso) => { try {
+    return new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
+}
+catch {
+    return '';
+} };
+async function cmdActiveShift() {
+    const ymd = ilYMD();
+    const d0 = new Date(`${ymd}T00:00:00.000Z`), d1 = new Date(`${ymd}T23:59:59.999Z`);
+    const rows = await prisma.shiftTracking.findMany({
+        where: { status: { in: ['active', 'on_break'] }, date: { gte: d0, lte: d1 } },
+        orderBy: { shift_start: 'asc' }, take: 40,
+        select: { employee_name: true, shift_start: true, status: true },
+    }).catch(() => []);
+    if (!rows.length)
+        return '🟢 אין עובדים פעילים במשמרת כרגע.';
+    const lines = rows.map(r => `• ${r.employee_name}${r.shift_start ? ` · מ-${ilHM(r.shift_start)}` : ''}${r.status === 'on_break' ? ' ☕(בהפסקה)' : ''}`);
+    return [`🟢 *פעילים במשמרת עכשיו (${rows.length})*`, ...lines].join('\n');
+}
+async function cmdDashboard() {
+    const ymd = ilYMD();
+    const d0 = new Date(`${ymd}T00:00:00.000Z`), d1 = new Date(`${ymd}T23:59:59.999Z`);
+    const t0 = new Date(d0.getTime() - 3 * 3600 * 1000);
+    const db = prisma;
+    const [active, resv, incidents, cands, tipsOpen, waOut, clDone] = await Promise.all([
+        db.shiftTracking.count({ where: { status: { in: ['active', 'on_break'] }, date: { gte: d0, lte: d1 } } }).catch(() => 0),
+        db.reservation.count({ where: { date: { gte: d0, lte: d1 } } }).catch(() => 0),
+        db.incident.count({ where: { NOT: { status: { in: ['resolved', 'closed'] } } } }).catch(() => 0),
+        db.jobCandidate.count({ where: { status: { in: ['pending', 'pending_review', 'new'] } } }).catch(() => 0),
+        db.tipReport.count({ where: { date: ymd, NOT: { status: 'locked' } } }).catch(() => 0),
+        db.whatsAppMessage.count({ where: { direction: 'outbound', created_at: { gte: t0, lte: d1 } } }).catch(() => 0),
+        db.checklistExecution.count({ where: { status: 'completed', updatedAt: { gte: t0, lte: d1 } } }).catch(() => 0),
+    ]);
+    const automated = waOut + resv + clDone;
+    const pending = incidents + cands + tipsOpen;
+    const freedom = (automated + pending) > 0 ? Math.round((automated / (automated + pending)) * 100) : 100;
+    return [
+        `🧠 *TOP Apollo — מה קורה עכשיו*`,
+        `🎯 מדד החופש: *${freedom}%* (אפולו טיפל ב-${automated} · ${pending} דורשים אותך)`,
+        '',
+        `🟢 במשמרת: *${active}* · 📅 הזמנות היום: *${resv}* · ✅ צ׳קליסטים: *${clDone}*`,
+        `💬 וואטסאפ היום: *${waOut}*`,
+        '',
+        `⚠️ *דורש אותך:* ${incidents} תקריות · ${cands} מועמדים · ${tipsOpen} דוחות טיפים`,
+        '',
+        '_שלח "מי במשמרת" / "שלח דוח שעות" לפעולות._',
+    ].join('\n');
+}
+async function cmdSendHoursReport() {
+    try {
+        const r = await sendDailyHoursReport({ force: true });
+        return `📤 *דוח שעות נשלח.*\n${r?.count ?? 0} עובדים · ${r?.flagged ?? 0} חריגים · וואטסאפ ${r?.sent?.whatsapp ?? 0} · מייל ${r?.sent?.email ?? 0}`;
+    }
+    catch (e) {
+        return `⚠️ שגיאה בשליחת דוח השעות: ${e?.message || 'unknown'}`;
+    }
+}
+const END = '(?:\\s|$|[.,!?])';
+const COMMAND_MATCHERS = [
+    { test: (s) => new RegExp(`^(מי\\s+במשמרת|עובדים\\s+פעילים|משמרת\\s+עכשיו|מי\\s+עובד)${END}`, 'i').test(s), run: cmdActiveShift },
+    { test: (s) => new RegExp(`^(מה\\s+קורה|דאשבורד|מדד\\s+החופש|לוח\\s+בקרה|apollo)${END}`, 'i').test(s), run: cmdDashboard },
+    { test: (s) => new RegExp(`^(שלח\\s+דוח\\s+שעות|דוח\\s+שעות\\s+עכשיו)${END}`, 'i').test(s), run: cmdSendHoursReport },
+    { test: (s) => new RegExp(`^(עזרה|help|פקודות)${END}`, 'i').test(s), run: cmdHelp },
+    { test: (s) => /^סידור\s+(היום|today)/i.test(s), run: cmdScheduleToday },
+    { test: (s) => /^סידור\s+(מחר|tomorrow)/i.test(s), run: cmdScheduleTomorrow },
+    { test: (s) => /^סידור\s+(שבוע|השבוע|week)/i.test(s), run: cmdScheduleWeek },
+    { test: (s) => new RegExp(`^סידור${END}`, 'i').test(s), run: cmdScheduleToday }, // bare "סידור" → today
+    { test: (s) => new RegExp(`^טיפים${END}`, 'i').test(s), run: cmdTips },
+    { test: (s) => new RegExp(`^הכנסות${END}`, 'i').test(s), run: cmdIncomeToday },
+    { test: (s) => new RegExp(`^לידים${END}`, 'i').test(s), run: cmdLeadsWaiting },
+    { test: (s) => new RegExp(`^זמינות(\\s+חסרים)?${END}`, 'i').test(s), run: cmdMissingAvailability },
+    // Manual trigger for the weekly schedule builder — bypasses the Tue 16:00
+    // cron gate. Kicks off the same LLM flow, returns the summary.
+    { test: (s) => /^(בנה|תבנה|תיבנה|צור|תצור|יצור|בונה|תיבנ|במה)\s+(סידור|לוז|לו\s*ז)/i.test(s), run: () => cmdBuildScheduleNow(false) },
+    { test: (s) => /^(שלח|תשלח|שלחו)\s+(תזכור(ת|ות))\s+זמינות/i.test(s), run: cmdSendAvailabilityReminderNow },
+    // Division reply after "בנה סידור" asked which to build. Only fires while
+    // pendingDivisionChoice is live (<5min old).
+    {
+        test: (s) => /^(פלור|floor|אולם|מלצרים)$/i.test(s.trim())
+            && !!pendingDivisionChoice && pendingDivisionChoice.expiresAt > Date.now(),
+        run: () => {
+            pendingDivisionChoice = null;
+            return cmdBuildScheduleNow(false, 'floor');
+        },
+    },
+    {
+        test: (s) => /^(מטבח|kitchen|טבחים)$/i.test(s.trim())
+            && !!pendingDivisionChoice && pendingDivisionChoice.expiresAt > Date.now(),
+        run: () => {
+            pendingDivisionChoice = null;
+            return cmdBuildScheduleNow(false, 'kitchen');
+        },
+    },
+    // Overwrite-confirmation replies for "בנה סידור" when a week already
+    // has a draft. Only fire if there's a live pending state (<5min old).
+    {
+        test: (s) => /^(החלף|תחליף|כן\s*החלף|החלף\s+סידור|OK\s+החלף)$/i.test(s.trim())
+            && !!pendingReplace && pendingReplace.expiresAt > Date.now(),
+        run: () => cmdBuildScheduleNow(true),
+    },
+    {
+        test: (s) => /^(בטל|אל\s+תחליף|לא|cancel)$/i.test(s.trim())
+            && !!pendingReplace && pendingReplace.expiresAt > Date.now(),
+        run: async () => { pendingReplace = null; return '✅ ביטלתי — הסידור הקיים נשאר.'; },
+    },
+];
+// Personal-context matchers (need fromPhone to scope by user).
+const PERSONAL_MATCHERS = [
+    {
+        test: (s) => new RegExp(`^(חבר\\s+גוגל|connect\\s+google|google\\s+connect|חבר\\s+יומן)${END}`, 'i').test(s),
+        run: async (p) => {
+            const connected = await isGoogleConnected(p);
+            const url = buildConsentUrl(p);
+            if (connected) {
+                return [
+                    '✅ Google כבר מחובר.',
+                    '',
+                    'אם תרצה להתחבר מחדש (משתמש אחר / חידוש הרשאות):',
+                    url,
+                ].join('\n');
+            }
+            return [
+                '🔗 *חיבור Google Calendar + Tasks*',
+                '',
+                'לחץ על הקישור הבא, אשר את ההרשאות, וחזור הנה:',
+                url,
+                '',
+                '_אחרי החיבור, כל אירוע/משימה שתוסיף בוואטסאפ יסתנכרן אוטומטית. אירועים שתוסיף ביומן יגיעו כתזכורות בוואטסאפ._',
+            ].join('\n');
+        },
+    },
+    {
+        test: (s) => new RegExp(`^(סיכום\\s+בוקר|בוקר\\s+טוב|brief)${END}`, 'i').test(s),
+        run: (p) => buildMorningBrief(p),
+    },
+    {
+        test: (s) => new RegExp(`^(סיכום\\s+יום|סיכום\\s+סוף\\s+יום|eod)${END}`, 'i').test(s),
+        run: (p) => buildEndOfDayBrief(p),
+    },
+    {
+        test: (s) => new RegExp(`^(מה\\s+היום|מה\\s+התכנון|התכנון\\s+היום|לוז)${END}`, 'i').test(s),
+        run: (p) => buildTodayOverview(p),
+    },
+    {
+        test: (s) => new RegExp(`^(משימות|טאסקים|tasks)${END}`, 'i').test(s),
+        run: async (p) => {
+            const tasks = await listOpenTasks(p);
+            if (!tasks.length)
+                return '✅ אין משימות פתוחות.';
+            const lines = [`✅ *משימות פתוחות* (${tasks.length}):`];
+            for (const t of tasks.slice(0, 20))
+                lines.push(`  • ${t.title}  _(id: ${t.id.slice(-6)})_`);
+            if (tasks.length > 20)
+                lines.push(`  ...ועוד ${tasks.length - 20}`);
+            lines.push('', '_לסימון כבוצע: "סיים <שם או id>"_');
+            return lines.join('\n');
+        },
+    },
+];
+// Returns reply text if the message matched an admin command, or null otherwise.
+export async function tryHandleAdminCommand(fromPhone, body) {
+    if (!isWhatsAppAdmin(fromPhone))
+        return null;
+    const trimmed = (body || '').trim();
+    if (!trimmed)
+        return null;
+    for (const { test, run } of COMMAND_MATCHERS) {
+        if (test(trimmed)) {
+            try {
+                return await run();
+            }
+            catch (e) {
+                return `⚠️ שגיאה בעיבוד הפקודה: ${e?.message || 'unknown'}`;
+            }
+        }
+    }
+    for (const { test, run } of PERSONAL_MATCHERS) {
+        if (test(trimmed)) {
+            try {
+                return await run(fromPhone);
+            }
+            catch (e) {
+                return `⚠️ שגיאה: ${e?.message || 'unknown'}`;
+            }
+        }
+    }
+    // Admin sent text we don't recognize — be helpful, suggest "עזרה".
+    return `🤔 לא הבנתי את הפקודה. שלח/י *עזרה* לרשימת פקודות.`;
+}
+//# sourceMappingURL=whatsappAgent.js.map

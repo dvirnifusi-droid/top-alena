@@ -6119,6 +6119,50 @@ registerFn('getOwnerDashboard', async ({ user }: any) => {
   const clTotal = await db2.checklist.count({}).catch(() => 0);
   out.checklists = { done: clDone, total: clTotal };
 
+  // Per-checklist live picture for the inline panel: which runs finished today,
+  // which are mid-way + at what stage. Reads the shared live runs (live_*) and
+  // computes done/total against the checklist's items (same keyOf as the client).
+  out.checklists_detail = await (async () => {
+    const rows: any[] = await db.$queryRawUnsafe(
+      `SELECT ce.id, ce.status, ce.results, ce."updatedAt" AS updated, ce.executed_by_name AS by,
+              c.title, c.items, c.department
+       FROM "ChecklistExecution" ce JOIN "Checklist" c ON c.id = ce.checklist_id
+       WHERE ce.id LIKE 'live\\_%' AND ce."updatedAt" >= $1
+       ORDER BY ce."updatedAt" DESC`, t0,
+    ).catch(() => []);
+    const keyOf = (it: any, i: number) => String(it?.id || (it?.order != null ? `o${it.order}` : `i${i}`));
+    const seen = new Set<string>(); const runs: any[] = [];
+    for (const r of rows) {
+      if (seen.has(r.title)) continue; seen.add(r.title);
+      const items = Array.isArray(r.items) ? r.items : [];
+      const results = (r.results && typeof r.results === 'object' && !Array.isArray(r.results)) ? r.results : {};
+      let done = 0, next = '';
+      items.forEach((it: any, i: number) => {
+        if (results[keyOf(it, i)]?.checked) done++;
+        else if (!next) next = String(it?.title || it?.text || it?.name || it?.task || '').slice(0, 44);
+      });
+      const status = r.status === 'completed' ? 'completed' : (r.status === 'requires_attention' ? 'attention' : 'in_progress');
+      runs.push({ title: r.title, done, total: items.length, status, next: status === 'in_progress' ? next : '', dept: r.department, by: r.by });
+    }
+    return { runs: runs.slice(0, 14), not_started: Math.max(0, clTotal - seen.size) };
+  })();
+
+  // Recruitment agent summary for the inline panel: fresh candidates + the next
+  // interviews. The shareable apply link is built client-side (tenant origin).
+  out.recruitment = {
+    pending: 0,
+    new_candidates: await db2.jobCandidate.findMany({
+      where: { status: { in: ['pending', 'pending_review', 'new'] } },
+      orderBy: { createdAt: 'desc' }, take: 6,
+      select: { full_name: true, role_applied: true, phone: true, city: true, createdAt: true },
+    }).then((r: any[]) => r.map(x => ({ name: x.full_name, role: x.role_applied, phone: x.phone, city: x.city, at: x.createdAt }))).catch(() => []),
+    upcoming_interviews: await db2.interview.findMany({
+      where: { scheduled_date: { gte: ymd }, NOT: { status: { in: ['cancelled', 'completed', 'done', 'no_show'] } } },
+      orderBy: [{ scheduled_date: 'asc' }, { scheduled_time: 'asc' }], take: 6,
+      select: { candidate_name: true, scheduled_date: true, scheduled_time: true, status: true },
+    }).then((r: any[]) => r.map(x => ({ name: x.candidate_name, date: x.scheduled_date, time: x.scheduled_time, status: x.status }))).catch(() => []),
+  };
+
   // Recent agent actions (real outbound WhatsApp the system sent).
   out.feed = await db2.whatsAppMessage.findMany({
     where: { direction: 'outbound' }, orderBy: { created_at: 'desc' }, take: 5,
@@ -21625,6 +21669,42 @@ registerFn('getBeecommDailyHistory', async ({ body, user }) => {
       workers: Array.isArray(snap.workers) ? snap.workers.length : 0,
     }));
   return { days, history };
+});
+
+// Daily revenue series for the dashboard "מגמות הכנסות" chart. Single source of
+// truth: merges the closed-day backfill (BeecommHistoricalDay — most accurate)
+// with the live capture (BeecommSnapshot — covers recent days the backfill
+// hasn't reached yet). History wins per day; otherwise the day's MAX snapshot.
+// This is why the chart no longer shows ₪0: the historical table stopped at
+// 2026-06-07, but the live snapshots carry the current period.
+registerFn('getDailyRevenueSeries', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const days = Math.min(400, Math.max(1, Number((body as any)?.days) || 90));
+  const now = new Date();
+  const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const sinceStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(since);
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(now);
+  const [hist, snaps]: any[] = await Promise.all([
+    (db as any).beecommHistoricalDay.findMany({ where: { date: { gte: sinceStr, lte: todayStr } }, orderBy: { date: 'asc' } }).catch(() => []),
+    (db as any).beecommSnapshot.findMany({ where: { captured_at: { gte: since } }, orderBy: { captured_at: 'asc' } }).catch(() => []),
+  ]);
+  const byDay = new Map<string, { revenue: number; source: string }>();
+  for (const h of hist) {
+    const v = Number(h.net_total) || 0;
+    if (v > 0) byDay.set(h.date, { revenue: v, source: 'historical' });
+  }
+  for (const s of snaps) {
+    const d = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(s.captured_at);
+    const cur = byDay.get(d);
+    if (cur && cur.source === 'historical') continue; // closed-day history wins
+    const v = Number(s.total_today) || 0;
+    if (!cur || v >= cur.revenue) byDay.set(d, { revenue: v, source: 'snapshot' });
+  }
+  const series = [...byDay.entries()]
+    .filter(([, v]) => v.revenue > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, v]) => ({ date, revenue: Math.round(v.revenue), source: v.source }));
+  return { days, series };
 });
 
 // Returns the latest snapshot, plus today-over-yesterday delta for context.

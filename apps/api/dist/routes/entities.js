@@ -1,0 +1,270 @@
+import { Prisma } from '@prisma/client';
+import { prisma } from '../db.js';
+import { requireAuth } from '../middleware/auth.js';
+import { fireTriggers } from '../lib/triggers.js';
+import { READ_BLOCKED_ENTITIES, stripProtectedFields } from './entityGuards.js';
+// Generic CRUD over any Prisma model. The entity name in the URL is the
+// PascalCase model name as it appears in schema.prisma (e.g. Customer,
+// DeliveryCustomer). We map it to prisma[modelKey] where modelKey is the
+// camelCase delegate (customer, deliveryCustomer).
+function modelDelegate(name) {
+    if (!/^[A-Z][A-Za-z0-9]*$/.test(name))
+        return null;
+    const key = name[0].toLowerCase() + name.slice(1);
+    const delegate = prisma[key];
+    return delegate ?? null;
+}
+// --- Field metadata, built once from the Prisma schema ---
+const FIELD_TYPE = {};
+for (const model of Prisma.dmmf.datamodel.models) {
+    FIELD_TYPE[model.name] = {};
+    for (const f of model.fields)
+        FIELD_TYPE[model.name][f.name] = f.type;
+}
+function fieldsOf(modelName) {
+    return FIELD_TYPE[modelName] ?? {};
+}
+// Bidirectional alias maps for @map'd fields. The frontend (Base44) uses the
+// DB column name (e.g. "type"), while the Prisma client field is "type_".
+// ALIAS_IN: frontend name -> prisma name (for write data, where, sort).
+// ALIAS_OUT: prisma name -> frontend name (to rename in responses).
+const ALIAS_IN = {};
+const ALIAS_OUT = {};
+for (const model of Prisma.dmmf.datamodel.models) {
+    ALIAS_IN[model.name] = {};
+    ALIAS_OUT[model.name] = {};
+    for (const f of model.fields) {
+        if (f.dbName && f.dbName !== f.name) {
+            ALIAS_IN[model.name][f.dbName] = f.name;
+            ALIAS_OUT[model.name][f.name] = f.dbName;
+        }
+    }
+}
+function aliasInKey(modelName, key) {
+    return ALIAS_IN[modelName]?.[key] ?? key;
+}
+// Rename prisma field names back to the frontend (Base44) names in a row.
+// (Internal-file-URL rewriting is applied app-wide in a preSerialization hook,
+// so it covers entities, functions and public function responses uniformly.)
+function toFrontend(modelName, row) {
+    const out = ALIAS_OUT[modelName];
+    if (!row || typeof row !== 'object' || !out || !Object.keys(out).length)
+        return row;
+    const r = { ...row };
+    for (const [prismaName, frontendName] of Object.entries(out)) {
+        if (prismaName in r) {
+            r[frontendName] = r[prismaName];
+            delete r[prismaName];
+        }
+    }
+    return r;
+}
+function toFrontendMany(modelName, rows) {
+    const out = ALIAS_OUT[modelName];
+    if (!out || !Object.keys(out).length)
+        return rows;
+    return rows.map((r) => toFrontend(modelName, r));
+}
+// Mongo-style operators (Base44 SDK) -> Prisma operators.
+const OP_MAP = {
+    $gte: 'gte', $gt: 'gt', $lte: 'lte', $lt: 'lt',
+    $ne: 'not', $eq: 'equals', $in: 'in', $nin: 'notIn',
+    $contains: 'contains', $startsWith: 'startsWith', $endsWith: 'endsWith',
+};
+function coerceDate(v) {
+    if (typeof v !== 'string')
+        return v;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v))
+        return new Date(`${v}T00:00:00.000Z`);
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(v)) {
+        const d = new Date(v.replace(' ', 'T'));
+        return isNaN(d.getTime()) ? v : d;
+    }
+    return v;
+}
+// Normalize a Base44-style `where` object into a valid Prisma filter:
+// - drops keys that aren't real fields on the model (schema-drift tolerance)
+// - translates $-prefixed operators
+// - coerces date strings on DateTime fields
+function normalizeWhere(modelName, raw) {
+    const types = fieldsOf(modelName);
+    const out = {};
+    for (const [rawKey, val] of Object.entries(raw)) {
+        if (rawKey === 'AND' || rawKey === 'OR' || rawKey === 'NOT') {
+            const arr = Array.isArray(val) ? val : [val];
+            out[rawKey] = arr.map((c) => normalizeWhere(modelName, c));
+            continue;
+        }
+        const key = aliasInKey(modelName, rawKey); // type -> type_
+        const ftype = types[key];
+        if (!ftype)
+            continue; // unknown field -> drop
+        const isDate = ftype === 'DateTime';
+        if (val && typeof val === 'object' && !Array.isArray(val)) {
+            const cond = {};
+            for (const [opRaw, opVal] of Object.entries(val)) {
+                const op = OP_MAP[opRaw] ?? (opRaw.startsWith('$') ? null : opRaw);
+                if (!op)
+                    continue; // unknown operator -> skip
+                let coerced = opVal;
+                if (isDate) {
+                    coerced = Array.isArray(opVal) ? opVal.map(coerceDate) : coerceDate(opVal);
+                }
+                cond[op] = coerced;
+            }
+            out[key] = cond;
+        }
+        else {
+            out[key] = isDate ? coerceDate(val) : val;
+        }
+    }
+    return out;
+}
+function parseSort(modelName, sort) {
+    if (!sort)
+        return undefined;
+    // Base44 SDK convention: "-field" means desc, "field" means asc.
+    const desc = sort.startsWith('-');
+    const rawField = desc ? sort.slice(1) : sort;
+    const field = aliasInKey(modelName, rawField); // type -> type_
+    if (!fieldsOf(modelName)[field])
+        return undefined; // unknown sort field -> skip
+    return { [field]: desc ? 'desc' : 'asc' };
+}
+// Strip PostgreSQL-illegal null bytes (0x00) from any string deep inside a
+// value. PG rejects them with code 22021 ("invalid byte sequence for encoding
+// UTF8: 0x00"), and corrupted source rows (legacy base44 imports) sometimes
+// carry them in user.full_name etc. Done at the route boundary so EVERY entity
+// create/update is protected regardless of caller.
+function stripNulls(v) {
+    if (typeof v === 'string')
+        return v.replace(/\x00/g, '');
+    if (Array.isArray(v))
+        return v.map(stripNulls);
+    if (v && typeof v === 'object') {
+        const out = {};
+        for (const [k, val] of Object.entries(v))
+            out[k] = stripNulls(val);
+        return out;
+    }
+    return v;
+}
+// Coerce date-string values in create/update payloads for DateTime fields.
+function coerceData(modelName, data) {
+    const types = fieldsOf(modelName);
+    const out = {};
+    for (const [rawK, v] of Object.entries(data)) {
+        const k = aliasInKey(modelName, rawK); // type -> type_, _notified_abandoned -> u_notified_abandoned
+        // Drop UI-only fields that aren't columns on this model. Base44 tolerated
+        // extra fields; Prisma rejects them, which broke admin create/update forms
+        // (e.g. Incident.photo_url). Silently ignore unknown keys instead.
+        if (!(k in types))
+            continue;
+        out[k] = types[k] === 'DateTime' ? coerceDate(v) : stripNulls(v);
+    }
+    return out;
+}
+export const entitiesRoutes = async (app) => {
+    app.addHook('preHandler', requireAuth);
+    // Block sensitive entities on every verb of the generic route. Registered at
+    // the plugin level so it runs for list, by-id, create, update and delete —
+    // salary data (EmployeePay) must only flow through the dedicated API.
+    app.addHook('preHandler', async (req, reply) => {
+        const name = req.params?.name;
+        if (name && READ_BLOCKED_ENTITIES.has(name)) {
+            return reply.code(403).send({ error: 'forbidden_entity', message: 'use the dedicated API' });
+        }
+    });
+    // List: GET /api/entities/:name?limit=&sort=&...filters
+    app.get('/:name', async (req, reply) => {
+        const { name } = req.params;
+        const delegate = modelDelegate(name);
+        if (!delegate)
+            return reply.code(404).send({ error: 'unknown_entity' });
+        const q = req.query;
+        const { limit, skip, sort, where: whereStr, ...rest } = q;
+        let rawWhere = {};
+        if (whereStr) {
+            try {
+                rawWhere = JSON.parse(whereStr);
+            }
+            catch {
+                return reply.code(400).send({ error: 'invalid_where_json' });
+            }
+        }
+        // Allow simple equality filters as bare query params too (back-compat)
+        for (const [k, v] of Object.entries(rest)) {
+            if (v === undefined)
+                continue;
+            rawWhere[k] = v;
+        }
+        const where = normalizeWhere(name, rawWhere);
+        const items = await delegate.findMany({
+            where,
+            orderBy: parseSort(name, sort),
+            take: limit ? Number(limit) : undefined,
+            skip: skip ? Number(skip) : undefined,
+        });
+        return toFrontendMany(name, items);
+    });
+    // Get by id: GET /api/entities/:name/:id
+    app.get('/:name/:id', async (req, reply) => {
+        const { name, id } = req.params;
+        const delegate = modelDelegate(name);
+        if (!delegate)
+            return reply.code(404).send({ error: 'unknown_entity' });
+        const item = await delegate.findUnique({ where: { id } });
+        if (!item)
+            return reply.code(404).send({ error: 'not_found' });
+        return toFrontend(name, item);
+    });
+    // Create: POST /api/entities/:name
+    app.post('/:name', async (req, reply) => {
+        const { name } = req.params;
+        const delegate = modelDelegate(name);
+        if (!delegate)
+            return reply.code(404).send({ error: 'unknown_entity' });
+        const safeData = stripProtectedFields(name, coerceData(name, req.body));
+        let created;
+        try {
+            created = await delegate.create({ data: safeData });
+        }
+        catch (err) {
+            // Surface the exact Prisma reason + the keys we sent so a failed
+            // create is diagnosable from the client instead of a raw 500.
+            req.log.error({ err, entity: name, keys: Object.keys(safeData) }, 'entity create failed');
+            return reply.code(400).send({
+                error: 'create_failed',
+                message: String(err?.message || err).slice(0, 1500),
+                sent_keys: Object.keys(safeData),
+            });
+        }
+        // Fire automation triggers fire-and-forget so we never block the response.
+        fireTriggers(name, 'created', created).catch((e) => req.log.warn({ err: e }, 'trigger failed'));
+        return reply.code(201).send(toFrontend(name, created));
+    });
+    // Update: PUT /api/entities/:name/:id
+    app.put('/:name/:id', async (req, reply) => {
+        const { name, id } = req.params;
+        const delegate = modelDelegate(name);
+        if (!delegate)
+            return reply.code(404).send({ error: 'unknown_entity' });
+        // Snapshot the previous state so update triggers can compare and only fire
+        // on real status transitions (e.g. status -> completed).
+        const prev = await delegate.findUnique({ where: { id } }).catch(() => null);
+        const safeData = stripProtectedFields(name, coerceData(name, req.body));
+        const updated = await delegate.update({ where: { id }, data: safeData });
+        fireTriggers(name, 'updated', updated, prev).catch((e) => req.log.warn({ err: e }, 'trigger failed'));
+        return toFrontend(name, updated);
+    });
+    // Delete: DELETE /api/entities/:name/:id
+    app.delete('/:name/:id', async (req, reply) => {
+        const { name, id } = req.params;
+        const delegate = modelDelegate(name);
+        if (!delegate)
+            return reply.code(404).send({ error: 'unknown_entity' });
+        await delegate.delete({ where: { id } });
+        return reply.code(204).send();
+    });
+};
+//# sourceMappingURL=entities.js.map
