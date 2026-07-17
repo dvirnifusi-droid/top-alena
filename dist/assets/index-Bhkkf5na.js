@@ -9454,7 +9454,9 @@ ${(O==null?void 0:O.message)||""}
 השאר ריק לא לשנות.`,R.owner_phone||"");if(O===null)return;const W=window.prompt(`מייל הבעלים של "${R.restaurant_name}":
 השאר ריק לא לשנות.`,R.owner_email||"");if(W===null)return;const U={tenant_id:R.id};if(O.trim()&&O.trim()!==(R.owner_phone||"")&&(U.owner_phone=O.trim()),W.trim()&&W.trim()!==(R.owner_email||"")&&(U.owner_email=W.trim()),!U.owner_phone&&!U.owner_email){alert("לא שונה כלום.");return}await N(R,"edit",()=>Q.functions.updateTenantOwner(U),null,H=>{var z,G;return`✅ עודכן.
 טלפון: ${((z=H==null?void 0:H.owner)==null?void 0:z.owner_phone)||"—"}
-מייל: ${((G=H==null?void 0:H.owner)==null?void 0:G.owner_email)||"—"}`}),_()},F=R=>N(R,"retry",()=>Q.functions.approveTenant({tenant_id:R.id}),`לנסות שוב להקים את "${R.restaurant_name}"?`,"✅ נכנס לתור התקנה מחדש.").then(()=>_()),L=async R=>{const O=window.prompt(`⚠️ מחיקת "${R.restaurant_name}".
+מייל: ${((G=H==null?void 0:H.owner)==null?void 0:G.owner_email)||"—"}`}),_()},F=R=>N(R,"retry",()=>Q.functions.reprovisionTenant({tenant_id:R.id}),`לנסות שוב להקים את "${R.restaurant_name}"? מחזיר לתור התקנה (Job חדש). הנתונים ב-DB נשמרים.`,O=>`✅ נכנס לתור התקנה מחדש.
+${(O==null?void 0:O.message)||""}
+חכה 30-60 שניות ורענן.`).then(()=>_()),L=async R=>{const O=window.prompt(`⚠️ מחיקת "${R.restaurant_name}".
 
 העסק ייעלם מהקונסולה. הנתונים נשמרים וניתן לשחזר (מחיקה מלאה של הסכמה/קונטיינר תתבצע בנפרד).
 

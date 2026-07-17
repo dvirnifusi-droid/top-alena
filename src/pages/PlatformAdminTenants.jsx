@@ -117,8 +117,12 @@ export default function PlatformAdminTenants() {
     load();
   };
 
-  const retryFailed = (t) => act(t, 'retry', () => base44.functions.approveTenant({ tenant_id: t.id }),
-    `לנסות שוב להקים את "${t.restaurant_name}"?`, '✅ נכנס לתור התקנה מחדש.').then(() => load());
+  // A FAILED tenant is re-driven through reprovisionTenant (resets status →
+  // queues a fresh provisioning Job). approveTenant refuses a 'failed' status
+  // ("cannot approve") — it's only for pending_approval.
+  const retryFailed = (t) => act(t, 'retry', () => base44.functions.reprovisionTenant({ tenant_id: t.id }),
+    `לנסות שוב להקים את "${t.restaurant_name}"? מחזיר לתור התקנה (Job חדש). הנתונים ב-DB נשמרים.`,
+    (r) => `✅ נכנס לתור התקנה מחדש.\n${r?.message || ''}\nחכה 30-60 שניות ורענן.`).then(() => load());
 
   const deleteTenant = async (t) => {
     const typed = window.prompt(
