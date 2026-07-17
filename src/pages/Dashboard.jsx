@@ -18,6 +18,8 @@ import AiQuickAdd from '../components/dashboard/AiQuickAdd';
 import OnboardingProgressCard from '../components/dashboard/OnboardingProgressCard';
 import ApolloHero from '../components/dashboard/ApolloHero';
 import InsightWidgets from '../components/dashboard/InsightWidgets';
+import ShiftMoneyWidget from '../components/dashboard/ShiftMoneyWidget';
+import DeliveriesTodayWidget from '../components/dashboard/DeliveriesTodayWidget';
 import SeatingAiHelper from '../components/dashboard/SeatingAiHelper';
 import InvoiceScanner from '../components/dashboard/InvoiceScanner';
 import ManualSurveyTool from '../components/dashboard/ManualSurveyTool';
@@ -292,9 +294,8 @@ function DashboardInner() {
                 <SalesChart />
             </section>
         ),
-        beecomm_live: isVisible('beecomm_live') && <BeecommLiveWidget key="beecomm_live" />,
-        gomiley_live: isVisible('gomiley_live') && <GomileyLiveWidget key="gomiley_live" />,
-        gomiley_dashboard: isVisible('gomiley_dashboard') && <GomileyDashboardWidget key="gomiley_dashboard" />,
+        shift_money: isVisible('shift_money') && <ShiftMoneyWidget key="shift_money" />,
+        deliveries_today: isVisible('deliveries_today') && <DeliveriesTodayWidget key="deliveries_today" />,
         shift_insights: isVisible('shift_insights') && <ShiftInsightsWidget key="shift_insights" />,
         whatsapp_inbox: isVisible('whatsapp_inbox') && <WhatsAppInboxWidget key="whatsapp_inbox" />,
         // active_employees now renders once under the Apollo hero; quick_stats /
@@ -328,7 +329,6 @@ function DashboardInner() {
                 </div>
 
                 <ApolloHero />
-                <ActiveEmployeesWidget />
                 <OnboardingProgressCard />
                 {widgetOrder.map(id => adminWidgets[id] || null)}
             </div>

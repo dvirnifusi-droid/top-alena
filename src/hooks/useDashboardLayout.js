@@ -26,9 +26,8 @@ export const EMPLOYEE_WIDGETS = [
 
 export const ADMIN_WIDGETS = [
   { id: 'decision_kpis', label: 'מדדי החלטה · עלות עבודה/תזרים/עזיבות/ביקוש/ספקים/תפריט', emoji: '🎯', defaultOn: true },
-  { id: 'beecomm_live', label: 'Beecomm Live · קופה בזמן אמת', emoji: '🔴', defaultOn: true },
-  { id: 'gomiley_live', label: 'Gomiley Live · משלוחים בזמן אמת', emoji: '🛵', defaultOn: true },
-  { id: 'gomiley_dashboard', label: 'Gomiley לוח · KPI ופלטפורמות', emoji: '📊', defaultOn: true },
+  { id: 'shift_money', label: 'כסף במשמרת · סגור/פתוח פר ערוץ', emoji: '💵', defaultOn: true },
+  { id: 'deliveries_today', label: 'משלוחים היום · כמות + הכנסה', emoji: '🛵', defaultOn: true },
   { id: 'shift_insights', label: 'תובנות משמרת · דורש תשומת לב', emoji: '🎯', defaultOn: true },
   { id: 'whatsapp_inbox', label: 'WhatsApp Inbox · פניות לקוחות', emoji: '💬', defaultOn: true },
   { id: 'recruitment', label: 'דשבורד גיוס', emoji: '👥', defaultOn: true },
