@@ -17,7 +17,7 @@ echo ""
 
 echo "=== [2/5] Tenant row in DB ==="
 docker exec top-alena-api-1 sh -c '
-  psql "$DATABASE_URL" -t -c "
+  psql "${DATABASE_URL%%\?*}" -t -c "
     SELECT slug,
            status,
            owner_name,

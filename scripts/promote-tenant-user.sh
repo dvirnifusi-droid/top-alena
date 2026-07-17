@@ -15,10 +15,12 @@ if [ -z "$MAIN_DB_URL" ]; then
   echo "Could not read DATABASE_URL from top-alena-api-1"
   exit 1
 fi
+# Strip Prisma-only query params (e.g. ?connection_limit=10) that psql rejects.
+PSQL_URL="${MAIN_DB_URL%%\?*}"
 
 docker run --rm --network top-alena_default postgres:16-alpine \
-  psql "$MAIN_DB_URL" -c "UPDATE \"$SCHEMA\".\"User\" SET role='owner' WHERE email='$EMAIL';"
+  psql "$PSQL_URL" -c "UPDATE \"$SCHEMA\".\"User\" SET role='owner' WHERE email='$EMAIL';"
 
 echo "==> Verifying:"
 docker run --rm --network top-alena_default postgres:16-alpine \
-  psql "$MAIN_DB_URL" -c "SELECT email, role FROM \"$SCHEMA\".\"User\" WHERE email='$EMAIL';"
+  psql "$PSQL_URL" -c "SELECT email, role FROM \"$SCHEMA\".\"User\" WHERE email='$EMAIL';"

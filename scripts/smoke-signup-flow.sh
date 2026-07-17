@@ -26,6 +26,7 @@ if ! command -v jq >/dev/null; then echo "❌ jq missing"; exit 1; fi
 # provision-tenant.sh already uses). Reads DATABASE_URL from the api env.
 DB_URL=$(docker exec top-alena-api-1 sh -c 'echo $DATABASE_URL')
 if [ -z "$DB_URL" ]; then echo "❌ Could not read DATABASE_URL from top-alena-api-1"; exit 1; fi
+DB_URL="${DB_URL%%\?*}"  # strip Prisma-only params (connection_limit) — psql rejects them
 psql_run() {
   docker run --rm --network top-alena_default -e PGPASSWORD_DUMMY=1 \
     postgres:16-alpine psql "$DB_URL" -v ON_ERROR_STOP=1 -t -A "$@"

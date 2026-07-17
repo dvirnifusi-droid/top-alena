@@ -32,23 +32,30 @@ MAIN_DB_URL=$(docker exec top-alena-api-1 sh -c 'echo $DATABASE_URL')
 if [ -z "$MAIN_DB_URL" ]; then
   echo "❌ Couldn't read DATABASE_URL from top-alena-api-1"; exit 1
 fi
+# The main URL may carry Prisma-only params (e.g. ?connection_limit=10) that
+# libpq/psql rejects ("invalid URI query parameter"). Strip the whole query
+# string for all psql/pg_dump calls; rebuild the tenant URL from the clean base.
+PSQL_URL="${MAIN_DB_URL%%\?*}"
 
 # === 1. CREATE SCHEMA tenant_<slug> ===========================================
 echo "==> [1/4] Creating schema $SCHEMA in Supabase"
 docker run --rm --network top-alena_default postgres:16-alpine \
-  psql "$MAIN_DB_URL" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS \"$SCHEMA\";" >/dev/null
+  psql "$PSQL_URL" -v ON_ERROR_STOP=1 -c "CREATE SCHEMA IF NOT EXISTS \"$SCHEMA\";" >/dev/null
 
 # === 2. Dump public schema (structure-only) once + reload into tenant schema ===
 echo "==> [2/4] Copying table structure from public → $SCHEMA"
 docker run --rm --network top-alena_default postgres:16-alpine \
-  pg_dump --schema=public --schema-only --no-owner --no-privileges "$MAIN_DB_URL" \
+  pg_dump --schema=public --schema-only --no-owner --no-privileges "$PSQL_URL" \
   | sed "s/CREATE TABLE public\./CREATE TABLE \"$SCHEMA\"./g; s/REFERENCES public\./REFERENCES \"$SCHEMA\"./g; s/CREATE INDEX \"/CREATE INDEX IF NOT EXISTS \"/g; s/CREATE UNIQUE INDEX \"/CREATE UNIQUE INDEX IF NOT EXISTS \"/g" \
   | docker run --rm -i --network top-alena_default postgres:16-alpine \
-    psql "$MAIN_DB_URL" -v ON_ERROR_STOP=0 -X >/dev/null 2>&1 || true
+    psql "$PSQL_URL" -v ON_ERROR_STOP=0 -X >/dev/null 2>&1 || true
 
 # === 3. Spin up the tenant api container ======================================
 echo "==> [3/5] Spawning api container $CONTAINER"
-TENANT_DB_URL="${MAIN_DB_URL}?schema=${SCHEMA}"
+# Cap each tenant's Prisma pool so 9+ containers can't exhaust the shared
+# Supabase connection ceiling (the 2026-07-17 outage). Built from the CLEAN
+# base so we never inherit the main pool's connection_limit.
+TENANT_DB_URL="${PSQL_URL}?schema=${SCHEMA}&connection_limit=3"
 docker rm -f "$CONTAINER" 2>/dev/null || true
 docker run -d \
   --name "$CONTAINER" \
