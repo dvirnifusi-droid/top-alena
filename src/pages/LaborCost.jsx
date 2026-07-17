@@ -6,6 +6,7 @@ import { Loader2, Users, TrendingUp, RefreshCw, Send } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
+import EmployeePayMatrix from '@/components/employees/EmployeePayMatrix';
 
 function LaborCostInner() {
   const [days, setDays] = useState(30);
@@ -77,6 +78,9 @@ function LaborCostInner() {
         <Card><CardContent className="p-6 text-center text-slate-500">אין לך הרשאה לצפות בנתוני עלות שכר.</CardContent></Card>
       ) : (
         <>
+          {/* Enter pay for every employee here — writes EmployeePay → the KPIs below light up. */}
+          <EmployeePayMatrix defaultOpen={!ratio?.ratio_pct} onSaved={load} />
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {ratio?.ratio_pct != null && (
               <Card className="bg-indigo-50 border-indigo-200 col-span-2">

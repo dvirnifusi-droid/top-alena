@@ -78,6 +78,56 @@ registerFn('setEmployeePay', async ({ body, user }) => {
     });
     return { ok: true };
 });
+// Bulk upsert pay for many employees in one call (the "one table for everyone"
+// screen). Same validation + per-row access check as setEmployeePay, so a
+// dept-scoped manager can only write rows they're allowed to. Returns a count +
+// per-row errors instead of failing the whole batch on one bad row.
+registerFn('setEmployeePayBulk', async ({ body, user }) => {
+    const rows = Array.isArray(body?.rows) ? body.rows : [];
+    const viewer = await buildPayViewer(user);
+    const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v)) ? null : Number(v));
+    let saved = 0;
+    const errors = [];
+    for (const r of rows) {
+        const employeeId = String(r?.employee_id || '');
+        if (!employeeId)
+            continue;
+        const target = await loadTarget(employeeId);
+        if (!target) {
+            errors.push({ employee_id: employeeId, error: 'not_found' });
+            continue;
+        }
+        if (!canEditPay(viewer, target)) {
+            errors.push({ employee_id: employeeId, error: 'forbidden' });
+            continue;
+        }
+        const payType = ['hourly', 'monthly', 'tips'].includes(r.pay_type) ? r.pay_type : 'hourly';
+        const hourly = num(r.hourly_rate), monthly = num(r.monthly_salary), pct = num(r.employer_pct);
+        if ((hourly !== null && hourly < 0) || (monthly !== null && monthly < 0) || (pct !== null && pct < 0)) {
+            errors.push({ employee_id: employeeId, error: 'invalid_amount' });
+            continue;
+        }
+        const data = {
+            pay_type: payType,
+            hourly_rate: payType === 'hourly' ? hourly : null,
+            monthly_salary: payType === 'monthly' ? monthly : null,
+            employer_pct: pct,
+            updated_by: user?.id ?? null,
+        };
+        try {
+            await prisma.employeePay.upsert({
+                where: { employee_id: employeeId },
+                update: data,
+                create: { employee_id: employeeId, ...data },
+            });
+            saved++;
+        }
+        catch (e) {
+            errors.push({ employee_id: employeeId, error: String(e?.message || e).slice(0, 120) });
+        }
+    }
+    return { ok: true, saved, errors };
+});
 // Owner-only: set a manager's salary-access scope (self=null | ALL_SCOPE | department).
 registerFn('setPayAccessScope', async ({ body, user }) => {
     if (user?.role !== 'owner')
