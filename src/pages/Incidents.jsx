@@ -447,7 +447,7 @@ function IncidentsInner() {
   const getVisibleIncidents = () => { // Added
     if (!currentUser) return [];
     
-    const isAdmin = currentUser.role === 'admin';
+    const isAdmin = (currentUser.role === 'admin' || currentUser.role === 'owner');
     const isManager = currentUser.role === 'manager'; // Assuming 'manager' role for managers
     const isEmployee = currentUser.role === 'employee'; // Assuming 'employee' role for regular employees
     const isOwner = currentUser.role === 'owner'; // Assuming 'owner' role
@@ -513,7 +513,7 @@ function IncidentsInner() {
   });
 
   const openIncidents = visibleIncidents.filter(i => !['resolved', 'closed'].includes(i.status)).length; // Use visible incidents
-  const isAdmin = currentUser?.role === 'admin'; // Added
+  const isAdmin = (currentUser?.role === 'admin' || currentUser?.role === 'owner'); // Added
 
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">

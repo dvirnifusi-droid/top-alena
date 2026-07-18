@@ -54,7 +54,7 @@ export default function RestroomCleaning() {
   // admin detection + settings + position options
   useEffect(() => {
     base44.auth.me().then(async (me) => {
-      const admin = me?.role === 'admin';
+      const admin = (me?.role === 'admin' || me?.role === 'owner');
       setIsAdmin(admin);
       if (admin) {
         try {

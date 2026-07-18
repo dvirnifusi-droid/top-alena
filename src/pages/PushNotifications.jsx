@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Bell, Send, Users, Calendar, CheckCircle, AlertCircle } from 'lucide-react';
 import { sendPushoverNotification } from '@/functions/sendPushoverNotification';
 import { format } from 'date-fns';
+import { Loader2, Stethoscope } from 'lucide-react';
 
 export default function PushNotifications() {
     const [employees, setEmployees] = useState([]);
@@ -94,9 +95,70 @@ export default function PushNotifications() {
     const empWithKey = employees.filter(e => e.pushover_user_key);
     const empWithoutKey = employees.filter(e => !e.pushover_user_key);
 
+    const [selfTest, setSelfTest] = useState(null);
+    const [testing, setTesting] = useState(false);
+
+    // Fires one sample of every alert family through the REAL dispatcher and
+    // reports what resolved per channel — so a silent zero is explainable.
+    const runSelfTest = async () => {
+        setTesting(true); setSelfTest(null);
+        try {
+            const r = await base44.functions.testAllNotifications({});
+            setSelfTest((r?.data ?? r) || {});
+        } catch (e) {
+            setSelfTest({ error: e?.message || 'שגיאה' });
+        }
+        setTesting(false);
+    };
+
     return (
         <div className="max-w-2xl mx-auto p-4 space-y-4" dir="rtl">
             <PageHeader title="שליחת Push ידני" subtitle="שלח הודעת Push לעובדים או קבוצות" icon={Bell} />
+
+            {/* End-to-end check of BOTH channels with a readable diagnosis. */}
+            <Card className="border-indigo-200">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                        <Stethoscope className="w-4 h-4" /> בדיקת כל ההתראות (וואטסאפ + פושאובר)
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    <p className="text-xs text-slate-500">
+                        שולח דוגמה של כל סוג התראה דרך המנגנון האמיתי ומראה בדיוק מי קיבל בכל ערוץ.
+                    </p>
+                    <Button onClick={runSelfTest} disabled={testing} className="bg-indigo-600 hover:bg-indigo-700">
+                        {testing ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Send className="w-4 h-4 ml-2" />}
+                        הרץ בדיקה מלאה
+                    </Button>
+
+                    {selfTest && (
+                        <div className="mt-2 text-xs rounded-lg border p-3 bg-slate-50 space-y-1">
+                            {selfTest.error ? (
+                                <div className="text-red-600 font-bold">שגיאה: {selfTest.error}</div>
+                            ) : (
+                                <>
+                                    <div className="font-bold text-slate-800">
+                                        נשלחו {selfTest.sent_count} התראות ·
+                                        פושאובר: {selfTest.pushover_deliveries} ·
+                                        וואטסאפ: {selfTest.whatsapp_recipients} נמענים
+                                    </div>
+                                    {selfTest.hint && <div className="text-amber-700 font-bold">⚠ {selfTest.hint}</div>}
+                                    <div className="text-slate-600">
+                                        משתמשי admin/owner: {(selfTest.diagnostics?.admin_owner_users || []).join(', ') || '—'}
+                                    </div>
+                                    <div className="text-slate-600">
+                                        עובדים עם מפתח פושאובר: {(selfTest.diagnostics?.employees_with_pushover_key || []).join(', ') || '—'}
+                                    </div>
+                                    <div className="text-slate-500">
+                                        טוקן פושאובר: {selfTest.diagnostics?.pushover_token_configured ? '✓' : '✗'} ·
+                                        טוויליו: {selfTest.diagnostics?.twilio_configured ? '✓' : '✗'}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
 
             {/* בחירת קהל יעד */}
             <Card>

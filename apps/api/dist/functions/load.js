@@ -9977,6 +9977,62 @@ registerFn('firePushoverTest', async () => {
 // one. Gated: the phone must be an admin/recipient of THIS tenant (not a public
 // spam vector). Sends directly (bypasses the recipient lookup) so it's a pure
 // delivery test.
+// End-to-end notification self-test: fires one sample of every alert family
+// through the REAL dispatcher (pushoverToAdmins, which also mirrors to
+// WhatsApp), then reports what actually resolved on each channel. Built after a
+// silent outage where Pushover resolved to zero recipients and nothing logged.
+registerFn('testAllNotifications', async ({ user }) => {
+    if (!user?.id)
+        throw new Error('unauthorized');
+    if (!isAdminRole(user?.role))
+        throw new Error('admin only');
+    const dbx = prisma;
+    // --- diagnostics BEFORE sending, so a zero result is explainable ---
+    const users = await dbx.$queryRawUnsafe(`SELECT email, role FROM "User" WHERE role IN ('admin','owner')`).catch(() => []);
+    const keyed = await dbx.$queryRawUnsafe(`SELECT full_name, email, role FROM "Employee"
+     WHERE pushover_user_key IS NOT NULL AND pushover_user_key <> ''`).catch(() => []);
+    let phones = [];
+    try {
+        const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
+        phones = await reportRecipientPhones();
+    }
+    catch { /* ignore */ }
+    const samples = [
+        { t: '🧪 בדיקה 1/6 — תקרית חדשה', b: 'המקרר המרכזי הפסיק לקרר · חומרה גבוהה · מטבח' },
+        { t: '🧪 בדיקה 2/6 — כניסה למשמרת', b: 'דני כהן נכנס למשמרת · 20:34 · פלור' },
+        { t: '🧪 בדיקה 3/6 — צ׳קליסט הושלם', b: 'פתיחת בוקר מטבח · 10 עברו · 2 נכשלו' },
+        { t: '🧪 בדיקה 4/6 — טיפים ננעלו', b: 'ערב · נאסף ₪3,240 · לחלוקה ₪2,910' },
+        { t: '🧪 בדיקה 5/6 — הזמנה חדשה', b: 'משפחת כהן · 4 סועדים · 20:00' },
+        { t: '🧪 בדיקה 6/6 — דוח סיום משמרת', b: 'ערב · הכנסות ₪18,500 · 92 סועדים' },
+    ];
+    const { pushoverToAdmins } = await import('../lib/pushover.js');
+    const results = [];
+    for (const s of samples) {
+        try {
+            const r = await pushoverToAdmins(s.t, s.b);
+            results.push({ title: s.t, pushover_sent: Number(r?.sent) || 0 });
+        }
+        catch (e) {
+            results.push({ title: s.t, pushover_sent: 0, error: String(e?.message || e).slice(0, 120) });
+        }
+    }
+    const pushTotal = results.reduce((n, r) => n + (r.pushover_sent || 0), 0);
+    return {
+        ok: true,
+        sent_count: samples.length,
+        pushover_deliveries: pushTotal,
+        whatsapp_recipients: phones.length,
+        diagnostics: {
+            admin_owner_users: users.map((u) => `${u.email} (${u.role})`),
+            employees_with_pushover_key: keyed.map((e) => `${e.full_name} [${e.role || '-'}]`),
+            pushover_token_configured: !!(process.env.PUSHOVER_APP_TOKEN || process.env.PUSHOVER_API_TOKEN),
+            twilio_configured: !!process.env.TWILIO_ACCOUNT_SID,
+        },
+        hint: pushTotal === 0
+            ? 'אף נמען פושאובר לא נמצא — בדוק שלעובד עם התפקיד הניהולי יש Pushover User Key'
+            : null,
+    };
+});
 registerFn('testAllTriggersWhatsApp', async ({ body }) => {
     const phone = String(body?.phone || '').trim();
     if (!phone)

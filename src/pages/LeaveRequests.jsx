@@ -306,7 +306,7 @@ function LeaveRequestsInner() {
     const [rejectTarget, setRejectTarget] = useState(null);
     const [editTarget, setEditTarget] = useState(null);
     const [actionLoading, setActionLoading] = useState(null);
-    const isAdmin = currentUser?.role === 'admin';
+    const isAdmin = (currentUser?.role === 'admin' || currentUser?.role === 'owner');
 
     const loadData = async () => {
         setLoading(true);
@@ -317,7 +317,7 @@ function LeaveRequestsInner() {
         setCurrentEmployee(myEmp);
 
         let reqs;
-        if (user.role === 'admin') {
+        if ((user.role === 'admin' || user.role === 'owner')) {
             reqs = await base44.entities.LeaveRequest.list('-created_date', 100);
         } else if (myEmp) {
             reqs = await base44.entities.LeaveRequest.filter({ employee_id: myEmp.id });
