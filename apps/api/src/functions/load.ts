@@ -5847,7 +5847,17 @@ registerFn('setScheduleConfig', async ({ user, body }: any) => {
 // rate from EmployeePay then a fallback to the WorkPosition's hourly_rate.
 registerFn('getScheduleLaborCost', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
-  if (!['admin', 'owner'].includes(String(user.role))) throw new Error('forbidden');
+  // Schedule cost IS salary data, so it follows the same rule as the rest of it
+  // (getLaborCostRatio): OWNER only, or a manager the owner explicitly granted
+  // all-department pay access. Plain admins/managers are excluded — before this
+  // every admin could read it, and client-side hiding alone would still leave
+  // the API open to anyone who called it directly.
+  {
+    const { buildPayViewer } = await import('../lib/payViewer.js');
+    const { ALL_SCOPE } = await import('../lib/payAccess.js');
+    const viewer = await buildPayViewer(user);
+    if (!viewer.isOwner && viewer.payAccessScope !== ALL_SCOPE) throw new Error('forbidden');
+  }
   try {
     await ensureScheduleConfig();
     const b = (body || {}) as any;

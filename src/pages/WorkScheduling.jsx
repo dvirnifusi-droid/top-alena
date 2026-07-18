@@ -615,6 +615,7 @@ export default function WorkScheduling() {
     const [budgetInput, setBudgetInput] = useState('');
     const [savingBudget, setSavingBudget] = useState(false);
     const [showBudgetEdit, setShowBudgetEdit] = useState(false);
+    const [costForbidden, setCostForbidden] = useState(false);
     const [showTargets, setShowTargets] = useState(false);
     const [targetsDraft, setTargetsDraft] = useState({});   // { [shift_type]: ₪ per occurrence }
     const [savingTargets, setSavingTargets] = useState(false);
@@ -622,7 +623,11 @@ export default function WorkScheduling() {
     const [savingTips, setSavingTips] = useState(false);
 
     // Only owner/admin see labor cost (pay is sensitive); managed-dept leads don't.
-    const canSeeCost = currentUser?.role === 'admin' || currentUser?.role === 'owner';
+    // Attempt for admin+owner; the SERVER decides (owner, or a manager granted
+    // all-department pay access). A 403 flips costForbidden and every cost
+    // element disappears — including the "enter rates" hint, which would
+    // otherwise tell a manager that cost data exists.
+    const canSeeCost = (currentUser?.role === 'admin' || currentUser?.role === 'owner') && !costForbidden;
 
     const handleCopyAvailabilityLink = () => {
         const url = `${window.location.origin}/AvailabilityForm`;
@@ -647,7 +652,7 @@ export default function WorkScheduling() {
                 const res = await base44.functions.getScheduleLaborCost({ week_start: weekStartStr });
                 const d = res?.data || res || {};
                 if (!cancelled) { setLaborCost(d); setBudgetInput(d.budget != null ? String(d.budget) : ''); setTargetsDraft(d.shift_targets || {}); setTipPositions(d.tip_positions || []); }
-            } catch { /* forbidden / error → hide strip */ }
+            } catch { if (!cancelled) setCostForbidden(true); /* not permitted → hide everything cost-related */ }
         })();
         return () => { cancelled = true; };
     }, [weekStartStr, week, canSeeCost]);
