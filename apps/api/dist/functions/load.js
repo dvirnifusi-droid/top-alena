@@ -7299,6 +7299,26 @@ registerFn('setSupplierTerms', async ({ user, body }) => {
     });
     return { ok: true, supplier_id: id, payment_terms: terms, is_occasional: occasional };
 });
+// Bulk terms entry — 20 suppliers in one save instead of 20 dialogs.
+registerFn('setSupplierTermsBulk', async ({ user, body }) => {
+    if (!user?.id)
+        throw new Error('unauthorized');
+    if (!isAdminRole(user?.role))
+        throw new Error('admin only');
+    await ensureSupplierTermsCols();
+    const rows = Array.isArray((body || {}).rows) ? body.rows : [];
+    let saved = 0;
+    for (const r of rows) {
+        const id = String(r?.supplier_id || '');
+        if (!id)
+            continue;
+        const terms = r.payment_terms == null || r.payment_terms === '' ? null : String(r.payment_terms).slice(0, 60);
+        const occ = r.is_occasional === true;
+        await prisma.$executeRawUnsafe(`UPDATE "Supplier" SET payment_terms=$2, is_occasional=$3 WHERE id=$1`, id, terms, occ)
+            .then(() => { saved++; }).catch(() => { });
+    }
+    return { ok: true, saved };
+});
 // Edit an invoice's payment scheduling + supplier display name. Raw SQL (self-
 // heals the columns) so it works even before boot drift-repair lands on a tenant.
 registerFn('updateInvoicePayment', async ({ user, body }) => {

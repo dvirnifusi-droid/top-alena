@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import InvoiceFilters from '../components/invoices/InvoiceFilters';
 import ExportDialog from '../components/invoices/ExportDialog'; // Import the new dialog component
 import InvoiceReviewModal from '../components/invoices/InvoiceReviewModal';
+import SupplierLedger from '../components/invoices/SupplierLedger';
 import PageHeader from '@/components/shared/PageHeader';
 
 export default function InvoicesPage() {
@@ -181,7 +182,9 @@ export default function InvoicesPage() {
                     }
                 />
 
-                <InvoiceFilters 
+                <SupplierLedger />
+
+                <InvoiceFilters
                     suppliers={suppliersList}
                     onFilterChange={setFilters}
                 />
