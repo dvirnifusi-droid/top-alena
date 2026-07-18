@@ -6,6 +6,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { useOwnerInsights } from '@/hooks/useOwnerInsights';
+import LaborCostCard from './LaborCostCard';
 import { Loader2, Users2, Wallet, UserMinus, TrendingUp, PackageSearch, Utensils, ArrowLeft } from 'lucide-react';
 
 const ils = (n) => `₪${Number(n || 0).toLocaleString()}`;
@@ -52,14 +53,9 @@ export default function InsightWidgets() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 
         {/* Labor cost % */}
-        <Shell to={createPageUrl('LaborCost')} icon={Users2} title="עלות עבודה השבוע"
-          tone={{ bg: '#EAF3E1', fg: '#4b7a2b' }}
-          cta={labor?.pct == null ? 'הזן תעריפי שכר →' : 'לפירוט עלות העבודה →'}>
-          {labor?.pct == null
-            ? <><Big color="#94a3b8">—</Big><Sub>{labor?.missing_rates ? `חסרים תעריפים ל-${labor.missing_rates} עובדים` : 'צריך תעריפי שכר + סידור'}</Sub></>
-            : <><Big color={labor.pct > 32 ? '#dc2626' : labor.pct > 26 ? '#d97706' : '#4b7a2b'}>{labor.pct}%</Big>
-                <Sub>{ils(labor.cost)} עלות מול {ils(labor.revenue)} צפי{labor.flags ? ` · ${labor.flags} ימים חורגים` : ''}</Sub></>}
-        </Shell>
+        {/* Reads the SCHEDULE via getScheduleLaborCost — same engine as the
+            schedule grid, so the two can never show different numbers. */}
+        <LaborCostCard />
 
         {/* Cash flow */}
         <Shell to={createPageUrl('CashFlow')} icon={Wallet} title="תזרים השבוע"
