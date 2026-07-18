@@ -364,8 +364,17 @@ function RecipesInner() {
 // price/unit, waste% live on Ingredient (ripples to every recipe using it).
 function RecipeIngredientEditor({ detail, onChanged }) {
   const [adding, setAdding] = useState(false);
-  const [newIng, setNewIng] = useState({ name: '', qty: '', unit: 'kg' });
+  const [newIng, setNewIng] = useState({ name: '', qty: '', unit: 'kg', kind: 'ingredient' });
   const [saving, setSaving] = useState(null); // ri_id we're saving
+  // Existing PREP recipes, offered as autocomplete when adding a "הכנה" line.
+  const [preps, setPreps] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    base44.functions.listRecipes({ kind: 'PREP' })
+      .then(r => { const d = r?.data || r || {}; if (alive) setPreps(d.recipes || []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const saveIngredientField = async (ingredient_id, field, value) => {
     if (!ingredient_id) return;
@@ -398,13 +407,18 @@ function RecipeIngredientEditor({ detail, onChanged }) {
     if (!newIng.name.trim() || !Number(newIng.qty)) { alert('שם וכמות נדרשים'); return; }
     setSaving('new');
     try {
+      // A line can be a raw ingredient OR a nested PREP recipe. The UI only ever
+      // sent ingredient_name, so a dish could never reference its prep — which is
+      // exactly the line that was missing from סיגר בשר.
       await base44.functions.addRecipeIngredient({
         recipe_id: detail.recipe.id,
-        ingredient_name: newIng.name.trim(),
+        ...(newIng.kind === 'prep'
+          ? { prep_recipe_name: newIng.name.trim() }
+          : { ingredient_name: newIng.name.trim() }),
         qty: Number(newIng.qty),
         unit: newIng.unit,
       });
-      setNewIng({ name: '', qty: '', unit: 'kg' });
+      setNewIng({ name: '', qty: '', unit: 'kg', kind: 'ingredient' });
       setAdding(false);
       onChanged();
     } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
@@ -476,7 +490,23 @@ function RecipeIngredientEditor({ detail, onChanged }) {
           {adding && (
             <tr className="border-t bg-amber-50">
               <td className="py-1">
-                <Input autoFocus value={newIng.name} onChange={(e) => setNewIng(s => ({ ...s, name: e.target.value }))} placeholder="שם הרכיב" className="h-6 text-xs" />
+                <div className="flex items-center gap-1">
+                  <select
+                    value={newIng.kind}
+                    onChange={(e) => setNewIng(s => ({ ...s, kind: e.target.value }))}
+                    className="text-[11px] border rounded h-6"
+                    title="רכיב גלם או הכנה קיימת"
+                  >
+                    <option value="ingredient">רכיב</option>
+                    <option value="prep">הכנה</option>
+                  </select>
+                  <Input autoFocus list="prep-options" value={newIng.name}
+                    onChange={(e) => setNewIng(s => ({ ...s, name: e.target.value }))}
+                    placeholder={newIng.kind === 'prep' ? 'שם ההכנה' : 'שם הרכיב'} className="h-6 text-xs" />
+                  <datalist id="prep-options">
+                    {(preps || []).map(pr => <option key={pr.id} value={pr.name} />)}
+                  </datalist>
+                </div>
               </td>
               <td className="text-center">
                 <Input value={newIng.qty} type="number" step="0.001" onChange={(e) => setNewIng(s => ({ ...s, qty: e.target.value }))} className="h-6 text-xs w-16" />
@@ -490,7 +520,7 @@ function RecipeIngredientEditor({ detail, onChanged }) {
                 <Button size="sm" onClick={addRow} disabled={saving === 'new'} className="h-6 px-2 text-xs">
                   {saving === 'new' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'הוסף'}
                 </Button>
-                <button onClick={() => { setAdding(false); setNewIng({ name: '', qty: '', unit: 'kg' }); }} className="mr-2 text-slate-500 text-xs">בטל</button>
+                <button onClick={() => { setAdding(false); setNewIng({ name: '', qty: '', unit: 'kg', kind: 'ingredient' }); }} className="mr-2 text-slate-500 text-xs">בטל</button>
               </td>
               <td></td>
             </tr>
