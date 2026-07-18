@@ -98,25 +98,30 @@ export default function PermissionTierEditor({ tiers, catalog = [], onSaved, onC
           const open = openIdx === i;
           return (
             <div key={i} className="rounded-xl border bg-white overflow-hidden">
-              <div className="flex items-center gap-1.5 p-1.5">
+              {/* The editor lives inside the ~320px sidebar, so the name gets its
+                  OWN full-width row — cramming it next to the level select and the
+                  pages button collapsed it to ~13px and the label looked empty. */}
+              <div className="p-1.5 space-y-1.5">
                 <input
-                  value={t.label}
+                  value={t.label || ''}
                   onChange={(e) => patch(i, 'label', e.target.value)}
                   placeholder="שם התפקיד"
-                  className="flex-1 min-w-0 text-[12px] font-bold border rounded-lg px-2 py-1"
+                  className="w-full text-[12.5px] font-bold border rounded-lg px-2 py-1.5"
                 />
-                <select
-                  value={t.base_level}
-                  onChange={(e) => patch(i, 'base_level', e.target.value)}
-                  className="text-[11px] border rounded-lg px-1 py-1 bg-white"
-                >
-                  {BASE_LEVELS.map((b) => <option key={b.v} value={b.v}>{b.l}</option>)}
-                </select>
-                <button onClick={() => setOpenIdx(open ? null : i)}
-                  className={`text-[11px] font-bold rounded-lg px-2 py-1 border flex items-center gap-1 ${configured ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-600'}`}>
-                  {count} עמודים <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
-                </button>
-                <button onClick={() => removeTier(i)} className="text-slate-400 hover:text-red-600 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={t.base_level}
+                    onChange={(e) => patch(i, 'base_level', e.target.value)}
+                    className="flex-1 min-w-0 text-[11px] border rounded-lg px-1 py-1 bg-white"
+                  >
+                    {BASE_LEVELS.map((b) => <option key={b.v} value={b.v}>{b.l}</option>)}
+                  </select>
+                  <button onClick={() => setOpenIdx(open ? null : i)}
+                    className={`shrink-0 text-[11px] font-bold rounded-lg px-2 py-1 border flex items-center gap-1 ${configured ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-600'}`}>
+                    {count} עמודים <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+                  </button>
+                  <button onClick={() => removeTier(i)} className="shrink-0 text-slate-400 hover:text-red-600 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
               </div>
 
               {open && (
@@ -138,7 +143,7 @@ export default function PermissionTierEditor({ tiers, catalog = [], onSaved, onC
                             {on < g.pages.length ? 'סמן הכל' : 'נקה'}
                           </button>
                         </div>
-                        <div className="grid grid-cols-2 gap-1">
+                        <div className="grid grid-cols-1 gap-1">
                           {g.pages.map((p) => {
                             const checked = cur.includes(p.key);
                             return (
