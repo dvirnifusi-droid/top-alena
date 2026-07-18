@@ -9977,17 +9977,18 @@ registerFn('firePushoverTest', async () => {
 // one. Gated: the phone must be an admin/recipient of THIS tenant (not a public
 // spam vector). Sends directly (bypasses the recipient lookup) so it's a pure
 // delivery test.
-// End-to-end notification self-test: fires one sample of every alert family
-// through the REAL dispatcher (pushoverToAdmins, which also mirrors to
-// WhatsApp), then reports what actually resolved on each channel. Built after a
-// silent outage where Pushover resolved to zero recipients and nothing logged.
+// End-to-end notification self-test. Fires EVERY registered trigger through the
+// REAL builders in lib/triggers.ts with realistic sample rows, so what arrives
+// is byte-identical to production formatting (duplicating the templates here
+// would silently drift from the real ones). Read-only: the handlers compose a
+// message and send — nothing is persisted.
 registerFn('testAllNotifications', async ({ user }) => {
     if (!user?.id)
         throw new Error('unauthorized');
     if (!isAdminRole(user?.role))
         throw new Error('admin only');
     const dbx = prisma;
-    // --- diagnostics BEFORE sending, so a zero result is explainable ---
+    // Diagnostics first, so a zero result is explainable rather than silent.
     const users = await dbx.$queryRawUnsafe(`SELECT email, role FROM "User" WHERE role IN ('admin','owner')`).catch(() => []);
     const keyed = await dbx.$queryRawUnsafe(`SELECT full_name, email, role FROM "Employee"
      WHERE pushover_user_key IS NOT NULL AND pushover_user_key <> ''`).catch(() => []);
@@ -9997,40 +9998,141 @@ registerFn('testAllNotifications', async ({ user }) => {
         phones = await reportRecipientPhones();
     }
     catch { /* ignore */ }
-    const samples = [
-        { t: '🧪 בדיקה 1/6 — תקרית חדשה', b: 'המקרר המרכזי הפסיק לקרר · חומרה גבוהה · מטבח' },
-        { t: '🧪 בדיקה 2/6 — כניסה למשמרת', b: 'דני כהן נכנס למשמרת · 20:34 · פלור' },
-        { t: '🧪 בדיקה 3/6 — צ׳קליסט הושלם', b: 'פתיחת בוקר מטבח · 10 עברו · 2 נכשלו' },
-        { t: '🧪 בדיקה 4/6 — טיפים ננעלו', b: 'ערב · נאסף ₪3,240 · לחלוקה ₪2,910' },
-        { t: '🧪 בדיקה 5/6 — הזמנה חדשה', b: 'משפחת כהן · 4 סועדים · 20:00' },
-        { t: '🧪 בדיקה 6/6 — דוח סיום משמרת', b: 'ערב · הכנסות ₪18,500 · 92 סועדים' },
+    const now = new Date();
+    const iso = (d) => d.toISOString();
+    const today = iso(now);
+    const soon = iso(new Date(now.getTime() + 2 * 3600_000));
+    // (label, model, event, row, prev) — one realistic sample per registered trigger.
+    const cases = [
+        ['תקרית חדשה', 'Incident', 'created', {
+                title: 'המקרר המרכזי הפסיק לקרר', category: 'תחזוקה', severity: 'high',
+                incident_date: today, location: 'מטבח', reported_by: 'דני כהן',
+                assigned_to: 'מיה לוי', estimated_cost: 1200,
+                description: 'המקרר המרכזי הפסיק לקרר בשעה 03:12, כל מלאי הבשר בסיכון. הוזמן טכנאי לבוקר.',
+                follow_up_required: true,
+            }, null],
+        ['צ׳קליסט הושלם', 'ChecklistExecution', 'updated', {
+                status: 'completed', checklist_name: 'פתיחת בוקר — מטבח',
+                executed_by_name: 'דני כהן', approving_manager_name: 'מיה לוי',
+                overall_score: 83, completion_time_minutes: 24, follow_up_required: true,
+                notes: 'טמפ׳ מקרר בשר גבוהה מדי, שכבת שומן על הכיריים',
+                execution_date: today,
+            }, { status: 'in_progress' }],
+        ['הזמנה חדשה', 'Reservation', 'created', {
+                customer_name: 'משפחת כהן', customer_phone: '052-1234567',
+                date: today, time: '20:00', party_size: 4,
+                occasion: 'יום הולדת 30', notes: 'שולחן ליד החלון אם אפשר', status: 'confirmed',
+            }, null],
+        ['משוב לקוח', 'CustomerFeedback', 'created', {
+                customer_name: 'שירה כהן', customer_phone: '054-9876543',
+                overall_rating: 5, food_rating: 5, service_rating: 5,
+                table_number: 14, party_size: 4,
+                comments: 'האוכל היה מדהים והשירות מעולה, נחזור בהחלט!', created_date: today,
+            }, null],
+        ['דוח סיום משמרת', 'ShiftEndReport', 'created', {
+                shift_date: today, shift_type: 'dinner', manager_name: 'מיה לוי',
+                start_time: '16:00', end_time: '01:00',
+                total_revenue: 18500, credit_amount: 14200, cash_amount: 4300,
+                credit_tips: 2100, total_diners: 92, overall_rating: 5, z_number: '4471',
+                notes: 'ערב עמוס, שתי תלונות על זמן המתנה',
+            }, null],
+        ['הגשת זמינות', 'EmployeeAvailability', 'created', {
+                employee_name: 'דני כהן', date: soon, availability_type: 'available',
+                preferred_shift: 'ערב', department: 'מלצרות', role: 'מלצר',
+            }, null],
+        ['כניסה למשמרת', 'ShiftTracking', 'created', {
+                employee_name: 'לידר רוחם', shift_start: today, status: 'active',
+                position: 'מארח', department: 'floor',
+                latitude: 31.9645, longitude: 34.7931,
+            }, null],
+        ['חריגה בשעות משמרת', 'ShiftTracking', 'updated', {
+                employee_name: 'אלעד יששכר', shift_start: iso(new Date(now.getTime() - 12 * 3600_000)),
+                shift_end: today, total_hours: 12.5, status: 'completed', position: 'טבח',
+            }, { status: 'active' }],
+        ['תדריך פורסם', 'DailyBrief', 'updated', {
+                date: today, shift_type: 'dinner', status: 'published',
+                content: 'ערב עמוס צפוי — 92 הזמנות. דגש על זמני הגשה ועל המנה החדשה.',
+                published_by: 'מיה לוי',
+            }, { status: 'draft' }],
+        ['בקשת החלפת משמרת', 'ShiftSwapRequest', 'created', {
+                requester_name: 'דני כהן', target_name: 'שירה לוי',
+                shift_date: soon, shift_type: 'dinner', status: 'pending',
+                reason: 'אירוע משפחתי',
+            }, null],
+        ['בקשת חופשה', 'LeaveRequest', 'created', {
+                employee_name: 'גלי לוי', leave_type: 'vacation',
+                start_date: soon, end_date: soon, status: 'pending',
+                reason: 'חופשה משפחתית מתוכננת',
+            }, null],
+        ['עדכון סטטוס חופשה', 'LeaveRequest', 'updated', {
+                employee_name: 'גלי לוי', leave_type: 'vacation',
+                start_date: soon, end_date: soon, status: 'approved',
+                approved_by: 'דביר ניפוסי',
+            }, { status: 'pending' }],
+        ['טיפים ננעלו', 'TipReport', 'updated', {
+                date: today, shift_type: 'dinner', status: 'locked',
+                total_tips: 3240, staff_meals: 180, runner_deduction: 150,
+                distributable: 2910, locked_by: 'מיה לוי',
+                staff_details: [
+                    { name: 'דני כהן', amount: 520, hours: 8.5 },
+                    { name: 'שירה לוי', amount: 430, hours: 7 },
+                    { name: 'יוסי מזרחי', amount: 380, hours: 6 },
+                ],
+            }, { status: 'draft' }],
+        ['ראיון נקבע', 'Interview', 'created', {
+                candidate_name: 'אורי גולן', candidate_phone: '053-1112233',
+                scheduled_date: soon, scheduled_time: '11:00',
+                duration_minutes: 45, type: 'ראיון ראשוני',
+            }, null],
+        ['מועמד גיוס חדש', 'JobCandidate', 'created', {
+                full_name: 'נועה ברק', age: 24, city: 'ראשון לציון', phone: '050-7654321',
+                role_applied: 'מלצרית', experience: 'שנתיים בבר מסעדה',
+                shifts_per_week: 4, weekend_availability: true, score: 87,
+            }, null],
+        ['משמרת נוצרה', 'WorkShift', 'created', {
+                date: soon, shift_type: 'dinner', start_time: '16:00', end_time: '01:00',
+                assigned_staff: [{ name: 'דני כהן' }, { name: 'שירה לוי' }],
+            }, null],
+        ['ליד אירוע חדש', 'EventLead', 'created', {
+                contact_name: 'רונית שדה', contact_phone: '052-4445566',
+                event_type: 'יום הולדת 50', guests: 45, event_date: soon,
+                budget: 12000, notes: 'מעוניינת בתפריט צמחוני מורחב',
+            }, null],
+        ['הזמנת אירוע נוצרה', 'EventBooking', 'created', {
+                customer_name: 'משפחת שדה', customer_phone: '052-4445566',
+                event_date: soon, guests: 45, total_ils: 12500,
+                deposit_ils: 3000, status: 'confirmed', event_type: 'יום הולדת',
+            }, null],
+        ['עדכון הזמנת אירוע', 'EventBooking', 'updated', {
+                customer_name: 'משפחת שדה', event_date: soon, guests: 50,
+                total_ils: 13800, deposit_ils: 3000, status: 'paid',
+            }, { status: 'confirmed', guests: 45 }],
     ];
-    const { pushoverToAdmins } = await import('../lib/pushover.js');
+    const { fireTriggers } = await import('../lib/triggers.js');
     const results = [];
-    for (const s of samples) {
+    for (const [label, model, event, row, prev] of cases) {
         try {
-            const r = await pushoverToAdmins(s.t, s.b);
-            results.push({ title: s.t, pushover_sent: Number(r?.sent) || 0 });
+            await fireTriggers(model, event, row, prev || undefined);
+            results.push({ label, model, event, ok: true });
         }
         catch (e) {
-            results.push({ title: s.t, pushover_sent: 0, error: String(e?.message || e).slice(0, 120) });
+            results.push({ label, model, event, ok: false, error: String(e?.message || e).slice(0, 120) });
         }
     }
-    const pushTotal = results.reduce((n, r) => n + (r.pushover_sent || 0), 0);
+    const okCount = results.filter((r) => r.ok).length;
     return {
         ok: true,
-        sent_count: samples.length,
-        pushover_deliveries: pushTotal,
-        whatsapp_recipients: phones.length,
+        total: cases.length,
+        fired: okCount,
+        failed: results.filter((r) => !r.ok),
+        labels: results.map((r) => (r.ok ? '✓ ' : '✗ ') + r.label),
         diagnostics: {
             admin_owner_users: users.map((u) => `${u.email} (${u.role})`),
             employees_with_pushover_key: keyed.map((e) => `${e.full_name} [${e.role || '-'}]`),
+            whatsapp_recipients: phones.length,
             pushover_token_configured: !!(process.env.PUSHOVER_APP_TOKEN || process.env.PUSHOVER_API_TOKEN),
             twilio_configured: !!process.env.TWILIO_ACCOUNT_SID,
         },
-        hint: pushTotal === 0
-            ? 'אף נמען פושאובר לא נמצא — בדוק שלעובד עם התפקיד הניהולי יש Pushover User Key'
-            : null,
     };
 });
 registerFn('testAllTriggersWhatsApp', async ({ body }) => {

@@ -138,11 +138,20 @@ export default function PushNotifications() {
                             ) : (
                                 <>
                                     <div className="font-bold text-slate-800">
-                                        נשלחו {selfTest.sent_count} התראות ·
-                                        פושאובר: {selfTest.pushover_deliveries} ·
-                                        וואטסאפ: {selfTest.whatsapp_recipients} נמענים
+                                        נשלחו {selfTest.fired}/{selfTest.total} סוגי התראות ·
+                                        וואטסאפ: {selfTest.diagnostics?.whatsapp_recipients} נמענים
                                     </div>
-                                    {selfTest.hint && <div className="text-amber-700 font-bold">⚠ {selfTest.hint}</div>}
+                                    {Array.isArray(selfTest.labels) && (
+                                        <div className="grid grid-cols-2 gap-x-3 text-[11px] text-slate-600 mt-1">
+                                            {selfTest.labels.map((l, i) => <div key={i}>{l}</div>)}
+                                        </div>
+                                    )}
+                                    {selfTest.failed?.length > 0 && (
+                                        <div className="text-red-600 mt-1">
+                                            נכשלו: {selfTest.failed.map(f => f.label + ' (' + f.error + ')').join(' · ')}
+                                        </div>
+                                    )}
+                                    {false && <div className="text-amber-700 font-bold">⚠ {selfTest.hint}</div>}
                                     <div className="text-slate-600">
                                         משתמשי admin/owner: {(selfTest.diagnostics?.admin_owner_users || []).join(', ') || '—'}
                                     </div>
