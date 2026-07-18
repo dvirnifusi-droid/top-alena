@@ -320,6 +320,78 @@ registerFn('setBankTxCategory', async ({ user, body }: any) => {
   return { ok: true, id, category, label: CATEGORY_LABELS[category].he };
 });
 
+// ── VAT schedule ───────────────────────────────────────────────────────────
+// VAT is the one large outflow whose timing is a fact about the business rather
+// than something to infer: the owner knows whether they report monthly or
+// bi-monthly. Learned from the bank it looks erratic (Alena paid on the 20th,
+// then the 12th, then the 26th), so the forecast smeared it across the month.
+// Told explicitly, it lands on the right date.
+
+async function ensureVatTable(): Promise<void> {
+  await dbx().$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "CashFlowVatSetting" (
+      id TEXT PRIMARY KEY,
+      period TEXT NOT NULL DEFAULT 'monthly',
+      payment_day INT NOT NULL DEFAULT 15,
+      amount_mode TEXT NOT NULL DEFAULT 'learned',
+      fixed_amount NUMERIC(14,2),
+      enabled BOOLEAN DEFAULT true,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(() => {});
+}
+
+export async function getVatSettingRow(): Promise<{
+  period: 'monthly' | 'bimonthly'; payment_day: number;
+  amount_mode: 'learned' | 'fixed'; fixed_amount: number | null; enabled: boolean;
+}> {
+  await ensureVatTable();
+  const r: any[] = await dbx().$queryRawUnsafe(
+    `SELECT period, payment_day, amount_mode, fixed_amount, enabled
+     FROM "CashFlowVatSetting" ORDER BY updated_at DESC LIMIT 1`).catch(() => []);
+  const row = r[0];
+  return {
+    period: row?.period === 'bimonthly' ? 'bimonthly' : 'monthly',
+    payment_day: Number(row?.payment_day) || 15,
+    amount_mode: row?.amount_mode === 'fixed' ? 'fixed' : 'learned',
+    fixed_amount: row?.fixed_amount == null ? null : n(row.fixed_amount),
+    // No row yet means "not configured" — the forecast should fall back to the
+    // learned pattern rather than invent a schedule the owner never confirmed.
+    enabled: row ? row.enabled !== false : false,
+  };
+}
+
+registerFn('getVatSetting', async ({ user }: any) => {
+  await guard(user);
+  const s = await getVatSettingRow();
+  // Show what the bank actually paid, so the owner can sanity-check the estimate.
+  const hist: any[] = await dbx().$queryRawUnsafe(
+    `SELECT tx_date, amount FROM "BankTransaction"
+     WHERE category = 'expense_vat' ORDER BY tx_date DESC LIMIT 12`).catch(() => []);
+  return {
+    ...s,
+    configured: !!hist.length || s.enabled,
+    history: hist.map((h: any) => ({ date: String(h.tx_date).slice(0, 10), amount: Math.abs(n(h.amount)) })),
+  };
+});
+
+registerFn('setVatSetting', async ({ user, body }: any) => {
+  await guard(user);
+  await ensureVatTable();
+  const b = (body || {}) as any;
+  const period = b.period === 'bimonthly' ? 'bimonthly' : 'monthly';
+  const day = Math.min(28, Math.max(1, Number(b.payment_day) || 15));
+  const mode = b.amount_mode === 'fixed' ? 'fixed' : 'learned';
+  const fixed = mode === 'fixed' ? Math.abs(Number(b.fixed_amount) || 0) : null;
+  const enabled = b.enabled !== false;
+  await dbx().$executeRawUnsafe(`DELETE FROM "CashFlowVatSetting"`).catch(() => {});
+  await dbx().$executeRawUnsafe(
+    `INSERT INTO "CashFlowVatSetting"
+       (id, period, payment_day, amount_mode, fixed_amount, enabled)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    rid(), period, day, mode, fixed, enabled);
+  return { ok: true, period, payment_day: day, amount_mode: mode, fixed_amount: fixed, enabled };
+});
+
 // ── reconciliation ─────────────────────────────────────────────────────────
 
 /**

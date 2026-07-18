@@ -15,7 +15,7 @@ import { registerFn } from './index.js';
 import { prisma } from '../db.js';
 import { requirePageAccess } from '../lib/pagePermissions.js';
 import { detectPatterns, projectFromPatterns, type ProjectedEvent } from '../lib/cashPatterns.js';
-import { loadOpenInvoices } from './bankStatement.js';
+import { loadOpenInvoices, getVatSettingRow } from './bankStatement.js';
 
 const isAdmin = (user: any) => user?.role === 'owner' || user?.role === 'admin';
 const dbx = () => prisma as any;
@@ -71,7 +71,49 @@ registerFn('getCapitalForecast', async ({ user, body }: any) => {
   const start = new Date(Math.max(today.getTime(), Date.parse(anchorDate)));
   const end = new Date(start.getTime() + horizon * DAY);
 
-  const events: ProjectedEvent[] = projectFromPatterns(patterns, start, end, SUPPLIER_CATS);
+  // VAT gets scheduled explicitly when the owner has told us the period, so its
+  // learned (and erratic) pattern must be suppressed to avoid paying it twice.
+  const vat = await getVatSettingRow();
+  const skip = new Set(SUPPLIER_CATS);
+  if (vat.enabled) skip.add('expense_vat');
+
+  const events: ProjectedEvent[] = projectFromPatterns(patterns, start, end, skip);
+
+  if (vat.enabled) {
+    const vatPattern = patterns.find((p) => p.category === 'expense_vat');
+    const perMonth = vat.amount_mode === 'fixed' && vat.fixed_amount
+      ? vat.fixed_amount
+      : (vatPattern?.monthly_total || 0);
+    // A bi-monthly filer pays one period's worth, i.e. two months of VAT.
+    const perPayment = vat.period === 'bimonthly' ? perMonth * 2 : perMonth;
+
+    if (perPayment > 0) {
+      let y = start.getUTCFullYear(), m = start.getUTCMonth();
+      for (let i = 0; i < 24; i++) {
+        // Israeli bi-monthly periods are fixed by law (Jan-Feb, Mar-Apr, ...)
+        // and each is paid the month after it closes — so payments always fall
+        // in an odd month. This is the statutory calendar, not a preference.
+        const isPaymentMonth = vat.period === 'monthly' || (m % 2 === 0);
+        if (isPaymentMonth) {
+          const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+          const d = new Date(Date.UTC(y, m, Math.min(vat.payment_day, last)));
+          if (d > end) break;
+          if (d > start) {
+            const periodLabel = vat.period === 'bimonthly' ? 'דו-חודשי' : 'חודשי';
+            events.push({
+              date: ymd(d), amount: -perPayment, label: 'מע"מ',
+              category: 'expense_vat',
+              source: `דיווח ${periodLabel}, תשלום ב-${vat.payment_day} לחודש · ${
+                vat.amount_mode === 'fixed' ? 'סכום שהוגדר ידנית' : 'הערכה לפי ממוצע התשלומים בעו"ש'}`,
+              confidence: vat.amount_mode === 'fixed' ? 'high' : 'medium',
+            });
+          }
+        }
+        m += 1;
+        if (m > 11) { y += 1; m = 0; }
+      }
+    }
+  }
 
   // ── real obligations ─────────────────────────────────────────────────────
   const matched: any[] = await dbx().$queryRawUnsafe(
@@ -242,6 +284,7 @@ registerFn('getCapitalForecast', async ({ user, body }: any) => {
     days,
     drivers,
     patterns,
+    vat: { enabled: vat.enabled, period: vat.period, payment_day: vat.payment_day },
     estimate_share: totalOut > 0 ? Math.round((topUpTotal / totalOut) * 100) : 0,
     known_invoices: invoices.filter((i) => i.due_date >= startKey && i.due_date <= endKey).length,
     overdue_invoices: overdue.length,

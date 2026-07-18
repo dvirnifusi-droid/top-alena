@@ -11,6 +11,7 @@ import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 import BankStatementCard from '../components/cashflow/BankStatementCard';
 import CapitalForecastCard from '../components/cashflow/CapitalForecastCard';
 import ReconcileCard from '../components/cashflow/ReconcileCard';
+import VatSettingCard from '../components/cashflow/VatSettingCard';
 
 const STATUS_LABEL = { received: 'התקבל', paid: 'שולם', planned: 'צפוי' };
 
@@ -152,6 +153,7 @@ function CashFlowInner() {
               <PayrollCard {...{ payroll, setPayroll, savePayroll, savingPayroll }} />
               <ManualRevenueCard {...{ manualRev, setManualRev, saveManualRevenue, savingRev, revMsg }} />
               <RecurringCostsCard {...{ costs, removeCost, newCost, setNewCost, addCost, formatCur }} />
+              <VatSettingCard />
             </div>
           </Section>
         </>

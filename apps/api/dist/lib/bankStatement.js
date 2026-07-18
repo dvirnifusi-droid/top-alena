@@ -172,7 +172,11 @@ const RULES = [
     { re: /קופת\s*סניף|הפקדת\s*מזומן|מזומן/i, inCat: 'income_cash', outCat: 'expense_cash' },
     { re: /פלאקסי|10\s*ביס|תן\s*ביס|סיבוס|cibus|goodi|גודי|וולט|wolt|ביי\s*מי|פאיימי|paybox|ביט|bit/i, inCat: 'income_delivery', outCat: 'expense_other' },
     { re: /משכורת|משכורות|שכר\s*עבודה|העברת\s*שכר|payroll|salary/i, outCat: 'expense_payroll' },
-    { re: /מ\.?\s*ע\.?\s*מ|מע"?מ|מס\s*הכנסה|ביטוח\s*לאומי|רשות\s*המסים|ניכויים|מקדמות/i, outCat: 'expense_tax', inCat: 'income_tax_refund' },
+    // VAT is split out from the other taxes: it is the one tax whose timing the
+    // owner can state exactly (monthly or bi-monthly), so the forecast schedules
+    // it explicitly instead of smearing it across the month like income tax.
+    { re: /מ\.?\s*ע\.?\s*מ\.?|מע"?מ|\bvat\b/i, outCat: 'expense_vat', inCat: 'income_vat_refund' },
+    { re: /מס\s*הכנסה|ביטוח\s*לאומי|רשות\s*המסים|ניכויים|מקדמות/i, outCat: 'expense_tax', inCat: 'income_tax_refund' },
     { re: /שכ"?ד|שכירות|דמי\s*שכירות|rent/i, outCat: 'expense_rent' },
     { re: /עירית|עיריי?ת|ארנונה|חשמל|חברת\s*החשמל|מי\s*|תאגיד\s*מים|בזק|פרטנר|סלקום|hot|יס\s|פלאפון/i, outCat: 'expense_utilities' },
     { re: /ביטוח|הראל|מגדל|כלל\s*ביטוח|הפניקס|מנורה|פנסיה|גמל|השתלמות/i, outCat: 'expense_insurance', inCat: 'income_other' },
@@ -225,7 +229,9 @@ export const CATEGORY_LABELS = {
     expense_supplier_transfer: { he: 'ספקים — העברות', dir: 'out' },
     expense_supplier_check: { he: 'ספקים — שיקים', dir: 'out' },
     expense_payroll: { he: 'משכורות', dir: 'out' },
-    expense_tax: { he: 'מיסים (מע"מ / מ"ה / ב"ל)', dir: 'out' },
+    expense_vat: { he: 'מע"מ', dir: 'out' },
+    income_vat_refund: { he: 'החזר מע"מ', dir: 'in' },
+    expense_tax: { he: 'מס הכנסה / ביטוח לאומי', dir: 'out' },
     expense_rent: { he: 'שכירות', dir: 'out' },
     expense_utilities: { he: 'ארנונה / חשמל / תקשורת', dir: 'out' },
     expense_insurance: { he: 'ביטוח ופנסיה', dir: 'out' },
