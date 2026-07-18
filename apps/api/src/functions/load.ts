@@ -6169,6 +6169,25 @@ registerFn('getOwnerDashboard', async ({ user }: any) => {
     select: { body: true, created_at: true },
   }).then((r: any[]) => r.map(x => ({ text: String(x.body || '').replace(/\s+/g, ' ').slice(0, 140), at: x.created_at })).filter(x => x.text)).catch(() => []);
 
+  // What Apollo actually DID today — powers the clickable "טיפל ב-N פעולות"
+  // panel. Same three sources the freedom index counts, but itemized.
+  out.automated_detail = {
+    whatsapp: await db2.whatsAppMessage.findMany({
+      where: { direction: 'outbound', created_at: { gte: t0, lte: dayEnd } },
+      orderBy: { created_at: 'desc' }, take: 12,
+      select: { body: true, created_at: true, to_phone: true },
+    }).then((r: any[]) => r.map((x) => ({
+      text: String(x.body || '').replace(/\s+/g, ' ').slice(0, 120),
+      at: x.created_at, to: String(x.to_phone || '').replace('whatsapp:', ''),
+    })).filter((x) => x.text)).catch(() => []),
+    checklists: await db.$queryRawUnsafe(
+      `SELECT c.title, ce.executed_by_name AS by, ce."updatedAt" AS at
+       FROM "ChecklistExecution" ce JOIN "Checklist" c ON c.id = ce.checklist_id
+       WHERE ce.status='completed' AND ce."updatedAt" >= $1
+       ORDER BY ce."updatedAt" DESC LIMIT 10`, t0,
+    ).catch(() => []),
+  };
+
   // Extra "needs you" sources beyond the freedom trio.
   const reqPending = await Promise.all([
     db2.leaveRequest.count({ where: { status: 'pending' } }).catch(() => 0),

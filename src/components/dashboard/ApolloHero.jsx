@@ -32,6 +32,7 @@ export default function ApolloHero() {
   const [showAttention, setShowAttention] = useState(false);
   const [showRes, setShowRes] = useState(false);
   const [showChecklists, setShowChecklists] = useState(false);
+  const [showDid, setShowDid] = useState(false);
   const [showRecruit, setShowRecruit] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -86,6 +87,7 @@ export default function ApolloHero() {
   const copyApply = () => { try { navigator.clipboard.writeText(applyUrl); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* ignore */ } };
   const cl = d.checklists_detail || { runs: [], not_started: 0 };
   const rec = d.recruitment || { new_candidates: [], upcoming_interviews: [] };
+  const did = d.automated_detail || { whatsapp: [], checklists: [] };
 
   return (
     <div dir="rtl" className="rounded-3xl mb-5 overflow-hidden" style={{ border: `1px solid ${A.line}`, boxShadow: '0 22px 50px rgba(36,24,17,.20)' }}>
@@ -129,7 +131,14 @@ export default function ApolloHero() {
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[14px] font-black" style={{ color: '#fff', textShadow: '0 1px 8px rgba(0,0,0,.6)' }}>אפולו טיפל ב-{f.automated ?? 0} פעולות היום 🎯</div>
+            {f.automated > 0 ? (
+              <button onClick={() => setShowDid(s => !s)} className="text-[14px] font-black inline-flex items-center gap-1.5 text-right hover:opacity-90 transition" style={{ color: '#fff', textShadow: '0 1px 8px rgba(0,0,0,.6)' }}>
+                אפולו טיפל ב-{f.automated} פעולות היום 🎯
+                <ChevronDown className={`w-4 h-4 transition-transform ${showDid ? 'rotate-180' : ''}`} style={{ color: A.goldHi }} />
+              </button>
+            ) : (
+              <div className="text-[14px] font-black" style={{ color: '#fff', textShadow: '0 1px 8px rgba(0,0,0,.6)' }}>אפולו טיפל ב-0 פעולות היום 🎯</div>
+            )}
             <div className="text-[12px] mt-1 leading-relaxed" style={{ color: 'rgba(255,255,255,.82)' }}>
               {f.breakdown?.whatsapp ? `💬 ${f.breakdown.whatsapp} תגובות וואטסאפ · ` : ''}
               {f.breakdown?.reservations ? `📅 ${f.breakdown.reservations} הזמנות · ` : ''}
@@ -168,6 +177,64 @@ export default function ApolloHero() {
             return <div key={i} className={cls} style={st}>{inner}</div>;
           })}
         </div>
+
+        {/* what Apollo actually handled today — opens from the "טיפל ב-N פעולות" line */}
+        {showDid && (
+          <div className="mx-4 mt-3 rounded-2xl overflow-hidden" style={{ border: `1px solid ${A.line}` }}>
+            <div className="px-3 py-2 text-[12px] font-black flex items-center gap-1.5" style={{ background: '#efe7fb', color: '#6d28d9' }}>
+              <Brain className="w-4 h-4" /> מה אפולו טיפל בו היום
+            </div>
+            <div style={{ background: '#fffaf5' }}>
+              {/* WhatsApp Apollo answered */}
+              {(did.whatsapp || []).length > 0 && (
+                <div className="px-3 py-2 border-b" style={{ borderColor: A.line }}>
+                  <div className="text-[11px] font-black mb-1.5" style={{ color: A.espresso }}>💬 תגובות וואטסאפ ({f.breakdown?.whatsapp ?? did.whatsapp.length})</div>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {did.whatsapp.map((w, i) => (
+                      <div key={i} className="text-[12px] leading-snug rounded-lg px-2 py-1.5" style={{ background: '#fff', border: `1px solid ${A.line}` }}>
+                        <span className="text-[10px] font-bold" style={{ color: '#9a7f57' }}>{ilTime(w.at)}{w.to ? ` · ${w.to}` : ''}</span>
+                        <div style={{ color: A.ink }}>{w.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* reservations handled */}
+              {(f.breakdown?.reservations ?? 0) > 0 && (
+                <div className="px-3 py-2 border-b" style={{ borderColor: A.line }}>
+                  <div className="text-[11px] font-black mb-1.5" style={{ color: A.espresso }}>📅 הזמנות שנקלטו ({f.breakdown.reservations})</div>
+                  <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                    {(d.reservations_list || []).slice(0, 8).map((r, i) => (
+                      <div key={i} className="flex items-center gap-2 text-[12px]">
+                        <span className="font-black tabular-nums shrink-0" style={{ color: '#2563eb' }}>{r.time || '—'}</span>
+                        <span className="flex-1 min-w-0 truncate" style={{ color: A.ink }}>{r.name || 'ללא שם'}</span>
+                        <span className="text-[11px] shrink-0" style={{ color: A.muted }}>{r.party || '?'} סועדים</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* checklists completed */}
+              {(did.checklists || []).length > 0 && (
+                <div className="px-3 py-2">
+                  <div className="text-[11px] font-black mb-1.5" style={{ color: A.espresso }}>✅ צ׳קליסטים שהושלמו ({did.checklists.length})</div>
+                  <div className="space-y-0.5">
+                    {did.checklists.map((c, i) => (
+                      <div key={i} className="flex items-center gap-2 text-[12px]">
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" style={{ color: '#4d7a2e' }} />
+                        <span className="flex-1 min-w-0 truncate" style={{ color: A.ink }}>{c.title}</span>
+                        {c.by && <span className="text-[11px] shrink-0" style={{ color: A.muted }}>{c.by}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(did.whatsapp || []).length === 0 && (did.checklists || []).length === 0 && (f.breakdown?.reservations ?? 0) === 0 && (
+                <div className="px-3 py-4 text-center text-[12px]" style={{ color: A.muted }}>אין פירוט זמין לפעולות של היום</div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* who's on shift now — opens on demand from the "במשמרת" tile */}
         {showShift && <div className="px-4 pt-3"><ActiveEmployeesWidget /></div>}
