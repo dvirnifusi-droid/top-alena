@@ -10,6 +10,8 @@ import { requirePageAccess } from '../lib/pagePermissions.js';
 import {
   parseBankFile, parseBankStatement, summarize, CATEGORY_LABELS, categorize,
 } from '../lib/bankStatement.js';
+import { reconcile, type MatchInvoice, type MatchTx } from '../lib/bankMatch.js';
+import { parsePaymentTerms, dueDateFor, ymd as ymdOf } from '../lib/paymentTerms.js';
 
 const isAdmin = (user: any) => user?.role === 'owner' || user?.role === 'admin';
 const dbx = () => prisma as any;
@@ -41,6 +43,66 @@ async function ensureTable(): Promise<void> {
     )`).catch(() => {});
   await dbx().$executeRawUnsafe(
     `CREATE INDEX IF NOT EXISTS "BankTransaction_date_idx" ON "BankTransaction"(tx_date)`).catch(() => {});
+  await dbx().$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "BankTxMatch" (
+      id TEXT PRIMARY KEY,
+      bank_tx_id TEXT NOT NULL,
+      invoice_id TEXT NOT NULL,
+      supplier_id TEXT,
+      amount NUMERIC(14,2),
+      method TEXT,
+      confidence TEXT,
+      manual BOOLEAN DEFAULT false,
+      created_date TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (bank_tx_id, invoice_id)
+    )`).catch(() => {});
+  await dbx().$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "BankAccountInfo" (
+      id TEXT PRIMARY KEY,
+      bank TEXT,
+      account TEXT,
+      credit_line NUMERIC(14,2),
+      closing_balance NUMERIC(14,2),
+      as_of DATE,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(() => {});
+}
+
+/** Open invoices with a due date, ready for matching or forecasting. */
+export async function loadOpenInvoices(): Promise<MatchInvoice[]> {
+  const suppliers: any[] = await dbx().$queryRawUnsafe(
+    `SELECT id, company_name, payment_terms, COALESCE(is_occasional,false) AS is_occasional
+     FROM "Supplier"`).catch(() => []);
+  const termsBy = new Map<string, any>();
+  const nameBy = new Map<string, string>();
+  for (const s of suppliers) {
+    termsBy.set(String(s.id), parsePaymentTerms(s.payment_terms, { occasional: s.is_occasional }));
+    nameBy.set(String(s.id), s.company_name || 'ספק');
+  }
+
+  const rows: any[] = await dbx().$queryRawUnsafe(
+    `SELECT id, supplier_id, invoice_date, total_amount,
+            (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name='Invoice' AND column_name='due_date')
+                  THEN due_date ELSE NULL END) AS due_date
+     FROM "Invoice"
+     WHERE COALESCE(status,'') <> 'rejected' AND supplier_id IS NOT NULL
+       AND invoice_date >= NOW() - INTERVAL '18 months'`).catch(() => []);
+
+  return rows.map((r: any) => {
+    const sid = String(r.supplier_id);
+    const invDate = new Date(r.invoice_date);
+    const terms = termsBy.get(sid) || parsePaymentTerms(null);
+    const due = r.due_date ? new Date(r.due_date) : dueDateFor(invDate, terms);
+    return {
+      id: String(r.id),
+      supplier_id: sid,
+      supplier_name: nameBy.get(sid) || 'ספק',
+      amount: Math.abs(Number(r.total_amount) || 0),
+      invoice_date: ymdOf(invDate),
+      due_date: ymdOf(due),
+    };
+  }).filter((i) => i.amount > 0);
 }
 
 const rid = () => `bt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
@@ -116,6 +178,17 @@ registerFn('importBankStatement', async ({ user, body }: any) => {
         t.balance, t.reference, t.category, parsed.bank, parsed.account, t.hash);
       imported++;
     } catch { /* one bad row must not abort the import */ }
+  }
+
+  // The credit line is what turns "negative balance" into "how much runway is
+  // left before the bank stops honouring payments".
+  if (parsed.credit_line != null || parsed.closing_balance != null) {
+    await dbx().$executeRawUnsafe(`DELETE FROM "BankAccountInfo"`).catch(() => {});
+    await dbx().$executeRawUnsafe(
+      `INSERT INTO "BankAccountInfo" (id, bank, account, credit_line, closing_balance, as_of)
+       VALUES ($1,$2,$3,$4,$5,$6::date)`,
+      rid(), parsed.bank, parsed.account, parsed.credit_line, parsed.closing_balance,
+      parsed.transactions[parsed.transactions.length - 1].date).catch(() => {});
   }
 
   // The statement's last known balance is the truest opening balance the
@@ -245,6 +318,132 @@ registerFn('setBankTxCategory', async ({ user, body }: any) => {
   await dbx().$executeRawUnsafe(
     `UPDATE "BankTransaction" SET category=$2, category_manual=true WHERE id=$1`, id, category);
   return { ok: true, id, category, label: CATEGORY_LABELS[category].he };
+});
+
+// ── reconciliation ─────────────────────────────────────────────────────────
+
+/**
+ * Match anonymous supplier outflows to invoices. dry_run reports what it would
+ * do; applying stores the match and writes the supplier's name onto the bank
+ * transaction. It deliberately does NOT mark invoices paid — that is an
+ * accounting record, and a matching heuristic has no business rewriting it.
+ */
+registerFn('reconcileBankTransactions', async ({ user, body }: any) => {
+  await guard(user);
+  await ensureTable();
+  const b = (body || {}) as any;
+  const apply = b.apply === true;
+  const minConf = String(b.min_confidence || 'medium');
+  const rank: Record<string, number> = { low: 0, medium: 1, high: 2 };
+
+  // Only outflows that carry no counterparty are worth matching — a named one
+  // already tells us who was paid.
+  const txRows: any[] = await dbx().$queryRawUnsafe(
+    `SELECT b.id, b.tx_date, b.amount, b.description
+     FROM "BankTransaction" b
+     WHERE b.amount < 0
+       AND (b.counterparty IS NULL OR b.counterparty = '')
+       AND b.category IN ('expense_supplier_transfer','expense_supplier_check')
+       AND NOT EXISTS (SELECT 1 FROM "BankTxMatch" m WHERE m.bank_tx_id = b.id)
+     ORDER BY b.tx_date`).catch(() => []);
+
+  const txs: MatchTx[] = txRows.map((r: any) => ({
+    id: String(r.id), date: String(r.tx_date).slice(0, 10),
+    amount: Number(r.amount), description: r.description || '',
+  }));
+
+  // Invoices already attributed to some other payment are out of the running.
+  const takenRows: any[] = await dbx().$queryRawUnsafe(
+    `SELECT invoice_id FROM "BankTxMatch"`).catch(() => []);
+  const taken = new Set(takenRows.map((r: any) => String(r.invoice_id)));
+  const invoices = (await loadOpenInvoices()).filter((i) => !taken.has(i.id));
+
+  const res = reconcile(txs, invoices);
+  const accepted = res.matches.filter((m) => rank[m.confidence] >= (rank[minConf] ?? 1));
+
+  let stored = 0;
+  if (apply) {
+    for (const m of accepted) {
+      for (const invId of m.invoice_ids) {
+        try {
+          await dbx().$executeRawUnsafe(
+            `INSERT INTO "BankTxMatch"
+               (id, bank_tx_id, invoice_id, supplier_id, amount, method, confidence)
+             VALUES ($1,$2,$3,$4,$5,$6,$7)
+             ON CONFLICT (bank_tx_id, invoice_id) DO NOTHING`,
+            rid(), m.bank_tx_id, invId, m.supplier_id, Math.abs(m.bank_amount), m.method, m.confidence);
+        } catch { /* skip the row, keep the run */ }
+      }
+      await dbx().$executeRawUnsafe(
+        `UPDATE "BankTransaction" SET counterparty=$2 WHERE id=$1 AND (counterparty IS NULL OR counterparty='')`,
+        m.bank_tx_id, m.supplier_name).catch(() => {});
+      stored++;
+    }
+  }
+
+  const sum = (xs: any[], f: (x: any) => number) => Math.round(xs.reduce((n, x) => n + f(x), 0));
+  return {
+    ok: true,
+    applied: apply,
+    stored,
+    candidates: txs.length,
+    open_invoices: invoices.length,
+    matched: accepted.length,
+    matched_amount: sum(accepted, (m) => Math.abs(m.bank_amount)),
+    unmatched_tx: res.unmatched_tx.length,
+    unmatched_amount: sum(res.unmatched_tx, (t) => Math.abs(t.amount)),
+    by_confidence: {
+      high: accepted.filter((m) => m.confidence === 'high').length,
+      medium: accepted.filter((m) => m.confidence === 'medium').length,
+      low: accepted.filter((m) => m.confidence === 'low').length,
+    },
+    matches: accepted.slice(0, 60),
+    // The biggest unexplained payments — where the owner's attention is worth most.
+    top_unmatched: [...res.unmatched_tx]
+      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).slice(0, 15)
+      .map((t) => ({ id: t.id, date: t.date, amount: t.amount, description: t.description })),
+  };
+});
+
+/** What has already been attributed, per supplier. */
+registerFn('getReconciliationSummary', async ({ user }: any) => {
+  await guard(user);
+  await ensureTable();
+  // A batch match stores one row per invoice, all carrying the same payment
+  // amount — so the payment total must be summed over DISTINCT bank
+  // transactions, while the invoice count is the row count.
+  const rows: any[] = await dbx().$queryRawUnsafe(
+    `WITH payments AS (
+       SELECT DISTINCT bank_tx_id, supplier_id, amount FROM "BankTxMatch"
+     ), inv AS (
+       SELECT supplier_id, COUNT(*)::int AS invoices FROM "BankTxMatch" GROUP BY supplier_id
+     )
+     SELECT p.supplier_id, s.company_name,
+            COUNT(*)::int AS payments, SUM(p.amount) AS total,
+            COALESCE(MAX(inv.invoices), 0) AS invoices
+     FROM payments p
+     LEFT JOIN "Supplier" s ON s.id = p.supplier_id
+     LEFT JOIN inv ON inv.supplier_id = p.supplier_id
+     GROUP BY p.supplier_id, s.company_name
+     ORDER BY total DESC NULLS LAST`).catch(() => []);
+  return {
+    suppliers: rows.map((r: any) => ({
+      supplier_id: r.supplier_id, name: r.company_name || 'לא ידוע',
+      payments: Number(r.payments) || 0, invoices: Number(r.invoices) || 0,
+      total: Math.round(n(r.total)),
+    })),
+  };
+});
+
+/** Undo a match the owner disagrees with. */
+registerFn('unmatchBankTx', async ({ user, body }: any) => {
+  await guard(user);
+  await ensureTable();
+  const id = String((body || {}).bank_tx_id || '');
+  if (!id) throw new Error('bad_request');
+  await dbx().$executeRawUnsafe(`DELETE FROM "BankTxMatch" WHERE bank_tx_id=$1`, id);
+  await dbx().$executeRawUnsafe(`UPDATE "BankTransaction" SET counterparty=NULL WHERE id=$1`, id);
+  return { ok: true };
 });
 
 /**

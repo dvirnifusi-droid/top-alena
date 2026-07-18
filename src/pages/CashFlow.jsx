@@ -9,6 +9,8 @@ import { RecurringCost } from '@/entities/all';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 import BankStatementCard from '../components/cashflow/BankStatementCard';
+import CapitalForecastCard from '../components/cashflow/CapitalForecastCard';
+import ReconcileCard from '../components/cashflow/ReconcileCard';
 
 const STATUS_LABEL = { received: 'התקבל', paid: 'שולם', planned: 'צפוי' };
 
@@ -173,7 +175,9 @@ function CashFlowInner() {
       )}
 
       {isOwner && (<>
+        <CapitalForecastCard />
         <BankStatementCard />
+        <ReconcileCard />
 
         <div className="grid md:grid-cols-2 gap-3">
           <Card>

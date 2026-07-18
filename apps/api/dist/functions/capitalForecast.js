@@ -1,0 +1,233 @@
+// צפי הון — where the money actually lands, day by day.
+//
+// Built from three sources, in descending order of trust:
+//   1. Real obligations   — open invoices with a due date from supplier terms.
+//   2. Learned rhythms    — card clearing, payroll, tax, rent, read off the
+//                           owner's own bank history rather than asked for.
+//   3. Run-rate top-up    — where the invoices on file fall short of what the
+//                           bank shows historically leaving for suppliers.
+//
+// The third source exists because under-forecasting outflow is the dangerous
+// direction: a forecast that only counts the invoices already scanned would
+// quietly promise money that is really already committed. It is labelled
+// separately so the owner can see exactly how much of the forecast is estimate.
+import { registerFn } from './index.js';
+import { prisma } from '../db.js';
+import { requirePageAccess } from '../lib/pagePermissions.js';
+import { detectPatterns, projectFromPatterns } from '../lib/cashPatterns.js';
+import { loadOpenInvoices } from './bankStatement.js';
+const isAdmin = (user) => user?.role === 'owner' || user?.role === 'admin';
+const dbx = () => prisma;
+const DAY = 86400_000;
+const ymd = (d) => d.toISOString().slice(0, 10);
+const n = (v) => (v == null ? 0 : Number(v));
+// Suppliers get their dates from invoices, so their statistical pattern must be
+// suppressed — counting both would bill the owner twice for the same shekel.
+const SUPPLIER_CATS = new Set(['expense_supplier_transfer', 'expense_supplier_check']);
+registerFn('getCapitalForecast', async ({ user, body }) => {
+    if (!user?.id)
+        throw new Error('unauthorized');
+    if (!isAdmin(user))
+        throw new Error('forbidden');
+    await requirePageAccess(user, 'CashFlow');
+    const horizon = Math.min(180, Math.max(14, Number((body || {}).days) || 90));
+    const rows = await dbx().$queryRawUnsafe(`SELECT tx_date, amount, balance, category, description
+     FROM "BankTransaction" ORDER BY tx_date`).catch(() => []);
+    if (rows.length < 20) {
+        return {
+            has_data: false,
+            reason: 'צריך ייבוא עו"ש (רצוי 3 חודשים ומעלה) כדי לבנות צפי אמין',
+            transactions: rows.length,
+        };
+    }
+    const txs = rows.map((r) => ({
+        date: String(r.tx_date).slice(0, 10),
+        amount: n(r.amount),
+        balance: r.balance == null ? null : n(r.balance),
+        category: r.category || 'unknown',
+    }));
+    // ── where we start from ──────────────────────────────────────────────────
+    // The last printed balance is ground truth; anything the bank recorded after
+    // it still has to be added, or the forecast starts from a stale number.
+    const lastBal = [...txs].reverse().find((t) => t.balance != null);
+    const anchorDate = lastBal?.date || txs[txs.length - 1].date;
+    const after = txs.filter((t) => t.date > anchorDate).reduce((s, t) => s + t.amount, 0);
+    const opening = (lastBal?.balance ?? 0) + after;
+    const info = await dbx().$queryRawUnsafe(`SELECT credit_line FROM "BankAccountInfo" ORDER BY updated_at DESC LIMIT 1`).catch(() => []);
+    const creditLine = Math.abs(n(info[0]?.credit_line)) || 0;
+    // ── learned rhythms ──────────────────────────────────────────────────────
+    const patterns = detectPatterns(txs);
+    const today = new Date(`${ymd(new Date())}T00:00:00.000Z`);
+    const start = new Date(Math.max(today.getTime(), Date.parse(anchorDate)));
+    const end = new Date(start.getTime() + horizon * DAY);
+    const events = projectFromPatterns(patterns, start, end, SUPPLIER_CATS);
+    // ── real obligations ─────────────────────────────────────────────────────
+    const matched = await dbx().$queryRawUnsafe(`SELECT DISTINCT invoice_id FROM "BankTxMatch"`).catch(() => []);
+    const paid = new Set(matched.map((r) => String(r.invoice_id)));
+    const invoices = (await loadOpenInvoices()).filter((i) => !paid.has(i.id));
+    const startKey = ymd(start), endKey = ymd(end);
+    let overdueTotal = 0;
+    const overdue = [];
+    for (const inv of invoices) {
+        if (inv.due_date < startKey) {
+            // Already past due and still unpaid — it has not left the account, so it
+            // is a real claim on tomorrow's cash, not history. Land it immediately
+            // rather than dropping it out of the forecast entirely.
+            overdueTotal += inv.amount;
+            overdue.push(inv);
+            continue;
+        }
+        if (inv.due_date > endKey)
+            continue;
+        events.push({
+            date: inv.due_date, amount: -inv.amount,
+            label: `חשבונית — ${inv.supplier_name}`,
+            category: 'expense_supplier_invoice',
+            source: `חשבונית מ-${inv.invoice_date} לפי תנאי התשלום של הספק`,
+            confidence: 'high',
+        });
+    }
+    if (overdueTotal > 0) {
+        events.push({
+            date: ymd(new Date(start.getTime() + DAY)),
+            amount: -overdueTotal,
+            label: `חשבוניות באיחור (${overdue.length})`,
+            category: 'expense_supplier_invoice',
+            source: 'חשבונות שמועד התשלום שלהם עבר וטרם שולמו — מוצגים כיציאה מיידית',
+            confidence: 'medium',
+        });
+    }
+    // ── run-rate top-up ──────────────────────────────────────────────────────
+    // How much the bank says suppliers cost per month, vs how much the invoices
+    // on file account for. The shortfall is real spending we simply have no
+    // invoice for yet.
+    const supplierRunRate = patterns
+        .filter((p) => SUPPLIER_CATS.has(p.category))
+        .reduce((s, p) => s + p.monthly_total, 0);
+    const invoiceByMonth = new Map();
+    for (const e of events) {
+        if (e.category !== 'expense_supplier_invoice')
+            continue;
+        const k = e.date.slice(0, 7);
+        invoiceByMonth.set(k, (invoiceByMonth.get(k) || 0) + Math.abs(e.amount));
+    }
+    let topUpTotal = 0;
+    if (supplierRunRate > 0) {
+        for (let d = new Date(start); d <= end; d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))) {
+            const k = ymd(d).slice(0, 7);
+            const monthStart = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+            const monthEnd = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+            const from = new Date(Math.max(monthStart.getTime(), start.getTime() + DAY));
+            const to = new Date(Math.min(monthEnd.getTime(), end.getTime()));
+            const daysInWindow = Math.round((to.getTime() - from.getTime()) / DAY) + 1;
+            if (daysInWindow <= 0)
+                continue;
+            // Only the covered slice of the month counts, so a part-month at either
+            // end of the horizon is not charged a whole month of supplier spend.
+            const expected = supplierRunRate * (daysInWindow / monthEnd.getUTCDate());
+            const known = invoiceByMonth.get(k) || 0;
+            const gap = expected - known;
+            if (gap <= 100)
+                continue;
+            const perDay = gap / daysInWindow;
+            topUpTotal += gap;
+            for (let x = new Date(from); x <= to; x = new Date(x.getTime() + DAY)) {
+                events.push({
+                    date: ymd(x), amount: -perDay,
+                    label: 'ספקים — השלמה להערכה',
+                    category: 'expense_supplier_estimate',
+                    source: `לפי העו"ש ספקים עולים ${Math.round(supplierRunRate).toLocaleString()} ₪ בחודש; החשבוניות שבמערכת מכסות ${Math.round(known).toLocaleString()} ₪ מהחודש הזה`,
+                    confidence: 'low',
+                });
+            }
+        }
+    }
+    // ── daily series ─────────────────────────────────────────────────────────
+    const byDay = new Map();
+    for (const e of events) {
+        if (e.date <= ymd(start) || e.date > endKey)
+            continue;
+        if (!byDay.has(e.date))
+            byDay.set(e.date, []);
+        byDay.get(e.date).push(e);
+    }
+    const days = [];
+    let balance = opening;
+    let minPoint = { date: ymd(start), balance: opening };
+    let firstNegative = null;
+    let firstBeyondCredit = null;
+    for (let d = new Date(start.getTime() + DAY); d <= end; d = new Date(d.getTime() + DAY)) {
+        const key = ymd(d);
+        const list = byDay.get(key) || [];
+        const inSum = list.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);
+        const outSum = list.filter((e) => e.amount < 0).reduce((s, e) => s - e.amount, 0);
+        balance += inSum - outSum;
+        if (balance < minPoint.balance)
+            minPoint = { date: key, balance };
+        if (firstNegative === null && balance < 0)
+            firstNegative = key;
+        if (firstBeyondCredit === null && creditLine > 0 && balance < -creditLine)
+            firstBeyondCredit = key;
+        days.push({
+            date: key,
+            in: Math.round(inSum),
+            out: Math.round(outSum),
+            net: Math.round(inSum - outSum),
+            balance: Math.round(balance),
+            events: list
+                .filter((e) => Math.abs(e.amount) >= 50)
+                .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+                .slice(0, 6)
+                .map((e) => ({ label: e.label, amount: Math.round(e.amount), source: e.source, confidence: e.confidence })),
+        });
+    }
+    // ── drivers ──────────────────────────────────────────────────────────────
+    const agg = new Map();
+    for (const e of events) {
+        if (e.date <= ymd(start) || e.date > endKey)
+            continue;
+        const k = e.category;
+        const cur = agg.get(k) || { label: e.label.replace(/\s*\(.*\)$/, ''), total: 0 };
+        cur.total += e.amount;
+        agg.set(k, cur);
+    }
+    const drivers = [...agg.entries()]
+        .map(([category, v]) => ({ category, label: v.label, total: Math.round(v.total) }))
+        .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+    const totalIn = days.reduce((s, d) => s + d.in, 0);
+    const totalOut = days.reduce((s, d) => s + d.out, 0);
+    const warnings = [];
+    if (topUpTotal > 0) {
+        warnings.push(`${Math.round(topUpTotal).toLocaleString()} ₪ מהצפי הם הערכה לפי הרגלי העבר ולא חשבוניות בפועל — סרוק חשבוניות כדי לדייק`);
+    }
+    const lowConf = patterns.filter((p) => p.confidence === 'low');
+    if (lowConf.length) {
+        warnings.push(`${lowConf.length} קטגוריות ללא דפוס ברור (${lowConf.slice(0, 3).map((p) => p.label).join(', ')}) — נפרסו כממוצע יומי`);
+    }
+    const ageDays = Math.round((Date.now() - Date.parse(anchorDate)) / DAY);
+    if (ageDays > 7) {
+        warnings.push(`העו"ש מעודכן ל-${anchorDate} (לפני ${ageDays} ימים) — ייבא ייצוא עדכני לדיוק מלא`);
+    }
+    return {
+        has_data: true,
+        horizon,
+        opening: { balance: Math.round(opening), date: anchorDate, age_days: ageDays },
+        credit_line: creditLine,
+        closing: { balance: Math.round(balance), date: endKey },
+        total_in: Math.round(totalIn),
+        total_out: Math.round(totalOut),
+        net: Math.round(totalIn - totalOut),
+        min_point: { date: minPoint.date, balance: Math.round(minPoint.balance) },
+        first_negative: firstNegative,
+        first_beyond_credit: firstBeyondCredit,
+        days,
+        drivers,
+        patterns,
+        estimate_share: totalOut > 0 ? Math.round((topUpTotal / totalOut) * 100) : 0,
+        known_invoices: invoices.filter((i) => i.due_date >= startKey && i.due_date <= endKey).length,
+        overdue_invoices: overdue.length,
+        overdue_amount: Math.round(overdueTotal),
+        warnings,
+    };
+});
+//# sourceMappingURL=capitalForecast.js.map
