@@ -49,7 +49,17 @@ export function matchTierForRole(role, tiers) {
 // employee's job title against a tier label. allowed_pages === null means the
 // tenant hasn't configured an allowlist → callers keep the legacy behaviour.
 export async function resolveUserTier(user) {
-    if (String(user?.role) === 'owner') {
+    // Same reason as buildPayViewer: the JWT's role is a snapshot from login, so a
+    // freshly promoted owner would keep getting the old permissions until re-login.
+    let liveRole = user?.role ?? null;
+    if (user?.id) {
+        const row = await prisma.user.findUnique({
+            where: { id: user.id }, select: { role: true },
+        }).catch(() => null);
+        if (row?.role)
+            liveRole = row.role;
+    }
+    if (String(liveRole) === 'owner') {
         return { is_owner: true, tier: null, allowed_pages: null, source: 'owner' };
     }
     await ensurePermissionTiers();

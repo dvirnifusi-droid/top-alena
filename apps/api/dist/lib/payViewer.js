@@ -5,7 +5,19 @@
 // flag. Owner is strictly role === 'owner' (no 'admin') to match the pay module.
 import { prisma } from '../db.js';
 export async function buildPayViewer(user) {
-    const isOwner = user?.role === 'owner';
+    // Read the CURRENT role from the DB, not the JWT. A JWT carries the role from
+    // login time, so promoting someone to 'owner' had no effect until they logged
+    // out and back in — they stayed locked out of their own salary data with no
+    // hint why. The DB is the source of truth; the token is only a fallback.
+    let liveRole = user?.role ?? null;
+    if (user?.id) {
+        const row = await prisma.user.findUnique({
+            where: { id: user.id }, select: { role: true },
+        }).catch(() => null);
+        if (row?.role)
+            liveRole = row.role;
+    }
+    const isOwner = liveRole === 'owner';
     let emp = null;
     if (user?.email) {
         // Employee.email is neither unique nor guaranteed distinct (synthetic/placeholder
