@@ -81,6 +81,14 @@ function LaborCostInner() {
           {/* Enter pay for every employee here — writes EmployeePay → the KPIs below light up. */}
           <EmployeePayMatrix defaultOpen={!ratio?.ratio_pct} onSaved={load} />
 
+          {/* Never present an estimate as a known number. */}
+          {(labor?.estimated_employees > 0 || ratio?.estimated_employees > 0) && (
+            <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              ≈ {labor?.estimated_employees || ratio?.estimated_employees} עובדים מחושבים לפי <b>תעריף התפקיד</b> (הערכה), כי אין להם תעריף אישי.
+              להחלפה בסכום מדויק — הזן להם תעריף בטבלה למעלה. לעריכת ההערכה — ניהול תפקידים → "שכר לשעה".
+            </div>
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {ratio?.ratio_pct != null && (
               <Card className="bg-indigo-50 border-indigo-200 col-span-2">
