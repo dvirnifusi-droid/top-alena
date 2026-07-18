@@ -12,7 +12,7 @@ import './laborCost.js';
 import './i18nTranslate.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
-import { ensurePermissionTiers, resolveUserTier, requireBackOffice, requireStaff } from '../lib/pagePermissions.js';
+import { ensurePermissionTiers, resolveUserTier, requireBackOffice, requireStaff, matchTierForRole } from '../lib/pagePermissions.js';
 import { registerFn, functionHandlers } from './index.js';
 import { sendSms, sendWhatsApp, sendWhatsAppTemplate, invalidateTwilioCredsCache, twilioAuth } from '../lib/twilio.js';
 import { pushover, pushoverToAdmins, pushoverEventsOwners } from '../lib/pushover.js';
@@ -7709,15 +7709,14 @@ registerFn('listEmployeeTiers', async ({ user }) => {
     const tiers = await db2.$queryRawUnsafe(`SELECT id, label, base_level, allowed_pages FROM "PermissionTier" ORDER BY "sort" ASC`).catch(() => []);
     const emps = await db2.$queryRawUnsafe(`SELECT id, full_name, role, department, status, permission_tier_id
      FROM "Employee" ORDER BY (status='active') DESC, full_name ASC`).catch(() => []);
-    const norm = (s) => String(s || '').replace(/[\s"'׳״־-]+/g, '').toLowerCase();
-    const byLabel = new Map(tiers.map((t) => [norm(t.label), t]));
     return {
         tiers: tiers.map((t) => ({
             id: t.id, label: t.label, base_level: t.base_level,
             pages: Array.isArray(t.allowed_pages) ? t.allowed_pages.length : null,
         })),
         employees: emps.map((e) => {
-            const auto = byLabel.get(norm(e.role)) || null;
+            // Same matcher the real resolver uses, so the preview can't lie.
+            const auto = matchTierForRole(e.role, tiers);
             return {
                 id: e.id, full_name: e.full_name, role: e.role, department: e.department, status: e.status,
                 tier_id: e.permission_tier_id || null,

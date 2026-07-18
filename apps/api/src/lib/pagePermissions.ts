@@ -26,7 +26,26 @@ export async function ensurePermissionTiers(): Promise<void> {
 }
 
 // Normalize a role/position/tier label for auto-matching ("מנהל  מטבח" ≡ "מנהל מטבח").
-export const normTier = (s: any) => String(s || '').replace(/[\s"'׳״־-]+/g, '').toLowerCase();
+// `/` is stripped too so a tier written "מארח/ת" matches the job title "מארחת".
+export const normTier = (s: any) => String(s || '').replace(/[\s"'׳״־\-/\\|,.]+/g, '').toLowerCase();
+
+// Match a job title to exactly one tier. Exact match wins; otherwise fall back to
+// containment, which catches Hebrew gender forms and compound titles
+// ("מלצרית" / "מלצרית וקופה" → "מלצר"). Ambiguity FAILS CLOSED: a generic title
+// like "מנהל" matches מנהל פלור / מנהל מטבח / מנהל משמרת, so we return null and
+// let the owner assign it explicitly rather than guess a permission level.
+export function matchTierForRole(role: any, tiers: any[]): any | null {
+  const r = normTier(role);
+  if (!r) return null;
+  const exact = tiers.filter((t) => normTier(t.label) === r);
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1) return null;
+  const partial = tiers.filter((t) => {
+    const l = normTier(t.label);
+    return l.length >= 3 && (r.includes(l) || l.includes(r));
+  });
+  return partial.length === 1 ? partial[0] : null;
+}
 
 export type ResolvedTier = {
   is_owner: boolean;
@@ -65,9 +84,11 @@ export async function resolveUserTier(user: any): Promise<ResolvedTier> {
   }
   if (!tier && emp) {
     const cands = [emp.role, ...(Array.isArray(emp.positions) ? emp.positions.map((p: any) => p?.position_name) : [])]
-      .filter(Boolean).map(normTier);
-    tier = tiers.find((t) => cands.includes(normTier(t.label))) || null;
-    if (tier) source = 'auto_position';
+      .filter(Boolean);
+    for (const c of cands) {
+      tier = matchTierForRole(c, tiers);
+      if (tier) { source = 'auto_position'; break; }
+    }
   }
   if (!tier) return { is_owner: false, tier: null, allowed_pages: null, source };
 

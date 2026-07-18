@@ -22,7 +22,28 @@ export async function ensurePermissionTiers() {
     _permEnsured = true;
 }
 // Normalize a role/position/tier label for auto-matching ("מנהל  מטבח" ≡ "מנהל מטבח").
-export const normTier = (s) => String(s || '').replace(/[\s"'׳״־-]+/g, '').toLowerCase();
+// `/` is stripped too so a tier written "מארח/ת" matches the job title "מארחת".
+export const normTier = (s) => String(s || '').replace(/[\s"'׳״־\-/\\|,.]+/g, '').toLowerCase();
+// Match a job title to exactly one tier. Exact match wins; otherwise fall back to
+// containment, which catches Hebrew gender forms and compound titles
+// ("מלצרית" / "מלצרית וקופה" → "מלצר"). Ambiguity FAILS CLOSED: a generic title
+// like "מנהל" matches מנהל פלור / מנהל מטבח / מנהל משמרת, so we return null and
+// let the owner assign it explicitly rather than guess a permission level.
+export function matchTierForRole(role, tiers) {
+    const r = normTier(role);
+    if (!r)
+        return null;
+    const exact = tiers.filter((t) => normTier(t.label) === r);
+    if (exact.length === 1)
+        return exact[0];
+    if (exact.length > 1)
+        return null;
+    const partial = tiers.filter((t) => {
+        const l = normTier(t.label);
+        return l.length >= 3 && (r.includes(l) || l.includes(r));
+    });
+    return partial.length === 1 ? partial[0] : null;
+}
 // Owner always gets everything (you can never lock yourself out). Otherwise an
 // explicit assignment (Employee.permission_tier_id) wins, else we auto-match the
 // employee's job title against a tier label. allowed_pages === null means the
@@ -50,10 +71,14 @@ export async function resolveUserTier(user) {
     }
     if (!tier && emp) {
         const cands = [emp.role, ...(Array.isArray(emp.positions) ? emp.positions.map((p) => p?.position_name) : [])]
-            .filter(Boolean).map(normTier);
-        tier = tiers.find((t) => cands.includes(normTier(t.label))) || null;
-        if (tier)
-            source = 'auto_position';
+            .filter(Boolean);
+        for (const c of cands) {
+            tier = matchTierForRole(c, tiers);
+            if (tier) {
+                source = 'auto_position';
+                break;
+            }
+        }
     }
     if (!tier)
         return { is_owner: false, tier: null, allowed_pages: null, source };
