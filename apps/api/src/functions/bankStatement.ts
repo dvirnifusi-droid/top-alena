@@ -11,6 +11,7 @@ import {
   parseBankFile, parseBankStatement, summarize, CATEGORY_LABELS, categorize,
 } from '../lib/bankStatement.js';
 import { reconcile, type MatchInvoice, type MatchTx } from '../lib/bankMatch.js';
+import { ensureBankTables, persistStatement, freshTransactions } from '../lib/bankPersist.js';
 import { parsePaymentTerms, dueDateFor, ymd as ymdOf } from '../lib/paymentTerms.js';
 
 const isAdmin = (user: any) => user?.role === 'owner' || user?.role === 'admin';
@@ -22,50 +23,10 @@ async function guard(user: any) {
   await requirePageAccess(user, 'CashFlow');
 }
 
-// Isolated table: additive only, never touches an existing Prisma model.
+// Isolated tables live in lib/bankPersist so the upload route and the automatic
+// email/WhatsApp route create and write them identically.
 async function ensureTable(): Promise<void> {
-  await dbx().$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "BankTransaction" (
-      id TEXT PRIMARY KEY,
-      tx_date DATE NOT NULL,
-      value_date DATE,
-      description TEXT,
-      counterparty TEXT,
-      amount NUMERIC(14,2) NOT NULL,
-      balance NUMERIC(14,2),
-      reference TEXT,
-      category TEXT,
-      category_manual BOOLEAN DEFAULT false,
-      bank TEXT,
-      account TEXT,
-      hash TEXT NOT NULL UNIQUE,
-      created_date TIMESTAMPTZ DEFAULT NOW()
-    )`).catch(() => {});
-  await dbx().$executeRawUnsafe(
-    `CREATE INDEX IF NOT EXISTS "BankTransaction_date_idx" ON "BankTransaction"(tx_date)`).catch(() => {});
-  await dbx().$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "BankTxMatch" (
-      id TEXT PRIMARY KEY,
-      bank_tx_id TEXT NOT NULL,
-      invoice_id TEXT NOT NULL,
-      supplier_id TEXT,
-      amount NUMERIC(14,2),
-      method TEXT,
-      confidence TEXT,
-      manual BOOLEAN DEFAULT false,
-      created_date TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE (bank_tx_id, invoice_id)
-    )`).catch(() => {});
-  await dbx().$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "BankAccountInfo" (
-      id TEXT PRIMARY KEY,
-      bank TEXT,
-      account TEXT,
-      credit_line NUMERIC(14,2),
-      closing_balance NUMERIC(14,2),
-      as_of DATE,
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )`).catch(() => {});
+  await ensureBankTables();
 }
 
 /** Open invoices with a due date, ready for matching or forecasting. */
@@ -134,15 +95,8 @@ registerFn('importBankStatement', async ({ user, body }: any) => {
 
   await ensureTable();
 
-  // Which of these do we already hold? Compared by hash so an overlapping
-  // re-export is recognised rather than double-counted.
-  const hashes = parsed.transactions.map((t) => t.hash);
-  const existing: any[] = hashes.length
-    ? await dbx().$queryRawUnsafe(
-        `SELECT hash FROM "BankTransaction" WHERE hash = ANY($1::text[])`, hashes).catch(() => [])
-    : [];
-  const have = new Set(existing.map((r: any) => String(r.hash)));
-  const fresh = parsed.transactions.filter((t) => !have.has(t.hash));
+  // Compared by hash so an overlapping re-export is recognised, not duplicated.
+  const fresh = await freshTransactions(parsed);
 
   const summary = summarize(parsed.transactions);
   const preview = {
@@ -165,55 +119,8 @@ registerFn('importBankStatement', async ({ user, body }: any) => {
   };
   if (dryRun) return preview;
 
-  let imported = 0;
-  for (const t of fresh) {
-    try {
-      await dbx().$executeRawUnsafe(
-        `INSERT INTO "BankTransaction"
-           (id, tx_date, value_date, description, counterparty, amount, balance,
-            reference, category, bank, account, hash)
-         VALUES ($1,$2::date,$3::date,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-         ON CONFLICT (hash) DO NOTHING`,
-        rid(), t.date, t.value_date, t.description, t.counterparty, t.amount,
-        t.balance, t.reference, t.category, parsed.bank, parsed.account, t.hash);
-      imported++;
-    } catch { /* one bad row must not abort the import */ }
-  }
-
-  // The credit line is what turns "negative balance" into "how much runway is
-  // left before the bank stops honouring payments".
-  if (parsed.credit_line != null || parsed.closing_balance != null) {
-    await dbx().$executeRawUnsafe(`DELETE FROM "BankAccountInfo"`).catch(() => {});
-    await dbx().$executeRawUnsafe(
-      `INSERT INTO "BankAccountInfo" (id, bank, account, credit_line, closing_balance, as_of)
-       VALUES ($1,$2,$3,$4,$5,$6::date)`,
-      rid(), parsed.bank, parsed.account, parsed.credit_line, parsed.closing_balance,
-      parsed.transactions[parsed.transactions.length - 1].date).catch(() => {});
-  }
-
-  // The statement's last known balance is the truest opening balance the
-  // forecast can have — set it automatically so the owner never types it.
-  let openingSet: { balance: number; date: string } | null = null;
-  const lastWithBalance = [...parsed.transactions].reverse().find((t) => t.balance != null);
-  const bal = parsed.closing_balance ?? lastWithBalance?.balance ?? null;
-  if (bal != null) {
-    const asOf = lastWithBalance?.date || parsed.transactions[parsed.transactions.length - 1].date;
-    try {
-      // Same record getCashFlowOpening reads, so the forecast picks it up with
-      // no extra wiring.
-      const date = new Date(`${asOf}T00:00:00.000Z`);
-      const existing = await dbx().cashFlowSetting.findFirst().catch(() => null);
-      if (existing) {
-        await dbx().cashFlowSetting.update({
-          where: { id: existing.id }, data: { opening_balance: bal, opening_date: date } });
-      } else {
-        await dbx().cashFlowSetting.create({ data: { opening_balance: bal, opening_date: date } });
-      }
-      openingSet = { balance: bal, date: asOf };
-    } catch { /* opening balance is a bonus, not a reason to fail the import */ }
-  }
-
-  return { ...preview, dry_run: false, imported, opening_set: openingSet };
+  const res = await persistStatement(parsed);
+  return { ...preview, dry_run: false, imported: res.imported, opening_set: res.opening_set };
 });
 
 /** Everything the cash-flow history view needs, from real bank movement. */

@@ -1,5 +1,7 @@
 // Cron job: pull invoices from connected mailboxes into pending_review
 // Invoices. Called every 10 min from /api/cron/email-invoice-scan.
+import { parseBankFile } from './bankStatement.js';
+import { persistStatement, looksLikeStatement } from './bankPersist.js';
 import { Readable } from 'node:stream';
 import { prisma } from '../db.js';
 import { invokeLLM } from './llm.js';
@@ -196,6 +198,27 @@ async function importInvoicesFromFile(invoices, storedUrl, ctx, state, results) 
         results.imported++;
     }
 }
+const SHEET_EXT = /\.(xls|xlsx|csv|txt|htm|html)$/i;
+/**
+ * Try every spreadsheet-ish attachment as a bank statement. Returns the import
+ * result on success, or null when this message is not a statement — in which
+ * case the caller carries on with the normal invoice path.
+ */
+async function tryImportStatement(msg) {
+    for (const att of msg.attachments) {
+        if (!SHEET_EXT.test(att.filename || ''))
+            continue;
+        try {
+            const parsed = await parseBankFile(att.content, att.filename);
+            if (!looksLikeStatement(parsed))
+                continue;
+            const res = await persistStatement(parsed);
+            return { imported: res.imported };
+        }
+        catch { /* not a statement — fall through to the invoice path */ }
+    }
+    return null;
+}
 async function processMessage(acct, msg, results) {
     const log = (outcome, extra = {}) => prisma.emailMessageLog.create({
         data: {
@@ -207,6 +230,15 @@ async function processMessage(acct, msg, results) {
             ...extra,
         },
     }).catch(() => { });
+    // Bank statement first. Decided by parsing the file, not by its name or
+    // sender — a statement can arrive from any address with any subject, and a
+    // supplier price list can be called "statement.xls". If it parses as a
+    // statement it is one, and it must not also be treated as an invoice.
+    const statementResult = await tryImportStatement(msg);
+    if (statementResult) {
+        await log('bank_statement', { imported: statementResult.imported });
+        return;
+    }
     const rule = msg.sender
         ? await prisma.emailSenderRule.findUnique({ where: { sender_email: msg.sender } }).catch(() => null)
         : null;

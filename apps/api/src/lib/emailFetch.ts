@@ -9,6 +9,12 @@ export const ALLOWED_ATTACHMENT_MIME = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
+  // Spreadsheet/CSV shapes carry bank statements. They are NOT sent to the
+  // invoice extractor — the scanner routes them to the statement parser first,
+  // and drops them if they do not parse as one.
+  'text/csv',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]);
 export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
 
@@ -18,6 +24,9 @@ const EXT_TO_MIME: Record<string, string> = {
   '.jpeg': 'image/jpeg',
   '.png': 'image/png',
   '.webp': 'image/webp',
+  '.csv': 'text/csv',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
 
 // Many Israeli billing systems ship PDFs as application/octet-stream (or no
