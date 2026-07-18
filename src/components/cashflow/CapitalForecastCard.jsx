@@ -59,7 +59,29 @@ export default function CapitalForecastCard() {
         ) : !data ? (
           <p className="text-sm text-slate-500 text-center py-4">לא הצלחתי לטעון את הצפי</p>
         ) : !data.has_data ? (
-          <p className="text-sm text-slate-600 text-center py-4">{data.reason}</p>
+          // An empty state should say what the thing will do once it has data,
+          // not just report that it has none.
+          <div className="text-center py-6 px-4">
+            <div className="text-4xl mb-3">🏦</div>
+            <p className="text-base font-semibold text-slate-800">עוד אין מספיק נתונים לצפי</p>
+            <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">{data.reason}</p>
+            <div className="mt-4 grid sm:grid-cols-3 gap-2 max-w-xl mx-auto text-right">
+              {[
+                ['📅', 'מתי נגמר הכסף', 'התאריך המדויק שבו היתרה יורדת מתחת לאפס ומתי אתה חורג מהמסגרת'],
+                ['🔁', 'בלי להזין כלום', 'התאריכים והסכומים נלמדים מהעו"ש שלך — מתי נכנסת הסליקה, מתי יוצא השכר'],
+                ['🧾', 'לפי תנאי הספקים', 'כל חשבונית פתוחה נוחתת בתאריך התשלום האמיתי שלה'],
+              ].map(([icon, title, body]) => (
+                <div key={title} className="rounded-lg border bg-slate-50/60 p-2.5">
+                  <div className="text-lg">{icon}</div>
+                  <p className="text-xs font-semibold mt-0.5">{title}</p>
+                  <p className="text-[11px] text-slate-500 leading-snug mt-0.5">{body}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-4">
+              העלה את ייצוא העו"ש בכרטיס שמתחת — הצפי ייבנה מיד
+            </p>
+          </div>
         ) : (
           <>
             {/* headline */}

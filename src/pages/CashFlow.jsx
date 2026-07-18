@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Loader2, Wallet, RefreshCw, AlertTriangle, ArrowDownCircle, ArrowUpCircle, Plus, Trash2, Save } from 'lucide-react';
+import { Loader2, Wallet, RefreshCw, AlertTriangle, ArrowDownCircle, ArrowUpCircle, Plus, Trash2, Save, ChevronDown } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { RecurringCost } from '@/entities/all';
 import PageGuard from '../components/shared/PageGuard';
@@ -136,16 +136,29 @@ function CashFlowInner() {
       />
       <div className="space-y-4">
 
-      {isOwner && (<>
-        <CapitalForecastCard />
-        <BankStatementCard />
-        <ReconcileCard />
-      </>)}
+      {isOwner && (
+        <>
+          <CapitalForecastCard />
 
-      <h3 className="text-sm font-semibold text-slate-600 pt-2">
-        פירוט לפי דוחות משמרת וחשבוניות
-        <span className="font-normal text-slate-400"> · תחזית {days} יום</span>
-      </h3>
+          <Section title="📥 מקורות נתונים — עו״ש ושיוך תשלומים"
+            hint="מכאן הצפי מקבל את הנתונים" defaultOpen={!hasOpening}>
+            <BankStatementCard />
+            <ReconcileCard />
+          </Section>
+
+          <Section title="⚙️ הגדרות תזרים" hint="יתרת פתיחה, משכורות, עלויות קבועות">
+            <div className="grid md:grid-cols-2 gap-3">
+              <OpeningCard {...{ opening, setOpening, saveOpening, savingOpen }} />
+              <PayrollCard {...{ payroll, setPayroll, savePayroll, savingPayroll }} />
+              <ManualRevenueCard {...{ manualRev, setManualRev, saveManualRevenue, savingRev, revMsg }} />
+              <RecurringCostsCard {...{ costs, removeCost, newCost, setNewCost, addCost, formatCur }} />
+            </div>
+          </Section>
+        </>
+      )}
+
+      <Section title="📊 פירוט לפי דוחות משמרת וחשבוניות"
+        hint={`תחזית ${days} יום`}>
 
       {data && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -200,89 +213,6 @@ function CashFlowInner() {
         </Card>
       )}
 
-      {isOwner && (<>
-        <div className="grid md:grid-cols-2 gap-3">
-          <Card>
-            <CardHeader><CardTitle className="text-base">💵 פדיון יומי ידני</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-xs text-slate-500">
-                יום שלא הוגש עליו דוח סיום משמרת נספר כאפס הכנסה. הזן כאן את הזד והוא ייכנס לתזרים.
-              </p>
-              <div className="flex items-end gap-2">
-                <div>
-                  <label className="text-xs text-slate-500">תאריך</label>
-                  <Input type="date" value={manualRev.date} onChange={e => setManualRev(v => ({ ...v, date: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500">פדיון (₪)</label>
-                  <Input type="number" dir="ltr" value={manualRev.amount} onChange={e => setManualRev(v => ({ ...v, amount: e.target.value }))} />
-                </div>
-                <Button onClick={saveManualRevenue} disabled={savingRev}><Save className="w-4 h-4 ml-1" />שמור</Button>
-              </div>
-              {revMsg && <div className={`text-xs ${revMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>{revMsg.t}</div>}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-base">👥 משכורות בתזרים</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-xs text-slate-500">
-                השכר מחושב מהסידור (כולל שעות נוספות ועלות מעביד) ויוצא כתשלום אחד ביום המשכורת.
-              </p>
-              <div className="flex items-end gap-2">
-                <div>
-                  <label className="text-xs text-slate-500">יום תשלום בחודש</label>
-                  <Input type="number" min="1" max="28" dir="ltr" className="w-24"
-                    value={payroll.payroll_day}
-                    onChange={e => setPayroll(v => ({ ...v, payroll_day: Number(e.target.value) || 10 }))} />
-                </div>
-                <label className="flex items-center gap-1 text-xs text-slate-600 pb-2">
-                  <input type="checkbox" checked={payroll.enabled}
-                    onChange={e => setPayroll(v => ({ ...v, enabled: e.target.checked }))} />
-                  כלול בתזרים
-                </label>
-                <Button onClick={savePayroll} disabled={savingPayroll}><Save className="w-4 h-4 ml-1" />שמור</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-3">
-          <Card>
-            <CardHeader><CardTitle className="text-base">יתרת פתיחה</CardTitle></CardHeader>
-            <CardContent className="flex items-end gap-2">
-              <div>
-                <label className="text-xs text-slate-500">סכום (₪)</label>
-                <Input type="number" dir="ltr" value={opening.opening_balance} onChange={e => setOpening(o => ({ ...o, opening_balance: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-xs text-slate-500">תאריך</label>
-                <Input type="date" value={opening.opening_date} onChange={e => setOpening(o => ({ ...o, opening_date: e.target.value }))} />
-              </div>
-              <Button onClick={saveOpening} disabled={savingOpen}><Save className="w-4 h-4 ml-1" />שמור</Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-base">עלויות קבועות (חוזרות חודשית)</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {costs.map(c => (
-                <div key={c.id} className="flex items-center justify-between text-sm border rounded p-1.5">
-                  <span>{c.name} · {formatCur(c.amount)} · יום {c.day_of_month}</span>
-                  <Button variant="ghost" size="sm" onClick={() => removeCost(c.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
-                </div>
-              ))}
-              <div className="flex items-end gap-1 flex-wrap">
-                <Input className="w-28" placeholder="שם" value={newCost.name} onChange={e => setNewCost(c => ({ ...c, name: e.target.value }))} />
-                <Input className="w-24" type="number" dir="ltr" placeholder="סכום" value={newCost.amount} onChange={e => setNewCost(c => ({ ...c, amount: e.target.value }))} />
-                <Input className="w-16" type="number" dir="ltr" placeholder="יום" value={newCost.day_of_month} onChange={e => setNewCost(c => ({ ...c, day_of_month: e.target.value }))} />
-                <Button variant="outline" size="sm" onClick={addCost}><Plus className="w-4 h-4" /></Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        </>
-      )}
 
       <Card>
         <CardHeader><CardTitle className="text-base">תחזית מפורטת</CardTitle></CardHeader>
@@ -328,8 +258,136 @@ function CashFlowInner() {
           )}
         </CardContent>
       </Card>
+      </Section>
       </div>
     </PageShell>
+  );
+}
+
+function OpeningCard({ opening, setOpening, saveOpening, savingOpen }) {
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">יתרת פתיחה</CardTitle></CardHeader>
+      <CardContent className="space-y-2">
+        <p className="text-xs text-slate-500">
+          נקבעת אוטומטית מייבוא העו"ש. ערוך רק אם אתה רוצה לדרוס אותה ידנית.
+        </p>
+        <div className="flex items-end gap-2">
+          <div>
+            <label className="text-xs text-slate-500">סכום (₪)</label>
+            <Input type="number" dir="ltr" value={opening.opening_balance}
+              onChange={e => setOpening(o => ({ ...o, opening_balance: e.target.value }))} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500">תאריך</label>
+            <Input type="date" value={opening.opening_date}
+              onChange={e => setOpening(o => ({ ...o, opening_date: e.target.value }))} />
+          </div>
+          <Button onClick={saveOpening} disabled={savingOpen}><Save className="w-4 h-4 ml-1" />שמור</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PayrollCard({ payroll, setPayroll, savePayroll, savingPayroll }) {
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">👥 משכורות בתזרים</CardTitle></CardHeader>
+      <CardContent className="space-y-2">
+        <p className="text-xs text-slate-500">
+          השכר מחושב מהסידור (כולל שעות נוספות ועלות מעביד) ויוצא כתשלום אחד ביום המשכורת.
+        </p>
+        <div className="flex items-end gap-2">
+          <div>
+            <label className="text-xs text-slate-500">יום תשלום בחודש</label>
+            <Input type="number" min="1" max="28" dir="ltr" className="w-24"
+              value={payroll.payroll_day}
+              onChange={e => setPayroll(v => ({ ...v, payroll_day: Number(e.target.value) || 10 }))} />
+          </div>
+          <label className="flex items-center gap-1 text-xs text-slate-600 pb-2">
+            <input type="checkbox" checked={payroll.enabled}
+              onChange={e => setPayroll(v => ({ ...v, enabled: e.target.checked }))} />
+            כלול בתזרים
+          </label>
+          <Button onClick={savePayroll} disabled={savingPayroll}><Save className="w-4 h-4 ml-1" />שמור</Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ManualRevenueCard({ manualRev, setManualRev, saveManualRevenue, savingRev, revMsg }) {
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">💵 פדיון יומי ידני</CardTitle></CardHeader>
+      <CardContent className="space-y-2">
+        <p className="text-xs text-slate-500">
+          יום שלא הוגש עליו דוח סיום משמרת נספר כאפס הכנסה. הזן כאן את הזד והוא ייכנס לתזרים.
+        </p>
+        <div className="flex items-end gap-2">
+          <div>
+            <label className="text-xs text-slate-500">תאריך</label>
+            <Input type="date" value={manualRev.date}
+              onChange={e => setManualRev(v => ({ ...v, date: e.target.value }))} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500">פדיון (₪)</label>
+            <Input type="number" dir="ltr" value={manualRev.amount}
+              onChange={e => setManualRev(v => ({ ...v, amount: e.target.value }))} />
+          </div>
+          <Button onClick={saveManualRevenue} disabled={savingRev}><Save className="w-4 h-4 ml-1" />שמור</Button>
+        </div>
+        {revMsg && <div className={`text-xs ${revMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>{revMsg.t}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function RecurringCostsCard({ costs, removeCost, newCost, setNewCost, addCost, formatCur }) {
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">עלויות קבועות (חוזרות חודשית)</CardTitle></CardHeader>
+      <CardContent className="space-y-2">
+        {costs.map(c => (
+          <div key={c.id} className="flex items-center justify-between text-sm border rounded p-1.5">
+            <span>{c.name} · {formatCur(c.amount)} · יום {c.day_of_month}</span>
+            <Button variant="ghost" size="sm" onClick={() => removeCost(c.id)}>
+              <Trash2 className="w-4 h-4 text-red-500" />
+            </Button>
+          </div>
+        ))}
+        <div className="flex items-end gap-1 flex-wrap">
+          <Input className="w-28" placeholder="שם" value={newCost.name}
+            onChange={e => setNewCost(c => ({ ...c, name: e.target.value }))} />
+          <Input className="w-24" type="number" dir="ltr" placeholder="סכום" value={newCost.amount}
+            onChange={e => setNewCost(c => ({ ...c, amount: e.target.value }))} />
+          <Input className="w-16" type="number" dir="ltr" placeholder="יום" value={newCost.day_of_month}
+            onChange={e => setNewCost(c => ({ ...c, day_of_month: e.target.value }))} />
+          <Button variant="outline" size="sm" onClick={addCost}><Plus className="w-4 h-4" /></Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Everything that is not the answer lives behind one of these. The page had
+// grown nine competing cards and four loose forms; the owner opens it to learn
+// one thing — how much money there will be — and should not have to find it.
+function Section({ title, hint, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="space-y-3">
+      <button onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between rounded-lg bg-slate-100 hover:bg-slate-200/70 px-3 py-2 transition-colors">
+        <span className="text-sm font-semibold text-slate-700">{title}</span>
+        <span className="flex items-center gap-2 text-xs text-slate-500">
+          {hint}
+          <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      {open && <div className="space-y-3">{children}</div>}
+    </div>
   );
 }
 
