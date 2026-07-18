@@ -7184,6 +7184,121 @@ registerFn('resetChecklistDay', async ({ user }) => {
         return out;
     });
 }
+// ── Supplier ledger (כרטסת) ────────────────────────────────────────────────
+// Per supplier: every invoice, monthly totals, the payment terms, and the DATE
+// each invoice actually falls due. This is what turns the cash-flow forecast
+// from "invoices exist" into "₪X leaves on the 10th" — and it's the same
+// calculation the forecast uses, so the two can't disagree.
+async function ensureSupplierTermsCols() {
+    const dbx = prisma;
+    await dbx.$executeRawUnsafe(`ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "is_occasional" BOOLEAN DEFAULT false`).catch(() => { });
+}
+registerFn('getSupplierLedger', async ({ user, body }) => {
+    if (!user?.id)
+        throw new Error('unauthorized');
+    if (!isAdminRole(user?.role))
+        throw new Error('admin only');
+    await ensureSupplierTermsCols();
+    const dbx = prisma;
+    const b = (body || {});
+    const months = Math.min(24, Math.max(1, Number(b.months) || 6));
+    const since = new Date(Date.now() - months * 31 * 86400_000);
+    const { parsePaymentTerms, dueDateFor, ymd } = await import('../lib/paymentTerms.js');
+    const suppliers = await dbx.$queryRawUnsafe(`SELECT id, company_name, payment_terms, COALESCE(is_occasional,false) AS is_occasional
+     FROM "Supplier" ORDER BY company_name`).catch(() => []);
+    const invoices = await dbx.$queryRawUnsafe(`SELECT id, supplier_id, invoice_date, total_amount, payment_status, status,
+            (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_name='Invoice' AND column_name='due_date')
+                  THEN due_date ELSE NULL END) AS due_date,
+            supplier_name_override
+     FROM "Invoice"
+     WHERE invoice_date >= $1 AND COALESCE(status,'') <> 'rejected'
+     ORDER BY invoice_date DESC`, since).catch(() => []);
+    const bySupplier = new Map();
+    const orphans = [];
+    for (const inv of invoices) {
+        const k = inv.supplier_id ? String(inv.supplier_id) : '';
+        if (!k) {
+            orphans.push(inv);
+            continue;
+        }
+        if (!bySupplier.has(k))
+            bySupplier.set(k, []);
+        bySupplier.get(k).push(inv);
+    }
+    const todayKey = ymd(new Date());
+    const out = suppliers.map((sup) => {
+        const terms = parsePaymentTerms(sup.payment_terms, { occasional: sup.is_occasional });
+        const list = bySupplier.get(String(sup.id)) || [];
+        const byMonth = new Map();
+        let openTotal = 0, paidTotal = 0, overdue = 0;
+        const rows = list.map((inv) => {
+            const amount = Math.abs(Number(inv.total_amount) || 0);
+            const invDate = new Date(inv.invoice_date);
+            const mk = `${invDate.getUTCFullYear()}-${String(invDate.getUTCMonth() + 1).padStart(2, '0')}`;
+            byMonth.set(mk, (byMonth.get(mk) || 0) + amount);
+            // An explicit due_date the owner set always wins over the computed term.
+            const due = inv.due_date ? new Date(inv.due_date) : dueDateFor(invDate, terms);
+            const dueKey = ymd(due);
+            const paid = inv.payment_status === 'paid';
+            if (paid)
+                paidTotal += amount;
+            else {
+                openTotal += amount;
+                if (dueKey < todayKey)
+                    overdue += amount;
+            }
+            return {
+                id: inv.id, invoice_date: ymd(invDate), amount,
+                due_date: dueKey, due_source: inv.due_date ? 'explicit' : 'terms',
+                paid, overdue: !paid && dueKey < todayKey,
+            };
+        });
+        const monthly = [...byMonth.entries()].sort(([a], [b]) => b.localeCompare(a))
+            .map(([month, total]) => ({ month, total: Math.round(total) }));
+        return {
+            supplier_id: sup.id, name: sup.company_name,
+            payment_terms_raw: sup.payment_terms || null,
+            terms: { kind: terms.kind, days: terms.days, label: terms.label, occasional: terms.occasional },
+            invoice_count: rows.length,
+            open_total: Math.round(openTotal),
+            paid_total: Math.round(paidTotal),
+            overdue_total: Math.round(overdue),
+            monthly,
+            invoices: rows.slice(0, 60),
+        };
+    });
+    // Suppliers with activity first — an empty supplier list is noise.
+    out.sort((a, b) => (b.open_total - a.open_total) || (b.invoice_count - a.invoice_count));
+    return {
+        months,
+        suppliers: out,
+        unlinked_invoices: orphans.length,
+        totals: {
+            open: out.reduce((n, x) => n + x.open_total, 0),
+            overdue: out.reduce((n, x) => n + x.overdue_total, 0),
+            suppliers_without_terms: out.filter((x) => !x.payment_terms_raw).length,
+        },
+    };
+});
+// Set a supplier's payment terms + one-off flag (occasional = paid on the spot).
+registerFn('setSupplierTerms', async ({ user, body }) => {
+    if (!user?.id)
+        throw new Error('unauthorized');
+    if (!isAdminRole(user?.role))
+        throw new Error('admin only');
+    await ensureSupplierTermsCols();
+    const b = (body || {});
+    const id = String(b.supplier_id || '');
+    if (!id)
+        throw new Error('supplier_required');
+    const terms = b.payment_terms == null ? null : String(b.payment_terms).slice(0, 60);
+    const occasional = b.is_occasional === true;
+    await prisma.$executeRawUnsafe(`UPDATE "Supplier" SET payment_terms=$2, is_occasional=$3, "updatedAt"=NOW() WHERE id=$1`, id, terms, occasional).catch(async () => {
+        await prisma.$executeRawUnsafe(`UPDATE "Supplier" SET payment_terms=$2, is_occasional=$3 WHERE id=$1`, id, terms, occasional);
+    });
+    return { ok: true, supplier_id: id, payment_terms: terms, is_occasional: occasional };
+});
 // Edit an invoice's payment scheduling + supplier display name. Raw SQL (self-
 // heals the columns) so it works even before boot drift-repair lands on a tenant.
 registerFn('updateInvoicePayment', async ({ user, body }) => {

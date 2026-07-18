@@ -59,9 +59,23 @@ registerFn('getLiveCashFlow', async ({ body, user }) => {
     const supIds = [...new Set(invoicesRaw.map(i => i.supplier_id).filter(Boolean))];
     const sups = await prisma.supplier.findMany({ where: { id: { in: supIds } }, select: { id: true, company_name: true } }).catch(() => []);
     const supName = new Map(sups.map(s => [s.id, s.company_name]));
+    // No explicit due_date → derive it from the SUPPLIER'S payment terms (the same
+    // engine the supplier ledger uses, so the two views agree). An occasional
+    // supplier is paid on the spot; "שוטף+N" counts from month END, not from the
+    // invoice date — treating it as the latter paid everyone up to a month early.
+    const { parsePaymentTerms, dueDateFor } = await import('../lib/paymentTerms.js');
+    const supTermRows = await prisma.$queryRawUnsafe(`SELECT id, payment_terms, COALESCE(is_occasional,false) AS is_occasional FROM "Supplier"`).catch(() => []);
+    const termsBySupplier = new Map();
+    for (const r of supTermRows) {
+        termsBySupplier.set(String(r.id), parsePaymentTerms(r.payment_terms, { occasional: r.is_occasional }));
+    }
     const invoices = invoicesRaw.map(i => ({
         id: i.id, invoice_date: new Date(i.invoice_date),
-        due_date: i.due_date ? new Date(i.due_date) : null,
+        due_date: i.due_date
+            ? new Date(i.due_date)
+            : (termsBySupplier.has(String(i.supplier_id))
+                ? dueDateFor(new Date(i.invoice_date), termsBySupplier.get(String(i.supplier_id)))
+                : null),
         total_amount: Number(i.total_amount) || 0,
         payment_status: i.payment_status, supplier_name: supName.get(i.supplier_id) || null,
     }));
