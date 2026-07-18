@@ -60,6 +60,57 @@ export async function resolveUserTier(user) {
     const pages = Array.isArray(tier.allowed_pages) ? tier.allowed_pages.map(String) : null;
     return { is_owner: false, tier, allowed_pages: pages && pages.length ? pages : null, source };
 }
+// Back-office roles. Intentionally BROAD (manager included) so hardening an
+// endpoint can't lock out a legitimate manager — only plain employees are cut.
+export function isBackOfficeRole(role) {
+    return role === 'admin' || role === 'owner' || role === 'manager';
+}
+// Every denial is logged with the fn + who + why, so a mis-classified endpoint
+// shows up immediately in `docker logs` instead of silently breaking someone.
+function logDeny(fn, user, why) {
+    console.warn(`[perm-deny] fn=${fn} why=${why} user=${user?.email || 'anon'} role=${user?.role || '-'}`);
+}
+// Guard for back-office endpoints: must be authenticated, must hold a
+// back-office role, and must pass the tenant's per-tier page allowlist.
+// `/api/fn` already enforces authentication, and public pages reach a SEPARATE
+// route (/api/public/fn) that only serves fns registered `{public:true}` — so
+// adding this can never break an anonymous/public flow.
+export async function requireBackOffice(user, fnName, pageName) {
+    if (!user?.id) {
+        logDeny(fnName, user, 'unauthenticated');
+        throw new Error('unauthorized');
+    }
+    if (!isBackOfficeRole(user.role)) {
+        logDeny(fnName, user, 'not_back_office');
+        throw new Error('forbidden');
+    }
+    if (pageName) {
+        try {
+            await requirePageAccess(user, pageName);
+        }
+        catch (e) {
+            logDeny(fnName, user, `page:${pageName}`);
+            throw e;
+        }
+    }
+}
+// Weaker guard for endpoints staff legitimately use (e.g. the shift-end report
+// AI): authentication + the page allowlist, but NO role requirement.
+export async function requireStaff(user, fnName, pageName) {
+    if (!user?.id) {
+        logDeny(fnName, user, 'unauthenticated');
+        throw new Error('unauthorized');
+    }
+    if (pageName) {
+        try {
+            await requirePageAccess(user, pageName);
+        }
+        catch (e) {
+            logDeny(fnName, user, `page:${pageName}`);
+            throw e;
+        }
+    }
+}
 // Server-side gate. Throws 'forbidden_page' unless the user may open `pageName`,
 // so a hidden sidebar entry can't simply be bypassed by calling the API.
 // Deliberately permissive when the tenant has NOT configured tiers, so turning

@@ -12,7 +12,7 @@ import './laborCost.js';
 import './i18nTranslate.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
-import { ensurePermissionTiers, resolveUserTier } from '../lib/pagePermissions.js';
+import { ensurePermissionTiers, resolveUserTier, requireBackOffice, requireStaff } from '../lib/pagePermissions.js';
 import { registerFn, functionHandlers } from './index.js';
 import { sendSms, sendWhatsApp, sendWhatsAppTemplate, invalidateTwilioCredsCache, twilioAuth } from '../lib/twilio.js';
 import { pushover, pushoverToAdmins, pushoverEventsOwners } from '../lib/pushover.js';
@@ -157,7 +157,8 @@ async function recentShiftContext() {
     }
 }
 // Generate 6-month strategy + initial tasks based on the saved profile.
-registerFn('generateMarketingStrategy', async () => {
+registerFn('generateMarketingStrategy', async ({ user }) => {
+    await requireBackOffice(user, 'generateMarketingStrategy');
     const profile = await db.businessProfile.findFirst();
     if (!profile?.profile_data)
         throw new Error('profile_not_found');
@@ -381,7 +382,8 @@ registerFn('generateMonthTasks', async ({ body }) => {
     return { tasks_created: created, month_number: monthNumber };
 });
 // Generate a fresh batch of N tasks (when the owner finishes the current pile).
-registerFn('generateNextMarketingTasks', async ({ body }) => {
+registerFn('generateNextMarketingTasks', async ({ body, user }) => {
+    await requireBackOffice(user, 'generateNextMarketingTasks');
     const profile = await db.businessProfile.findFirst();
     if (!profile?.profile_data)
         throw new Error('profile_not_found');
@@ -508,7 +510,8 @@ registerFn('importScanned', async ({ body, user }) => {
     return importScanned(classification, parsed);
 });
 // Expand a task into a detailed step-by-step plan (owner asks "how do I do this?").
-registerFn('expandMarketingTask', async ({ body }) => {
+registerFn('expandMarketingTask', async ({ body, user }) => {
+    await requireBackOffice(user, 'expandMarketingTask');
     const { task_id } = body;
     if (!task_id)
         throw new Error('task_id required');
@@ -535,7 +538,8 @@ registerFn('expandMarketingTask', async ({ body }) => {
     return { expansion: result };
 });
 // Open chat with the marketing advisor — for ad-hoc questions.
-registerFn('marketingAdvisorChat', async ({ body }) => {
+registerFn('marketingAdvisorChat', async ({ body, user }) => {
+    await requireBackOffice(user, 'marketingAdvisorChat');
     const { history, message } = body;
     const turns = Array.isArray(history) ? history : [];
     const profile = await db.businessProfile.findFirst();
@@ -2221,6 +2225,7 @@ if (!globalThis.__dripCampaignsTimer) {
     }, 5 * 60 * 1000); // first run 5 min after startup
 }
 registerFn('runDripCampaignsNow', async ({ user }) => {
+    await requireBackOffice(user, 'runDripCampaignsNow');
     if (user?.role !== 'admin')
         throw new Error('admin only');
     await runDripCampaigns(true);
@@ -2275,6 +2280,7 @@ registerFn('personalizeWithAI', async ({ body }) => {
 // Each variant gets a separate CampaignSend row with the same campaign_key
 // but different campaign_label suffix ("(A)", "(B)") so analytics can compare.
 registerFn('sendABTestCampaign', async ({ body, user }) => {
+    await requireBackOffice(user, 'sendABTestCampaign');
     if (user?.role !== 'admin')
         throw new Error('admin only');
     const { segment, variants, channel, campaign_key, campaign_label, custom_filter, media_url } = body;
@@ -3609,6 +3615,7 @@ registerFn('listEventVendors', async ({ body, user }) => {
 });
 // === Commission report (across all events) =================================
 registerFn('vendorCommissionsReport', async ({ body, user }) => {
+    await requireBackOffice(user, 'vendorCommissionsReport');
     if (user?.role !== 'admin')
         throw new Error('admin only');
     const { from, to, status } = body || {};
@@ -3729,6 +3736,7 @@ registerFn('previewVendorSegment', async ({ body }) => {
     return { count, sample };
 });
 registerFn('sendVendorCampaign', async ({ body, user }) => {
+    await requireBackOffice(user, 'sendVendorCampaign');
     if (user?.role !== 'admin')
         throw new Error('admin only');
     const brand = await getBrandName();
@@ -3912,6 +3920,7 @@ registerFn('clubUnsubscribe', async ({ body }) => {
 // Quick customer search for the manual-recipient picker in MarketingCampaigns.
 // Matches name OR phone (contains, case-insensitive), returns top 20.
 registerFn('searchCustomers', async ({ body, user }) => {
+    await requireBackOffice(user, 'searchCustomers');
     if (user?.role !== 'admin')
         throw new Error('admin only');
     const q = String(body?.q || '').trim();
@@ -3937,6 +3946,7 @@ registerFn('searchCustomers', async ({ body, user }) => {
 // load-everything-in-batches approach that crawled with 19K customers.
 // Returns one page + total count; search hits the DB, not the browser.
 registerFn('clubListCustomers', async ({ body, user }) => {
+    await requireBackOffice(user, 'clubListCustomers');
     if (user?.role !== 'admin' && !user?.managed_department)
         throw new Error('admin only');
     const { q, page, page_size, satisfaction, missing_only } = body || {};
@@ -4027,6 +4037,7 @@ function estimateCampaignCostIls(recipientCount, channel) {
 //  - supports media_url (image attached to message)
 //  - includes Twilio status callback URL so we get delivery/read receipts
 registerFn('sendCustomerCampaign', async ({ body, user }) => {
+    await requireBackOffice(user, 'sendCustomerCampaign');
     if (user?.role !== 'admin')
         throw new Error('admin only');
     const brand = await getBrandName();
@@ -4197,6 +4208,7 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
 // campaigns. Only updates customers without an existing consent record,
 // so this is safe to re-run.
 registerFn('bulkGrantMarketingConsent', async ({ body, user }) => {
+    await requireBackOffice(user, 'bulkGrantMarketingConsent');
     if (user?.role !== 'admin')
         throw new Error('admin only');
     const { scope } = body; // 'all' | 'no_consent_only' (default no_consent_only)
@@ -4303,7 +4315,8 @@ registerFn('useReferralCode', async ({ body }) => {
     await db.referralCode.update({ where: { id: ref.id }, data: { total_uses: { increment: 1 } } }).catch(() => { });
     return { use, referral: ref };
 });
-registerFn('getReferralCodeForCustomer', async ({ body }) => {
+registerFn('getReferralCodeForCustomer', async ({ body, user }) => {
+    await requireBackOffice(user, 'getReferralCodeForCustomer');
     const { customer_id, customer_phone } = body;
     let customer = null;
     if (customer_id)
@@ -4357,7 +4370,8 @@ registerFn('listHolidayTemplates', async () => {
     return { templates };
 });
 // Returns the parent CampaignSend + all CampaignRecipient rows.
-registerFn('getCampaignDetails', async ({ body }) => {
+registerFn('getCampaignDetails', async ({ body, user }) => {
+    await requireBackOffice(user, 'getCampaignDetails');
     const { campaign_send_id } = body;
     if (!campaign_send_id)
         throw new Error('campaign_send_id required');
@@ -4377,7 +4391,8 @@ registerFn('getCampaignDetails', async ({ body }) => {
     return { send, recipients, conversions: convertedReservations };
 });
 // Recent campaign history — last 50 sends, newest first
-registerFn('getCampaignHistory', async ({ body }) => {
+registerFn('getCampaignHistory', async ({ body, user }) => {
+    await requireBackOffice(user, 'getCampaignHistory');
     const limit = Math.min(Number(body?.limit) || 50, 200);
     const rows = await db.campaignSend.findMany({
         orderBy: { sent_at: 'desc' },
@@ -4386,7 +4401,8 @@ registerFn('getCampaignHistory', async ({ body }) => {
     return { rows };
 });
 // Update a customer's birthday — used by the admin UI + by reservation form
-registerFn('setCustomerBirthday', async ({ body }) => {
+registerFn('setCustomerBirthday', async ({ body, user }) => {
+    await requireBackOffice(user, 'setCustomerBirthday');
     const { customer_id, phone, mmdd } = body;
     if (!mmdd || !/^\d{2}-\d{2}$/.test(mmdd))
         throw new Error('mmdd must be "MM-DD"');
@@ -4401,7 +4417,8 @@ registerFn('setCustomerBirthday', async ({ body }) => {
     return { ok: true, customer_id: c.id };
 });
 // Update a customer's anniversary (wedding / first-visit / etc.)
-registerFn('setCustomerAnniversary', async ({ body }) => {
+registerFn('setCustomerAnniversary', async ({ body, user }) => {
+    await requireBackOffice(user, 'setCustomerAnniversary');
     const { customer_id, phone, mmdd, label } = body;
     if (!mmdd || !/^\d{2}-\d{2}$/.test(mmdd))
         throw new Error('mmdd must be "MM-DD"');
@@ -4993,7 +5010,8 @@ registerFn('aiAnalyzeIncident', async ({ body }) => {
     });
     return { success: true, analysis: result };
 });
-registerFn('aiAnalyzeShiftReport', async ({ body }) => {
+registerFn('aiAnalyzeShiftReport', async ({ body, user }) => {
+    await requireStaff(user, 'aiAnalyzeShiftReport');
     const { report_id, report: reportArg } = body;
     let report = reportArg;
     if (!report && report_id)
@@ -5287,7 +5305,8 @@ registerFn('getAnonymousCustomerHistory', async ({ body }) => {
         lastVisit: lastEntry.timestamp_register,
     };
 }, { public: true });
-registerFn('syncQueueToCustomer', async ({ body }) => {
+registerFn('syncQueueToCustomer', async ({ body, user }) => {
+    await requireBackOffice(user, 'syncQueueToCustomer');
     const { phone, name } = body;
     if (!phone)
         throw new Error('phone required');
@@ -6940,6 +6959,7 @@ registerFn('resetChecklistDay', async ({ user }) => {
         return { history: await m.getDemandHistory(Number(body?.days) || 60) };
     });
     registerFn('forecastCashFlow', async ({ user }) => {
+        await requireBackOffice(user, 'forecastCashFlow');
         gateForecast(user);
         const m = await import('../lib/businessForecasts.js');
         return await m.forecastCashFlow();
@@ -6950,16 +6970,19 @@ registerFn('resetChecklistDay', async ({ user }) => {
         return await m.predictNoShows();
     });
     registerFn('forecastLaborCost', async ({ user }) => {
+        await requireBackOffice(user, 'forecastLaborCost');
         gateForecast(user);
         const m = await import('../lib/businessForecasts.js');
         return await m.forecastLaborCost();
     });
     registerFn('detectSupplierPriceDrift', async ({ user }) => {
+        await requireBackOffice(user, 'detectSupplierPriceDrift');
         gateForecast(user);
         const m = await import('../lib/businessForecasts.js');
         return await m.detectSupplierPriceDrift();
     });
     registerFn('forecastEventDemand', async ({ user }) => {
+        await requireBackOffice(user, 'forecastEventDemand');
         gateForecast(user);
         const m = await import('../lib/businessForecasts.js');
         return await m.forecastEventDemand();
@@ -12214,7 +12237,8 @@ registerFn('importCashFlowFromJson', async ({ body, user }) => {
     }
     return { ok: true, inserted, opening_balance: b.opening_balance ?? null };
 });
-registerFn('getCashFlowForecast', async ({ body }) => {
+registerFn('getCashFlowForecast', async ({ body, user }) => {
+    await requireBackOffice(user, 'getCashFlowForecast');
     await ensureInventoryTables();
     const b = (body || {});
     const days = Math.min(120, Math.max(7, parseInt(String(b.days || 30))));
@@ -12419,7 +12443,8 @@ registerFn('updateIngredientPrice', async ({ body, user }) => {
     await recomputeAllRecipeCosts();
     return { ok: true };
 });
-registerFn('analyzeEmployeeAnomalies', async ({ body }) => {
+registerFn('analyzeEmployeeAnomalies', async ({ body, user }) => {
+    await requireBackOffice(user, 'analyzeEmployeeAnomalies');
     const b = (body || {});
     const empId = String(b.employee_id || '').trim();
     const monthYmd = String(b.month || '').trim(); // YYYY-MM
@@ -14240,7 +14265,8 @@ registerFn('runMarketingAgent', async ({ body, user }) => {
         return { run: updated };
     }
 });
-registerFn('listMarketingAgentRuns', async ({ body }) => {
+registerFn('listMarketingAgentRuns', async ({ body, user }) => {
+    await requireBackOffice(user, 'listMarketingAgentRuns');
     const { agent_type, limit = 20 } = (body || {});
     await ensureAgentRunTable();
     const where = {};
@@ -14296,7 +14322,8 @@ registerFn('hasIntegrationSecret', async ({ body }) => {
     const row = await db.integrationSecret.findFirst({ where: { key }, select: { id: true, updated_at: true } });
     return { present: !!row, updated_at: row?.updated_at || null };
 });
-registerFn('getMarketingAgentsCatalog', async () => {
+registerFn('getMarketingAgentsCatalog', async ({ user }) => {
+    await requireBackOffice(user, 'getMarketingAgentsCatalog');
     return {
         agents: Object.entries(AGENT_REGISTRY).map(([key, v]) => ({
             key,
@@ -14518,7 +14545,8 @@ ${audience_hint ? `הצעת קהל יעד מהבעלים: ${audience_hint}` : ''
     });
     return { brief, rationale: draft?.rationale || null };
 });
-registerFn('listCampaignBriefs', async ({ body }) => {
+registerFn('listCampaignBriefs', async ({ body, user }) => {
+    await requireBackOffice(user, 'listCampaignBriefs');
     await ensureCampaignBriefTable();
     const { status, limit = 30 } = (body || {});
     const where = {};
@@ -14527,7 +14555,8 @@ registerFn('listCampaignBriefs', async ({ body }) => {
     const briefs = await db.campaignBrief.findMany({ where, orderBy: { createdAt: 'desc' }, take: Math.min(Number(limit) || 30, 100) });
     return { briefs };
 });
-registerFn('updateCampaignBrief', async ({ body }) => {
+registerFn('updateCampaignBrief', async ({ body, user }) => {
+    await requireBackOffice(user, 'updateCampaignBrief');
     await ensureCampaignBriefTable();
     const { id, patch } = (body || {});
     if (!id)
@@ -14542,7 +14571,8 @@ registerFn('updateCampaignBrief', async ({ body }) => {
     const updated = await db.campaignBrief.update({ where: { id }, data: safePatch });
     return { brief: updated };
 });
-registerFn('approveCampaignBrief', async ({ body }) => {
+registerFn('approveCampaignBrief', async ({ body, user }) => {
+    await requireBackOffice(user, 'approveCampaignBrief');
     await ensureCampaignBriefTable();
     const { id } = (body || {});
     if (!id)
@@ -14553,7 +14583,8 @@ registerFn('approveCampaignBrief', async ({ body }) => {
     });
     return { brief: updated };
 });
-registerFn('rejectCampaignBrief', async ({ body }) => {
+registerFn('rejectCampaignBrief', async ({ body, user }) => {
+    await requireBackOffice(user, 'rejectCampaignBrief');
     await ensureCampaignBriefTable();
     const { id, reason } = (body || {});
     if (!id)
@@ -14568,7 +14599,8 @@ registerFn('rejectCampaignBrief', async ({ body }) => {
 // Ad creative is intentionally NOT auto-created so the owner finalizes the
 // image+copy attachment manually in Meta Ads Manager. PAUSED status means
 // nothing spends until the owner flips it to ACTIVE in Meta's UI.
-registerFn('launchCampaignBrief', async ({ body }) => {
+registerFn('launchCampaignBrief', async ({ body, user }) => {
+    await requireBackOffice(user, 'launchCampaignBrief');
     await ensureCampaignBriefTable();
     const { id, active } = (body || {});
     // active=true makes all three entities (Campaign/AdSet/Ad) ACTIVE on
@@ -16194,7 +16226,8 @@ async function ensureBeecommToken() {
     return { token, base, cfgId: cfg.id };
 }
 // Save / update Beecomm credentials (singleton row).
-registerFn('beecommSaveConfig', async ({ body }) => {
+registerFn('beecommSaveConfig', async ({ body, user }) => {
+    await requireBackOffice(user, 'beecommSaveConfig');
     const b = (body || {});
     if (!b.client_id || !b.client_secret)
         throw new Error('client_id and client_secret are required');
@@ -16215,7 +16248,8 @@ registerFn('beecommSaveConfig', async ({ body }) => {
     return { ok: true };
 });
 // Test credentials by acquiring a token; persists it on success.
-registerFn('beecommTestConnection', async () => {
+registerFn('beecommTestConnection', async ({ user }) => {
+    await requireBackOffice(user, 'beecommTestConnection');
     const cfg = await loadBeecommConfig();
     if (!cfg)
         throw new Error('Beecomm not configured — save credentials first');

@@ -4,6 +4,7 @@
 // rule, supplier activation).
 import { registerFn } from './index.js';
 import { prisma } from '../db.js';
+import { requireBackOffice, requireStaff } from '../lib/pagePermissions.js';
 import { normalizeForMatch } from '../lib/invoiceExtraction.js';
 import { nextRuleAfterRejection } from '../lib/emailInvoiceRules.js';
 
@@ -17,7 +18,9 @@ type ApproveItem = {
   inventory_item_id?: string | null;
 };
 
-registerFn('emailInvoiceApprove', async ({ body }) => {
+registerFn('emailInvoiceApprove', async ({ body, user }) => {
+  await requireBackOffice(user, 'emailInvoiceApprove');
+
   const p = (body as any) || {};
   const inv: any = await (prisma as any).invoice.findUnique({ where: { id: String(p.invoice_id || '') } });
   if (!inv) throw new Error('invoice_not_found');
@@ -121,7 +124,9 @@ registerFn('emailInvoiceApprove', async ({ body }) => {
   return { ok: true };
 });
 
-registerFn('emailInvoiceReject', async ({ body }) => {
+registerFn('emailInvoiceReject', async ({ body, user }) => {
+  await requireBackOffice(user, 'emailInvoiceReject');
+
   const p = (body as any) || {};
   const inv: any = await (prisma as any).invoice.findUnique({ where: { id: String(p.invoice_id || '') } });
   if (!inv) throw new Error('invoice_not_found');

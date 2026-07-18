@@ -4,9 +4,11 @@
 // rule, supplier activation).
 import { registerFn } from './index.js';
 import { prisma } from '../db.js';
+import { requireBackOffice } from '../lib/pagePermissions.js';
 import { normalizeForMatch } from '../lib/invoiceExtraction.js';
 import { nextRuleAfterRejection } from '../lib/emailInvoiceRules.js';
-registerFn('emailInvoiceApprove', async ({ body }) => {
+registerFn('emailInvoiceApprove', async ({ body, user }) => {
+    await requireBackOffice(user, 'emailInvoiceApprove');
     const p = body || {};
     const inv = await prisma.invoice.findUnique({ where: { id: String(p.invoice_id || '') } });
     if (!inv)
@@ -108,7 +110,8 @@ registerFn('emailInvoiceApprove', async ({ body }) => {
     }, { timeout: 15_000, maxWait: 5_000 });
     return { ok: true };
 });
-registerFn('emailInvoiceReject', async ({ body }) => {
+registerFn('emailInvoiceReject', async ({ body, user }) => {
+    await requireBackOffice(user, 'emailInvoiceReject');
     const p = body || {};
     const inv = await prisma.invoice.findUnique({ where: { id: String(p.invoice_id || '') } });
     if (!inv)
