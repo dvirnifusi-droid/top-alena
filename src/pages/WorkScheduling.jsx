@@ -615,6 +615,9 @@ export default function WorkScheduling() {
     const [budgetInput, setBudgetInput] = useState('');
     const [savingBudget, setSavingBudget] = useState(false);
     const [showBudgetEdit, setShowBudgetEdit] = useState(false);
+    const [showTargets, setShowTargets] = useState(false);
+    const [targetsDraft, setTargetsDraft] = useState({});   // { [shift_type]: ₪ per occurrence }
+    const [savingTargets, setSavingTargets] = useState(false);
 
     // Only owner/admin see labor cost (pay is sensitive); managed-dept leads don't.
     const canSeeCost = currentUser?.role === 'admin' || currentUser?.role === 'owner';
@@ -641,7 +644,7 @@ export default function WorkScheduling() {
             try {
                 const res = await base44.functions.getScheduleLaborCost({ week_start: weekStartStr });
                 const d = res?.data || res || {};
-                if (!cancelled) { setLaborCost(d); setBudgetInput(d.budget != null ? String(d.budget) : ''); }
+                if (!cancelled) { setLaborCost(d); setBudgetInput(d.budget != null ? String(d.budget) : ''); setTargetsDraft(d.shift_targets || {}); }
             } catch { /* forbidden / error → hide strip */ }
         })();
         return () => { cancelled = true; };
@@ -655,6 +658,23 @@ export default function WorkScheduling() {
             setLaborCost(prev => prev ? { ...prev, budget: budgetInput === '' ? null : Number(budgetInput) } : prev);
         } catch (e) { console.warn('save budget', e); }
         setSavingBudget(false);
+    };
+
+    // Per-shift ₪ targets. A day's target = sum of its shifts; the week stays labor_budget.
+    const saveTargets = async () => {
+        setSavingTargets(true);
+        try {
+            const clean = {};
+            for (const [k, v] of Object.entries(targetsDraft)) {
+                const n = Number(v);
+                if (Number.isFinite(n) && n > 0) clean[k] = n;
+            }
+            await base44.functions.setScheduleConfig({ shift_targets: clean });
+            setLaborCost(prev => prev ? { ...prev, shift_targets: clean } : prev);
+            setShowTargets(false);
+            setWeek(w => [...w]); // nudge the cost effect to refetch
+        } catch (e) { console.warn('save targets', e); }
+        setSavingTargets(false);
     };
 
     // Draft → Publish, PER DEPARTMENT (floor / kitchen). Only FUTURE weeks are
@@ -1431,11 +1451,30 @@ export default function WorkScheduling() {
                             <button onClick={() => setShowBudgetEdit(v => !v)} className="text-xs text-gray-500 hover:text-[#44512C] underline">
                                 {laborCost.budget != null ? 'ערוך תקציב' : 'הגדר תקציב'}
                             </button>
+                            <button onClick={() => setShowTargets(v => !v)} className="text-xs text-gray-500 hover:text-[#44512C] underline">
+                                יעד למשמרת
+                            </button>
                             {showBudgetEdit && (
                                 <span className="flex items-center gap-1">
                                     <Input type="number" value={budgetInput} onChange={e => setBudgetInput(e.target.value)} placeholder="₪ לשבוע" className="w-28 h-8" />
                                     <Button size="sm" onClick={saveBudget} disabled={savingBudget} className="h-8">{savingBudget ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור'}</Button>
                                 </span>
+                            )}
+                            {showTargets && (
+                                <div className="w-full mt-2 p-2 rounded-lg bg-white border flex flex-wrap items-end gap-3">
+                                    <span className="text-xs text-gray-500 w-full">כמה מותר שתעלה כל משמרת (₪ לכל הופעה):</span>
+                                    {Object.entries(shiftTypesConfig).map(([k, cfg]) => (
+                                        <span key={k} className="flex flex-col gap-0.5">
+                                            <label className="text-[11px] font-semibold">{cfg.label}</label>
+                                            <Input type="number" className="w-24 h-8" placeholder="₪"
+                                                value={targetsDraft[k] ?? ''}
+                                                onChange={e => setTargetsDraft(prev => ({ ...prev, [k]: e.target.value }))} />
+                                        </span>
+                                    ))}
+                                    <Button size="sm" onClick={saveTargets} disabled={savingTargets} className="h-8">
+                                        {savingTargets ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור יעדים'}
+                                    </Button>
+                                </div>
                             )}
                         </div>
                     ) : (
@@ -1481,6 +1520,29 @@ export default function WorkScheduling() {
                                         <div className={`col-span-8 p-2 font-bold text-center text-lg ${config.color} flex items-center justify-center gap-2`}>
                                             {config.label}
                                         </div>
+
+                                        {/* Per-shift cost vs target, per day. Owner/admin only. */}
+                                        {canSeeCost && laborCost?.detail && (
+                                            <>
+                                                <div className="p-2 border-r border-b text-xs font-bold bg-amber-50 sticky left-0 z-10">💰 עלות המשמרת</div>
+                                                {days.map(day => {
+                                                    const ck = `${format(day, 'yyyy-MM-dd')}|${type}`;
+                                                    const dc = laborCost.detail[ck];
+                                                    if (!dc || !dc.cost) return <div key={ck} className="border-b bg-amber-50/40" />;
+                                                    const over = dc.target && dc.cost > dc.target;
+                                                    const otPeople = (dc.staff || []).filter(x => x.overtime_hours > 0).length;
+                                                    return (
+                                                        <div key={ck} className={`border-b p-1 text-center ${over ? 'bg-red-50' : 'bg-amber-50/40'}`}>
+                                                            <div className={`font-black text-sm ${over ? 'text-red-700' : 'text-[#7A3722]'}`}>₪{dc.cost.toLocaleString()}</div>
+                                                            {dc.target
+                                                                ? <div className="text-[10px] text-gray-500">יעד ₪{dc.target.toLocaleString()}{over ? ` · +${Math.round((dc.cost / dc.target - 1) * 100)}%` : ' ✓'}</div>
+                                                                : <div className="text-[10px] text-gray-400">{dc.hours} שעות</div>}
+                                                            {otPeople > 0 && <div className="text-[10px] text-orange-600 font-bold">⚠ {otPeople} בנוספות</div>}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </>
+                                        )}
 
                                         {finalFilteredPositions.map((position, positionIdx) => (
                                             <React.Fragment key={position.id}>
@@ -1577,6 +1639,17 @@ export default function WorkScheduling() {
                                                                         <span>{assignment.employee_name}</span>
                                                                     </p>
                                                                     <p className="text-xs">{assignment.start_time} - {assignment.end_time}</p>
+                                                                    {canSeeCost && (() => {
+                                                                        const dc = laborCost?.detail?.[`${dateStr}|${type}`];
+                                                                        const me = dc?.staff?.find(x => String(x.employee_id) === String(assignment.employee_id));
+                                                                        if (!me || !me.cost) return null;
+                                                                        return (
+                                                                            <p className={`text-[10px] font-bold ${me.overtime_hours > 0 ? 'text-orange-700' : 'text-[#7A3722]'}`}>
+                                                                                ₪{me.cost.toLocaleString()} · {me.hours}ש
+                                                                                {me.overtime_hours > 0 ? ` ⚠${me.overtime_hours}` : ''}
+                                                                            </p>
+                                                                        );
+                                                                    })()}
                                                                     {assignment.notes && (
                                                                         <p className="text-xs text-orange-700 bg-orange-50 rounded px-1 mt-0.5 text-right leading-tight" title={assignment.notes}>
                                                                             📝 {assignment.notes}

@@ -5783,6 +5783,9 @@ async function ensureScheduleConfig(): Promise<void> {
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "ScheduleConfig" ADD COLUMN IF NOT EXISTS "coverage" JSONB`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "ScheduleConfig" ADD COLUMN IF NOT EXISTS "labor_budget" JSONB`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "ScheduleConfig" ADD COLUMN IF NOT EXISTS "published_weeks" JSONB`).catch(() => {});
+  // shift_targets = { [shift_type]: ₪ target for ONE occurrence of that shift }.
+  // A day's target = sum of its shifts' targets; the week stays labor_budget.
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "ScheduleConfig" ADD COLUMN IF NOT EXISTS "shift_targets" JSONB`).catch(() => {});
   _schedCfgEnsured = true;
 }
 
@@ -5821,6 +5824,7 @@ registerFn('setScheduleConfig', async ({ user, body }: any) => {
   if (b.coverage !== undefined) addJson('coverage', (b.coverage && typeof b.coverage === 'object') ? b.coverage : null);
   if (b.labor_budget !== undefined) addJson('labor_budget', (b.labor_budget == null || b.labor_budget === '') ? null : Number(b.labor_budget) || null);
   if (b.published_weeks !== undefined) addJson('published_weeks', Array.isArray(b.published_weeks) ? b.published_weeks.slice(0, 60) : null);
+  if (b.shift_targets !== undefined) addJson('shift_targets', (b.shift_targets && typeof b.shift_targets === 'object') ? b.shift_targets : null);
 
   if (sets.length) {
     params.push(id);
@@ -5856,11 +5860,26 @@ registerFn('getScheduleLaborCost', async ({ user, body }: any) => {
     const toMin = (t: any) => { const m = String(t || '').match(/(\d{1,2}):(\d{2})/); return m ? (+m[1]) * 60 + (+m[2]) : null; };
     const hoursBetween = (s: any, e: any) => { const a = toMin(s), z0 = toMin(e); if (a == null || z0 == null) return 0; let z = z0; if (z < a) z += 24 * 60; return (z - a) / 60; };
 
+    // Israeli overtime: first 8h at 100%, next 2h at 125%, beyond 10h at 150%.
+    // The old flat hrs*rate UNDER-counted every long shift.
+    const gross = (hrs: number, rate: number) => {
+      const base = Math.min(hrs, 8);
+      const t125 = Math.min(Math.max(hrs - 8, 0), 2);
+      const t150 = Math.max(hrs - 10, 0);
+      return base * rate + t125 * rate * 1.25 + t150 * rate * 1.5;
+    };
+
     let total = 0, hours = 0, hasRates = false;
     const byDay: Record<string, number> = {}, byShift: Record<string, number> = {};
+    // Per (date|shift_type): the cost breakdown the schedule grid renders.
+    const detail: Record<string, any> = {};
+    const weekHours: Record<string, number> = {}; // employee_id → weekly hours (for the >43h flag)
+
     for (const sh of shifts) {
       const ds = new Date(sh.date).toISOString().slice(0, 10);
       if (!dates.has(ds)) continue;
+      const key = `${ds}|${sh.shift_type}`;
+      if (!detail[key]) detail[key] = { date: ds, shift_type: sh.shift_type, cost: 0, hours: 0, staff: [] };
       const staff = Array.isArray(sh.assigned_staff) ? sh.assigned_staff : [];
       for (const a of staff) {
         let hrs = hoursBetween(a.start_time, a.end_time);
@@ -5869,17 +5888,51 @@ registerFn('getScheduleLaborCost', async ({ user, body }: any) => {
         const rate = (pay && pay.hourly_rate != null) ? Number(pay.hourly_rate) : (posRate.get(a.position) ?? 0);
         if (rate > 0) hasRates = true;
         const mult = 1 + (Number(pay?.employer_pct) || 0) / 100;
-        const cost = hrs * rate * mult;
+        const cost = gross(hrs, rate) * mult;
         total += cost; hours += hrs;
         byDay[ds] = (byDay[ds] || 0) + cost;
         byShift[sh.shift_type] = (byShift[sh.shift_type] || 0) + cost;
+        if (a.employee_id) weekHours[a.employee_id] = (weekHours[a.employee_id] || 0) + hrs;
+        detail[key].cost += cost;
+        detail[key].hours += hrs;
+        detail[key].staff.push({
+          employee_id: a.employee_id || null,
+          name: a.name || a.employee_name || a.full_name || '',
+          position: a.position || null,
+          start_time: a.start_time || null, end_time: a.end_time || null,
+          hours: Math.round(hrs * 10) / 10,
+          cost: Math.round(cost),
+          overtime_hours: Math.round(Math.max(0, hrs - 8) * 10) / 10,
+          no_rate: !(rate > 0),
+        });
       }
+    }
+
+    const cfg: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT labor_budget, shift_targets FROM "ScheduleConfig" LIMIT 1`).catch(() => []);
+    const budget = cfg[0]?.labor_budget != null ? Number(cfg[0].labor_budget) : null;
+    const shiftTargets = (cfg[0]?.shift_targets && typeof cfg[0].shift_targets === 'object') ? cfg[0].shift_targets : {};
+
+    // Attach the per-occurrence target + flag anyone over 43h for the week.
+    const dayTargets: Record<string, number> = {};
+    for (const k of Object.keys(detail)) {
+      const d = detail[k];
+      const t = Number(shiftTargets[d.shift_type]);
+      d.target = Number.isFinite(t) && t > 0 ? t : null;
+      if (d.target) dayTargets[d.date] = (dayTargets[d.date] || 0) + d.target;
+      d.cost = Math.round(d.cost);
+      d.hours = Math.round(d.hours * 10) / 10;
+      d.over = d.target ? d.cost > d.target : false;
+      for (const st of d.staff) st.weekly_overtime = (weekHours[st.employee_id] || 0) > 43;
     }
     for (const k of Object.keys(byDay)) byDay[k] = Math.round(byDay[k]);
     for (const k of Object.keys(byShift)) byShift[k] = Math.round(byShift[k]);
-    const cfg: any[] = await (prisma as any).$queryRawUnsafe(`SELECT labor_budget FROM "ScheduleConfig" LIMIT 1`).catch(() => []);
-    const budget = cfg[0]?.labor_budget != null ? Number(cfg[0].labor_budget) : null;
-    return { total: Math.round(total), hours: Math.round(hours * 10) / 10, by_day: byDay, by_shift: byShift, has_rates: hasRates, budget };
+
+    return {
+      total: Math.round(total), hours: Math.round(hours * 10) / 10,
+      by_day: byDay, by_shift: byShift, has_rates: hasRates, budget,
+      shift_targets: shiftTargets, day_targets: dayTargets, detail,
+    };
   } catch {
     return { total: 0, hours: 0, by_day: {}, by_shift: {}, has_rates: false, budget: null };
   }
