@@ -31,8 +31,12 @@ registerFn('getCapitalForecast', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   if (!isAdmin(user)) throw new Error('forbidden');
   await requirePageAccess(user, 'CashFlow');
+  return computeCapitalForecast(Number((body || {}).days) || 90);
+});
 
-  const horizon = Math.min(180, Math.max(14, Number((body || {}).days) || 90));
+/** The forecast itself, callable from other server code (recommendations). */
+export async function computeCapitalForecast(daysIn: number): Promise<any> {
+  const horizon = Math.min(180, Math.max(14, Number(daysIn) || 90));
 
   const rows: any[] = await dbx().$queryRawUnsafe(
     `SELECT tx_date, amount, balance, category, description
@@ -291,4 +295,4 @@ registerFn('getCapitalForecast', async ({ user, body }: any) => {
     overdue_amount: Math.round(overdueTotal),
     warnings,
   };
-});
+}

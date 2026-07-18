@@ -67,7 +67,15 @@ export default function BankStatementCard() {
       const extra = d.opening_set
         ? ` · יתרת פתיחה עודכנה ל-${ils(d.opening_set.balance)} (${d.opening_set.date})`
         : '';
-      setMsg({ ok: true, t: `נקלטו ${d.imported} תנועות${d.duplicates ? `, ${d.duplicates} כבר היו במערכת` : ''}${extra}` });
+      // Read the reporting rhythms off the statement so the owner does not have
+      // to enter what the data already says. Only fills what is not yet set.
+      let auto = '';
+      try {
+        const c = await base44.functions.autoConfigureCashflow({});
+        const applied = ((c?.data ?? c) || {}).applied || [];
+        if (applied.length) auto = ` · הוגדר אוטומטית: ${applied.join(' · ')}`;
+      } catch { /* configuration is a bonus, never a reason to fail the import */ }
+      setMsg({ ok: true, t: `נקלטו ${d.imported} תנועות${d.duplicates ? `, ${d.duplicates} כבר היו במערכת` : ''}${extra}${auto}` });
       setPreview(null);
       loadSummary();
     } catch (e) { setMsg({ ok: false, t: e?.message || 'שגיאה בייבוא' }); }

@@ -30,7 +30,11 @@ registerFn('getCapitalForecast', async ({ user, body }) => {
     if (!isAdmin(user))
         throw new Error('forbidden');
     await requirePageAccess(user, 'CashFlow');
-    const horizon = Math.min(180, Math.max(14, Number((body || {}).days) || 90));
+    return computeCapitalForecast(Number((body || {}).days) || 90);
+});
+/** The forecast itself, callable from other server code (recommendations). */
+export async function computeCapitalForecast(daysIn) {
+    const horizon = Math.min(180, Math.max(14, Number(daysIn) || 90));
     const rows = await dbx().$queryRawUnsafe(`SELECT tx_date, amount, balance, category, description
      FROM "BankTransaction" ORDER BY tx_date`).catch(() => []);
     if (rows.length < 20) {
@@ -273,5 +277,5 @@ registerFn('getCapitalForecast', async ({ user, body }) => {
         overdue_amount: Math.round(overdueTotal),
         warnings,
     };
-});
+}
 //# sourceMappingURL=capitalForecast.js.map
