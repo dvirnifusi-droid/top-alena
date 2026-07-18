@@ -618,6 +618,8 @@ export default function WorkScheduling() {
     const [showTargets, setShowTargets] = useState(false);
     const [targetsDraft, setTargetsDraft] = useState({});   // { [shift_type]: ₪ per occurrence }
     const [savingTargets, setSavingTargets] = useState(false);
+    const [tipPositions, setTipPositions] = useState([]);
+    const [savingTips, setSavingTips] = useState(false);
 
     // Only owner/admin see labor cost (pay is sensitive); managed-dept leads don't.
     const canSeeCost = currentUser?.role === 'admin' || currentUser?.role === 'owner';
@@ -644,7 +646,7 @@ export default function WorkScheduling() {
             try {
                 const res = await base44.functions.getScheduleLaborCost({ week_start: weekStartStr });
                 const d = res?.data || res || {};
-                if (!cancelled) { setLaborCost(d); setBudgetInput(d.budget != null ? String(d.budget) : ''); setTargetsDraft(d.shift_targets || {}); }
+                if (!cancelled) { setLaborCost(d); setBudgetInput(d.budget != null ? String(d.budget) : ''); setTargetsDraft(d.shift_targets || {}); setTipPositions(d.tip_positions || []); }
             } catch { /* forbidden / error → hide strip */ }
         })();
         return () => { cancelled = true; };
@@ -675,6 +677,18 @@ export default function WorkScheduling() {
             setWeek(w => [...w]); // nudge the cost effect to refetch
         } catch (e) { console.warn('save targets', e); }
         setSavingTargets(false);
+    };
+
+    // Which scheduled positions live on tips → excluded from labor cost by
+    // POSITION, so the same waiter counts when assigned to קופה/מארח.
+    const saveTipPositions = async () => {
+        setSavingTips(true);
+        try {
+            await base44.functions.setScheduleConfig({ tip_positions: tipPositions });
+            setLaborCost(prev => prev ? { ...prev, tip_positions: tipPositions } : prev);
+            setWeek(w => [...w]); // refetch cost with the new rule
+        } catch (e) { console.warn('save tip positions', e); }
+        setSavingTips(false);
     };
 
     // Draft → Publish, PER DEPARTMENT (floor / kitchen). Only FUTURE weeks are
@@ -1474,6 +1488,28 @@ export default function WorkScheduling() {
                                     <Button size="sm" onClick={saveTargets} disabled={savingTargets} className="h-8">
                                         {savingTargets ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור יעדים'}
                                     </Button>
+                                    <div className="w-full border-t pt-2 mt-1">
+                                        <div className="text-xs text-gray-500 mb-1">
+                                            תפקידים שחיים מטיפים — <b>לא נספרים בעלות העבודה</b>. הקובע הוא התפקיד בסידור:
+                                            אותו מלצר משובץ לקופה/מארח <b>כן</b> ייספר.
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {positions.map(pos => {
+                                                const name = pos.position_name;
+                                                const on = (tipPositions || []).includes(name);
+                                                return (
+                                                    <button key={pos.id} type="button"
+                                                        onClick={() => setTipPositions(prev => on ? prev.filter(x => x !== name) : [...(prev || []), name])}
+                                                        className={`text-[11px] rounded-full px-2 py-0.5 border ${on ? 'bg-purple-100 border-purple-300 text-purple-800 font-bold' : 'bg-white border-gray-200 text-gray-500'}`}>
+                                                        {on ? '💜 ' : ''}{name}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <Button size="sm" variant="outline" className="h-7 mt-2 text-xs" onClick={saveTipPositions} disabled={savingTips}>
+                                            {savingTips ? <Loader2 className="w-3 h-3 animate-spin" /> : 'שמור תפקידי טיפים'}
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -1642,7 +1678,10 @@ export default function WorkScheduling() {
                                                                     {canSeeCost && (() => {
                                                                         const dc = laborCost?.detail?.[`${dateStr}|${type}`];
                                                                         const me = dc?.staff?.find(x => String(x.employee_id) === String(assignment.employee_id));
-                                                                        if (!me || !me.cost) return null;
+                                                                        if (!me) return null;
+                                                                        if (me.tip_role) return <p className="text-[10px] font-bold text-purple-700">💜 טיפים · {me.hours}ש</p>;
+                                                                        if (me.no_rate) return <p className="text-[10px] text-gray-400">אין תעריף</p>;
+                                                                        if (!me.cost) return null;
                                                                         return (
                                                                             <p className={`text-[10px] font-bold ${me.overtime_hours > 0 ? 'text-orange-700' : 'text-[#7A3722]'}`}>
                                                                                 ₪{me.cost.toLocaleString()} · {me.hours}ש

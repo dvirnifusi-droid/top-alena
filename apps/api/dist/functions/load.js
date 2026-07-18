@@ -5828,6 +5828,11 @@ async function ensureScheduleConfig() {
     // shift_targets = { [shift_type]: ₪ target for ONE occurrence of that shift }.
     // A day's target = sum of its shifts' targets; the week stays labor_budget.
     await prisma.$executeRawUnsafe(`ALTER TABLE "ScheduleConfig" ADD COLUMN IF NOT EXISTS "shift_targets" JSONB`).catch(() => { });
+    // tip_positions = scheduled positions that live on TIPS, so an assignment to
+    // one of them is excluded from labor cost REGARDLESS of the person's rate.
+    // The same waiter assigned to קופה/מארח that day DOES count. Position in the
+    // schedule decides, not the employee record.
+    await prisma.$executeRawUnsafe(`ALTER TABLE "ScheduleConfig" ADD COLUMN IF NOT EXISTS "tip_positions" JSONB`).catch(() => { });
     _schedCfgEnsured = true;
 }
 registerFn('getScheduleConfig', async ({ user }) => {
@@ -5876,6 +5881,8 @@ registerFn('setScheduleConfig', async ({ user, body }) => {
         addJson('published_weeks', Array.isArray(b.published_weeks) ? b.published_weeks.slice(0, 60) : null);
     if (b.shift_targets !== undefined)
         addJson('shift_targets', (b.shift_targets && typeof b.shift_targets === 'object') ? b.shift_targets : null);
+    if (b.tip_positions !== undefined)
+        addJson('tip_positions', Array.isArray(b.tip_positions) ? b.tip_positions.map((x) => String(x).trim()).filter(Boolean).slice(0, 40) : null);
     if (sets.length) {
         params.push(id);
         await prisma.$executeRawUnsafe(`UPDATE "ScheduleConfig" SET ${sets.join(', ')}, "updatedAt"=NOW() WHERE id=$${i}`, ...params);
@@ -5915,6 +5922,23 @@ registerFn('getScheduleLaborCost', async ({ user, body }) => {
         const hoursBetween = (s, e) => { const a = toMin(s), z0 = toMin(e); if (a == null || z0 == null)
             return 0; let z = z0; if (z < a)
             z += 24 * 60; return (z - a) / 60; };
+        const cfgRow = await prisma.$queryRawUnsafe(`SELECT labor_budget, shift_targets, tip_positions FROM "ScheduleConfig" LIMIT 1`).catch(() => []);
+        // Positions that live on tips are excluded from labor cost by POSITION, not
+        // by employee: the same waiter assigned to קופה/מארח that day DOES count.
+        const tipPosRaw = Array.isArray(cfgRow[0]?.tip_positions) ? cfgRow[0].tip_positions : ['מלצר', 'ברמן', 'ראנר'];
+        const normPos = (x) => String(x || '').replace(/[\s"'׳״־\-/\|,.]+/g, '').toLowerCase();
+        const tipSet = new Set(tipPosRaw.map((x) => normPos(x)));
+        const isTipPosition = (pos) => {
+            const n = normPos(pos);
+            if (!n)
+                return false;
+            if (tipSet.has(n))
+                return true;
+            for (const t of tipSet)
+                if (t.length >= 3 && (n.includes(t) || t.includes(n)))
+                    return true;
+            return false;
+        };
         // Israeli overtime: first 8h at 100%, next 2h at 125%, beyond 10h at 150%.
         // The old flat hrs*rate UNDER-counted every long shift.
         const gross = (hrs, rate) => {
@@ -5945,15 +5969,18 @@ registerFn('getScheduleLaborCost', async ({ user, body }) => {
                 if (rate > 0)
                     hasRates = true;
                 const mult = 1 + (Number(pay?.employer_pct) || 0) / 100;
-                const cost = gross(hrs, rate) * mult;
+                // Tip position → zero labor cost, but still listed so the shift shows who's on.
+                const tipRole = isTipPosition(a.position);
+                const cost = tipRole ? 0 : gross(hrs, rate) * mult;
                 total += cost;
-                hours += hrs;
+                hours += tipRole ? 0 : hrs;
                 byDay[ds] = (byDay[ds] || 0) + cost;
                 byShift[sh.shift_type] = (byShift[sh.shift_type] || 0) + cost;
                 if (a.employee_id)
                     weekHours[a.employee_id] = (weekHours[a.employee_id] || 0) + hrs;
                 detail[key].cost += cost;
-                detail[key].hours += hrs;
+                if (!tipRole)
+                    detail[key].hours += hrs;
                 detail[key].staff.push({
                     employee_id: a.employee_id || null,
                     name: a.name || a.employee_name || a.full_name || '',
@@ -5961,14 +5988,14 @@ registerFn('getScheduleLaborCost', async ({ user, body }) => {
                     start_time: a.start_time || null, end_time: a.end_time || null,
                     hours: Math.round(hrs * 10) / 10,
                     cost: Math.round(cost),
-                    overtime_hours: Math.round(Math.max(0, hrs - 8) * 10) / 10,
-                    no_rate: !(rate > 0),
+                    overtime_hours: tipRole ? 0 : Math.round(Math.max(0, hrs - 8) * 10) / 10,
+                    no_rate: !tipRole && !(rate > 0),
+                    tip_role: tipRole,
                 });
             }
         }
-        const cfg = await prisma.$queryRawUnsafe(`SELECT labor_budget, shift_targets FROM "ScheduleConfig" LIMIT 1`).catch(() => []);
-        const budget = cfg[0]?.labor_budget != null ? Number(cfg[0].labor_budget) : null;
-        const shiftTargets = (cfg[0]?.shift_targets && typeof cfg[0].shift_targets === 'object') ? cfg[0].shift_targets : {};
+        const budget = cfgRow[0]?.labor_budget != null ? Number(cfgRow[0].labor_budget) : null;
+        const shiftTargets = (cfgRow[0]?.shift_targets && typeof cfgRow[0].shift_targets === 'object') ? cfgRow[0].shift_targets : {};
         // Attach the per-occurrence target + flag anyone over 43h for the week.
         const dayTargets = {};
         for (const k of Object.keys(detail)) {
@@ -5991,6 +6018,7 @@ registerFn('getScheduleLaborCost', async ({ user, body }) => {
             total: Math.round(total), hours: Math.round(hours * 10) / 10,
             by_day: byDay, by_shift: byShift, has_rates: hasRates, budget,
             shift_targets: shiftTargets, day_targets: dayTargets, detail,
+            tip_positions: tipPosRaw,
         };
     }
     catch {
