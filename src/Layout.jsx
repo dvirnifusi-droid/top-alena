@@ -431,6 +431,10 @@ export default function Layout({ children, currentPageName }) {
       if (!k || seen.has(k)) continue;
       seen.add(k); out.push(l);
     }
+    // "בית" (the employee home) belongs at the very top — appending the employee
+    // menu after the admin one buried it at the bottom.
+    const homeIdx = out.findIndex((l) => !l.isCategory && urlKey(l.url) === 'EmployeeHome');
+    if (homeIdx > 0) out.unshift(out.splice(homeIdx, 1)[0]);
     return out;
   }, [adminLinksFiltered, departmentManagerExtras]);
 

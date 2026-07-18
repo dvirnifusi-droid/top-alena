@@ -652,7 +652,13 @@ export default function WorkScheduling() {
                 const res = await base44.functions.getScheduleLaborCost({ week_start: weekStartStr });
                 const d = res?.data || res || {};
                 if (!cancelled) { setLaborCost(d); setBudgetInput(d.budget != null ? String(d.budget) : ''); setTargetsDraft(d.shift_targets || {}); setTipPositions(d.tip_positions || []); }
-            } catch { if (!cancelled) setCostForbidden(true); /* not permitted → hide everything cost-related */ }
+            } catch (e) {
+                // ONLY a real permission denial hides the cost UI. Treating every
+                // error as "forbidden" meant one transient failure (an API restart
+                // mid-deploy) permanently blanked the strip for the owner too.
+                const msg = String(e?.message || '');
+                if (!cancelled && /forbidden|unauthorized|403|401/i.test(msg)) setCostForbidden(true);
+            }
         })();
         return () => { cancelled = true; };
     }, [weekStartStr, week, canSeeCost]);
