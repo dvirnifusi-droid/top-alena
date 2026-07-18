@@ -81,18 +81,41 @@ export async function pushoverToAdmins(title, message) {
     // Pushover now also arrives in WhatsApp so the owner never needs a
     // separate app. Fire-and-forget so this never blocks the return path.
     void mirrorToWhatsApp(title, message);
-    // Owners are recipients too. Promoting a user from 'admin' to 'owner' silently
-    // dropped them from every Pushover alert — the tenant owner is exactly who
-    // these alerts are FOR.
-    const admins = await prisma.user.findMany({ where: { role: { in: ['admin', 'owner'] } } });
-    const employees = await prisma.employee.findMany();
+    // Recipients = the UNION of two independent paths, so one broken link can't
+    // silently mute every alert (which is exactly what happened: the old code
+    // required User.role==='admin' AND an exact email match to an Employee row
+    // holding the key — promoting the owner to 'owner' cut the whole chain).
+    //   1. an Employee with a key whose linked User is admin/owner
+    //   2. an Employee with a key whose own job role is management-level
+    // Anyone holding a key configured it deliberately, so this can't spam staff
+    // who never opted in.
+    const users = await prisma.user.findMany({ where: { role: { in: ['admin', 'owner'] } } })
+        .catch(() => []);
+    const adminEmails = new Set(users.map((u) => String(u.email || '').toLowerCase()).filter(Boolean));
+    const employees = await prisma.employee.findMany({
+        where: { pushover_user_key: { not: null } },
+    }).catch(() => []);
+    const MGMT = ['admin', 'owner', 'manager', 'בעלים', 'מנהל'];
+    const keys = new Set();
+    for (const e of employees) {
+        const key = String(e.pushover_user_key || '').trim();
+        if (!key)
+            continue;
+        const byUser = adminEmails.has(String(e.email || '').toLowerCase());
+        const byRole = MGMT.some((r) => String(e.role || '').toLowerCase().includes(r.toLowerCase()));
+        if (byUser || byRole)
+            keys.add(key);
+    }
+    if (!keys.size) {
+        // Loud, because the previous failure mode was total silence with no trace.
+        console.warn(`[pushover] NO RECIPIENTS — ${users.length} admin/owner users, ` +
+            `${employees.length} employees hold a key. Alert dropped: ${title}`);
+        return { sent: 0 };
+    }
     const sent = [];
-    for (const admin of admins) {
-        const emp = employees.find((e) => e.email?.toLowerCase?.() === admin.email?.toLowerCase?.() && e.pushover_user_key);
-        if (emp?.pushover_user_key) {
-            await pushover(emp.pushover_user_key, title, message).catch((err) => console.error('[pushover] send failed', err));
-            sent.push(emp.pushover_user_key);
-        }
+    for (const key of keys) {
+        await pushover(key, title, message).catch((err) => console.error('[pushover] send failed', err));
+        sent.push(key);
     }
     return { sent: sent.length };
 }
