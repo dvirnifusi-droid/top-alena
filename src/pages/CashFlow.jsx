@@ -117,12 +117,13 @@ function CashFlowInner() {
   const formatCur = (n) => `₪${Math.round(Number(n || 0)).toLocaleString()}`;
   const upcoming = data?.upcoming || [];
   const balColor = (n) => n < 0 ? 'text-red-600' : n < 20000 ? 'text-amber-600' : 'text-emerald-700';
+  const hasOpening = !!opening?.opening_date;
 
   return (
     <PageShell>
       <PageHeader
         title="תזרים מזומנים"
-        subtitle={`מתעדכן אוטומטית מדוחות סוף המשמרת (הכנסות) ומהחשבוניות (הוצאות) · תחזית ${days} יום`}
+        subtitle="צפי ההון למעלה הוא התשובה; מתחתיו הפירוט לפי דוחות משמרת וחשבוניות"
         icon={Wallet}
         action={
           <div className="flex items-center gap-2">
@@ -135,18 +136,41 @@ function CashFlowInner() {
       />
       <div className="space-y-4">
 
+      {isOwner && (<>
+        <CapitalForecastCard />
+        <BankStatementCard />
+        <ReconcileCard />
+      </>)}
+
+      <h3 className="text-sm font-semibold text-slate-600 pt-2">
+        פירוט לפי דוחות משמרת וחשבוניות
+        <span className="font-normal text-slate-400"> · תחזית {days} יום</span>
+      </h3>
+
       {data && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Card className="bg-slate-50">
             <CardContent className="p-4">
-              <div className="text-xs text-slate-500">יתרת פתיחה{opening.opening_date ? ` (${opening.opening_date})` : ''}</div>
+              <div className="text-xs text-slate-500">
+                יתרת פתיחה{hasOpening ? ` (${opening.opening_date})` : ' — לא הוגדרה'}
+              </div>
               <div className="text-2xl font-bold mt-1">{formatCur(data.opening_balance)}</div>
+              {!hasOpening && (
+                <div className="text-[11px] text-amber-700 mt-1">העלה עו"ש למעלה והיא תיקבע לבד</div>
+              )}
             </CardContent>
           </Card>
-          <Card className={data.current_projected_balance < 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}>
+          <Card className={!hasOpening ? 'bg-slate-50' : data.current_projected_balance < 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}>
             <CardContent className="p-4">
-              <div className="text-xs text-slate-500">יתרה צפויה לסוף תקופה</div>
-              <div className={`text-2xl font-bold mt-1 ${balColor(data.current_projected_balance)}`}>{formatCur(data.current_projected_balance)}</div>
+              {/* Without an opening balance this series starts from zero, so it is
+                  the net movement over the period — calling it a balance would be
+                  a made-up number shown in red. */}
+              <div className="text-xs text-slate-500">
+                {hasOpening ? 'יתרה צפויה לסוף תקופה' : 'תנועה נטו בתקופה (לא יתרה)'}
+              </div>
+              <div className={`text-2xl font-bold mt-1 ${hasOpening ? balColor(data.current_projected_balance) : 'text-slate-700'}`}>
+                {formatCur(data.current_projected_balance)}
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-white">
@@ -162,7 +186,9 @@ function CashFlowInner() {
         </div>
       )}
 
-      {data?.negative_days_warning?.length > 0 && (
+      {/* An "below zero" warning computed from a zero opening balance is not a
+          warning about anything — it would fire for every healthy business. */}
+      {hasOpening && data?.negative_days_warning?.length > 0 && (
         <Card className="bg-red-50 border-red-200">
           <CardContent className="p-3 text-sm text-red-900 flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -175,10 +201,6 @@ function CashFlowInner() {
       )}
 
       {isOwner && (<>
-        <CapitalForecastCard />
-        <BankStatementCard />
-        <ReconcileCard />
-
         <div className="grid md:grid-cols-2 gap-3">
           <Card>
             <CardHeader><CardTitle className="text-base">💵 פדיון יומי ידני</CardTitle></CardHeader>
