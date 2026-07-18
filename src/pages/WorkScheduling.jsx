@@ -627,7 +627,17 @@ export default function WorkScheduling() {
     // all-department pay access). A 403 flips costForbidden and every cost
     // element disappears — including the "enter rates" hint, which would
     // otherwise tell a manager that cost data exists.
-    const canSeeCost = (currentUser?.role === 'admin' || currentUser?.role === 'owner') && !costForbidden;
+    // Previewing a tier ("צפה כ:") must hide labor cost too, otherwise the preview
+    // lies: the server answers for the REAL user (the owner), so the cost stayed
+    // on screen while "viewing as" a floor manager who could never see it.
+    const [previewingTier, setPreviewingTier] = useState(false);
+    useEffect(() => {
+        const read = () => { try { setPreviewingTier(!!localStorage.getItem('view_tier_id')); } catch { /* ignore */ } };
+        read();
+        window.addEventListener('storage', read);
+        return () => window.removeEventListener('storage', read);
+    }, []);
+    const canSeeCost = (currentUser?.role === 'admin' || currentUser?.role === 'owner') && !costForbidden && !previewingTier;
 
     const handleCopyAvailabilityLink = () => {
         const url = `${window.location.origin}/AvailabilityForm`;

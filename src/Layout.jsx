@@ -569,6 +569,18 @@ const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
       .catch(() => setTiers([]));
   }, []);
   React.useEffect(() => { loadTiers(); }, [loadTiers]);
+  // Re-apply a persisted preview after reload (once tiers are available).
+  const restoredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (restoredRef.current || !tiers.length || user?._viewTierId) return;
+    let saved = null;
+    try { saved = localStorage.getItem('view_tier_id'); } catch { /* ignore */ }
+    if (saved && tiers.some((t) => String(t.id) === String(saved))) {
+      restoredRef.current = true;
+      applyTier(saved);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tiers]);
 
   const tierCatalog = React.useMemo(() => buildCatalog(adminLinks, employeeLinks), []);
   // Keyed by tier ID, never base_level: several tiers share a level (3x manager,
@@ -579,6 +591,14 @@ const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
 
   const applyTier = (tierId) => {
     const t = tiers.find((x) => String(x.id) === String(tierId));
+    // Persist it: a refresh used to drop you back to your own view with no
+    // indication, so you couldn't tell whether a tier was configured correctly
+    // or you'd simply stopped previewing. Also lets other pages know a preview
+    // is active (see WorkScheduling's cost strip).
+    try {
+      if (t) localStorage.setItem('view_tier_id', String(t.id));
+      else localStorage.removeItem('view_tier_id');
+    } catch { /* private mode */ }
     setUser((prev) => ({
       ...prev,
       _viewTierId: t ? t.id : null,
