@@ -22,6 +22,7 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
   const [bulkPct, setBulkPct] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -35,6 +36,7 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
           employee_id: e.employee_id,
           full_name: e.full_name,
           department: e.department || '',
+          status: e.status || 'active',
           pay_type: type,
           rate: type === 'monthly' ? (p.monthly_salary ?? '') : (p.hourly_rate ?? ''),
           employer_pct: p.employer_pct ?? '',
@@ -49,12 +51,19 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
   useEffect(() => { load(); }, [load]);
 
   const patch = (id, key, val) => setRows((rs) => rs.map((r) => r.employee_id === id ? { ...r, [key]: val } : r));
-  const applyBulkPct = () => { if (bulkPct !== '') setRows((rs) => rs.map((r) => ({ ...r, employer_pct: bulkPct }))); };
+  // Active employees only by default — inactive rows are noise when pricing payroll.
+  const visible = showInactive ? rows : rows.filter((r) => r.status === 'active');
+  const inactiveCount = rows.length - rows.filter((r) => r.status === 'active').length;
+  const applyBulkPct = () => {
+    if (bulkPct === '') return;
+    const ids = new Set(visible.map((r) => r.employee_id));
+    setRows((rs) => rs.map((r) => ids.has(r.employee_id) ? { ...r, employer_pct: bulkPct } : r));
+  };
 
   const save = async () => {
     setSaving(true); setMsg(null);
     try {
-      const payload = rows.map((r) => ({
+      const payload = visible.map((r) => ({
         employee_id: r.employee_id,
         pay_type: r.pay_type,
         hourly_rate: r.pay_type === 'hourly' ? r.rate : '',
@@ -71,7 +80,7 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
     setSaving(false);
   };
 
-  const withRate = rows.filter((r) => r.pay_type !== 'tips' && r.rate !== '' && Number(r.rate) > 0).length;
+  const withRate = visible.filter((r) => r.pay_type !== 'tips' && r.rate !== '' && Number(r.rate) > 0).length;
 
   return (
     <Card dir="rtl" className="border-amber-200">
@@ -79,7 +88,7 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
         <CardTitle className="text-base flex items-center justify-between">
           <span className="flex items-center gap-2"><DollarSign className="w-5 h-5 text-amber-600" /> תעריפי שכר — כל העובדים במסך אחד</span>
           <span className="flex items-center gap-2 text-xs font-normal text-slate-500">
-            {withRate}/{rows.length} עם תעריף
+            {withRate}/{visible.length} עם תעריף
             <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
           </span>
         </CardTitle>
@@ -104,7 +113,7 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
 
           {loading ? (
             <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>
-          ) : rows.length === 0 ? (
+          ) : visible.length === 0 ? (
             <p className="text-sm text-slate-500 text-center py-6">אין עובדים להצגה (או שאין לך הרשאת שכר).</p>
           ) : (
             <div className="overflow-x-auto">
@@ -119,7 +128,7 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {rows.map((r) => (
+                  {visible.map((r) => (
                     <tr key={r.employee_id} className="hover:bg-slate-50">
                       <td className="p-2 font-medium whitespace-nowrap">{r.full_name}</td>
                       <td className="p-2 text-slate-500 whitespace-nowrap">{r.department || '—'}</td>
@@ -151,8 +160,13 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
             </div>
           )}
 
-          <div className="flex justify-end pt-1">
-            <Button onClick={save} disabled={saving || loading || rows.length === 0} className="bg-amber-600 hover:bg-amber-700">
+          <div className="flex items-center justify-between pt-1">
+            {inactiveCount > 0 ? (
+              <button onClick={() => setShowInactive((v) => !v)} className="text-xs text-slate-500 hover:text-slate-700 underline">
+                {showInactive ? `הסתר עובדים לא פעילים (${inactiveCount})` : `הצג גם עובדים לא פעילים (${inactiveCount})`}
+              </button>
+            ) : <span />}
+            <Button onClick={save} disabled={saving || loading || visible.length === 0} className="bg-amber-600 hover:bg-amber-700">
               {saving ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : <Save className="w-4 h-4 ml-2" />}
               שמור תעריפים לכל העובדים
             </Button>

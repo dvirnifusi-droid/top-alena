@@ -31,7 +31,7 @@ registerFn('getEmployeePay', async ({ body, user }) => {
 registerFn('listEmployeePay', async ({ user }) => {
     const viewer = await buildPayViewer(user);
     const employees = await prisma.employee.findMany({
-        select: { id: true, full_name: true, department: true },
+        select: { id: true, full_name: true, department: true, status: true },
     }).catch(() => []);
     const visibleIds = employees
         .filter(e => canViewPay(viewer, { employeeId: e.id, department: e.department ?? null }))
@@ -42,7 +42,10 @@ registerFn('listEmployeePay', async ({ user }) => {
     const payById = new Map(pays.map(p => [p.employee_id, p]));
     return employees
         .filter(e => visibleIds.includes(e.id))
-        .map(e => ({ employee_id: e.id, full_name: e.full_name, department: e.department ?? null, pay: payById.get(e.id) ?? null }));
+        .map(e => ({
+        employee_id: e.id, full_name: e.full_name, department: e.department ?? null,
+        status: e.status ?? null, pay: payById.get(e.id) ?? null,
+    }));
 });
 // Upsert pay for an employee. Requires canEditPay. Validates numbers.
 registerFn('setEmployeePay', async ({ body, user }) => {
