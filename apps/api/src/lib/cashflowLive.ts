@@ -100,8 +100,11 @@ export type BuildInput = {
   rangeEnd: Date;
   historicalDaily: Map<string, number>; // actual revenue per day (from shift reports)
   projected: { date: string; amount: number }[]; // future income
-  invoices: { id: string; invoice_date: Date; total_amount: number; payment_status: string | null; supplier_name: string | null }[];
+  // due_date is when the money actually LEAVES; invoice_date is just when it was
+  // issued. Using the issue date put every outflow weeks too early.
+  invoices: { id: string; invoice_date: Date; due_date?: Date | null; total_amount: number; payment_status: string | null; supplier_name: string | null }[];
   recurring: CashFlowEntry[]; // from expandRecurring
+  payroll?: CashFlowEntry[];  // projected salary outflows (payday-dated)
 };
 
 // Build the full running-balance forecast in the page's expected shape.
@@ -123,9 +126,12 @@ export function buildLiveCashFlow(input: BuildInput) {
   for (const inv of input.invoices) {
     const paid = inv.payment_status === 'paid';
     const invKey = ymd(new Date(inv.invoice_date));
-    // Unpaid invoices are money still owed → surface as an upcoming outflow
-    // (dated today if the invoice is already in the past).
-    const dateKey = paid ? invKey : (invKey < todayKey ? todayKey : invKey);
+    const dueKey = inv.due_date ? ymd(new Date(inv.due_date)) : null;
+    // Money leaves on the DUE date when one is set (שוטף+30 etc.). Without it,
+    // fall back to the invoice date. An unpaid invoice already past its date
+    // lands on today — it's owed now.
+    const baseKey = dueKey || invKey;
+    const dateKey = paid ? invKey : (baseKey < todayKey ? todayKey : baseKey);
     entries.push({
       id: `inv-${inv.id}`,
       date: dateKey,
@@ -139,6 +145,11 @@ export function buildLiveCashFlow(input: BuildInput) {
   // Expenses — recurring (finalise status vs today)
   for (const rc of input.recurring) {
     entries.push({ ...rc, status: rc.date < todayKey ? 'paid' : 'planned' });
+  }
+  // Expenses — payroll. The single biggest outflow, previously missing entirely,
+  // so every forecast was optimistic by a full salary run.
+  for (const pr of (input.payroll || [])) {
+    entries.push({ ...pr, status: pr.date < todayKey ? 'paid' : 'planned' });
   }
 
   entries.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));

@@ -20,8 +20,23 @@ function CashFlowInner() {
   const [costs, setCosts] = useState([]);
   const [newCost, setNewCost] = useState({ name: '', amount: '', day_of_month: 1, category: 'קבועות' });
   const [savingOpen, setSavingOpen] = useState(false);
+  // Manual daily revenue (a day whose shift-end report was never filed) and the
+  // payday that projected wages land on.
+  const [manualRev, setManualRev] = useState({ date: '', amount: '' });
+  const [savingRev, setSavingRev] = useState(false);
+  const [revMsg, setRevMsg] = useState(null);
+  const [payroll, setPayroll] = useState({ payroll_day: 10, enabled: true });
+  const [savingPayroll, setSavingPayroll] = useState(false);
 
   const isOwner = me?.role === 'owner' || me?.role === 'admin';
+
+  const loadPayrollSetting = async () => {
+    try {
+      const r = await base44.functions.getPayrollSetting({});
+      const d = r?.data || r || {};
+      setPayroll({ payroll_day: d.payroll_day ?? 10, enabled: d.enabled !== false });
+    } catch { /* not permitted */ }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -30,7 +45,7 @@ function CashFlowInner() {
       setData(res?.data || res);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [days]);
+  useEffect(() => { load(); loadPayrollSetting(); /* eslint-disable-next-line */ }, [days]);
 
   useEffect(() => {
     (async () => {
@@ -54,6 +69,27 @@ function CashFlowInner() {
       });
       await load();
     } catch (e) { alert('שגיאה: ' + (e?.message || '')); } finally { setSavingOpen(false); }
+  };
+
+  const saveManualRevenue = async () => {
+    if (!manualRev.date || manualRev.amount === '') { setRevMsg({ ok: false, t: 'צריך תאריך וסכום' }); return; }
+    setSavingRev(true); setRevMsg(null);
+    try {
+      await base44.functions.setDailyRevenue({ date: manualRev.date, amount: Number(manualRev.amount) });
+      setRevMsg({ ok: true, t: 'נשמר — הפדיון נכנס לתזרים' });
+      setManualRev({ date: '', amount: '' });
+      load();
+    } catch (e) { setRevMsg({ ok: false, t: e?.message || 'שגיאה' }); }
+    setSavingRev(false);
+  };
+
+  const savePayroll = async () => {
+    setSavingPayroll(true);
+    try {
+      await base44.functions.setPayrollSetting(payroll);
+      load();
+    } catch (e) { console.warn('payroll setting', e); }
+    setSavingPayroll(false);
   };
 
   const addCost = async () => {
@@ -135,7 +171,53 @@ function CashFlowInner() {
         </Card>
       )}
 
-      {isOwner && (
+      {isOwner && (<>
+        <div className="grid md:grid-cols-2 gap-3">
+          <Card>
+            <CardHeader><CardTitle className="text-base">💵 פדיון יומי ידני</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-xs text-slate-500">
+                יום שלא הוגש עליו דוח סיום משמרת נספר כאפס הכנסה. הזן כאן את הזד והוא ייכנס לתזרים.
+              </p>
+              <div className="flex items-end gap-2">
+                <div>
+                  <label className="text-xs text-slate-500">תאריך</label>
+                  <Input type="date" value={manualRev.date} onChange={e => setManualRev(v => ({ ...v, date: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500">פדיון (₪)</label>
+                  <Input type="number" dir="ltr" value={manualRev.amount} onChange={e => setManualRev(v => ({ ...v, amount: e.target.value }))} />
+                </div>
+                <Button onClick={saveManualRevenue} disabled={savingRev}><Save className="w-4 h-4 ml-1" />שמור</Button>
+              </div>
+              {revMsg && <div className={`text-xs ${revMsg.ok ? 'text-emerald-700' : 'text-red-600'}`}>{revMsg.t}</div>}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base">👥 משכורות בתזרים</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-xs text-slate-500">
+                השכר מחושב מהסידור (כולל שעות נוספות ועלות מעביד) ויוצא כתשלום אחד ביום המשכורת.
+              </p>
+              <div className="flex items-end gap-2">
+                <div>
+                  <label className="text-xs text-slate-500">יום תשלום בחודש</label>
+                  <Input type="number" min="1" max="28" dir="ltr" className="w-24"
+                    value={payroll.payroll_day}
+                    onChange={e => setPayroll(v => ({ ...v, payroll_day: Number(e.target.value) || 10 }))} />
+                </div>
+                <label className="flex items-center gap-1 text-xs text-slate-600 pb-2">
+                  <input type="checkbox" checked={payroll.enabled}
+                    onChange={e => setPayroll(v => ({ ...v, enabled: e.target.checked }))} />
+                  כלול בתזרים
+                </label>
+                <Button onClick={savePayroll} disabled={savingPayroll}><Save className="w-4 h-4 ml-1" />שמור</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="grid md:grid-cols-2 gap-3">
           <Card>
             <CardHeader><CardTitle className="text-base">יתרת פתיחה</CardTitle></CardHeader>
@@ -170,6 +252,7 @@ function CashFlowInner() {
             </CardContent>
           </Card>
         </div>
+        </>
       )}
 
       <Card>
