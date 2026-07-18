@@ -12112,6 +12112,12 @@ registerFn('importRecipesFromJson', async ({ body, user }) => {
     const lookupIngredient = (name) => ingByName[name] || aliasByName[name] || null;
     // 4. Insert recipes in 2 passes: PREP first (so DISH can reference them).
     const recipeByName = {};
+    // PREPs are inserted first, then DISHes — and a DISH with the same name used
+    // to OVERWRITE the PREP entry in recipeByName. A dish looking up its prep by
+    // name then resolved to ITSELF, producing a self-referencing cost loop
+    // (סיגר בשר / לקט פטריות / חומוס — every same-named PREP+DISH pair).
+    // Keep a PREP-only map and resolve prep references against it first.
+    const prepByName = {};
     for (const pass of ['PREP', 'DISH']) {
         for (const rec of recipes) {
             if (rec.kind !== pass)
@@ -12120,6 +12126,8 @@ registerFn('importRecipesFromJson', async ({ body, user }) => {
             await prisma.$executeRawUnsafe(`INSERT INTO "Recipe"("id","kind","name","total_cost","sale_price","yield_qty","yield_unit","category")
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, newId, rec.kind, rec.name, rec.total_cost ?? null, rec.sale_price ?? null, rec.yield_qty ?? 1, rec.yield_unit || 'unit', rec.category || null);
             recipeByName[rec.name] = newId;
+            if (rec.kind === 'PREP')
+                prepByName[rec.name] = newId;
         }
     }
     // 5. Insert recipe ingredients.
@@ -12132,7 +12140,7 @@ registerFn('importRecipesFromJson', async ({ body, user }) => {
         const ings = Array.isArray(rec.ingredients) ? rec.ingredients : [];
         for (const ri of ings) {
             const isPrep = !!ri.is_prep;
-            const prepId = isPrep ? recipeByName[ri.raw_name] : null;
+            const prepId = isPrep ? (prepByName[ri.raw_name] ?? recipeByName[ri.raw_name] ?? null) : null;
             const ingId = !isPrep ? lookupIngredient(ri.raw_name) : null;
             if (!prepId && !ingId) {
                 unmatched.push(`${rec.name} → ${ri.raw_name}`);
@@ -12217,7 +12225,15 @@ registerFn('repairRecipeCycles', async ({ user }) => {
     await recomputeAllRecipeCosts();
     const after = await prisma.$queryRawUnsafe(`SELECT name, total_cost, sale_price, food_cost_percent FROM "Recipe"
      WHERE name = ANY($1::text[])`, bad.map((b) => b.name)).catch(() => []);
-    return { ok: true, removed: Number(res) || bad.length, was: bad, now: after };
+    // Preps with no ingredients contribute 0 to every dish that uses them, which
+    // silently UNDER-states food cost. Surface them instead of hiding it.
+    const emptyPreps = await prisma.$queryRawUnsafe(`SELECT r.name, (SELECT count(*) FROM "Recipe" d
+                     JOIN "RecipeIngredient" x ON x.recipe_id = d.id
+                     WHERE x.prep_recipe_id = r.id)::int AS used_by
+     FROM "Recipe" r
+     WHERE r.kind = 'PREP'
+       AND (SELECT count(*) FROM "RecipeIngredient" y WHERE y.recipe_id = r.id) = 0`).catch(() => []);
+    return { ok: true, removed: Number(res) || bad.length, was: bad, now: after, empty_preps: emptyPreps };
 });
 registerFn('listRecipes', async ({ body }) => {
     await ensureInventoryTables();
