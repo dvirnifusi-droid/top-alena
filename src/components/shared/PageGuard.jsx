@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
 import { Shield, Lock, Settings, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,7 @@ export default function PageGuard({ pageName, pageTitle, children }) {
   // D1 — module gate. If the current page's module is disabled for this tenant,
   // bounce to Dashboard. Dashboard/PlatformSettings are exempt (always reachable).
   const { pageEnabled, isLocked, unlockPlanFor, loading: modulesLoading } = useTenantModules();
+  const { can: permCan, isOwner, allowedPages, loading: permsLoading } = useMyPermissions();
   const navigate = useNavigate();
   useEffect(() => {
     if (modulesLoading) return;
@@ -138,7 +140,20 @@ export default function PageGuard({ pageName, pageTitle, children }) {
   // page itself handles scoping to their department.
   const isDepartmentManager = !!user?.managed_department;
   const isDeptManagedPage = ["WorkScheduling", "AvailabilityRequests", "Employees"].includes(pageName);
-  const hasAccess = isAdmin || allowedRoles.includes(userRole) || (isDepartmentManager && isDeptManagedPage);
+
+  // Access resolution, in priority order:
+  //  1. Owner  → always in (can never lock yourself out).
+  //  2. A configured PermissionTier allowlist → IT is the authority. This is what
+  //     stops a manager stored as role='admin' from opening CashFlow/Marketing:
+  //     the old `isAdmin ||` short-circuit let every admin through every page.
+  //  3. No tier configured → legacy coarse role behaviour, unchanged.
+  const hasAccess = permsLoading
+    ? true
+    : isOwner
+      ? true
+      : allowedPages
+        ? permCan(pageName)
+        : (isAdmin || allowedRoles.includes(userRole) || (isDepartmentManager && isDeptManagedPage));
 
   if (!hasAccess) {
     return (

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EmployeePaySection from '../components/employees/EmployeePaySection';
+import EmployeeTierSelect from '../components/employees/EmployeeTierSelect';
 import PageHeader from '@/components/shared/PageHeader';
 
 
@@ -382,6 +383,7 @@ export default function EmployeeDetailsPage() {
 
                 {/* Pay & employer-cost (privacy-aware) */}
                 <EmployeePaySection employee={employee} />
+                <EmployeeTierSelect employee={employee} />
 
                 {/* Monthly Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

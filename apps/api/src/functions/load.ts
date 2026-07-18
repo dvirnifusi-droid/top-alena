@@ -12,6 +12,7 @@ import './laborCost.js';
 import './i18nTranslate.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
+import { ensurePermissionTiers, resolveUserTier, requirePageAccess } from '../lib/pagePermissions.js';
 import { registerFn, functionHandlers } from './index.js';
 import { sendSms, sendWhatsApp, sendWhatsAppTemplate, invalidateTwilioCredsCache, twilioAuth } from '../lib/twilio.js';
 import { pushover, pushoverToAdmins, pushoverEventsOwners } from '../lib/pushover.js';
@@ -7453,20 +7454,37 @@ if (!(globalThis as any).__prepReminderTimer) {
 // base access level), so the "view as" dropdown + sidebar reflect the tenant's
 // hierarchy (מנהל סניף / אחראי משמרת / עובד...) instead of Alena's fixed roles.
 // base_level ∈ admin | manager | shift_lead | employee. Isolated table + guarded.
-let _permEnsured = false;
-async function ensurePermissionTiers(): Promise<void> {
-  if (_permEnsured) return;
+// The resolution engine itself lives in lib/pagePermissions.ts so every function
+// module can import it without cycling through this registry.
+
+// What the CURRENT user may see — the sidebar + PageGuard read this.
+registerFn('getMyPermissions', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const r = await resolveUserTier(user).catch(() => null);
+  return {
+    is_owner: !!r?.is_owner,
+    tier_id: r?.tier?.id || null,
+    tier_label: r?.tier?.label || null,
+    base_level: r?.tier?.base_level || null,
+    allowed_pages: r?.allowed_pages || null,
+    source: r?.source || 'error',
+  };
+});
+
+// Assign an employee to a permission tier (null clears → back to auto-match).
+registerFn('setEmployeeTier', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensurePermissionTiers();
+  const b = (body || {}) as any;
+  const empId = String(b.employee_id || '');
+  if (!empId) throw new Error('missing_employee');
+  const tierId = b.tier_id ? String(b.tier_id) : null;
   await (prisma as any).$executeRawUnsafe(
-    `CREATE TABLE IF NOT EXISTS "PermissionTier" (
-       "id" TEXT PRIMARY KEY,
-       "label" TEXT NOT NULL,
-       "base_level" TEXT NOT NULL DEFAULT 'employee',
-       "sort" INTEGER NOT NULL DEFAULT 0,
-       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-     )`,
+    `UPDATE "Employee" SET "permission_tier_id"=$2 WHERE id=$1`, empId, tierId,
   );
-  _permEnsured = true;
-}
+  return { ok: true, employee_id: empId, tier_id: tierId };
+});
 // Map a WorkPosition name → a sensible default base level (option 3: seed from
 // the tenant's real positions so the owner starts from reality, then tweaks).
 function levelForPosition(name: string): string {
@@ -7515,17 +7533,37 @@ registerFn('savePermissionTiers', async ({ user, body }: any) => {
   const items: any[] = Array.isArray(b.tiers) ? b.tiers.slice(0, 30) : [];
   const ok = new Set(['admin', 'manager', 'shift_lead', 'employee']);
   const { randomUUID } = await import('node:crypto');
-  await (prisma as any).$executeRawUnsafe(`DELETE FROM "PermissionTier"`);
+  // UPSERT by id — never delete-and-reinsert, or every save would mint new ids
+  // and orphan every Employee.permission_tier_id assignment.
+  const keep: string[] = [];
   let n = 0;
   for (let i = 0; i < items.length; i++) {
     const t = items[i] || {};
     const label = String(t.label || '').trim();
     if (!label) continue;
     const level = ok.has(String(t.base_level)) ? String(t.base_level) : 'employee';
+    // A seeded (unsaved) tier arrives with a 'seed_*' id — give it a real one.
+    const id = t.id && !String(t.id).startsWith('seed_') ? String(t.id) : randomUUID();
+    const pages = Array.isArray(t.allowed_pages)
+      ? JSON.stringify([...new Set(t.allowed_pages.map((p: any) => String(p)).filter(Boolean))].slice(0, 200))
+      : null;
     await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO "PermissionTier" ("id","label","base_level","sort","updatedAt") VALUES ($1,$2,$3,$4,NOW())`,
-      randomUUID(), label.slice(0, 80), level, i,
-    ).then(() => { n++; }).catch((e: any) => console.warn('[perm] insert', e?.message));
+      `INSERT INTO "PermissionTier" ("id","label","base_level","sort","allowed_pages","updatedAt")
+       VALUES ($1,$2,$3,$4,$5::jsonb,NOW())
+       ON CONFLICT ("id") DO UPDATE SET
+         "label"=EXCLUDED."label", "base_level"=EXCLUDED."base_level",
+         "sort"=EXCLUDED."sort", "allowed_pages"=EXCLUDED."allowed_pages", "updatedAt"=NOW()`,
+      id, label.slice(0, 80), level, i, pages,
+    ).then(() => { keep.push(id); n++; }).catch((e: any) => console.warn('[perm] upsert', e?.message));
+  }
+  // Drop tiers the owner removed, and unassign any employee who pointed at them.
+  if (keep.length) {
+    const list = keep.map((_, i) => `$${i + 1}`).join(',');
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "Employee" SET "permission_tier_id"=NULL
+       WHERE "permission_tier_id" IS NOT NULL AND "permission_tier_id" NOT IN (${list})`, ...keep,
+    ).catch(() => {});
+    await (prisma as any).$executeRawUnsafe(`DELETE FROM "PermissionTier" WHERE "id" NOT IN (${list})`, ...keep).catch(() => {});
   }
   return { ok: true, count: n };
 });

@@ -3,11 +3,17 @@
 import { registerFn } from './index.js';
 import { prisma } from '../db.js';
 import { dailyRevenue, weekdayAverages, projectIncome, expandRecurring, buildLiveCashFlow } from '../lib/cashflowLive.js';
+import { requirePageAccess } from '../lib/pagePermissions.js';
 
 const DAY_MS = 86400 * 1000;
 const isAdmin = (user: any) => user?.role === 'owner' || user?.role === 'admin';
 
-registerFn('getLiveCashFlow', async ({ body }) => {
+registerFn('getLiveCashFlow', async ({ body, user }) => {
+  // Was completely unguarded: any authenticated employee could read the whole
+  // cash flow straight off the API. Managers/owners only, and honour the
+  // tenant's per-tier page allowlist.
+  if (!isAdmin(user)) throw new Error('forbidden');
+  await requirePageAccess(user, 'CashFlow');
   const days = Math.min(120, Math.max(7, parseInt(String((body as any)?.days || 30))));
   const today = new Date();
   const rangeEnd = new Date(today.getTime() + days * DAY_MS);
@@ -51,7 +57,9 @@ registerFn('getLiveCashFlow', async ({ body }) => {
   return { ...result, days };
 });
 
-registerFn('getCashFlowOpening', async () => {
+registerFn('getCashFlowOpening', async ({ user }) => {
+  if (!isAdmin(user)) throw new Error('forbidden');
+  await requirePageAccess(user, 'CashFlow');
   const s = await (prisma as any).cashFlowSetting.findFirst({ orderBy: { updatedAt: 'desc' } }).catch(() => null);
   return {
     opening_balance: Number(s?.opening_balance) || 0,
@@ -61,6 +69,7 @@ registerFn('getCashFlowOpening', async () => {
 
 registerFn('setCashFlowOpening', async ({ body, user }) => {
   if (!isAdmin(user)) throw new Error('forbidden');
+  await requirePageAccess(user, 'CashFlow');
   const p = (body as any) || {};
   const bal = Number(p.opening_balance);
   if (!Number.isFinite(bal)) throw new Error('invalid_amount');

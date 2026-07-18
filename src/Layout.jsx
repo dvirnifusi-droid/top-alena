@@ -4,6 +4,8 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import VoiceControl from "@/components/voice/VoiceControl";
 import PinGate, { PIN_LOCKED_PAGES } from "@/components/shared/PinGate";
+import PermissionTierEditor, { buildCatalog } from "@/components/shared/PermissionTierEditor";
+import { useMyPermissions } from "@/hooks/useMyPermissions";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
   LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield, Lock, ShoppingCart, ScanLine
@@ -53,7 +55,7 @@ const colorOf = (key) => COLOR_CLASSES[key] || COLOR_CLASSES.slate;
 // All sidebar colors aligned to the warm restaurant palette per
 // /PublicReservation — amber / orange / emerald / stone. No more
 // violet/cyan/pink/indigo/rose/blue — feels colder than the brand.
-const adminLinks = [
+export const adminLinks = [
   { title: "לוח בקרה", url: createPageUrl("Dashboard"), icon: LayoutGrid, color: "cinnamon" },
 
   { title: "🤖 כלי AI", url: createPageUrl("AIHub"), icon: Sparkles, color: "gold" },
@@ -105,7 +107,7 @@ const adminLinks = [
 ];
 
 // Employee menu — full brand palette (cinnamon/olive/gold/espresso).
-const employeeLinks = [
+export const employeeLinks = [
   { title: "בית", url: createPageUrl("EmployeeHome"), icon: LayoutGrid, color: "cinnamon" },
 
   { title: "כלי עבודה יומיים", url: "#", icon: Zap, isCategory: true, color: "cinnamon" },
@@ -218,6 +220,7 @@ export default function Layout({ children, currentPageName }) {
   const branding = useTenantBranding();
   const brandName = branding?.name || 'TOP APOLLO';
   const { pageEnabled, isLocked, unlockPlanFor } = useTenantModules();
+  const { can: permCan, allowedPages: permPages } = useMyPermissions();
   const [paywall, setPaywall] = React.useState(null); // {title, plan} when a locked feature is clicked
   const lockedOf = (item) => {
     const pn = (item.url || '').replace(/^\//, '');
@@ -419,7 +422,14 @@ export default function Layout({ children, currentPageName }) {
     : positionSidebar ? positionSidebar
     : [...employeeLinks, ...departmentManagerExtras];
   const moduleFilteredLinks = filterByModules(baseLinks, pageEnabled, isLocked);
-  const navigationItems = filterNav(moduleFilteredLinks, navFilter);
+  // Per-tier page allowlist (PermissionTier.allowed_pages). null → no config,
+  // keep legacy behaviour. Category headers survive; dropEmptyCategories prunes.
+  const permFilteredLinks = React.useMemo(() => {
+    if (!permPages) return moduleFilteredLinks;
+    const kept = moduleFilteredLinks.filter((l) => l.isCategory || permCan(urlKey(l.url)));
+    return dropEmptyCategories(kept);
+  }, [moduleFilteredLinks, permPages, permCan]);
+  const navigationItems = filterNav(permFilteredLinks, navFilter);
   const userName = user?.full_name || user?.email?.split('@')[0] || 'משתמש';
 
   const commonSidebarProps = {
@@ -530,6 +540,7 @@ const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
   }, []);
   React.useEffect(() => { loadTiers(); }, [loadTiers]);
 
+  const tierCatalog = React.useMemo(() => buildCatalog(adminLinks, employeeLinks), []);
   const currentLevel = user?._viewLevel || (user?.role === 'admin' || user?.role === 'owner' ? 'admin' : 'employee');
 
   const applyLevel = (level) => {
@@ -544,7 +555,7 @@ const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
     }));
   };
 
-  const startEdit = () => { setDraft((tiers.length ? tiers : [{ label: 'מנהל / בעלים', base_level: 'admin' }]).map((t) => ({ label: t.label, base_level: t.base_level }))); setEditing(true); };
+  const startEdit = () => setEditing(true);
   const saveEdit = async () => {
     setSaving(true);
     try { await base44.functions.savePermissionTiers({ tiers: draft.filter((t) => t.label && t.label.trim()) }); setEditing(false); loadTiers(); }
@@ -571,22 +582,13 @@ const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
         <p className="text-[9px] text-orange-700 font-bold mt-0.5 text-center">🔄 מצב צפייה — חזור לרמה הבכירה לעבודה רגילה</p>
       )}
       {editing && (
-        <div className="mt-2 p-2 bg-white rounded-lg border border-blue-200 space-y-1.5" dir="rtl">
-          <p className="text-[10px] text-gray-500">שם הרמה של העסק + מה היא רואה באפליקציה.</p>
-          {draft.map((t, i) => (
-            <div key={i} className="flex items-center gap-1">
-              <input value={t.label} onChange={(e) => setDraft((d) => d.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} placeholder="שם הרמה" className="flex-1 min-w-0 text-xs border rounded px-1 py-1" />
-              <select value={t.base_level} onChange={(e) => setDraft((d) => d.map((x, j) => (j === i ? { ...x, base_level: e.target.value } : x)))} className="text-xs border rounded px-1 py-1">
-                {LEVEL_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-              <button onClick={() => setDraft((d) => d.filter((_, j) => j !== i))} className="text-red-400 text-sm px-1">✕</button>
-            </div>
-          ))}
-          <button onClick={() => setDraft((d) => [...d, { label: '', base_level: 'employee' }])} className="text-[11px] text-blue-600 font-bold">+ הוסף רמה</button>
-          <div className="flex justify-end gap-1 pt-1 border-t">
-            <button onClick={() => setEditing(false)} className="text-[11px] text-gray-500 px-2 py-1">ביטול</button>
-            <button onClick={saveEdit} disabled={saving} className="text-[11px] bg-blue-600 text-white rounded px-3 py-1 font-bold">{saving ? '...' : 'שמור'}</button>
-          </div>
+        <div className="mt-2 p-2 bg-white rounded-lg border border-blue-200" dir="rtl">
+          <PermissionTierEditor
+            tiers={tiers}
+            catalog={tierCatalog}
+            onSaved={() => { setEditing(false); loadTiers(); }}
+            onCancel={() => setEditing(false)}
+          />
         </div>
       )}
     </div>
