@@ -330,7 +330,7 @@ export default function MenuLearning({ onComplete, user }) {
                         className="pr-10"
                     />
                 </div>
-                {user?.role === 'admin' && (
+                {(user?.role === 'admin' || user?.role === 'owner') && (
                     <Button variant="outline" onClick={openCatDialog} className="flex items-center gap-2">
                         <Settings className="w-4 h-4" />
                         ערוך קטגוריות
@@ -350,7 +350,7 @@ export default function MenuLearning({ onComplete, user }) {
                                            border-2 border-gray-200 bg-white hover:border-orange-500 rounded-lg px-4 py-3 flex items-center gap-3"
                             >
                                 <IconComponent className="w-5 h-5" />
-                                {user?.role === 'admin' && category.id !== 'all' ? (
+                                {(user?.role === 'admin' || user?.role === 'owner') && category.id !== 'all' ? (
                                     <CategoryRenameInline
                                         catName={category.name}
                                         onRename={handleRenameCategory}
@@ -369,7 +369,7 @@ export default function MenuLearning({ onComplete, user }) {
                     <h2 className="text-2xl font-bold text-gray-900">
                         {categories.find(c => c.id === selectedCategory)?.name || 'כל התפריט'}
                     </h2>
-                    {user?.role === 'admin' && selectedCategory !== 'all' && (
+                    {(user?.role === 'admin' || user?.role === 'owner') && selectedCategory !== 'all' && (
                         <Button size="sm" onClick={() => openAddItemDialog(selectedCategory)} className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700">
                             <Plus className="w-4 h-4" />
                             הוסף מנה
@@ -408,7 +408,7 @@ export default function MenuLearning({ onComplete, user }) {
                                                 <Badge className={popularity.color}>
                                                     {popularity.text}
                                                 </Badge>
-                                                {user && user.role === 'admin' && (
+                                                {user && (user.role === 'admin' || user.role === 'owner') && (
                                                     <>
                                                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditClick(item)}>
                                                         <Pencil className="h-4 w-4 text-blue-600" />

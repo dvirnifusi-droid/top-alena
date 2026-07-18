@@ -228,7 +228,7 @@ function EmployeeReportsInner() {
         try {
             const currentUser = await base44.auth.me();
             setUser(currentUser);
-            const admin = currentUser?.role === 'admin';
+            const admin = currentUser?.role === 'admin' || currentUser?.role === 'owner';
             setIsAdmin(admin);
 
             // טוען עובדים תמיד (כדי למצוא את רשומת העובד הנוכחי)
