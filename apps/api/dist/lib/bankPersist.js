@@ -6,6 +6,24 @@
 import { prisma } from '../db.js';
 const dbx = () => prisma;
 const rid = () => `bt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+/**
+ * A DATE column back out of Postgres, as 'YYYY-MM-DD'.
+ *
+ * Prisma hands back a JS Date for DATE columns, and `String(date).slice(0,10)`
+ * silently yields "Thu Jul 16" — which then sorts alphabetically, so "Tue May
+ * 12" compares as LATER than "Thu Jul 16". That shipped, and turned an overdrawn
+ * account into a healthy-looking positive opening balance. Every read of a date
+ * column goes through here.
+ */
+export function dbDate(v) {
+    if (v instanceof Date)
+        return v.toISOString().slice(0, 10);
+    const s = String(v ?? '');
+    if (/^\d{4}-\d{2}-\d{2}/.test(s))
+        return s.slice(0, 10);
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+}
 export async function ensureBankTables() {
     await dbx().$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "BankTransaction" (

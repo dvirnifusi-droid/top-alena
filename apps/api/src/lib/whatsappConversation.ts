@@ -23,6 +23,7 @@
 // pending-action row and return its summary; the user replies 'כן' and
 // the existing tryConfirmPendingAction picks it up.
 
+import { dbDate } from './bankPersist.js';
 import { prisma } from '../db.js';
 import {
   addScheduledEvent,
@@ -1180,7 +1181,7 @@ async function tool_get_unpaid_invoices(_args: any, _phone: string): Promise<any
     for (const s of ss) sups[s.id] = s.company_name;
   }
   return { count: inv.length, total: Math.round(total), recent: recent.map((i: any) => ({
-    invoice_number: i.invoice_number, supplier: sups[i.supplier_id] || '?', amount: i.total_amount, date: String(i.invoice_date).slice(0, 10),
+    invoice_number: i.invoice_number, supplier: sups[i.supplier_id] || '?', amount: i.total_amount, date: dbDate(i.invoice_date),
   })) };
 }
 
@@ -1228,7 +1229,7 @@ async function tool_search_invoice(args: any, _phone: string): Promise<any> {
   );
   return { matches: matches.slice(0, 10).map((i: any) => ({
     invoice_number: i.invoice_number, supplier: sups.find((s: any) => s.id === i.supplier_id)?.company_name || '?',
-    amount: i.total_amount, date: String(i.invoice_date).slice(0, 10), payment_status: i.payment_status,
+    amount: i.total_amount, date: dbDate(i.invoice_date), payment_status: i.payment_status,
   })) };
 }
 

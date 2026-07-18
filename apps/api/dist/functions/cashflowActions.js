@@ -14,6 +14,7 @@ import { requirePageAccess } from '../lib/pagePermissions.js';
 import { detectPatterns } from '../lib/cashPatterns.js';
 import { computeCapitalForecast } from './capitalForecast.js';
 import { parsePaymentTerms } from '../lib/paymentTerms.js';
+import { dbDate } from '../lib/bankPersist.js';
 const isAdmin = (user) => user?.role === 'owner' || user?.role === 'admin';
 const dbx = () => prisma;
 const n = (v) => (v == null ? 0 : Number(v));
@@ -34,7 +35,7 @@ registerFn('getCashflowActions', async ({ user, body }) => {
         return { has_data: false, reason: 'צריך ייבוא עו"ש כדי להציע פעולות', actions: [] };
     }
     const txs = rows.map((r) => ({
-        date: String(r.tx_date).slice(0, 10),
+        date: dbDate(r.tx_date),
         amount: n(r.amount),
         balance: r.balance == null ? null : n(r.balance),
         category: r.category || 'unknown',
@@ -205,7 +206,7 @@ registerFn('autoConfigureCashflow', async ({ user }) => {
     // One filing often leaves as several rows on the same day (Alena's April VAT
     // is two). Counting those as a zero-day gap drags the median down and can
     // report a bi-monthly filer as monthly, so collapse to distinct days first.
-    const dates = [...new Set(vatRows.map((r) => String(r.tx_date).slice(0, 10)))].sort();
+    const dates = [...new Set(vatRows.map((r) => dbDate(r.tx_date)))].sort();
     if (dates.length >= 2) {
         const gaps = [];
         for (let i = 1; i < dates.length; i++) {
@@ -228,7 +229,7 @@ registerFn('autoConfigureCashflow', async ({ user }) => {
      WHERE category = 'expense_payroll' ORDER BY tx_date`).catch(() => []);
     if (payRows.length >= 2) {
         // Same reasoning as VAT: a payroll run split across rows is one payday.
-        const payDates = [...new Set(payRows.map((r) => String(r.tx_date).slice(0, 10)))];
+        const payDates = [...new Set(payRows.map((r) => dbDate(r.tx_date)))];
         const doms = payDates.map((d) => Number(d.slice(8, 10))).sort((a, b) => a - b);
         const day = doms[Math.floor(doms.length / 2)];
         const cur = await dbx().$queryRawUnsafe(`SELECT payroll_day FROM "CashFlowPayrollSetting" LIMIT 1`).catch(() => []);

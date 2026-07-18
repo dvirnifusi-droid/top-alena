@@ -16,6 +16,7 @@ import { prisma } from '../db.js';
 import { requirePageAccess } from '../lib/pagePermissions.js';
 import { detectPatterns, projectFromPatterns, type ProjectedEvent } from '../lib/cashPatterns.js';
 import { loadOpenInvoices, getVatSettingRow } from './bankStatement.js';
+import { dbDate } from '../lib/bankPersist.js';
 
 const isAdmin = (user: any) => user?.role === 'owner' || user?.role === 'admin';
 const dbx = () => prisma as any;
@@ -51,7 +52,7 @@ export async function computeCapitalForecast(daysIn: number): Promise<any> {
   }
 
   const txs = rows.map((r: any) => ({
-    date: String(r.tx_date).slice(0, 10),
+    date: dbDate(r.tx_date),
     amount: n(r.amount),
     balance: r.balance == null ? null : n(r.balance),
     category: r.category || 'unknown',

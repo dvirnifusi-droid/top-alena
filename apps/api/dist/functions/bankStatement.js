@@ -9,7 +9,7 @@ import { prisma } from '../db.js';
 import { requirePageAccess } from '../lib/pagePermissions.js';
 import { parseBankFile, parseBankStatement, summarize, CATEGORY_LABELS, categorize, } from '../lib/bankStatement.js';
 import { reconcile } from '../lib/bankMatch.js';
-import { ensureBankTables, persistStatement, freshTransactions } from '../lib/bankPersist.js';
+import { ensureBankTables, persistStatement, freshTransactions, dbDate } from '../lib/bankPersist.js';
 import { parsePaymentTerms, dueDateFor, ymd as ymdOf } from '../lib/paymentTerms.js';
 const isAdmin = (user) => user?.role === 'owner' || user?.role === 'admin';
 const dbx = () => prisma;
@@ -122,13 +122,13 @@ registerFn('getBankSummary', async ({ user, body }) => {
             from: null, to: null, latest_balance: null, weekly: [] };
     }
     const txs = rows.map((r) => ({
-        date: String(r.tx_date).slice(0, 10),
+        date: dbDate(r.tx_date),
         description: r.description || '',
         counterparty: r.counterparty || null,
         amount: n(r.amount),
         balance: r.balance == null ? null : n(r.balance),
         category: r.category || 'unknown',
-        value_date: String(r.tx_date).slice(0, 10),
+        value_date: dbDate(r.tx_date),
         reference: '', hash: '',
     }));
     const s = summarize(txs);
@@ -191,7 +191,7 @@ registerFn('listBankTransactions', async ({ user, body }) => {
     return {
         transactions: rows.map((r) => ({
             id: r.id,
-            date: String(r.tx_date).slice(0, 10),
+            date: dbDate(r.tx_date),
             description: r.description,
             counterparty: r.counterparty,
             amount: n(r.amount),
@@ -258,7 +258,7 @@ registerFn('getVatSetting', async ({ user }) => {
     return {
         ...s,
         configured: !!hist.length || s.enabled,
-        history: hist.map((h) => ({ date: String(h.tx_date).slice(0, 10), amount: Math.abs(n(h.amount)) })),
+        history: hist.map((h) => ({ date: dbDate(h.tx_date), amount: Math.abs(n(h.amount)) })),
     };
 });
 registerFn('setVatSetting', async ({ user, body }) => {
@@ -300,7 +300,7 @@ registerFn('reconcileBankTransactions', async ({ user, body }) => {
        AND NOT EXISTS (SELECT 1 FROM "BankTxMatch" m WHERE m.bank_tx_id = b.id)
      ORDER BY b.tx_date`).catch(() => []);
     const txs = txRows.map((r) => ({
-        id: String(r.id), date: String(r.tx_date).slice(0, 10),
+        id: String(r.id), date: dbDate(r.tx_date),
         amount: Number(r.amount), description: r.description || '',
     }));
     // Invoices already attributed to some other payment are out of the running.

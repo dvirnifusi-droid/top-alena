@@ -22,6 +22,7 @@
 // Confirmation flow stays the same — propose_* tools just create a
 // pending-action row and return its summary; the user replies 'כן' and
 // the existing tryConfirmPendingAction picks it up.
+import { dbDate } from './bankPersist.js';
 import { prisma } from '../db.js';
 import { listTodayEvents, listOpenTasks, } from './whatsappCalendar.js';
 import { matchEmployees } from './employeeMatch.js';
@@ -1186,7 +1187,7 @@ async function tool_get_unpaid_invoices(_args, _phone) {
             sups[s.id] = s.company_name;
     }
     return { count: inv.length, total: Math.round(total), recent: recent.map((i) => ({
-            invoice_number: i.invoice_number, supplier: sups[i.supplier_id] || '?', amount: i.total_amount, date: String(i.invoice_date).slice(0, 10),
+            invoice_number: i.invoice_number, supplier: sups[i.supplier_id] || '?', amount: i.total_amount, date: dbDate(i.invoice_date),
         })) };
 }
 async function tool_search_employee(args, _phone) {
@@ -1230,7 +1231,7 @@ async function tool_search_invoice(args, _phone) {
         matchingSupIds.has(i.supplier_id));
     return { matches: matches.slice(0, 10).map((i) => ({
             invoice_number: i.invoice_number, supplier: sups.find((s) => s.id === i.supplier_id)?.company_name || '?',
-            amount: i.total_amount, date: String(i.invoice_date).slice(0, 10), payment_status: i.payment_status,
+            amount: i.total_amount, date: dbDate(i.invoice_date), payment_status: i.payment_status,
         })) };
 }
 // Write-tools all delegate to the EXISTING proposal infrastructure (stash a
