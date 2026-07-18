@@ -11971,6 +11971,7 @@ registerFn('importRecipesFromJson', async ({ body, user }) => {
         unmatched.push(`${rec.name} → ${ri.raw_name}`);
         continue;
       }
+      if (prepId && String(prepId) === String(recId)) { unmatched.push(`${rec.name} → itself (skipped)`); continue; }
       await (prisma as any).$executeRawUnsafe(
         `INSERT INTO "RecipeIngredient"("id","recipe_id","ingredient_id","prep_recipe_id","qty","unit","cost_at_import")
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -12028,7 +12029,10 @@ async function computeRecipeCost(recipeId: string): Promise<number> {
      FROM "RecipeIngredient" ri
      LEFT JOIN "Ingredient" i ON ri.ingredient_id = i.id
      LEFT JOIN "Recipe" r ON ri.prep_recipe_id = r.id
-     WHERE ri.recipe_id = $1`,
+     WHERE ri.recipe_id = $1
+       -- A recipe listing ITSELF as a prep made every recompute fold its own
+       -- cost back in, so the cost grew without bound (סיגר בשר hit ₪68,007).
+       AND (ri.prep_recipe_id IS NULL OR ri.prep_recipe_id <> ri.recipe_id)`,
     recipeId,
   );
   let total = 0;
@@ -12043,6 +12047,25 @@ async function computeRecipeCost(recipeId: string): Promise<number> {
   }
   return Math.round(total * 100) / 100;
 }
+
+// Remove self-referencing recipe lines (a recipe listing itself as a prep) and
+// recompute the whole cost graph. Idempotent — safe to re-run.
+registerFn('repairRecipeCycles', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureInventoryTables();
+  const bad: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT r.name, ri.qty, ri.unit, r.total_cost
+     FROM "RecipeIngredient" ri JOIN "Recipe" r ON r.id = ri.recipe_id
+     WHERE ri.prep_recipe_id = ri.recipe_id`).catch(() => []);
+  const res: any = await (prisma as any).$executeRawUnsafe(
+    `DELETE FROM "RecipeIngredient" WHERE prep_recipe_id = recipe_id`).catch(() => 0);
+  await recomputeAllRecipeCosts();
+  const after: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT name, total_cost, sale_price, food_cost_percent FROM "Recipe"
+     WHERE name = ANY($1::text[])`, bad.map((b) => b.name)).catch(() => []);
+  return { ok: true, removed: Number(res) || bad.length, was: bad, now: after };
+});
 
 registerFn('listRecipes', async ({ body }) => {
   await ensureInventoryTables();
@@ -12411,6 +12434,9 @@ registerFn('addRecipeIngredient', async ({ body, user }) => {
     throw new Error('either prep_recipe_name or ingredient_name required');
   }
 
+  if (prepId && String(prepId) === String(b.recipe_id)) {
+    throw new Error('recipe_cannot_contain_itself');
+  }
   await (prisma as any).$executeRawUnsafe(
     `INSERT INTO "RecipeIngredient"("id","recipe_id","ingredient_id","prep_recipe_id","qty","unit")
      VALUES ($1, $2, $3, $4, $5, $6)`,
