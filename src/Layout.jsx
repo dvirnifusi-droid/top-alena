@@ -414,7 +414,12 @@ export default function Layout({ children, currentPageName }) {
   const shiftLeadLinks = React.useMemo(() => dropEmptyCategories(adminLinksFiltered.filter((l) => l.isCategory || SHIFT_LEAD_URLS.has(urlKey(l.url)))), [adminLinksFiltered]);
 
   const viewLevel = user?._viewLevel; // set only while previewing a permission tier
-  const baseLinks = viewLevel === 'admin' ? adminLinksFiltered
+  // When previewing a tier that HAS a page allowlist, start from the full admin
+  // menu and let the allowlist do the filtering — that shows exactly what the
+  // role sees, instead of the coarse base_level approximation.
+  const previewPages = Array.isArray(user?._viewTierPages) ? user._viewTierPages : null;
+  const baseLinks = previewPages ? adminLinksFiltered
+    : viewLevel === 'admin' ? adminLinksFiltered
     : viewLevel === 'manager' ? managerLinks
     : viewLevel === 'shift_lead' ? shiftLeadLinks
     : viewLevel === 'employee' ? [...employeeLinks, ...departmentManagerExtras]
@@ -425,10 +430,15 @@ export default function Layout({ children, currentPageName }) {
   // Per-tier page allowlist (PermissionTier.allowed_pages). null → no config,
   // keep legacy behaviour. Category headers survive; dropEmptyCategories prunes.
   const permFilteredLinks = React.useMemo(() => {
+    // Previewing a tier overrides the viewer's own permissions.
+    if (previewPages) {
+      const kept = moduleFilteredLinks.filter((l) => l.isCategory || previewPages.includes(urlKey(l.url)));
+      return dropEmptyCategories(kept);
+    }
     if (!permPages) return moduleFilteredLinks;
     const kept = moduleFilteredLinks.filter((l) => l.isCategory || permCan(urlKey(l.url)));
     return dropEmptyCategories(kept);
-  }, [moduleFilteredLinks, permPages, permCan]);
+  }, [moduleFilteredLinks, permPages, permCan, previewPages]);
   const navigationItems = filterNav(permFilteredLinks, navFilter);
   const userName = user?.full_name || user?.email?.split('@')[0] || 'משתמש';
 
@@ -541,15 +551,23 @@ const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
   React.useEffect(() => { loadTiers(); }, [loadTiers]);
 
   const tierCatalog = React.useMemo(() => buildCatalog(adminLinks, employeeLinks), []);
-  const currentLevel = user?._viewLevel || (user?.role === 'admin' || user?.role === 'owner' ? 'admin' : 'employee');
+  // Keyed by tier ID, never base_level: several tiers share a level (3x manager,
+  // 6x employee), so a level-keyed <select> rendered the FIRST option with that
+  // value and appeared to jump to a different role.
+  const SELF = '__SELF__';
+  const currentTierId = user?._viewTierId || SELF;
 
-  const applyLevel = (level) => {
+  const applyTier = (tierId) => {
+    const t = tiers.find((x) => String(x.id) === String(tierId));
     setUser((prev) => ({
       ...prev,
-      _viewLevel: level,
-      // admin/manager/shift_lead keep the admin chrome (nav differs via _viewLevel);
-      // employee switches to the full employee experience.
-      role: level === 'employee' ? 'temp_employee' : 'admin',
+      _viewTierId: t ? t.id : null,
+      _viewLevel: t ? t.base_level : null,
+      // Preview the tier's REAL page allowlist, not just its coarse level —
+      // otherwise the preview lies about what that role actually sees.
+      _viewTierPages: t && Array.isArray(t.allowed_pages) ? t.allowed_pages : null,
+      role: t && t.base_level === 'employee' ? 'temp_employee' : (t ? 'admin' : (prev._original_role || prev.role)),
+      _original_role: prev._original_role || prev.role,
       employee_position: null,
       _original_position: prev._original_position !== undefined ? prev._original_position : (prev.employee_position || null),
     }));
@@ -572,13 +590,18 @@ const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
         <button onClick={startEdit} className="text-[10px] text-blue-500 hover:text-blue-700 font-bold">⚙️ ערוך רמות</button>
       </div>
       <select
-        value={currentLevel}
-        onChange={(e) => applyLevel(e.target.value)}
+        value={currentTierId}
+        onChange={(e) => applyTier(e.target.value)}
         className={`w-full rounded-md border border-blue-300 bg-blue-50 text-blue-900 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-400 ${compact ? 'text-xs py-1 px-2' : 'text-sm py-1.5 px-2'}`}
       >
-        {shownTiers.map((t, i) => <option key={i} value={t.base_level}>{t.label}</option>)}
+        <option value={SELF}>— אני (ללא הגבלה) —</option>
+        {shownTiers.map((t, i) => (
+          <option key={t.id || i} value={t.id || `seed_${i}`}>
+            {t.label}{Array.isArray(t.allowed_pages) ? ` (${t.allowed_pages.length})` : ''}
+          </option>
+        ))}
       </select>
-      {currentLevel !== 'admin' && (
+      {currentTierId !== SELF && (
         <p className="text-[9px] text-orange-700 font-bold mt-0.5 text-center">🔄 מצב צפייה — חזור לרמה הבכירה לעבודה רגילה</p>
       )}
       {editing && (
