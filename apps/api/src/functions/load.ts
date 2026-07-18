@@ -8,6 +8,7 @@ import './emailInvoices.js';
 import './checklistAi.js';
 import './employeePay.js';
 import './cashflowLive.js';
+import './bankStatement.js';
 import './laborCost.js';
 import './i18nTranslate.js';
 import { randomUUID } from 'node:crypto';

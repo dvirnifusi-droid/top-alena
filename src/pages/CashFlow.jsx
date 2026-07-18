@@ -8,6 +8,7 @@ import { base44 } from '@/api/base44Client';
 import { RecurringCost } from '@/entities/all';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
+import BankStatementCard from '../components/cashflow/BankStatementCard';
 
 const STATUS_LABEL = { received: 'התקבל', paid: 'שולם', planned: 'צפוי' };
 
@@ -172,6 +173,8 @@ function CashFlowInner() {
       )}
 
       {isOwner && (<>
+        <BankStatementCard />
+
         <div className="grid md:grid-cols-2 gap-3">
           <Card>
             <CardHeader><CardTitle className="text-base">💵 פדיון יומי ידני</CardTitle></CardHeader>
