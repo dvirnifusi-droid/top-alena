@@ -64,7 +64,7 @@ registerFn('debugRewrite', async ({ body }) => {
   // import lazily so this stays a no-op cost when unused
   const { rewriteFileUrl } = await import('../lib/urlRewrite.js');
   return { input: url, rewritten: rewriteFileUrl(url) };
-}, { public: true });
+});
 
 /* ----- Recruitment AI agent (public, anonymous candidates) ----- */
 
@@ -1480,7 +1480,7 @@ registerFn('ensureLeadIdColumn', async () => {
     }
   }
   return { results };
-}, { public: true });
+});
 
 // Ensure the recruitment knob columns exist on RestaurantProfile. Schema
 // declared them; this guarantees the DB matches before Prisma client reads.
@@ -1499,7 +1499,7 @@ registerFn('ensureRecruitmentColumns', async () => {
     }
   }
   return { results };
-}, { public: true });
+});
 
 // One-click recovery: take a rejected candidate back to pending so a manager
 // can reach out manually or re-evaluate.
@@ -4461,7 +4461,7 @@ registerFn('sendQueuePush', async ({ body }) => {
   } catch (e: any) {
     return { success: false, error: e?.message };
   }
-}, { public: true });
+});
 
 /* ----- Telegram ----- */
 
@@ -9627,7 +9627,7 @@ registerFn('runCeoDailyBrief', async ({ body }) => {
     },
   });
   return { ok: status !== 'failed', run_id: run.id, body: body_text };
-}, { public: true });
+});
 
 /* ----- Events private inquiry AI agent (public, separate from recruitment) ----- */
 
@@ -9697,7 +9697,7 @@ registerFn('eventsDiagnostics', async ({ body }) => {
       log_len: Array.isArray(focusLead.conversation_log) ? focusLead.conversation_log.length : 0,
     } : null,
   };
-}, { public: true });
+});
 
 
 registerFn('firePushoverTest', async () => {
@@ -9706,7 +9706,7 @@ registerFn('firePushoverTest', async () => {
     `אם קיבלת — הצינור עובד.\nשעון: ${new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}`,
   );
   return result;
-}, { public: true });
+});
 
 // Sends a labeled WhatsApp sample of EVERY notification trigger to the given
 // phone, so the owner can confirm the WhatsApp channel works end-to-end for each
@@ -9758,7 +9758,7 @@ registerFn('testAllTriggersWhatsApp', async ({ body }: any) => {
     catch (e: any) { failed.push(`${i + 1}:${e?.message || 'err'}`); }
   }
   return { ok: true, phone, sent, total: samples.length, failed };
-}, { public: true });
+});
 
 // ─── Report recipients (managed from AdminWhatsApp) ─────────────────────────
 // The per-tenant list of numbers that receive ALL owner notifications (reports,
@@ -9818,7 +9818,7 @@ registerFn('getGearConfig', async () => {
     clock_out_positions: Array.isArray(c.clock_out_positions) ? c.clock_out_positions : [],
     configured: !!rows?.[0]?.gear_config,
   };
-}, { public: true });
+});
 
 registerFn('saveGearConfig', async ({ user, body }: any) => {
   if (!['admin', 'owner', 'manager', 'restaurant_manager'].includes(String(user?.role))) throw new Error('forbidden');
@@ -12522,12 +12522,12 @@ registerFn('listEventLeads', async () => {
 registerFn('listEventLeadsPublicDebug', async () => {
   const leads = await db.eventLead.findMany({ orderBy: { id: 'desc' }, take: 50 });
   return { leads, _count: leads.length };
-}, { public: true });
+});
 
 registerFn('listEventBookingsPublicDebug', async () => {
   const bookings = await db.eventBooking.findMany({ orderBy: { id: 'desc' }, take: 50 });
   return { bookings, _count: bookings.length };
-}, { public: true });
+});
 
 /* ----- Events Sales Kit (singleton) ----- */
 
@@ -13168,7 +13168,7 @@ registerFn('waiterDiagnostics', async () => {
     system_prompt_chars: promptLen,
     estimated_total_input_chars: menuJson.length + promptLen + 1000,
   };
-}, { public: true });
+});
 
 registerFn('getWaiterKit', async () => {
   let kit = await (prisma as any).waiterKit.findFirst({ where: { singleton: true } });
@@ -14805,7 +14805,7 @@ registerFn('getDriveServiceAccountEmail', async () => {
   } catch {
     return { configured: true, client_email: null, error: 'failed_to_parse' };
   }
-}, { public: true });
+});
 
 registerFn('listDriveAdPhotos', async () => {
   const folderId = await getSecret('DRIVE_AD_PHOTOS_FOLDER_ID');
@@ -15594,7 +15594,7 @@ registerFn('applyShiftGeofenceMigration', async () => {
     }
   }
   return { results };
-}, { public: true });
+});
 
 // Sends one realistic push for every notification template the app has.
 // Owner-only. No DB writes — just fires the push templates directly.
@@ -15844,7 +15844,7 @@ registerFn('addLegacyDateColumns', async () => {
     failed: results.filter((r) => !r.ok).length,
     failures: results.filter((r) => !r.ok).slice(0, 10),
   };
-}, { public: true });
+});
 
 // Broad triplet repair — introspects Prisma DMMF for every model declaring
 // createdAt/updatedAt/createdBy and adds the missing columns idempotently.
@@ -15885,7 +15885,7 @@ registerFn('repairTripletAllTables', async () => {
   const okCount = results.filter((r) => r.ok).length;
   const failCount = results.length - okCount;
   return { total: results.length, ok: okCount, failed: failCount, results };
-}, { public: true });
+});
 
 // Repair DATE-column drift: many base44-imported tables have columns declared
 // as DateTime in Prisma but actually created as PostgreSQL DATE type. Prisma's
@@ -15937,7 +15937,7 @@ registerFn('repairDateColumnsToTimestamp', async () => {
     failed: results.filter((r) => !r.ok).length,
     results,
   };
-}, { public: true });
+});
 
 // Scrub 0x00 bytes from every TEXT/VARCHAR column in tables imported from
 // base44 that carry corrupted rows. PostgreSQL rejects 0x00 inside UTF-8 text
@@ -15971,7 +15971,7 @@ registerFn('scrubNullBytesAllTables', async () => {
     failed: results.filter((r) => !r.ok).length,
     results,
   };
-}, { public: true });
+});
 
 // Backfill NULLs in columns declared NOT NULL in Prisma. Required because the
 // base44 import left some rows with NULL in fields the schema now demands
@@ -16010,7 +16010,7 @@ registerFn('backfillRequiredNulls', async () => {
     failed: results.filter((r) => !r.ok).length,
     results,
   };
-}, { public: true });
+});
 
 // Emergency: refill NULL values in required-DateTime columns. The tolerant
 // USING clause in repairDateColumnsToTimestamp set malformed date strings
@@ -16027,7 +16027,7 @@ registerFn('describeTable', async ({ body }) => {
     `SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='${t}' ORDER BY ordinal_position`,
   );
   return cols;
-}, { public: true });
+});
 
 registerFn('listMatchingTables', async ({ body }) => {
   const pattern = String((body as any)?.pattern || '%').toLowerCase();
@@ -16073,7 +16073,7 @@ registerFn('backfillNullDateTimes', async () => {
     failed: results.filter((r) => !r.ok).length,
     results,
   };
-}, { public: true });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BEECOMM POS INTEGRATION (Order Center API)
