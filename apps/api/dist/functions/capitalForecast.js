@@ -113,13 +113,29 @@ export async function computeCapitalForecast(daysIn) {
     const paid = new Set(matched.map((r) => String(r.invoice_id)));
     const invoices = (await loadOpenInvoices()).filter((i) => !paid.has(i.id));
     const startKey = ymd(start), endKey = ymd(end);
+    // How long past due before "unpaid" stops being believable. A business that
+    // pays its suppliers does not have a three-month-old invoice still open — that
+    // is a record-keeping gap, and projecting it as cash about to leave produces a
+    // terrifying and false forecast. Before supplier terms are entered EVERY
+    // invoice defaults to "immediate", so without this guard the entire scanned
+    // history lands as one imaginary outflow on day one.
+    const STALE_DAYS = 45;
+    const staleKey = ymd(new Date(start.getTime() - STALE_DAYS * DAY));
     let overdueTotal = 0;
+    let staleTotal = 0;
     const overdue = [];
+    const stale = [];
     for (const inv of invoices) {
+        if (inv.due_date < staleKey) {
+            // Almost certainly already paid and never marked. Reported so the owner
+            // can reconcile it, but kept out of the cash projection.
+            staleTotal += inv.amount;
+            stale.push(inv);
+            continue;
+        }
         if (inv.due_date < startKey) {
-            // Already past due and still unpaid — it has not left the account, so it
-            // is a real claim on tomorrow's cash, not history. Land it immediately
-            // rather than dropping it out of the forecast entirely.
+            // Recently past due and still unpaid — it has not left the account, so it
+            // is a real claim on tomorrow's cash, not history.
             overdueTotal += inv.amount;
             overdue.push(inv);
             continue;
@@ -251,6 +267,9 @@ export async function computeCapitalForecast(daysIn) {
     if (lowConf.length) {
         warnings.push(`${lowConf.length} קטגוריות ללא דפוס ברור (${lowConf.slice(0, 3).map((p) => p.label).join(', ')}) — נפרסו כממוצע יומי`);
     }
+    if (stale.length) {
+        warnings.push(`${stale.length} חשבוניות (${Math.round(staleTotal).toLocaleString()} ₪) פתוחות מעל ${STALE_DAYS} יום — לא נכללות בצפי כי כמעט בוודאות שולמו ולא סומנו. הזן תנאי תשלום לספקים והרץ שיוך תשלומים.`);
+    }
     const ageDays = Math.round((Date.now() - Date.parse(anchorDate)) / DAY);
     if (ageDays > 7) {
         warnings.push(`העו"ש מעודכן ל-${anchorDate} (לפני ${ageDays} ימים) — ייבא ייצוא עדכני לדיוק מלא`);
@@ -275,6 +294,8 @@ export async function computeCapitalForecast(daysIn) {
         known_invoices: invoices.filter((i) => i.due_date >= startKey && i.due_date <= endKey).length,
         overdue_invoices: overdue.length,
         overdue_amount: Math.round(overdueTotal),
+        stale_invoices: stale.length,
+        stale_amount: Math.round(staleTotal),
         warnings,
     };
 }

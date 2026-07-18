@@ -170,6 +170,19 @@ registerFn('getCashflowActions', async ({ user, body }: any) => {
     });
   }
 
+  // ── 5b. invoices open so long they are almost certainly already paid ─────
+  if (forecast?.stale_invoices > 0) {
+    actions.push({
+      key: 'stale_invoices',
+      title: `${forecast.stale_invoices} חשבוניות פתוחות מעל 45 יום — כנראה שולמו ולא סומנו`,
+      detail: `סה"כ ${ils(forecast.stale_amount)}. הן לא נכללות בצפי בכוונה — חשבונית בת חודשיים בעסק שמשלם לספקים היא פער רישום, לא תשלום שעומד לצאת. הזן תנאי תשלום בכרטסת הספקים והרץ שיוך תשלומים; מה שיישאר פתוח אחרי זה הוא החוב האמיתי.`,
+      impact: 0,
+      impact_label: 'דיוק',
+      severity: 'medium',
+      evidence: 'ללא תנאי תשלום כל חשבונית מחושבת כמיידית, ולכן נראית באיחור',
+    });
+  }
+
   // ── 6. how much of the forecast is guesswork ─────────────────────────────
   if ((forecast?.estimate_share || 0) > 25) {
     actions.push({
