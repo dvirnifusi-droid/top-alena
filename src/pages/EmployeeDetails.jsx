@@ -365,10 +365,13 @@ export default function EmployeeDetailsPage() {
                                             <div className="text-left">
                                                 <p className="font-semibold">{pos.pay_type === 'hourly' ? 'שכר שעתי' : 'מבוסס טיפים'}</p>
                                                 <p className="text-gray-600">
-                                                    {pos.pay_type === 'hourly' 
-                                                        ? `₪${pos.rate.toFixed(2)} לשעה`
-                                                        : `השלמה ל-₪${pos.rate.toFixed(2)} לשעה`
-                                                    }
+                                                    {/* A position saved without a rate left pos.rate undefined and
+                                                        `.toFixed()` crashed the WHOLE profile page. Guard it. */}
+                                                    {Number.isFinite(Number(pos.rate))
+                                                        ? (pos.pay_type === 'hourly'
+                                                            ? `₪${Number(pos.rate).toFixed(2)} לשעה`
+                                                            : `השלמה ל-₪${Number(pos.rate).toFixed(2)} לשעה`)
+                                                        : 'לא הוגדר תעריף'}
                                                 </p>
                                             </div>
                                         </div>

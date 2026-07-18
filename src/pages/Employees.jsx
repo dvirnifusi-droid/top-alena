@@ -19,6 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MoreHorizontal, Key } from "lucide-react";
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
+import EmployeeTierMatrix from '@/components/employees/EmployeeTierMatrix';
 import AiScannerButton from '@/components/scanner/AiScannerButton';
 
 
@@ -954,6 +955,8 @@ function EmployeesInner() {
           <p>טוען עובדים...</p>
         ) : (
           <>
+          <EmployeeTierMatrix />
+
           {/* === Filters bar ============================================== */}
           <Card className="mb-4 p-4 bg-white">
             <div className="flex flex-col gap-3">

@@ -7695,6 +7695,55 @@ registerFn('getMyPermissions', async ({ user }) => {
         source: r?.source || 'error',
     };
 });
+// Every employee + their permission tier, for the bulk assignment screen.
+// permission_tier_id was added by raw SQL and is NOT in schema.prisma, so the
+// generated client can't select it — this reads it raw. Also reports which tier
+// the AUTO position-match would pick, so the owner sees what changes.
+registerFn('listEmployeeTiers', async ({ user }) => {
+    if (!user?.id)
+        throw new Error('unauthorized');
+    if (!isAdminRole(user?.role))
+        throw new Error('admin only');
+    await ensurePermissionTiers();
+    const db2 = prisma;
+    const tiers = await db2.$queryRawUnsafe(`SELECT id, label, base_level, allowed_pages FROM "PermissionTier" ORDER BY "sort" ASC`).catch(() => []);
+    const emps = await db2.$queryRawUnsafe(`SELECT id, full_name, role, department, status, permission_tier_id
+     FROM "Employee" ORDER BY (status='active') DESC, full_name ASC`).catch(() => []);
+    const norm = (s) => String(s || '').replace(/[\s"'׳״־-]+/g, '').toLowerCase();
+    const byLabel = new Map(tiers.map((t) => [norm(t.label), t]));
+    return {
+        tiers: tiers.map((t) => ({
+            id: t.id, label: t.label, base_level: t.base_level,
+            pages: Array.isArray(t.allowed_pages) ? t.allowed_pages.length : null,
+        })),
+        employees: emps.map((e) => {
+            const auto = byLabel.get(norm(e.role)) || null;
+            return {
+                id: e.id, full_name: e.full_name, role: e.role, department: e.department, status: e.status,
+                tier_id: e.permission_tier_id || null,
+                auto_tier_id: auto?.id || null, auto_tier_label: auto?.label || null,
+            };
+        }),
+    };
+});
+// Bulk assign tiers. tier_id null → clear the override (back to auto-match).
+registerFn('setEmployeeTiersBulk', async ({ user, body }) => {
+    if (!user?.id)
+        throw new Error('unauthorized');
+    if (!isAdminRole(user?.role))
+        throw new Error('admin only');
+    await ensurePermissionTiers();
+    const rows = Array.isArray((body || {}).rows) ? body.rows : [];
+    let saved = 0;
+    for (const r of rows) {
+        const id = String(r?.employee_id || '');
+        if (!id)
+            continue;
+        const tierId = r?.tier_id ? String(r.tier_id) : null;
+        await prisma.$executeRawUnsafe(`UPDATE "Employee" SET "permission_tier_id"=$2 WHERE id=$1`, id, tierId).then(() => { saved++; }).catch(() => { });
+    }
+    return { ok: true, saved };
+});
 // Assign an employee to a permission tier (null clears → back to auto-match).
 registerFn('setEmployeeTier', async ({ user, body }) => {
     if (!user?.id)
