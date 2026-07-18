@@ -68,6 +68,14 @@ export default function PermissionTierEditor({ tiers, catalog = [], onSaved, onC
     return { ...t, allowed_pages: on ? [...new Set([...cur, ...keys])] : cur.filter((k) => !keys.includes(k)) };
   }));
   const setAll = (i, on) => patch(i, 'allowed_pages', on ? [...allKeys] : []);
+  // Clone another tier's page selection — 48 pages x 6 roles is a lot of clicking,
+  // so most roles are "like that one, minus a few". A source that was never
+  // configured (null = sees everything) copies as the full list.
+  const copyFrom = (target, src) => setDraft((d) => d.map((t, j) => {
+    if (j !== target) return t;
+    const s = d[src];
+    return { ...t, allowed_pages: Array.isArray(s?.allowed_pages) ? [...s.allowed_pages] : [...allKeys] };
+  }));
 
   const save = async () => {
     setSaving(true); setErr(null);
@@ -126,9 +134,20 @@ export default function PermissionTierEditor({ tiers, catalog = [], onSaved, onC
 
               {open && (
                 <div className="border-t bg-slate-50 p-2">
-                  <div className="flex gap-1.5 mb-2">
+                  <div className="flex flex-wrap items-center gap-1.5 mb-2">
                     <button onClick={() => setAll(i, true)} className="text-[10px] font-bold rounded px-2 py-0.5 bg-emerald-100 text-emerald-700">סמן הכל</button>
                     <button onClick={() => setAll(i, false)} className="text-[10px] font-bold rounded px-2 py-0.5 bg-rose-100 text-rose-700">נקה הכל</button>
+                    {draft.some((o, j) => j !== i && o.label && o.label.trim()) && (
+                      <select
+                        value=""
+                        onChange={(e) => { const v = e.target.value; if (v !== '') copyFrom(i, Number(v)); e.target.value = ''; }}
+                        className="text-[10px] font-bold border rounded px-1 py-0.5 bg-blue-50 text-blue-700 border-blue-200"
+                      >
+                        <option value="">📋 העתק מתפקיד…</option>
+                        {draft.map((o, j) => (j !== i && o.label && o.label.trim())
+                          ? <option key={j} value={j}>{o.label}</option> : null)}
+                      </select>
+                    )}
                   </div>
                   {catalog.map((g) => {
                     const cur = configured ? t.allowed_pages : allKeys;
