@@ -190,7 +190,10 @@ registerFn('autoConfigureCashflow', async ({ user }) => {
     const applied = [];
     const vatRows = await dbx().$queryRawUnsafe(`SELECT tx_date FROM "BankTransaction"
      WHERE category = 'expense_vat' ORDER BY tx_date`).catch(() => []);
-    const dates = vatRows.map((r) => String(r.tx_date).slice(0, 10));
+    // One filing often leaves as several rows on the same day (Alena's April VAT
+    // is two). Counting those as a zero-day gap drags the median down and can
+    // report a bi-monthly filer as monthly, so collapse to distinct days first.
+    const dates = [...new Set(vatRows.map((r) => String(r.tx_date).slice(0, 10)))].sort();
     if (dates.length >= 2) {
         const gaps = [];
         for (let i = 1; i < dates.length; i++) {
@@ -212,14 +215,16 @@ registerFn('autoConfigureCashflow', async ({ user }) => {
     const payRows = await dbx().$queryRawUnsafe(`SELECT tx_date FROM "BankTransaction"
      WHERE category = 'expense_payroll' ORDER BY tx_date`).catch(() => []);
     if (payRows.length >= 2) {
-        const doms = payRows.map((r) => Number(String(r.tx_date).slice(8, 10))).sort((a, b) => a - b);
+        // Same reasoning as VAT: a payroll run split across rows is one payday.
+        const payDates = [...new Set(payRows.map((r) => String(r.tx_date).slice(0, 10)))];
+        const doms = payDates.map((d) => Number(d.slice(8, 10))).sort((a, b) => a - b);
         const day = doms[Math.floor(doms.length / 2)];
         const cur = await dbx().$queryRawUnsafe(`SELECT payroll_day FROM "CashFlowPayrollSetting" LIMIT 1`).catch(() => []);
         if (!cur.length) {
             await dbx().$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "CashFlowPayrollSetting" (
            id TEXT PRIMARY KEY, payroll_day INT, enabled BOOLEAN DEFAULT true)`).catch(() => { });
             await dbx().$executeRawUnsafe(`INSERT INTO "CashFlowPayrollSetting" (id, payroll_day, enabled) VALUES ($1,$2,true)`, `pay_${Date.now().toString(36)}`, Math.min(28, Math.max(1, day))).catch(() => { });
-            applied.push(`יום תשלום משכורות: ${day} (לפי ${payRows.length} תשלומים בעו"ש)`);
+            applied.push(`יום תשלום משכורות: ${day} (לפי ${payDates.length} תשלומים בעו"ש)`);
         }
     }
     return { ok: true, applied };
