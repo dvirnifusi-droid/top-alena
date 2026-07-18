@@ -197,11 +197,30 @@ export async function forecastLaborCost(): Promise<any> {
     q(`SELECT id, date, shift_type, start_time, end_time, assigned_staff FROM "WorkShift"
        WHERE date >= $1::date AND date < $1::date + INTERVAL '7 days' ORDER BY date`, todayStr),
     q(`SELECT employee_id, pay_type, hourly_rate, monthly_salary, employer_pct FROM "EmployeePay"`),
-    q(`SELECT id, full_name FROM "Employee"`),
+    q(`SELECT id, full_name, role FROM "Employee"`),
   ]);
   const revByWd = await weekdayRevenueAverages();
   const payByEmp: Record<string, any> = {};
   for (const p of pays) payByEmp[String(p.employee_id)] = p;
+
+  // ESTIMATE FALLBACK — same rule as /LaborCost and the schedule: an employee
+  // with no personal rate is costed at their POSITION's hourly rate. Without
+  // this the dashboard KPI kept saying "צריך תעריפי שכר" while the schedule
+  // already showed a real number from the very same data.
+  const positions = await q(
+    `SELECT position_name, hourly_rate FROM "WorkPosition" WHERE hourly_rate IS NOT NULL AND hourly_rate > 0`);
+  const normP = (x: any) => String(x || '').replace(/[\s"'׳״־\-/\|,.]+/g, '').toLowerCase();
+  const posRate: Record<string, number> = {};
+  for (const p of positions) posRate[normP(p.position_name)] = Number(p.hourly_rate);
+  for (const e of emps) {
+    const id = String(e.id);
+    const cur = payByEmp[id];
+    if (cur && cur.hourly_rate != null && Number(cur.hourly_rate) > 0) continue;
+    if (cur && cur.pay_type && cur.pay_type !== 'hourly') continue;
+    const r = posRate[normP(e.role)];
+    if (!r) continue;
+    payByEmp[id] = { ...(cur || {}), pay_type: 'hourly', hourly_rate: r, estimated: true };
+  }
   const nameToId: Record<string, string> = {};
   for (const e of emps) nameToId[String(e.full_name || '').trim().toLowerCase()] = String(e.id);
 
