@@ -75,7 +75,10 @@ export async function pushoverToAdmins(title: string, message: string) {
   // Pushover now also arrives in WhatsApp so the owner never needs a
   // separate app. Fire-and-forget so this never blocks the return path.
   void mirrorToWhatsApp(title, message);
-  const admins = await (prisma as any).user.findMany({ where: { role: 'admin' } });
+  // Owners are recipients too. Promoting a user from 'admin' to 'owner' silently
+  // dropped them from every Pushover alert — the tenant owner is exactly who
+  // these alerts are FOR.
+  const admins = await (prisma as any).user.findMany({ where: { role: { in: ['admin', 'owner'] } } });
   const employees = await (prisma as any).employee.findMany();
   const sent: string[] = [];
   for (const admin of admins) {

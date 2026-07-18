@@ -16100,7 +16100,7 @@ registerFn('testAllPushPaths', async ({ user }) => {
         env_VAPID_PUBLIC_KEY: !!process.env.VAPID_PUBLIC_KEY,
     };
     // 1. Admin user lookup
-    const admins = await prisma.user.findMany({ where: { role: 'admin' } });
+    const admins = await prisma.user.findMany({ where: { role: { in: ['admin', 'owner'] } } });
     report.admin_users = admins.length;
     // 2. Linked employee with pushover_user_key
     const adminEmployees = [];
