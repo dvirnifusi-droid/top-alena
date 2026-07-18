@@ -2226,7 +2226,7 @@ if (!globalThis.__dripCampaignsTimer) {
 }
 registerFn('runDripCampaignsNow', async ({ user }) => {
     await requireBackOffice(user, 'runDripCampaignsNow');
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     await runDripCampaigns(true);
     return { triggered: true };
@@ -2281,7 +2281,7 @@ registerFn('personalizeWithAI', async ({ body }) => {
 // but different campaign_label suffix ("(A)", "(B)") so analytics can compare.
 registerFn('sendABTestCampaign', async ({ body, user }) => {
     await requireBackOffice(user, 'sendABTestCampaign');
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { segment, variants, channel, campaign_key, campaign_label, custom_filter, media_url } = body;
     if (!Array.isArray(variants) || variants.length < 2)
@@ -2371,7 +2371,7 @@ if (!globalThis.__dailyCelebrationsTimer) {
 }
 // Manual trigger (admin can force-run from anywhere)
 registerFn('runDailyCelebrationsNow', async ({ user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     await runDailyCelebrationCampaigns(true);
     return { triggered: true };
@@ -3129,7 +3129,7 @@ function renderTemplate(template, c, brand) {
 // photographers. Tracks commercial terms, agreements, activity timeline,
 // event attribution (referrer vs service provider), and commission payouts.
 registerFn('listVendors', async ({ body, user }) => {
-    if (user?.role !== 'admin' && !user?.managed_department)
+    if ((user?.role !== 'admin' && user?.role !== 'owner') && !user?.managed_department)
         throw new Error('admin only');
     const { q, category, status, page, page_size } = body || {};
     const take = Math.min(Math.max(Number(page_size) || 50, 10), 200);
@@ -3167,7 +3167,7 @@ registerFn('listVendors', async ({ body, user }) => {
     return { total, rows, page: Math.max(Number(page) || 0, 0), page_size: take };
 });
 registerFn('createVendor', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const data = body;
     if (!data?.business_name)
@@ -3208,7 +3208,7 @@ registerFn('createVendor', async ({ body, user }) => {
     return { vendor: v };
 });
 registerFn('updateVendor', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { id, ...patch } = body;
     if (!id)
@@ -3229,7 +3229,7 @@ registerFn('updateVendor', async ({ body, user }) => {
     return { vendor: v };
 });
 registerFn('getVendor', async ({ body, user }) => {
-    if (user?.role !== 'admin' && !user?.managed_department)
+    if ((user?.role !== 'admin' && user?.role !== 'owner') && !user?.managed_department)
         throw new Error('admin only');
     const { id } = body;
     if (!id)
@@ -3286,7 +3286,7 @@ registerFn('getVendor', async ({ body, user }) => {
     return { vendor, agreements, events: enrichedLinks, open_events: openLinks, closed_events: closedLinks, timeline, stats };
 });
 registerFn('deleteVendor', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { id } = body;
     if (!id)
@@ -3299,7 +3299,7 @@ registerFn('deleteVendor', async ({ body, user }) => {
 });
 // === Agreements ============================================================
 registerFn('addVendorAgreement', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const d = body;
     if (!d?.vendor_id)
@@ -3339,7 +3339,7 @@ function twilioBasicAuth() {
     return 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64');
 }
 registerFn('listWhatsAppTemplates', async ({ user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const auth = twilioBasicAuth();
     const res = await fetch('https://content.twilio.com/v1/Content?PageSize=50', {
@@ -3377,7 +3377,7 @@ registerFn('listWhatsAppTemplates', async ({ user }) => {
     return { templates: enriched, total: contents.length };
 });
 registerFn('submitWhatsAppTemplate', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { sid, name, category } = body;
     if (!sid)
@@ -3401,7 +3401,7 @@ registerFn('submitWhatsAppTemplate', async ({ body, user }) => {
 // Helper: send a message using a pre-approved template (bypasses the 24h
 // service-window restriction). Variables are positional ({{1}}, {{2}}, ...).
 registerFn('sendWhatsAppViaTemplate', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { to, content_sid, variables } = body;
     if (!to || !content_sid)
@@ -3434,7 +3434,7 @@ registerFn('sendWhatsAppViaTemplate', async ({ body, user }) => {
 // Mark a VendorAgreement as signed (offline). The owner clicks 'סמן כחתום'
 // after the vendor returned a signed PDF, optionally with a signature image URL.
 registerFn('markVendorAgreementSigned', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { id, signed_by_name, signed_signature_url, file_url } = body;
     if (!id)
@@ -3452,7 +3452,7 @@ registerFn('markVendorAgreementSigned', async ({ body, user }) => {
 // Events dashboard payload — open events list, status counts, monthly
 // rollup for a Gantt-style chart, and aggregate vendor/commission stats.
 registerFn('eventsDashboard', async ({ body, user }) => {
-    if (user?.role !== 'admin' && !user?.managed_department)
+    if ((user?.role !== 'admin' && user?.role !== 'owner') && !user?.managed_department)
         throw new Error('admin only');
     const { from, to } = body || {};
     const today = new Date().toISOString().slice(0, 10);
@@ -3543,7 +3543,7 @@ function computeCommissionFromEvent(ev, pct, fixed) {
     return 0;
 }
 registerFn('linkVendorToEvent', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { vendor_id, event_booking_id, role, service_type, commission_pct, commission_fixed_ils, commission_stage, notes } = body;
     if (!vendor_id)
@@ -3574,7 +3574,7 @@ registerFn('linkVendorToEvent', async ({ body, user }) => {
     return { link };
 });
 registerFn('updateEventVendor', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { id, ...patch } = body;
     if (!id)
@@ -3590,7 +3590,7 @@ registerFn('updateEventVendor', async ({ body, user }) => {
     return { link };
 });
 registerFn('unlinkVendorFromEvent', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { id } = body;
     if (!id)
@@ -3599,7 +3599,7 @@ registerFn('unlinkVendorFromEvent', async ({ body, user }) => {
     return { ok: true };
 });
 registerFn('listEventVendors', async ({ body, user }) => {
-    if (user?.role !== 'admin' && !user?.managed_department)
+    if ((user?.role !== 'admin' && user?.role !== 'owner') && !user?.managed_department)
         throw new Error('admin only');
     const { event_booking_id } = body;
     if (!event_booking_id)
@@ -3616,7 +3616,7 @@ registerFn('listEventVendors', async ({ body, user }) => {
 // === Commission report (across all events) =================================
 registerFn('vendorCommissionsReport', async ({ body, user }) => {
     await requireBackOffice(user, 'vendorCommissionsReport');
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { from, to, status } = body || {};
     const where = {};
@@ -3651,7 +3651,7 @@ registerFn('vendorCommissionsReport', async ({ body, user }) => {
 });
 // === Activity log helpers ===================================================
 registerFn('logVendorContact', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { vendor_id, kind, subject, body: text } = body;
     if (!vendor_id || !kind)
@@ -3666,7 +3666,7 @@ registerFn('logVendorContact', async ({ body, user }) => {
 });
 // One-shot: WhatsApp a vendor + log it to their timeline.
 registerFn('sendVendorWhatsApp', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { vendor_id, message } = body;
     if (!vendor_id || !message)
@@ -3690,7 +3690,7 @@ registerFn('sendVendorWhatsApp', async ({ body, user }) => {
 });
 // One-shot: Email a vendor + log it.
 registerFn('sendVendorEmail', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { vendor_id, subject, html } = body;
     if (!vendor_id || !subject || !html)
@@ -3737,7 +3737,7 @@ registerFn('previewVendorSegment', async ({ body }) => {
 });
 registerFn('sendVendorCampaign', async ({ body, user }) => {
     await requireBackOffice(user, 'sendVendorCampaign');
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const brand = await getBrandName();
     const { category, channel, subject, message_template, exclude_ids, campaign_label } = body;
@@ -3921,7 +3921,7 @@ registerFn('clubUnsubscribe', async ({ body }) => {
 // Matches name OR phone (contains, case-insensitive), returns top 20.
 registerFn('searchCustomers', async ({ body, user }) => {
     await requireBackOffice(user, 'searchCustomers');
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const q = String(body?.q || '').trim();
     if (q.length < 2)
@@ -3947,7 +3947,7 @@ registerFn('searchCustomers', async ({ body, user }) => {
 // Returns one page + total count; search hits the DB, not the browser.
 registerFn('clubListCustomers', async ({ body, user }) => {
     await requireBackOffice(user, 'clubListCustomers');
-    if (user?.role !== 'admin' && !user?.managed_department)
+    if ((user?.role !== 'admin' && user?.role !== 'owner') && !user?.managed_department)
         throw new Error('admin only');
     const { q, page, page_size, satisfaction, missing_only } = body || {};
     const take = Math.min(Math.max(Number(page_size) || 50, 10), 200);
@@ -4038,7 +4038,7 @@ function estimateCampaignCostIls(recipientCount, channel) {
 //  - includes Twilio status callback URL so we get delivery/read receipts
 registerFn('sendCustomerCampaign', async ({ body, user }) => {
     await requireBackOffice(user, 'sendCustomerCampaign');
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const brand = await getBrandName();
     const { segment, message_template, channel, campaign_key, campaign_label, custom_filter, media_url, exclude_ids } = body;
@@ -4209,7 +4209,7 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
 // so this is safe to re-run.
 registerFn('bulkGrantMarketingConsent', async ({ body, user }) => {
     await requireBackOffice(user, 'bulkGrantMarketingConsent');
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { scope } = body; // 'all' | 'no_consent_only' (default no_consent_only)
     const where = { phone: { not: '' } };
@@ -4228,7 +4228,7 @@ registerFn('listSavedSegments', async () => {
     return { rows };
 });
 registerFn('createSavedSegment', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { name, description, segment_key, custom_filter, default_template, default_channel } = body;
     if (!name || !segment_key)
@@ -4245,7 +4245,7 @@ registerFn('createSavedSegment', async ({ body, user }) => {
     return { saved };
 });
 registerFn('deleteSavedSegment', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { id } = body;
     if (!id)
@@ -9148,7 +9148,7 @@ registerFn('listStandbyReservations', async ({ user }) => {
 // doesn't exist yet (the employee hasn't logged in for the first time), create
 // a stub so the values stick when they do log in.
 registerFn('setUserRoleAndDepartment', async ({ body, user }) => {
-    if (user?.role !== 'admin')
+    if ((user?.role !== 'admin' && user?.role !== 'owner'))
         throw new Error('admin only');
     const { email, role, managed_department } = body;
     if (!email)

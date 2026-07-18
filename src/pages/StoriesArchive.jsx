@@ -24,7 +24,7 @@ export default function StoriesArchive() {
         setUser(currentUser);
         
         // Only admins can access this page
-        if (currentUser?.role !== "admin") {
+        if (currentUser?.role !== "admin" && currentUser?.role !== "owner") {
           setLoading(false);
           return;
         }
