@@ -418,7 +418,23 @@ export default function Layout({ children, currentPageName }) {
   // menu and let the allowlist do the filtering — that shows exactly what the
   // role sees, instead of the coarse base_level approximation.
   const previewPages = Array.isArray(user?._viewTierPages) ? user._viewTierPages : null;
-  const baseLinks = previewPages ? adminLinksFiltered
+  // When a tier allowlist is in play the base list must be the UNION of the
+  // admin AND employee menus. The allowlist can only REMOVE from the base, so
+  // starting from adminLinks alone meant every employee-side page the owner
+  // ticked (בית / השולחנות שלי / סידור עבודה / צ'אט משמרת …) could never appear
+  // — they live in employeeLinks. De-duped by url, first occurrence wins.
+  const allMenuLinks = React.useMemo(() => {
+    const out = []; const seen = new Set();
+    for (const l of [...adminLinksFiltered, ...employeeLinks, ...departmentManagerExtras]) {
+      if (l.isCategory) { out.push(l); continue; }
+      const k = urlKey(l.url);
+      if (!k || seen.has(k)) continue;
+      seen.add(k); out.push(l);
+    }
+    return out;
+  }, [adminLinksFiltered, departmentManagerExtras]);
+
+  const baseLinks = (previewPages || permPages) ? allMenuLinks
     : viewLevel === 'admin' ? adminLinksFiltered
     : viewLevel === 'manager' ? managerLinks
     : viewLevel === 'shift_lead' ? shiftLeadLinks
