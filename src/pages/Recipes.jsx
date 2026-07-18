@@ -158,15 +158,27 @@ function RecipesInner() {
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [filter]);
 
-  const openDetail = async (id) => {
+  // keep:true → refresh in place instead of blanking the table. Nulling detail
+  // after every field edit made the ingredient list you're typing in disappear
+  // and rebuild, which read as the app freezing.
+  const openDetail = async (id, opts = {}) => {
     setSelected(id);
-    setDetail(null);
+    if (!opts.keep) setDetail(null);
     try {
       const res = await base44.functions.getRecipe({ id });
       setDetail(res?.data || res);
     } catch (e) {
       console.error(e);
     }
+  };
+
+  // Refresh the list WITHOUT the full-page loading state — an inline edit should
+  // never blank the page it happened on.
+  const refreshListQuiet = async () => {
+    try {
+      const res = await base44.functions.listRecipes({ kind: filter });
+      setRecipes((res?.data || res)?.recipes || []);
+    } catch { /* keep what's on screen */ }
   };
 
   const savePrice = async (id, val) => {
@@ -346,7 +358,7 @@ function RecipesInner() {
                       )}
                     </button>
                     {selected === r.id && detail && (
-                      <RecipeIngredientEditor detail={detail} onChanged={() => { openDetail(r.id); load(); }} />
+                      <RecipeIngredientEditor detail={detail} onChanged={() => { openDetail(r.id, { keep: true }); refreshListQuiet(); }} />
                     )}
                   </div>
                 );

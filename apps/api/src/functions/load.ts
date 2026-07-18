@@ -12038,6 +12038,45 @@ async function recomputeAllRecipeCosts() {
   }
 }
 
+// Recompute ONLY what an edit can affect: the touched recipe, plus every recipe
+// that consumes it as a prep (walked upward). Editing one field used to call
+// recomputeAllRecipeCosts() — 56 recipes x (SELECT + UPDATE) sequentially, ~112
+// round-trips per keystroke-save, which is what made the editor freeze.
+async function recomputeAffectedRecipes(seedRecipeIds: string[], ingredientId?: string | null): Promise<number> {
+  const dbx = prisma as any;
+  const all = new Set<string>((seedRecipeIds || []).filter(Boolean).map(String));
+  if (ingredientId) {
+    const rows: any[] = await dbx.$queryRawUnsafe(
+      `SELECT DISTINCT recipe_id FROM "RecipeIngredient" WHERE ingredient_id = $1`, ingredientId).catch(() => []);
+    for (const r of rows) all.add(String(r.recipe_id));
+  }
+  if (!all.size) return 0;
+  // Walk up the prep graph (bounded — nesting is shallow and cycles are blocked).
+  let frontier = [...all];
+  for (let depth = 0; depth < 5 && frontier.length; depth++) {
+    const parents: any[] = await dbx.$queryRawUnsafe(
+      `SELECT DISTINCT recipe_id FROM "RecipeIngredient" WHERE prep_recipe_id = ANY($1::text[])`, frontier).catch(() => []);
+    frontier = parents.map((x) => String(x.recipe_id)).filter((id) => !all.has(id));
+    for (const id of frontier) all.add(id);
+  }
+  // PREPs first so DISHes pick up their fresh cost.
+  const rows: any[] = await dbx.$queryRawUnsafe(
+    `SELECT id, kind, sale_price FROM "Recipe" WHERE id = ANY($1::text[])
+     ORDER BY (kind = 'PREP') DESC`, [...all]).catch(() => []);
+  for (const r of rows) {
+    const total = await computeRecipeCost(r.id);
+    if (r.kind === 'DISH') {
+      const fc = r.sale_price > 0 ? (total / r.sale_price) * 100 : null;
+      await dbx.$executeRawUnsafe(
+        `UPDATE "Recipe" SET total_cost=$1, food_cost_percent=$2, "updatedAt"=NOW() WHERE id=$3`, total, fc, r.id);
+    } else {
+      await dbx.$executeRawUnsafe(
+        `UPDATE "Recipe" SET total_cost=$1, "updatedAt"=NOW() WHERE id=$2`, total, r.id);
+    }
+  }
+  return rows.length;
+}
+
 async function computeRecipeCost(recipeId: string): Promise<number> {
   const rows: any[] = await (prisma as any).$queryRawUnsafe(
     `SELECT ri.qty, ri.unit, ri.ingredient_id, ri.prep_recipe_id,
@@ -12395,7 +12434,10 @@ registerFn('updateRecipeIngredient', async ({ body, user }) => {
     `UPDATE "RecipeIngredient" SET ${sets.join(', ')} WHERE id = $${vals.length}`,
     ...vals,
   );
-  await recomputeAllRecipeCosts();
+  // Only the owning recipe (and whatever consumes it) can change.
+  const own: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT recipe_id FROM "RecipeIngredient" WHERE id = $1`, b.id).catch(() => []);
+  await recomputeAffectedRecipes(own.map((x: any) => String(x.recipe_id)));
   return { ok: true };
 });
 
@@ -12419,7 +12461,7 @@ registerFn('updateIngredient', async ({ body, user }) => {
     `UPDATE "Ingredient" SET ${sets.join(', ')}, "updatedAt" = NOW() WHERE id = $${vals.length}`,
     ...vals,
   );
-  await recomputeAllRecipeCosts();
+  await recomputeAffectedRecipes([], b.id);
   return { ok: true };
 });
 
@@ -12468,7 +12510,7 @@ registerFn('addRecipeIngredient', async ({ body, user }) => {
      VALUES ($1, $2, $3, $4, $5, $6)`,
     randomUUID(), b.recipe_id, ingredientId, prepId, b.qty, b.unit || 'kg',
   );
-  await recomputeAllRecipeCosts();
+  await recomputeAffectedRecipes([String(b.recipe_id)]);
   return { ok: true };
 });
 
@@ -12477,8 +12519,10 @@ registerFn('deleteRecipeIngredient', async ({ body, user }) => {
   await ensureInventoryTables();
   const b = (body || {}) as any;
   if (!b.id) throw new Error('id required');
+  const owner: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT recipe_id FROM "RecipeIngredient" WHERE id = $1`, b.id).catch(() => []);
   await (prisma as any).$executeRawUnsafe(`DELETE FROM "RecipeIngredient" WHERE id = $1`, b.id);
-  await recomputeAllRecipeCosts();
+  await recomputeAffectedRecipes(owner.map((x: any) => String(x.recipe_id)));
   return { ok: true };
 });
 
