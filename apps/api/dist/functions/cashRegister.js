@@ -432,4 +432,47 @@ registerFn('getAccountsPayable', async ({ user }) => {
             .map((s) => ({ ...s, total: Math.round(s.total), late: Math.round(s.late) })),
     };
 });
+// ── Hebrew calendar ────────────────────────────────────────────────────────
+registerFn('syncHolidayCalendar', async ({ user, body }) => {
+    await guard(user);
+    const { syncHolidayCalendar } = await import('../lib/hebrewCalendar.js');
+    const y = new Date().getUTCFullYear();
+    const years = [y, y + 1];
+    let added = 0, total = 0;
+    for (const year of years) {
+        const r = await syncHolidayCalendar(Number((body || {}).year) || year);
+        added += r.added;
+        total = r.total;
+        if ((body || {}).year)
+            break;
+    }
+    return { ok: true, added, total, years };
+});
+registerFn('getHolidayCalendar', async ({ user, body }) => {
+    await guard(user);
+    const { loadHolidays } = await import('../lib/hebrewCalendar.js');
+    const b = (body || {});
+    const from = b.from || ymd(new Date(Date.now() - 30 * 86400_000));
+    const to = b.to || ymd(new Date(Date.now() + 365 * 86400_000));
+    const m = await loadHolidays(from, to);
+    return {
+        holidays: [...m.values()].sort((a, b2) => a.date.localeCompare(b2.date)),
+        count: m.size,
+    };
+});
+/** The owner's correction for one date. Their number always wins over the seed. */
+registerFn('setHolidayFactor', async ({ user, body }) => {
+    await guard(user);
+    const b = (body || {});
+    const date = String(b.date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+        throw new Error('invalid_date');
+    const factor = Math.max(0, Math.min(5, Number(b.revenue_factor)));
+    if (!Number.isFinite(factor))
+        throw new Error('invalid_factor');
+    await dbx().$executeRawUnsafe(`UPDATE "HolidayCalendar"
+     SET revenue_factor = $2, closed = $3, edited = true, updated_at = NOW()
+     WHERE holiday_date = $1::date`, date, factor, b.closed === true || factor === 0);
+    return { ok: true, date, revenue_factor: factor };
+});
 //# sourceMappingURL=cashRegister.js.map

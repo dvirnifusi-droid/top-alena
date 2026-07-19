@@ -71,7 +71,30 @@ export async function computeCapitalForecast(daysIn) {
     const skip = new Set(SUPPLIER_CATS);
     if (vat.enabled)
         skip.add('expense_vat');
-    const events = projectFromPatterns(patterns, start, end, skip);
+    let events = projectFromPatterns(patterns, start, end, skip);
+    // Holidays move takings, and the effect reaches the account late: clearing
+    // pays for sales already made, so a shut day shrinks the NEXT payout, not
+    // that day's. Only income is scaled — suppliers and payroll do not care what
+    // the calendar says.
+    try {
+        const { loadHolidays, factorForPayout } = await import('../lib/hebrewCalendar.js');
+        const holidays = await loadHolidays(ymd(new Date(start.getTime() - 14 * DAY)), ymd(end));
+        if (holidays.size) {
+            events = events.map((e) => {
+                if (e.amount <= 0)
+                    return e;
+                const f = factorForPayout(e.date, holidays);
+                if (Math.abs(f - 1) < 0.02)
+                    return e;
+                return {
+                    ...e,
+                    amount: e.amount * f,
+                    source: `${e.source} · מותאם לחגים (×${f.toFixed(2)})`,
+                };
+            });
+        }
+    }
+    catch { /* no calendar → no adjustment, never a broken forecast */ }
     if (vat.enabled) {
         const vatPattern = patterns.find((p) => p.category === 'expense_vat');
         const perMonth = vat.amount_mode === 'fixed' && vat.fixed_amount
