@@ -47,7 +47,15 @@ export default function SupplierLedger({ defaultOpen = false }) {
     setLoading(false);
   }, []);
 
-  useEffect(() => { if (open && !data) load(); }, [open, data, load]);
+  useEffect(() => { if (!data) load(); }, [data, load]);
+
+  // Entering payment terms is the single action that turns the cash-flow
+  // forecast from an estimate into real dates — so while any supplier is still
+  // missing them, this opens itself instead of sitting collapsed among the
+  // invoices where it was being missed entirely.
+  useEffect(() => {
+    if (data?.totals?.suppliers_without_terms > 0) setOpen(true);
+  }, [data]);
 
   if (denied) return null;
 
@@ -79,6 +87,11 @@ export default function SupplierLedger({ defaultOpen = false }) {
         <CardTitle className="text-base flex items-center justify-between">
           <span className="flex items-center gap-2"><BookOpen className="w-5 h-5 text-emerald-600" /> כרטסת ספקים ותנאי תשלום</span>
           <span className="flex items-center gap-2 text-xs font-normal text-slate-500">
+            {t.suppliers_without_terms > 0 && (
+              <span className="rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 font-medium">
+                {t.suppliers_without_terms} ספקים ללא תנאי תשלום
+              </span>
+            )}
             {data ? `${ils(t.open)} פתוח${t.overdue ? ` · ${ils(t.overdue)} באיחור` : ''}` : ''}
             <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
           </span>
