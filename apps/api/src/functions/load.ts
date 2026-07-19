@@ -3992,7 +3992,7 @@ registerFn('clubRedeemBenefit', async ({ body, user }) => {
 /** The shared standings. Public — the whole point is that members can see it. */
 registerFn('clubTournament', async ({ body }) => {
   const cfg = await getClubConfig();
-  const { since, standings } = await tournamentStandings(20);
+  const { since, standings, multiplier } = await tournamentStandings(20);
   const cid = String((body as any)?.c || '');
   const signed = cid && verifyCustomerSignature(cid, String((body as any)?.s || ''));
   return {
@@ -4000,6 +4000,7 @@ registerFn('clubTournament', async ({ body }) => {
     prize: cfg.tournament_prize,
     winners_count: cfg.tournament_winners,
     since,
+    multiplier,
     // First names only. A leaderboard is a public wall, and a club should not
     // publish the full name of every member who played on it.
     standings: standings.map((x) => ({

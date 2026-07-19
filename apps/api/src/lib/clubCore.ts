@@ -25,6 +25,15 @@ export type ClubConfig = {
   tournament_winners: number;
   tournament_prize: string;
   /**
+   * How much more a game played in the restaurant counts toward the tournament.
+   *
+   * Applied to the standings, never to the score the player sees. Someone who
+   * scores 600 and is shown 1200 thinks the game is broken; someone who scores
+   * 600 and reads "נספר כפול כי שיחקת אצלנו" understands exactly what happened
+   * and why it is worth coming in.
+   */
+  queue_multiplier: number;
+  /**
    * When the current round started.
    *
    * A round runs from the last award to whenever the owner presses the button —
@@ -51,6 +60,7 @@ export const CLUB_DEFAULTS: ClubConfig = {
   tournament_winners: 3,
   tournament_prize: 'קינוח על חשבון הבית 🏆',
   tournament_started_at: null,
+  queue_multiplier: 2,
 };
 
 export async function ensureClubTables(): Promise<void> {
@@ -70,6 +80,7 @@ export async function ensureClubTables(): Promise<void> {
     `ADD COLUMN IF NOT EXISTS tournament_winners INT DEFAULT 3`,
     `ADD COLUMN IF NOT EXISTS tournament_prize TEXT`,
     `ADD COLUMN IF NOT EXISTS tournament_started_at TIMESTAMPTZ`,
+    `ADD COLUMN IF NOT EXISTS queue_multiplier INT DEFAULT 2`,
   ]) {
     await dbx().$executeRawUnsafe(`ALTER TABLE "ClubConfig" ${col}`).catch(() => {});
   }
@@ -120,6 +131,7 @@ export async function getClubConfig(): Promise<ClubConfig> {
     tournament_winners: Number(r.tournament_winners) || CLUB_DEFAULTS.tournament_winners,
     tournament_prize: r.tournament_prize || CLUB_DEFAULTS.tournament_prize,
     tournament_started_at: r.tournament_started_at ? new Date(r.tournament_started_at).toISOString() : null,
+    queue_multiplier: Number(r.queue_multiplier) || CLUB_DEFAULTS.queue_multiplier,
   };
 }
 
@@ -132,11 +144,19 @@ export async function saveClubConfig(patch: Partial<ClubConfig>): Promise<ClubCo
   // Prize count is a direct multiplier on what a round costs, so it is bounded
   // for the same reason the payout box is.
   next.tournament_winners = Math.max(1, Math.min(50, Math.round(Number(next.tournament_winners) || 3)));
+  // At least 1 — a multiplier below 1 would make coming in worth LESS, which is
+  // the opposite of the point. Not `Number(x) || 2`: a typed 0 is falsy, so that
+  // form quietly restores the default instead of honouring "no bonus".
+  const mult = Number(next.queue_multiplier);
+  next.queue_multiplier = Number.isFinite(mult)
+    ? Math.max(1, Math.min(10, Math.round(mult)))
+    : CLUB_DEFAULTS.queue_multiplier;
   await dbx().$executeRawUnsafe(
     `INSERT INTO "ClubConfig"
        (id, welcome_enabled, welcome_text, welcome_valid_days, game_coins, birthday_enabled, birthday_text,
-        tournament_enabled, tournament_winners, tournament_prize, tournament_started_at, updated_date)
-     VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW()), NOW())
+        tournament_enabled, tournament_winners, tournament_prize, tournament_started_at,
+        queue_multiplier, updated_date)
+     VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW()), $11, NOW())
      ON CONFLICT (id) DO UPDATE SET
        welcome_enabled = EXCLUDED.welcome_enabled,
        welcome_text = EXCLUDED.welcome_text,
@@ -148,11 +168,12 @@ export async function saveClubConfig(patch: Partial<ClubConfig>): Promise<ClubCo
        tournament_winners = EXCLUDED.tournament_winners,
        tournament_prize = EXCLUDED.tournament_prize,
        tournament_started_at = EXCLUDED.tournament_started_at,
+       queue_multiplier = EXCLUDED.queue_multiplier,
        updated_date = NOW()`,
     next.welcome_enabled, next.welcome_text, next.welcome_valid_days,
     next.game_coins, next.birthday_enabled, next.birthday_text,
     next.tournament_enabled, next.tournament_winners, next.tournament_prize,
-    next.tournament_started_at,
+    next.tournament_started_at, next.queue_multiplier,
   );
   return await getClubConfig();
 }
@@ -320,17 +341,32 @@ export async function redeemBenefit(code: string, by: string): Promise<
 // thousand shekels of liability. A round instead costs exactly the prizes the
 // owner set, no matter how many people played or how hard.
 
-export type Standing = { customer_id: string; name: string; points: number; games: number; rank: number };
+export type Standing = {
+  customer_id: string; name: string; points: number; games: number;
+  here_games: number; rank: number;
+};
 
-/** Standings for the round in progress, best first. */
-export async function tournamentStandings(limit = 20): Promise<{ since: string | null; standings: Standing[] }> {
+/**
+ * Standings for the round in progress, best first.
+ *
+ * A game played in the restaurant — one with a queue entry behind it — counts
+ * for more. Otherwise the tournament rewards precisely the members who did not
+ * come in, which is backwards for a business whose prize is a dish served at a
+ * table. The weighting lives here rather than in the stored score, so the number
+ * the player saw during the game stays the number they scored.
+ */
+export async function tournamentStandings(limit = 20): Promise<{
+  since: string | null; multiplier: number; standings: Standing[];
+}> {
   const cfg = await getClubConfig();
   const since = cfg.tournament_started_at;
   const rows: any[] = await dbx().$queryRawUnsafe(
     `SELECT g.customer_id,
             COALESCE(MAX(c.name), MAX(g.player_name)) AS name,
-            SUM(COALESCE(g.score, 0))::int AS points,
-            COUNT(*)::int AS games
+            SUM(COALESCE(g.score, 0) *
+                CASE WHEN g.queue_entry_id IS NOT NULL THEN $3::int ELSE 1 END)::int AS points,
+            COUNT(*)::int AS games,
+            COUNT(*) FILTER (WHERE g.queue_entry_id IS NOT NULL)::int AS here_games
        FROM "QueueGameSession" g
        LEFT JOIN "Customer" c ON c.id = g.customer_id
       WHERE g.customer_id IS NOT NULL
@@ -340,34 +376,51 @@ export async function tournamentStandings(limit = 20): Promise<{ since: string |
       HAVING SUM(COALESCE(g.score, 0)) > 0
       ORDER BY points DESC, games ASC
       LIMIT $2`,
-    since, Math.max(1, Math.min(100, limit)),
+    since, Math.max(1, Math.min(100, limit)), cfg.queue_multiplier,
   ).catch(() => []);
   return {
     since,
+    multiplier: cfg.queue_multiplier,
     standings: (rows || []).map((r, i) => ({
       customer_id: r.customer_id,
       name: r.name || 'אורח',
       points: Number(r.points) || 0,
       games: Number(r.games) || 0,
+      here_games: Number(r.here_games) || 0,
       rank: i + 1,
     })),
   };
 }
 
 /** One member's own position, for their card. */
-export async function myStanding(customerId: string): Promise<{ points: number; games: number; rank: number | null }> {
+export async function myStanding(customerId: string): Promise<{
+  points: number; games: number; here_games: number; rank: number | null; multiplier: number;
+}> {
+  const cfg = await getClubConfig();
   const { standings } = await tournamentStandings(100);
   const me = standings.find((s) => s.customer_id === customerId);
-  if (me) return { points: me.points, games: me.games, rank: me.rank };
-  const cfg = await getClubConfig();
+  if (me) {
+    return { points: me.points, games: me.games, here_games: me.here_games, rank: me.rank, multiplier: cfg.queue_multiplier };
+  }
+  // Outside the top hundred, or zero points — still their real figure, so the
+  // card never tells someone who played that they have nothing.
   const rows: any[] = await dbx().$queryRawUnsafe(
-    `SELECT SUM(COALESCE(score,0))::int AS points, COUNT(*)::int AS games
+    `SELECT SUM(COALESCE(score,0) *
+                CASE WHEN queue_entry_id IS NOT NULL THEN $3::int ELSE 1 END)::int AS points,
+            COUNT(*)::int AS games,
+            COUNT(*) FILTER (WHERE queue_entry_id IS NOT NULL)::int AS here_games
        FROM "QueueGameSession"
       WHERE customer_id = $1 AND finished = true
         AND ($2::timestamptz IS NULL OR "createdAt" >= $2::timestamptz)`,
-    customerId, cfg.tournament_started_at,
+    customerId, cfg.tournament_started_at, cfg.queue_multiplier,
   ).catch(() => []);
-  return { points: Number(rows?.[0]?.points) || 0, games: Number(rows?.[0]?.games) || 0, rank: null };
+  return {
+    points: Number(rows?.[0]?.points) || 0,
+    games: Number(rows?.[0]?.games) || 0,
+    here_games: Number(rows?.[0]?.here_games) || 0,
+    rank: null,
+    multiplier: cfg.queue_multiplier,
+  };
 }
 
 /**

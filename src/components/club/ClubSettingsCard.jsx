@@ -184,6 +184,18 @@ export default function ClubSettingsCard() {
                 <Input type="number" min={1} value={s.tournament_winners}
                   onChange={(e) => set('tournament_winners', e.target.value)} className="mt-1 w-24" />
               </div>
+              <div>
+                <label className="text-xs text-slate-500">
+                  משחק במסעדה שווה פי כמה נקודות
+                </label>
+                <div className="flex items-center gap-2 mt-1">
+                  <Input type="number" min={1} value={s.queue_multiplier}
+                    onChange={(e) => set('queue_multiplier', e.target.value)} className="w-24" />
+                  <span className="text-xs text-slate-500">
+                    כדי שהטורניר יתגמל את מי שמגיע, לא את מי שנשאר בבית
+                  </span>
+                </div>
+              </div>
             </div>
           )}
         </div>

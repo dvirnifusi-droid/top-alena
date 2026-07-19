@@ -55,6 +55,12 @@ export default function ClubLeaderboard() {
               {winning === 1 ? 'המוביל מקבל' : `${winning} המובילים מקבלים`}: {data.prize}
             </p>
           )}
+          {data?.multiplier > 1 && (
+            <p className="text-xs font-bold mt-2 inline-block rounded-full px-3 py-1"
+              style={{ background: '#FFFBF2', color: ACCENT }}>
+              🔥 משחק במסעדה שווה פי {data.multiplier} נקודות
+            </p>
+          )}
         </div>
 
         {standings.length === 0 ? (

@@ -140,11 +140,17 @@ export default function MemberCard() {
                   )}
                 </div>
                 {card.tournament.points > 0 && (
-                  <p className="text-xs text-gray-500 mb-3">
+                  <p className="text-xs text-gray-500 mb-1">
                     {card.tournament.points} נקודות · {card.tournament.games} משחקים
                   </p>
                 )}
                 <p className="text-xs text-gray-500 mb-3">הפרס למובילים: {card.tournament.prize}</p>
+                {card.tournament.multiplier > 1 && (
+                  <p className="text-xs font-bold mb-3 rounded-lg px-3 py-2"
+                    style={{ background: '#FFFBF2', color: ACCENT }}>
+                    🔥 משחק במסעדה שווה פי {card.tournament.multiplier} נקודות — ומזכה גם במטבעות
+                  </p>
+                )}
                 <a href={`/QueueGame?c=${encodeURIComponent(c)}&s=${encodeURIComponent(s)}&name=${encodeURIComponent(card.first_name || '')}`}
                   className="block w-full text-center rounded-xl py-3 font-bold text-white"
                   style={{ background: ACCENT }}>

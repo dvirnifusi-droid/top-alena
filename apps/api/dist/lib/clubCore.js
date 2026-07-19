@@ -27,6 +27,7 @@ export const CLUB_DEFAULTS = {
     tournament_winners: 3,
     tournament_prize: 'קינוח על חשבון הבית 🏆',
     tournament_started_at: null,
+    queue_multiplier: 2,
 };
 export async function ensureClubTables() {
     await dbx().$executeRawUnsafe(`
@@ -45,6 +46,7 @@ export async function ensureClubTables() {
         `ADD COLUMN IF NOT EXISTS tournament_winners INT DEFAULT 3`,
         `ADD COLUMN IF NOT EXISTS tournament_prize TEXT`,
         `ADD COLUMN IF NOT EXISTS tournament_started_at TIMESTAMPTZ`,
+        `ADD COLUMN IF NOT EXISTS queue_multiplier INT DEFAULT 2`,
     ]) {
         await dbx().$executeRawUnsafe(`ALTER TABLE "ClubConfig" ${col}`).catch(() => { });
     }
@@ -88,6 +90,7 @@ export async function getClubConfig() {
         tournament_winners: Number(r.tournament_winners) || CLUB_DEFAULTS.tournament_winners,
         tournament_prize: r.tournament_prize || CLUB_DEFAULTS.tournament_prize,
         tournament_started_at: r.tournament_started_at ? new Date(r.tournament_started_at).toISOString() : null,
+        queue_multiplier: Number(r.queue_multiplier) || CLUB_DEFAULTS.queue_multiplier,
     };
 }
 export async function saveClubConfig(patch) {
@@ -99,10 +102,18 @@ export async function saveClubConfig(patch) {
     // Prize count is a direct multiplier on what a round costs, so it is bounded
     // for the same reason the payout box is.
     next.tournament_winners = Math.max(1, Math.min(50, Math.round(Number(next.tournament_winners) || 3)));
+    // At least 1 — a multiplier below 1 would make coming in worth LESS, which is
+    // the opposite of the point. Not `Number(x) || 2`: a typed 0 is falsy, so that
+    // form quietly restores the default instead of honouring "no bonus".
+    const mult = Number(next.queue_multiplier);
+    next.queue_multiplier = Number.isFinite(mult)
+        ? Math.max(1, Math.min(10, Math.round(mult)))
+        : CLUB_DEFAULTS.queue_multiplier;
     await dbx().$executeRawUnsafe(`INSERT INTO "ClubConfig"
        (id, welcome_enabled, welcome_text, welcome_valid_days, game_coins, birthday_enabled, birthday_text,
-        tournament_enabled, tournament_winners, tournament_prize, tournament_started_at, updated_date)
-     VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW()), NOW())
+        tournament_enabled, tournament_winners, tournament_prize, tournament_started_at,
+        queue_multiplier, updated_date)
+     VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW()), $11, NOW())
      ON CONFLICT (id) DO UPDATE SET
        welcome_enabled = EXCLUDED.welcome_enabled,
        welcome_text = EXCLUDED.welcome_text,
@@ -114,7 +125,8 @@ export async function saveClubConfig(patch) {
        tournament_winners = EXCLUDED.tournament_winners,
        tournament_prize = EXCLUDED.tournament_prize,
        tournament_started_at = EXCLUDED.tournament_started_at,
-       updated_date = NOW()`, next.welcome_enabled, next.welcome_text, next.welcome_valid_days, next.game_coins, next.birthday_enabled, next.birthday_text, next.tournament_enabled, next.tournament_winners, next.tournament_prize, next.tournament_started_at);
+       queue_multiplier = EXCLUDED.queue_multiplier,
+       updated_date = NOW()`, next.welcome_enabled, next.welcome_text, next.welcome_valid_days, next.game_coins, next.birthday_enabled, next.birthday_text, next.tournament_enabled, next.tournament_winners, next.tournament_prize, next.tournament_started_at, next.queue_multiplier);
     return await getClubConfig();
 }
 // ── redeem codes ───────────────────────────────────────────────────────────
@@ -232,14 +244,24 @@ export async function redeemBenefit(code, by) {
     const fresh = await findBenefitByCode(code);
     return { ok: true, benefit: fresh || b };
 }
-/** Standings for the round in progress, best first. */
+/**
+ * Standings for the round in progress, best first.
+ *
+ * A game played in the restaurant — one with a queue entry behind it — counts
+ * for more. Otherwise the tournament rewards precisely the members who did not
+ * come in, which is backwards for a business whose prize is a dish served at a
+ * table. The weighting lives here rather than in the stored score, so the number
+ * the player saw during the game stays the number they scored.
+ */
 export async function tournamentStandings(limit = 20) {
     const cfg = await getClubConfig();
     const since = cfg.tournament_started_at;
     const rows = await dbx().$queryRawUnsafe(`SELECT g.customer_id,
             COALESCE(MAX(c.name), MAX(g.player_name)) AS name,
-            SUM(COALESCE(g.score, 0))::int AS points,
-            COUNT(*)::int AS games
+            SUM(COALESCE(g.score, 0) *
+                CASE WHEN g.queue_entry_id IS NOT NULL THEN $3::int ELSE 1 END)::int AS points,
+            COUNT(*)::int AS games,
+            COUNT(*) FILTER (WHERE g.queue_entry_id IS NOT NULL)::int AS here_games
        FROM "QueueGameSession" g
        LEFT JOIN "Customer" c ON c.id = g.customer_id
       WHERE g.customer_id IS NOT NULL
@@ -248,30 +270,44 @@ export async function tournamentStandings(limit = 20) {
       GROUP BY g.customer_id
       HAVING SUM(COALESCE(g.score, 0)) > 0
       ORDER BY points DESC, games ASC
-      LIMIT $2`, since, Math.max(1, Math.min(100, limit))).catch(() => []);
+      LIMIT $2`, since, Math.max(1, Math.min(100, limit)), cfg.queue_multiplier).catch(() => []);
     return {
         since,
+        multiplier: cfg.queue_multiplier,
         standings: (rows || []).map((r, i) => ({
             customer_id: r.customer_id,
             name: r.name || 'אורח',
             points: Number(r.points) || 0,
             games: Number(r.games) || 0,
+            here_games: Number(r.here_games) || 0,
             rank: i + 1,
         })),
     };
 }
 /** One member's own position, for their card. */
 export async function myStanding(customerId) {
+    const cfg = await getClubConfig();
     const { standings } = await tournamentStandings(100);
     const me = standings.find((s) => s.customer_id === customerId);
-    if (me)
-        return { points: me.points, games: me.games, rank: me.rank };
-    const cfg = await getClubConfig();
-    const rows = await dbx().$queryRawUnsafe(`SELECT SUM(COALESCE(score,0))::int AS points, COUNT(*)::int AS games
+    if (me) {
+        return { points: me.points, games: me.games, here_games: me.here_games, rank: me.rank, multiplier: cfg.queue_multiplier };
+    }
+    // Outside the top hundred, or zero points — still their real figure, so the
+    // card never tells someone who played that they have nothing.
+    const rows = await dbx().$queryRawUnsafe(`SELECT SUM(COALESCE(score,0) *
+                CASE WHEN queue_entry_id IS NOT NULL THEN $3::int ELSE 1 END)::int AS points,
+            COUNT(*)::int AS games,
+            COUNT(*) FILTER (WHERE queue_entry_id IS NOT NULL)::int AS here_games
        FROM "QueueGameSession"
       WHERE customer_id = $1 AND finished = true
-        AND ($2::timestamptz IS NULL OR "createdAt" >= $2::timestamptz)`, customerId, cfg.tournament_started_at).catch(() => []);
-    return { points: Number(rows?.[0]?.points) || 0, games: Number(rows?.[0]?.games) || 0, rank: null };
+        AND ($2::timestamptz IS NULL OR "createdAt" >= $2::timestamptz)`, customerId, cfg.tournament_started_at, cfg.queue_multiplier).catch(() => []);
+    return {
+        points: Number(rows?.[0]?.points) || 0,
+        games: Number(rows?.[0]?.games) || 0,
+        here_games: Number(rows?.[0]?.here_games) || 0,
+        rank: null,
+        multiplier: cfg.queue_multiplier,
+    };
 }
 /**
  * End the round: give the winners their prize and start the next one.

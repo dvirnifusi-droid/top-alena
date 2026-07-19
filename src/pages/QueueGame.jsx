@@ -217,11 +217,19 @@ export default function QueueGame() {
               {entryId ? 'משחקי ממתינים' : 'טורניר המועדון'}
             </h1>
             <p className="text-[#D9BD83] mt-1">שלום, {playerName}! בחר משחק 👇</p>
-            {!entryId && club && (
-              <p className="text-white/60 text-xs mt-2 max-w-xs mx-auto">
-                הנקודות נצברות לטבלת הטורניר. מטבעות נצברים כשמגיעים למסעדה.
+            {/* Say what the game is worth before it is played, not after. A
+                player who discovers afterwards that the same score counted for
+                less feels cheated; one who is told up front has been given a
+                reason to come in. */}
+            {entryId ? (
+              <p className="text-emerald-300 text-xs mt-2 font-bold">
+                🔥 אתם אצלנו — הנקודות נספרות כפול, ויש גם מטבעות
               </p>
-            )}
+            ) : club ? (
+              <p className="text-white/60 text-xs mt-2 max-w-xs mx-auto">
+                הנקודות נצברות לטבלת הטורניר. במסעדה הן נספרות כפול, ומקבלים גם מטבעות.
+              </p>
+            ) : null}
           </div>
 
           <div className="w-full max-w-sm space-y-4 mb-6">
