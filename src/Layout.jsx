@@ -8,7 +8,7 @@ import PermissionTierEditor, { buildCatalog } from "@/components/shared/Permissi
 import { useMyPermissions } from "@/hooks/useMyPermissions";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
-  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield, Lock, ShoppingCart, ScanLine
+  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield, Lock, ShoppingCart, ScanLine, Gift
 } from "lucide-react";
 import {
   Sidebar, SidebarContent,
@@ -121,6 +121,7 @@ export const employeeLinks = [
   { title: "🛒 רשימת הזמנה", url: createPageUrl("OrderList"), icon: ShoppingCart, isSubItem: true, color: "cinnamon" },
   { title: "ניקיון שירותים 🚽", url: createPageUrl("RestroomCleaning"), icon: ClipboardCheck, isSubItem: true, color: "cinnamon" },
   { title: "דיווח תקרית", url: createPageUrl("Incidents"), icon: AlertTriangle, isSubItem: true, color: "cinnamon" },
+  { title: "🎁 מימוש הטבת מועדון", url: createPageUrl("ClubRedeem"), icon: Gift, isSubItem: true, color: "cinnamon" },
 
   { title: "משלוחים", url: "#", icon: Package, isCategory: true, color: "gold" },
   { title: "משלוחים", url: createPageUrl("Deliveries"), icon: Package, isSubItem: true, color: "gold" },

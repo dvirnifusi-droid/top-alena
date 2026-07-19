@@ -1,0 +1,151 @@
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { base44 } from '@/api/base44Client';
+import { Loader2, Gift, Coins } from 'lucide-react';
+import { useTenantBranding } from '@/hooks/useTenantBranding';
+
+// What a member can see about their own membership.
+//
+// Until this page existed the answer was nothing at all — clubGetProfile
+// deliberately withholds the balance and the tier, and no screen anywhere showed
+// a customer either one. A club whose members cannot see what they have is a
+// mailing list with a nicer name.
+//
+// Benefits lead and coins follow, because that is the true order of what a
+// member has: almost nobody has a coin balance yet, and opening on a big zero
+// would say "you have nothing" to someone who is holding a free dessert.
+export default function MemberCard() {
+  const [search] = useSearchParams();
+  const c = search.get('c') || '';
+  const s = search.get('s') || '';
+  const [state, setState] = useState('loading');   // loading | ready | error
+  const [card, setCard] = useState(null);
+  const branding = useTenantBranding();
+  const brand = branding?.name || 'המסעדה';
+  const ACCENT = '#A04A2E';
+
+  useEffect(() => {
+    if (!c || !s) { setState('error'); return; }
+    (async () => {
+      try {
+        const r = await base44.asServiceRole.functions.clubMemberCard({ c, s });
+        setCard(r?.data || r || {});
+        setState('ready');
+      } catch { setState('error'); }
+    })();
+  }, [c, s]);
+
+  if (state === 'loading') {
+    return (
+      <div dir="rtl" className="min-h-screen flex items-center justify-center" style={{ background: '#FAF5E8' }}>
+        <Loader2 className="w-7 h-7 animate-spin" style={{ color: '#D9BD83' }} />
+      </div>
+    );
+  }
+
+  if (state === 'error') {
+    return (
+      <div dir="rtl" className="min-h-screen flex items-center justify-center p-4" style={{ background: '#FAF5E8' }}>
+        <div className="max-w-sm w-full bg-white rounded-3xl shadow-xl p-8 text-center border" style={{ borderColor: '#D9BD83' }}>
+          <h1 className="text-xl font-black mb-2" style={{ color: ACCENT }}>הקישור לא תקין</h1>
+          <p className="text-sm text-gray-600">
+            ייתכן שהוא נחתך בהעתקה. אפשר לבקש קישור חדש מהצוות.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const benefits = card?.benefits || [];
+  const coins = card?.coins || 0;
+
+  return (
+    <div dir="rtl" className="min-h-screen p-4 md:p-8" style={{ background: '#FAF5E8' }}>
+      <div className="max-w-md mx-auto">
+
+        <div className="bg-white rounded-3xl shadow-xl border overflow-hidden" style={{ borderColor: '#D9BD83' }}>
+          <div className="p-6 text-center" style={{ background: ACCENT }}>
+            <p className="text-xs tracking-widest text-white/70 mb-1">מועדון הלקוחות</p>
+            <h1 className="text-2xl font-black text-white">{brand}</h1>
+            <p className="text-white/90 mt-2">{card?.name}</p>
+            {card?.tier && (
+              <span className="inline-block mt-2 text-xs font-bold px-3 py-1 rounded-full bg-white/20 text-white">
+                {card.tier}
+              </span>
+            )}
+          </div>
+
+          <div className="p-6">
+            {benefits.length > 0 ? (
+              <>
+                <p className="text-xs font-bold mb-3 flex items-center gap-1.5" style={{ color: ACCENT }}>
+                  <Gift className="w-4 h-4" /> ההטבות שמחכות לך
+                </p>
+                <div className="space-y-3">
+                  {benefits.map((b) => (
+                    <div key={b.id} className="rounded-2xl p-4 border-2 border-dashed"
+                      style={{ borderColor: '#D9BD83', background: '#FFFBF2' }}>
+                      <p className="text-gray-800 font-semibold leading-snug">{b.description}</p>
+                      <p className="text-xs text-gray-500 mt-3">הציגו את הקוד למלצר</p>
+                      <p className="text-3xl font-black tracking-[0.2em] mt-1" style={{ color: ACCENT }}>
+                        {b.code}
+                      </p>
+                      {b.expiry_date && (
+                        <p className="text-[11px] text-gray-400 mt-2">בתוקף עד {b.expiry_date.split('-').reverse().join('/')}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-4">
+                <Gift className="w-8 h-8 mx-auto mb-2" style={{ color: '#D9BD83' }} />
+                <p className="text-sm text-gray-600">
+                  אין כרגע הטבה פתוחה. בכל ביקור צוברים, ובימי הולדת יש הפתעות.
+                </p>
+              </div>
+            )}
+
+            {/* Coins sit below the benefits and only when there are any. A club
+                that opens on "0 מטבעות" has told the member they have nothing. */}
+            {coins > 0 && (
+              <div className="mt-5 pt-5 border-t flex items-center justify-between">
+                <span className="text-sm text-gray-600 flex items-center gap-1.5">
+                  <Coins className="w-4 h-4" style={{ color: '#D9BD83' }} /> המטבעות שלך
+                </span>
+                <span className="text-left">
+                  <span className="text-2xl font-black" style={{ color: ACCENT }}>{coins}</span>
+                  <span className="block text-[11px] text-gray-400">
+                    שווים ₪{coins * (card?.coin_value_ils || 4)} בהטבות
+                  </span>
+                </span>
+              </div>
+            )}
+
+            {card?.visits > 0 && (
+              <p className="text-xs text-gray-400 text-center mt-4">
+                {card.visits === 1 ? 'ביקור אחד עד היום' : `${card.visits} ביקורים עד היום`}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {card?.history?.length > 0 && (
+          <div className="mt-4 bg-white/60 rounded-2xl p-4 border" style={{ borderColor: '#E8DCC0' }}>
+            <p className="text-xs font-bold text-gray-500 mb-2">הטבות שכבר מימשת</p>
+            {card.history.map((h, i) => (
+              <p key={i} className="text-xs text-gray-500 py-0.5">
+                {h.description}
+                {h.redeemed_at && ` · ${new Date(h.redeemed_at).toLocaleDateString('he-IL')}`}
+              </p>
+            ))}
+          </div>
+        )}
+
+        <p className="text-center text-[11px] text-gray-400 mt-5">
+          שמרו את הקישור הזה — זה כרטיס החבר שלכם.
+        </p>
+      </div>
+    </div>
+  );
+}

@@ -21,6 +21,7 @@ export default function ClubJoin() {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [done, setDone] = useState(false);
+    const [joined, setJoined] = useState(null);   // what clubJoin gave back: welcome benefit + card link
 
     const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -43,7 +44,7 @@ export default function ClubJoin() {
                 email: form.email.trim() || null,
                 marketing_consent: !!form.consent,
             });
-            if (res?.ok) setDone(true);
+            if (res?.ok) { setJoined(res); setDone(true); }
             else setError(res?.message || 'שגיאה — נסו שוב');
         } catch (err) {
             setError(err?.message || 'שגיאה — נסו שוב');
@@ -61,10 +62,32 @@ export default function ClubJoin() {
                     <p className="text-gray-700 mb-4">
                         {`${form.name.split(' ')[0]}, נרשמת בהצלחה למועדון הלקוחות של ${brandName} 🌿`}
                     </p>
+                    {/* The benefit, not a promise of one. This screen has said
+                        "מהיום — הטבות" since the club opened while the benefits
+                        table stayed empty; now the thing itself is on the page,
+                        with the code the waiter needs. */}
+                    {joined?.welcome?.code && (
+                        <div className="rounded-2xl p-4 mb-4 text-right border-2 border-dashed"
+                            style={{ borderColor: '#D9BD83', background: '#FFFBF2' }}>
+                            <p className="text-xs font-bold mb-1" style={{ color: '#A04A2E' }}>מתנת ההצטרפות שלך</p>
+                            <p className="text-gray-800 font-semibold leading-snug">{joined.welcome.description}</p>
+                            <p className="text-xs text-gray-500 mt-3">הציגו את הקוד למלצר</p>
+                            <p className="text-3xl font-black tracking-[0.2em] mt-1" style={{ color: '#A04A2E' }}>
+                                {joined.welcome.code}
+                            </p>
+                        </div>
+                    )}
                     <p className="text-sm text-gray-500">
                         מהיום — הטבות, הפתעות ביום ההולדת, ועדכונים על מנות חדשות.
                         {branding?.address && <><br />{`נתראה ב${branding.address}!`}</>}
                     </p>
+                    {joined?.card_url && (
+                        <a href={joined.card_url}
+                            className="inline-block mt-5 text-sm font-bold underline"
+                            style={{ color: '#A04A2E' }}>
+                            לכרטיס החבר שלי ←
+                        </a>
+                    )}
                 </div>
             </div>
         );

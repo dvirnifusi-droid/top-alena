@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../db.js';
 import { requireClubKey } from '../middleware/clubAuth.js';
 import { computeTier, coinsForOrder, ILS_PER_COIN_REDEEM } from '../lib/clubTier.js';
+import { getClubConfig, grantBenefit } from '../lib/clubCore.js';
 
 // Israeli phone normalization — keeps only digits, strips leading 972
 function normalizePhone(raw: string): string {
@@ -72,6 +73,10 @@ export async function clubRoutes(app: FastifyInstance) {
   });
 
   // -------- POST /api/club/register --------
+  /** 'YYYY-MM-DD' → 'MM-DD', the shape the birthday campaign matches on. */
+  const toMmdd = (d?: string | null): string | null =>
+    d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d.slice(5) : null;
+
   app.post('/register', async (req, reply) => {
     const parsed = RegisterBody.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'bad_body', detail: parsed.error.flatten() });
@@ -107,6 +112,11 @@ export async function clubRoutes(app: FastifyInstance) {
         email: parsed.data.email || null,
         city:  parsed.data.city  || null,
         birthday: parsed.data.birthday || null,
+        // The birthday drip campaign matches on birthday_mmdd, not birthday.
+        // Writing only the raw date here meant every member who joined from the
+        // delivery site was invisible to it — they had a birthday on file and
+        // never got a birthday message.
+        birthday_mmdd: toMmdd(parsed.data.birthday),
         tags: Object.keys(tagsExtra).length ? (tagsExtra as any) : undefined,
         visit_count: 0,
         coin_balance: 0,
@@ -116,6 +126,25 @@ export async function clubRoutes(app: FastifyInstance) {
       },
     });
 
+    // Same welcome benefit as the in-app signup. Someone who joins from the
+    // delivery site is joining the same club, and it would be a strange one that
+    // gave a dessert to one door and nothing to the other.
+    let welcome: { description: string; code: string | null } | null = null;
+    try {
+      const cfg = await getClubConfig();
+      if (cfg.welcome_enabled) {
+        const b = await grantBenefit({
+          customerId: created.id,
+          description: cfg.welcome_text,
+          source: 'welcome',
+          validDays: cfg.welcome_valid_days,
+        });
+        if (b) welcome = { description: b.description, code: b.code };
+      }
+    } catch (e) {
+      req.log?.warn({ err: e }, 'club welcome benefit failed');
+    }
+
     return reply.code(201).send({
       found: true,
       name: created.name,
@@ -123,6 +152,7 @@ export async function clubRoutes(app: FastifyInstance) {
       loyalty_tier: created.loyalty_tier ?? 'regular',
       visit_count: created.visit_count ?? 0,
       marketing_consent: created.marketing_consent,
+      welcome,
     });
   });
 

@@ -16,6 +16,7 @@ import { Users, Search, Loader2, AlertTriangle, Heart, Frown, RefreshCw, Upload,
 import { format } from 'date-fns';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import ClubSettingsCard from '@/components/club/ClubSettingsCard';
 
 const PAGE_SIZE = 50;
 
@@ -344,6 +345,7 @@ export default function CustomerClubPage() {
 
     return (
         <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
+            <ClubSettingsCard />
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-center">

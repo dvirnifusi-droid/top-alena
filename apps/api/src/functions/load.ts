@@ -26,7 +26,17 @@ import { registerEmailTenant } from '../lib/emailTenantMap.js';
 import { fireTriggers } from '../lib/triggers.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
-import { withOptOut, verifyCustomerSignature } from '../lib/marketingBlast.js';
+import { withOptOut, verifyCustomerSignature, signCustomer } from '../lib/marketingBlast.js';
+import {
+  getClubConfig, saveClubConfig, grantBenefit, listBenefits,
+  findBenefitByCode, redeemBenefit, tierLabel,
+} from '../lib/clubCore.js';
+
+/** The member card is reached by the same signed link as the opt-out page. */
+function memberCardUrl(cid: string): string {
+  const base = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
+  return `${base}/MemberCard?c=${encodeURIComponent(cid)}&s=${signCustomer(cid)}`;
+}
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
@@ -2388,10 +2398,12 @@ registerFn(
     if (!customer_name || !phone || !party_size) {
       throw new Error('Missing required fields');
     }
-    let previousCredits = 0;
-    const customer = await db.customer.findFirst({ where: { phone: phone.trim() } });
-    if (customer) previousCredits = customer.coin_balance ?? 0;
-
+    // time_credits_earned counts what this visit earns — waiting time, games —
+    // and seatGuest adds it to the club balance on seating. It used to be seeded
+    // with the customer's existing coin_balance, which meant seatGuest added that
+    // balance to itself: 10 coins in, join the queue, get seated, 20 coins out,
+    // having earned nothing. The standing balance lives on the Customer record
+    // and is shown on the member card; the entry only ever holds this visit.
     const entry = await db.queueEntry.create({
       data: {
         customer_name: customer_name.trim(),
@@ -2402,7 +2414,7 @@ registerFn(
         table_duration_preference: table_duration_preference || 'any',
         status: 'pending',
         timestamp_register: new Date().toISOString(),
-        time_credits_earned: previousCredits,
+        time_credits_earned: 0,
       },
     });
     return { entry };
@@ -2528,7 +2540,43 @@ registerFn('updateGameSession', async ({ body }) => {
   if (answers !== undefined) data.answers = answers;
   if (finished !== undefined) data.finished = finished;
   const session = await db.queueGameSession.update({ where: { id: sessionId }, data });
-  return { session };
+
+  // Finishing a game pays club coins. A hundred and fifty-six people had played
+  // one through to the end and been given nothing at all — the score was written
+  // to a row and never read again except by the leaderboard.
+  //
+  // The coins land on the queue entry rather than straight on the customer,
+  // because seatGuest already carries an entry's credits onto the club balance
+  // when the guest is actually seated. That reuses the one bridge that exists,
+  // and it means the reward is earned by turning up, not by playing from home.
+  let coins_awarded = 0;
+  if (finished === true && session.queue_entry_id) {
+    try {
+      const cfg = await getClubConfig();
+      if (cfg.game_coins > 0) {
+        // This handler is public and the client calls it on every answer, so the
+        // credit is claimed by a conditional UPDATE: the row moves from
+        // not-yet-awarded to awarded exactly once, whoever calls and how often.
+        const claimed = await (db as any).$executeRawUnsafe(
+          `UPDATE "QueueGameSession" SET coins_awarded = $2
+            WHERE id = $1 AND COALESCE(coins_awarded, 0) = 0`,
+          sessionId, cfg.game_coins,
+        );
+        if (claimed) {
+          await (db as any).$executeRawUnsafe(
+            `UPDATE "QueueEntry"
+                SET time_credits_earned = COALESCE(time_credits_earned, 0) + $2
+              WHERE id = $1`,
+            session.queue_entry_id, cfg.game_coins,
+          );
+          coins_awarded = cfg.game_coins;
+        }
+      }
+    } catch (e) {
+      console.warn('game coin award failed:', e);
+    }
+  }
+  return { session, coins_awarded };
 }, { public: true });
 
 registerFn('getGameLeaderboard', async () => {
@@ -3805,7 +3853,34 @@ registerFn('clubJoin', async ({ body }) => {
       data: { phone: cleanPhone, visit_count: 0, loyalty_tier: 'regular', ...data },
     });
   }
-  return { ok: true, cid: customer.id, existing: !!existing };
+  // Joining now gives something. The signup page has always promised "הטבות",
+  // and until this line it was the one screen in the app that said something
+  // untrue — the benefits table was empty, not sparse. Granted by source, so
+  // re-submitting the form does not hand out a second dessert.
+  let welcome: any = null;
+  try {
+    const cfg = await getClubConfig();
+    if (cfg.welcome_enabled) {
+      welcome = await grantBenefit({
+        customerId: customer.id,
+        description: cfg.welcome_text,
+        source: 'welcome',
+        validDays: cfg.welcome_valid_days,
+      });
+    }
+  } catch (e) {
+    // A benefit that fails to issue must not fail the signup — the member is
+    // worth more than the dessert, and the owner can grant it by hand.
+    console.warn('club welcome benefit failed:', e);
+  }
+
+  return {
+    ok: true,
+    cid: customer.id,
+    existing: !!existing,
+    card_url: memberCardUrl(customer.id),
+    welcome: welcome ? { description: welcome.description, code: welcome.code } : null,
+  };
 }, { public: true });
 
 registerFn('clubGetProfile', async ({ body }) => {
@@ -3824,6 +3899,93 @@ registerFn('clubGetProfile', async ({ body }) => {
     visit_count: c.visit_count || 0,
   };
 }, { public: true });
+
+/**
+ * What a member sees about their own membership.
+ *
+ * Until now the answer was nothing: clubGetProfile deliberately withholds the
+ * balance and the tier, and no screen anywhere showed a customer either one. A
+ * loyalty club whose members cannot see what they have accumulated is a mailing
+ * list. Signed like the opt-out link rather than taking a bare cid, because the
+ * older club endpoints take a raw id and a guessed one reads a stranger.
+ */
+registerFn('clubMemberCard', async ({ body }) => {
+  const { c, s } = body as any;
+  const cid = String(c || '');
+  if (!cid || !verifyCustomerSignature(cid, String(s || ''))) throw new Error('invalid_link');
+  const cust = await db.customer.findUnique({ where: { id: cid } });
+  if (!cust) throw new Error('not_found');
+  const { active, used } = await listBenefits(cid);
+  return {
+    name: cust.name || '',
+    first_name: (cust.name || '').split(' ')[0] || '',
+    coins: (cust as any).coin_balance || 0,
+    coin_value_ils: 4,
+    visits: cust.visit_count || 0,
+    tier: tierLabel((cust as any).loyalty_tier),
+    unsubscribed: !!(cust as any).marketing_unsubscribed_at,
+    benefits: active.map((b) => ({
+      id: b.id, description: b.description, code: b.code, expiry_date: b.expiry_date,
+    })),
+    history: used.map((b) => ({
+      description: b.description, redeemed_at: b.redeemed_at, status: b.status,
+    })),
+  };
+}, { public: true });
+
+/** Staff-side: what is this code worth, before anyone gives anything away. */
+registerFn('clubLookupBenefit', async ({ body }) => {
+  const b = await findBenefitByCode(String((body as any)?.code || ''));
+  if (!b) return { found: false };
+  const expired = !!b.expiry_date && new Date(`${b.expiry_date}T23:59:59`).getTime() < Date.now();
+  return {
+    found: true,
+    description: b.description,
+    customer_name: b.customer_name || '',
+    customer_phone: b.customer_phone || '',
+    expiry_date: b.expiry_date,
+    status: expired && b.status === 'active' ? 'expired' : b.status,
+    redeemed_at: b.redeemed_at,
+    redeemed_by: b.redeemed_by,
+  };
+});
+
+/** Staff-side: mark it used. Requires auth — this one gives away product. */
+registerFn('clubRedeemBenefit', async ({ body, user }) => {
+  const code = String((body as any)?.code || '');
+  const by = (user as any)?.full_name || (user as any)?.email || 'צוות';
+  const r = await redeemBenefit(code, by);
+  if (r.ok) {
+    return { ok: true, description: r.benefit.description, redeemed_at: r.benefit.redeemed_at, redeemed_by: by };
+  }
+  return {
+    ok: false,
+    reason: r.reason,
+    description: r.benefit?.description || null,
+    redeemed_at: r.benefit?.redeemed_at || null,
+    redeemed_by: r.benefit?.redeemed_by || null,
+  };
+});
+
+registerFn('getClubSettings', async () => ({ settings: await getClubConfig() }));
+
+registerFn('saveClubSettings', async ({ body }) => ({
+  settings: await saveClubConfig((body as any)?.settings || (body as any) || {}),
+}));
+
+/** Owner-side: hand a benefit to one customer, and get back the code to tell them. */
+registerFn('clubGrantBenefit', async ({ body }) => {
+  const { customer_id, description, valid_days } = body as any;
+  if (!customer_id || !description) throw new Error('customer_id and description required');
+  const b = await grantBenefit({
+    customerId: String(customer_id),
+    description: String(description).slice(0, 200),
+    source: 'manual',
+    validDays: Number(valid_days) || 90,
+  });
+  if (!b) throw new Error('could_not_grant');
+  return { ok: true, code: b.code, expiry_date: b.expiry_date, card_url: memberCardUrl(String(customer_id)) };
+});
 
 registerFn('clubUpdateProfile', async ({ body }) => {
   const { cid, birthday, anniversary, city, email } = body as any;

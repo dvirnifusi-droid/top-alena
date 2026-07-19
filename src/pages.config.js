@@ -57,6 +57,7 @@ import BeecommIntegration from './pages/BeecommIntegration';
 import BriefingManagement from './pages/BriefingManagement';
 import CharacterLounge from './pages/CharacterLounge';
 import Checklists from './pages/Checklists';
+import ClubRedeem from './pages/ClubRedeem';
 import CourierDashboard from './pages/CourierDashboard';
 import CourierTracking from './pages/CourierTracking';
 import Couriers from './pages/Couriers';
@@ -191,6 +192,7 @@ export const PAGES = {
     "BriefingManagement": BriefingManagement,
     "CharacterLounge": CharacterLounge,
     "Checklists": Checklists,
+    "ClubRedeem": ClubRedeem,
     "CourierDashboard": CourierDashboard,
     "CourierTracking": CourierTracking,
     "Couriers": Couriers,
