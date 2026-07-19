@@ -13,6 +13,7 @@ import CardChargesCard from '../components/cashflow/CardChargesCard';
 import ClearLimboCard from '../components/cashflow/ClearLimboCard';
 import VatReserveCard from '../components/cashflow/VatReserveCard';
 import HolidayCalendarCard from '../components/cashflow/HolidayCalendarCard';
+import PaymentAlertCard from '../components/cashflow/PaymentAlertCard';
 import CashFlowHero from '../components/cashflow/CashFlowHero';
 import CashRegister from '../components/cashflow/CashRegister';
 import CashInsightsCard from '../components/cashflow/CashInsightsCard';
@@ -174,6 +175,7 @@ function CashFlowInner() {
               <RecurringCostsCard {...{ costs, removeCost, newCost, setNewCost, addCost, formatCur }} />
               <VatSettingCard />
             </div>
+            <PaymentAlertCard />
             <HolidayCalendarCard />
           </Section>
         </>
