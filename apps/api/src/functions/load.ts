@@ -12,6 +12,7 @@ import './bankStatement.js';
 import './capitalForecast.js';
 import { getOrCreateLeadToken } from './eventThanks.js';
 import './cashflowActions.js';
+import './cashRegister.js';
 import './laborCost.js';
 import './i18nTranslate.js';
 import { randomUUID } from 'node:crypto';

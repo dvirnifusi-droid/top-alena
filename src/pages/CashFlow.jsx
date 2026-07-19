@@ -12,6 +12,7 @@ import BankStatementCard from '../components/cashflow/BankStatementCard';
 import CardChargesCard from '../components/cashflow/CardChargesCard';
 import ClearLimboCard from '../components/cashflow/ClearLimboCard';
 import CashFlowHero from '../components/cashflow/CashFlowHero';
+import CashRegister from '../components/cashflow/CashRegister';
 import CapitalForecastCard from '../components/cashflow/CapitalForecastCard';
 import CashActionsCard from '../components/cashflow/CashActionsCard';
 import ReconcileCard from '../components/cashflow/ReconcileCard';
@@ -144,6 +145,7 @@ function CashFlowInner() {
       {isOwner && (
         <>
           <CashFlowHero />
+          <CashRegister />
 
           <Section title="📈 הצפי המלא — גרף, מניעים ופירוט יומי"
             hint="למי שרוצה לצלול">
