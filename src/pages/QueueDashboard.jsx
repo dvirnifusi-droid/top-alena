@@ -6,6 +6,7 @@ import { sendQueuePush } from '@/functions/sendQueuePush';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Check, X, Gift, UserCheck, Clock, Users, RefreshCw, QrCode, AlertCircle, Star, History } from 'lucide-react';
 import TreatsReport from '../components/dashboard/TreatsReport';
+import TonightBoardCard from '../components/dashboard/TonightBoardCard';
 import RecentAbandonedSection from '../components/dashboard/RecentAbandonedSection';
 import TablePicker from '../components/dashboard/TablePicker';
 import { QRCodeSVG } from 'qrcode.react';
@@ -603,6 +604,9 @@ export default function QueueDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* לוח המשחקים של הערב — מוצג רק כשמישהו שיחק */}
+      <TonightBoardCard />
 
       {/* דוח פינוקים */}
       <div className="mb-6">

@@ -27,7 +27,7 @@ import { fireTriggers } from '../lib/triggers.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
 import { withOptOut, verifyCustomerSignature, memberCardUrl, signCustomer } from '../lib/marketingBlast.js';
-import { getClubConfig, saveClubConfig, grantBenefit, listBenefits, findBenefitByCode, redeemBenefit, tierLabel, ensureClubTables, tournamentStandings, myStanding, closeTournamentRound, sendJoinMessage, } from '../lib/clubCore.js';
+import { getClubConfig, saveClubConfig, grantBenefit, listBenefits, findBenefitByCode, redeemBenefit, tierLabel, ensureClubTables, tournamentStandings, myStanding, closeTournamentRound, sendJoinMessage, tonightBoard, } from '../lib/clubCore.js';
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
@@ -4099,6 +4099,24 @@ registerFn('clubTournament', async ({ body }) => {
         me: signed ? await myStanding(cid) : null,
     };
 }, { public: true });
+/** Tonight's board — public, because the tables waiting are the audience. */
+registerFn('queueTonightBoard', async ({ body }) => {
+    const { rows, waiting_now } = await tonightBoard();
+    const mine = String(body?.entry_id || '');
+    const idx = mine ? rows.findIndex((r) => r.entry_id === mine) : -1;
+    return {
+        waiting_now,
+        // The entry ids identify other people's tables; only the caller's own is
+        // useful to it, and that one it already has.
+        rows: rows.map((r, i) => ({
+            rank: i + 1, name: r.name, points: r.points, games: r.games,
+            waiting: r.waiting, me: r.entry_id === mine,
+        })),
+        my_rank: idx >= 0 ? idx + 1 : null,
+    };
+}, { public: true });
+/** Host-side: the same board, with the ids needed to hand the winner something. */
+registerFn('queueTonightBoardAdmin', async () => await tonightBoard());
 /** Owner-side: see who would win before anything is given away. */
 registerFn('clubTournamentPreview', async () => await closeTournamentRound({ dryRun: true }));
 /** Owner-side: award the prizes and start the next round. */

@@ -503,6 +503,52 @@ export async function myStanding(customerId: string): Promise<{
 }
 
 /**
+ * Tonight's board — the tables competing with each other right now.
+ *
+ * Not a duel. With five to fifteen tables an hour and roughly one in nine
+ * playing at all, two tables being mid-game in the same minute AND both opting
+ * into a match is rare enough that the feature would mostly not fire. A shared
+ * board needs no coordination: play whenever during your wait, and see where you
+ * stand against the others waiting.
+ *
+ * Everyone who joined the queue today stays listed even after being seated —
+ * otherwise the leader vanishes the moment they get a table, which is precisely
+ * when the people still waiting want to see the score to beat.
+ */
+export async function tonightBoard(): Promise<{
+  rows: Array<{ entry_id: string; name: string; points: number; games: number; waiting: boolean; customer_id: string | null }>;
+  waiting_now: number;
+}> {
+  await ensureClubTables();
+  const rows: any[] = await dbx().$queryRawUnsafe(
+    `SELECT e.id AS entry_id,
+            e.customer_name AS name,
+            e.status,
+            MAX(g.customer_id) AS customer_id,
+            COALESCE(SUM(g.score), 0)::int AS points,
+            COUNT(g.id)::int AS games
+       FROM "QueueEntry" e
+       JOIN "QueueGameSession" g
+         ON g.queue_entry_id = e.id AND g.finished = true
+      WHERE e."createdAt" >= NOW() - INTERVAL '14 hours'
+      GROUP BY e.id, e.customer_name, e.status
+      HAVING COALESCE(SUM(g.score), 0) > 0
+      ORDER BY points DESC
+      LIMIT 25`,
+  ).catch(() => []);
+  const out = (rows || []).map((r) => ({
+    entry_id: r.entry_id,
+    // First name only — this board hangs in front of strangers in a waiting area.
+    name: String(r.name || 'שולחן').trim().split(' ')[0],
+    points: Number(r.points) || 0,
+    games: Number(r.games) || 0,
+    waiting: r.status !== 'seated' && r.status !== 'abandoned',
+    customer_id: r.customer_id || null,
+  }));
+  return { rows: out, waiting_now: out.filter((r) => r.waiting).length };
+}
+
+/**
  * End the round: give the winners their prize and start the next one.
  *
  * Deliberately not on a timer. The owner asked that the app stop acting on its

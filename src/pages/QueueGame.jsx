@@ -173,6 +173,59 @@ function TriviaGame({ playerName, entryId, allQuestions, club }) {
   );
 }
 
+// The tables competing with each other tonight.
+//
+// Not a duel between two tables — with a handful of tables an hour and about one
+// in nine playing at all, two of them being mid-game in the same minute would
+// almost never happen. A shared board needs no coordination: play whenever
+// during your wait, and watch whether anyone passes you.
+//
+// Tables that have already been seated stay listed, because the score to beat is
+// exactly what the people still waiting want to see.
+function TonightBoard({ entryId }) {
+  const [board, setBoard] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    const load = () => invokePublic('queueTonightBoard', { entry_id: entryId })
+      .then(r => { if (alive) setBoard(r); })
+      .catch(() => {});
+    load();
+    const iv = setInterval(load, 10000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [entryId]);
+
+  const rows = board?.rows || [];
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="w-full max-w-sm bg-white/10 rounded-3xl p-4 mb-4">
+      <p className="text-white font-bold text-sm mb-1">🏓 השולחנות הערב</p>
+      <p className="text-white/50 text-[11px] mb-3">
+        {board.waiting_now > 0
+          ? `${board.waiting_now} שולחנות מחכים עכשיו`
+          : 'כולם כבר הושבו — זו התוצאה של הערב'}
+      </p>
+      {rows.slice(0, 8).map((r) => (
+        <div key={r.rank}
+          className={`flex items-center gap-2 py-1.5 px-2 rounded-xl ${r.me ? 'bg-white/20' : ''}`}>
+          <span className="w-6 text-center text-white/60 text-sm font-bold">
+            {r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : r.rank}
+          </span>
+          <span className="flex-1 text-white text-sm truncate">
+            {r.me ? 'אתם' : r.name}
+            {r.waiting && <span className="text-emerald-300 text-[10px] mr-1.5">ממתין</span>}
+          </span>
+          <span className="text-[#D9BD83] font-black text-sm">{r.points}</span>
+        </div>
+      ))}
+      {board.my_rank > 8 && (
+        <p className="text-white/60 text-xs text-center mt-2">אתם במקום {board.my_rank}</p>
+      )}
+    </div>
+  );
+}
+
 // ===== MAIN LOBBY =====
 export default function QueueGame() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -246,6 +299,8 @@ export default function QueueGame() {
               </button>
             ))}
           </div>
+
+          {entryId && <TonightBoard entryId={entryId} />}
 
           <button
             onClick={() => navigator.share ? navigator.share({ title: 'שחק איתי בתור!', url: shareUrl }) : (navigator.clipboard.writeText(shareUrl), alert('הועתק!'))}
