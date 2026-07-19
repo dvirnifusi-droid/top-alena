@@ -10,6 +10,7 @@ import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 import BankStatementCard from '../components/cashflow/BankStatementCard';
 import CardChargesCard from '../components/cashflow/CardChargesCard';
+import CashFlowHero from '../components/cashflow/CashFlowHero';
 import CapitalForecastCard from '../components/cashflow/CapitalForecastCard';
 import CashActionsCard from '../components/cashflow/CashActionsCard';
 import ReconcileCard from '../components/cashflow/ReconcileCard';
@@ -126,7 +127,7 @@ function CashFlowInner() {
     <PageShell>
       <PageHeader
         title="תזרים מזומנים"
-        subtitle="צפי ההון למעלה הוא התשובה; מתחתיו הפירוט לפי דוחות משמרת וחשבוניות"
+        subtitle="כמה כסף נשאר, עד מתי, ומה לעשות" 
         icon={Wallet}
         action={
           <div className="flex items-center gap-2">
@@ -141,8 +142,13 @@ function CashFlowInner() {
 
       {isOwner && (
         <>
-          <CapitalForecastCard />
-          <CashActionsCard />
+          <CashFlowHero />
+
+          <Section title="📈 הצפי המלא — גרף, מניעים ופירוט יומי"
+            hint="למי שרוצה לצלול">
+            <CapitalForecastCard />
+            <CashActionsCard />
+          </Section>
 
           <Section title="📥 מקורות נתונים — עו״ש ושיוך תשלומים"
             hint="מכאן הצפי מקבל את הנתונים" defaultOpen={!hasOpening}>
