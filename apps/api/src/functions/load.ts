@@ -26,6 +26,7 @@ import { registerEmailTenant } from '../lib/emailTenantMap.js';
 import { fireTriggers } from '../lib/triggers.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
+import { withOptOut, verifyCustomerSignature } from '../lib/marketingBlast.js';
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
@@ -1985,7 +1986,8 @@ async function runDailyCelebrationCampaigns(force = false) {
     const failures: any[] = [];
     for (const c of bdayList) {
       try {
-        const rendered = bdayTemplate.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה');
+        const rendered = withOptOut(
+          bdayTemplate.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
         const out = await sendWhatsApp(c.phone, rendered);
         if ((out as any)?.skipped) { fail++; failures.push({ phone: c.phone, reason: 'skipped' }); }
         else { ok++; await db.customer.update({ where: { id: c.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {}); }
@@ -2025,7 +2027,8 @@ async function runDailyCelebrationCampaigns(force = false) {
     const failures: any[] = [];
     for (const c of annList) {
       try {
-        const rendered = annivTemplate.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה');
+        const rendered = withOptOut(
+          annivTemplate.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
         const out = await sendWhatsApp(c.phone, rendered);
         if ((out as any)?.skipped) { fail++; failures.push({ phone: c.phone, reason: 'skipped' }); }
         else { ok++; await db.customer.update({ where: { id: c.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {}); }
@@ -2098,7 +2101,7 @@ async function runDripCampaigns(force = false) {
       let ok = 0, fail = 0;
       for (const c of candidates) {
         try {
-          const msg = DRIP_TEMPLATES.welcome.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה').replace(/\{brand\}/g, await getBrandName());
+          const msg = withOptOut(DRIP_TEMPLATES.welcome.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה').replace(/\{brand\}/g, await getBrandName()), c.id);
           const out = await sendWhatsApp(c.phone, msg);
           if (!(out as any)?.skipped) {
             ok++;
@@ -2134,7 +2137,7 @@ async function runDripCampaigns(force = false) {
         try {
           // Use 'high' template for VIPs (assume happy), 'low' template for everyone else
           const template = c.loyalty_tier === 'vip' ? DRIP_TEMPLATES.nps_high : DRIP_TEMPLATES.nps_low;
-          const msg = template.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה');
+          const msg = withOptOut(template.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
           const out = await sendWhatsApp(c.phone, msg);
           if (!(out as any)?.skipped) {
             ok++;
@@ -2178,7 +2181,7 @@ async function runDripCampaigns(force = false) {
       for (const c of candidates) {
         if (c.pre_birthday_sent_year === currentYear) continue; // double-check
         try {
-          const msg = DRIP_TEMPLATES.pre_birthday.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה');
+          const msg = withOptOut(DRIP_TEMPLATES.pre_birthday.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
           const out = await sendWhatsApp(c.phone, msg);
           if (!(out as any)?.skipped) {
             ok++;
@@ -2321,7 +2324,7 @@ registerFn('sendABTestCampaign', async ({ body, user }) => {
         },
       }).catch(() => null);
       try {
-        const rendered = renderTemplate(variants[i], c as any, brandAB);
+        const rendered = withOptOut(renderTemplate(variants[i], c as any, brandAB), (c as any).id);
         const out = useWa
           ? await sendWhatsApp(c.phone, rendered, { mediaUrl: media_url, statusCallback, recipientId: recipient?.id })
           : await sendSms(c.phone, rendered);
@@ -4050,7 +4053,7 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
       } catch (e) { /* ignore — still try to send */ }
     }
     try {
-      const rendered = renderTemplate(message_template, c as any, brand);
+      const rendered = withOptOut(renderTemplate(message_template, c as any, brand), (c as any).id);
       let out: any;
       if (useEmail) {
         // Email channel requires an email address (not all customers have one).
@@ -25156,3 +25159,41 @@ registerFn('sendMarketingBlast', async ({ user, body }) => {
 
   return res;
 });
+
+// PUBLIC — the page a customer reaches from the link in a marketing message.
+// The signature is verified so a guessed id cannot unsubscribe a stranger; the
+// two older club endpoints take a raw cid and should be brought up to this.
+registerFn('unsubscribeByLink', async ({ body }) => {
+  const b = (body || {}) as any;
+  const cid = String(b.c || '').trim();
+  const sig = String(b.s || '').trim();
+  if (!verifyCustomerSignature(cid, sig)) throw new Error('invalid_link');
+
+  const c: any = await db.customer.findUnique({ where: { id: cid } }).catch(() => null);
+  if (!c) throw new Error('not_found');
+
+  // Already out? Say so plainly rather than pretending to act again.
+  if (c.marketing_unsubscribed_at) {
+    return { ok: true, already: true, name: c.name || null };
+  }
+  await db.customer.update({
+    where: { id: cid },
+    data: { marketing_consent: false, marketing_unsubscribed_at: new Date() },
+  });
+  return { ok: true, already: false, name: c.name || null };
+}, { public: true });
+
+// PUBLIC — undo, for the customer who clicked by mistake. Without this the only
+// way back is phoning the restaurant, and an unsubscribe link people are afraid
+// to press is not a real one.
+registerFn('resubscribeByLink', async ({ body }) => {
+  const b = (body || {}) as any;
+  const cid = String(b.c || '').trim();
+  const sig = String(b.s || '').trim();
+  if (!verifyCustomerSignature(cid, sig)) throw new Error('invalid_link');
+  await db.customer.update({
+    where: { id: cid },
+    data: { marketing_consent: true, marketing_unsubscribed_at: null, marketing_consent_at: new Date() },
+  }).catch(() => { throw new Error('not_found'); });
+  return { ok: true };
+}, { public: true });
