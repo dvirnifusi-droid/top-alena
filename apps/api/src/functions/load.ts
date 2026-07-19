@@ -10,6 +10,7 @@ import './employeePay.js';
 import './cashflowLive.js';
 import './bankStatement.js';
 import './capitalForecast.js';
+import { getOrCreateLeadToken } from './eventThanks.js';
 import './cashflowActions.js';
 import './laborCost.js';
 import './i18nTranslate.js';
@@ -11338,6 +11339,14 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     /(₪|ש["״]?ח|סה["״]?כ|מחיר|לסועד|לסוכם|סגור\?)/.test(replyRaw)
   );
 
+  // Mint the thank-you link only once the conversation actually closed with a
+  // contact — that landing is what the ad platforms are told is a lead, so it
+  // must not be handed out to someone who wandered off halfway.
+  let thanks_token: string | null = null;
+  if (effectiveComplete && currentLeadId && c.contact_phone) {
+    thanks_token = await getOrCreateLeadToken(currentLeadId);
+  }
+
   return {
     reply: finalReply,
     complete: effectiveComplete,
@@ -11348,6 +11357,7 @@ registerFn('chatEventsInquiry', async ({ body }) => {
     payment_url,
     score,
     show_confirm_buttons: showConfirmButtons,
+    thanks_token,
   };
 }, { public: true });
 

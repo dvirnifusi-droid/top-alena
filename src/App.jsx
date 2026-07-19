@@ -23,6 +23,7 @@ import EventsInquiry from './pages/EventsInquiry';
 import EventsPayment from './pages/EventsPayment';
 import EventContractSign from './pages/EventContractSign';
 import ReservationView from './pages/ReservationView';
+import EventInquiryThanks from './pages/EventInquiryThanks';
 import Waiter from './pages/Waiter';
 import QueueJoin from './pages/QueueJoin';
 import QueueDashboard from './pages/QueueDashboard';
@@ -177,6 +178,7 @@ function App() {
           <Route path="/QueueGame" element={<QueueGame />} />
           <Route path="/QueueFeedback" element={<QueueFeedback />} />
           <Route path="/PublicReservation" element={<PublicReservation />} />
+          <Route path="/EventInquiryThanks" element={<EventInquiryThanks />} />
           <Route path="/Signup" element={<Signup />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/ClubJoin" element={<ClubJoin />} />

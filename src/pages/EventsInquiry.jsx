@@ -3,7 +3,7 @@ import { invokePublic } from '@/lib/publicFetch';
 import { Send, CheckCircle2, CreditCard } from 'lucide-react';
 import LanguagePicker from '@/components/shared/LanguagePicker';
 import { useI18n, LANG_NAMES_FOR_LLM } from '@/lib/i18n';
-import { initMetaPixel, trackLead } from '@/lib/metaPixel';
+import { initMetaPixel, trackCustom } from '@/lib/metaPixel';
 
 // Dana's portrait — realistic photo generated via Imagen 4 and committed
 // under public/images. WebP loads first (23 KB), PNG is the fallback
@@ -28,6 +28,7 @@ export default function EventsInquiry() {
   const [leadId, setLeadId] = useState(null);
   const [bookingId, setBookingId] = useState(null);
   const [paymentUrl, setPaymentUrl] = useState(null);
+  const [thanksToken, setThanksToken] = useState(null);
   const [error, setError] = useState(null);
   const scrollRef = useRef(null);
   const leadTrackedRef = useRef(false);
@@ -46,6 +47,7 @@ export default function EventsInquiry() {
       if (res?.lead_id) setLeadId(res.lead_id);
       if (res?.booking_id) setBookingId(res.booking_id);
       if (res?.payment_url) setPaymentUrl(res.payment_url);
+      if (res?.thanks_token) setThanksToken(res.thanks_token);
       if (res?.complete) { setDone(true); setRejected(!!res.rejected); }
     } catch (e) {
       setError(e?.message || 'בעיה זמנית');
@@ -62,13 +64,27 @@ export default function EventsInquiry() {
     // should optimize for.
     if (done && !rejected && leadId && !leadTrackedRef.current) {
       leadTrackedRef.current = true;
-      trackLead();
+      // The Lead conversion now fires on /EventInquiryThanks, where the customer
+      // actually lands. Firing it here as well would count every lead twice.
+      // This custom event keeps the funnel step visible in Meta without
+      // polluting the Lead number the campaign optimises on.
+      trackCustom('EventChatCompleted');
     }
   }, [done, rejected, leadId]);
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages, sending]);
+
+  // Send the customer to the summary page once the bot has closed the
+  // conversation. The short delay lets them read Dana's last message first.
+  useEffect(() => {
+    if (!done || rejected || !thanksToken || paymentUrl) return;
+    const t = setTimeout(() => {
+      window.location.assign(`/EventInquiryThanks?token=${encodeURIComponent(thanksToken)}`);
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [done, rejected, thanksToken, paymentUrl]);
 
   const send = () => {
     const text = input.trim();
@@ -145,6 +161,12 @@ export default function EventsInquiry() {
               <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
               <span className="text-sm text-emerald-900">הפרטים שלכם נשמרו — המנהל יחזור אליכם תוך כמה שעות 🌿</span>
             </div>
+            {thanksToken && (
+              <a href={`/EventInquiryThanks?token=${encodeURIComponent(thanksToken)}`}
+                 className="mt-3 block text-center bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-medium transition">
+                לצפייה בסיכום הפנייה →
+              </a>
+            )}
           </div>
         )}
 
