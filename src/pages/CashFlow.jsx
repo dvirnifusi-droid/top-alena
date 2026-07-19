@@ -15,6 +15,7 @@ import VatReserveCard from '../components/cashflow/VatReserveCard';
 import HolidayCalendarCard from '../components/cashflow/HolidayCalendarCard';
 import CashFlowHero from '../components/cashflow/CashFlowHero';
 import CashRegister from '../components/cashflow/CashRegister';
+import CashInsightsCard from '../components/cashflow/CashInsightsCard';
 import CapitalForecastCard from '../components/cashflow/CapitalForecastCard';
 import CashActionsCard from '../components/cashflow/CashActionsCard';
 import ReconcileCard from '../components/cashflow/ReconcileCard';
@@ -147,6 +148,7 @@ function CashFlowInner() {
       {isOwner && (
         <>
           <CashFlowHero />
+          <CashInsightsCard />
           <CashRegister />
           <VatReserveCard />
 

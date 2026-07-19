@@ -528,3 +528,12 @@ registerFn('setHolidayFactor', async ({ user, body }: any) => {
     date, factor, b.closed === true || factor === 0);
   return { ok: true, date, revenue_factor: factor };
 });
+
+// ── insights ───────────────────────────────────────────────────────────────
+
+registerFn('getCashInsights', async ({ user }: any) => {
+  await guard(user);
+  const { buildCashInsights } = await import('../lib/cashInsights.js');
+  const insights = await buildCashInsights();
+  return { insights, count: insights.length };
+});

@@ -475,4 +475,11 @@ registerFn('setHolidayFactor', async ({ user, body }) => {
      WHERE holiday_date = $1::date`, date, factor, b.closed === true || factor === 0);
     return { ok: true, date, revenue_factor: factor };
 });
+// ── insights ───────────────────────────────────────────────────────────────
+registerFn('getCashInsights', async ({ user }) => {
+    await guard(user);
+    const { buildCashInsights } = await import('../lib/cashInsights.js');
+    const insights = await buildCashInsights();
+    return { insights, count: insights.length };
+});
 //# sourceMappingURL=cashRegister.js.map
