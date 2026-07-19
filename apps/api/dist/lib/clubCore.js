@@ -294,13 +294,37 @@ export async function sendJoinMessage(opts) {
         text = text.split('\n').filter((l) => !/^(מחכה לכם|הקוד להצגה למלצר):\s*$/.test(l.trim())).join('\n');
     }
     text = text.replace(/\n{3,}/g, '\n\n').trim();
+    const body = withOptOut(text, opts.customerId);
+    const { sendWhatsApp, sendSms } = await import('./twilio.js');
+    // WhatsApp first, SMS if it will not go.
+    //
+    // WhatsApp only accepts a free-form message inside 24 hours of the customer
+    // writing to the business. A brand-new member has never written — so for
+    // exactly the people this message exists for, WhatsApp refuses, and the club's
+    // one invitation would silently never arrive. (It looked fine in testing only
+    // because the tester was already in a conversation with the WhatsApp agent.)
+    //
+    // The real fix is an approved WhatsApp template, which needs Meta's approval
+    // and cannot be done from here. Until that exists, SMS carries it: no window,
+    // reaches anyone, costs a few agorot. Members already in a WhatsApp window
+    // still get the free WhatsApp.
     try {
-        const { sendWhatsApp } = await import('./twilio.js');
-        const out = await sendWhatsApp(opts.phone, withOptOut(text, opts.customerId));
-        return out?.skipped ? { sent: false, reason: 'provider_skipped' } : { sent: true };
+        const out = await sendWhatsApp(opts.phone, body);
+        if (!out?.skipped)
+            return { sent: true, channel: 'whatsapp' };
     }
     catch (e) {
-        console.warn('club join message failed:', e);
+        // 63016 is precisely "outside the 24-hour window, use a template".
+        console.warn('club join message: whatsapp refused, falling back to sms:', e?.message);
+    }
+    try {
+        const out = await sendSms(opts.phone, body);
+        return out?.skipped
+            ? { sent: false, reason: 'provider_skipped' }
+            : { sent: true, channel: 'sms' };
+    }
+    catch (e) {
+        console.warn('club join message failed on both channels:', e);
         return { sent: false, reason: 'error' };
     }
 }
