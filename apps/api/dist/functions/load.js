@@ -13161,7 +13161,29 @@ registerFn('listEventLeads', async () => {
             notes: raw.slice(0, i).trimEnd() || null,
         };
     });
-    return { leads, _count: leads.length };
+    // viewed_at / view_count / public_token were added with additive SQL, so the
+    // Prisma client above cannot see them — read them alongside and merge. A
+    // customer re-opening their summary page is the strongest live interest
+    // signal the manager gets, and it belongs on the board next to the lead.
+    let viewsById = new Map();
+    try {
+        const vrows = await prisma.$queryRawUnsafe(`SELECT id, viewed_at, COALESCE(view_count,0) AS view_count, public_token
+       FROM "EventLead" ORDER BY id DESC LIMIT 200`);
+        viewsById = new Map(vrows.map((v) => [String(v.id), v]));
+    }
+    catch { /* columns not created yet on this tenant — board still works */ }
+    const withViews = leads.map((l) => {
+        const v = viewsById.get(String(l.id));
+        return {
+            ...l,
+            viewed_at: v?.viewed_at ? new Date(v.viewed_at).toISOString() : null,
+            view_count: Number(v?.view_count) || 0,
+            thanks_url: v?.public_token
+                ? `/EventInquiryThanks?token=${encodeURIComponent(String(v.public_token))}`
+                : null,
+        };
+    });
+    return { leads: withViews, _count: withViews.length };
 });
 // PUBLIC mirror — used by /EventsPrivate's diagnostic banner only when the
 // authenticated listEventLeads returns empty so we can prove the data is there.

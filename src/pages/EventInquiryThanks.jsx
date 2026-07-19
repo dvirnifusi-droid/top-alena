@@ -24,6 +24,7 @@ export default function EventInquiryThanks() {
   const [search] = useSearchParams();
   const token = search.get('token') || '';
   const [lead, setLead] = useState(null);
+  const [cfg, setCfg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const branding = useTenantBranding();
@@ -36,6 +37,8 @@ export default function EventInquiryThanks() {
       try {
         const res = await base44.asServiceRole.functions.getEventLeadByToken({ token });
         setLead(res?.data || res);
+        base44.asServiceRole.functions.getEventThanksSettings({})
+          .then((r) => setCfg(r?.data || r)).catch(() => {});
       } catch (e) {
         setError(e?.message === 'not_found' ? 'הפנייה לא נמצאה' : 'שגיאה בטעינת הפרטים');
       } finally { setLoading(false); }
@@ -115,9 +118,26 @@ export default function EventInquiryThanks() {
           קיבלנו את הפרטים ואנחנו כבר עובדים על הצעה מותאמת עבורך.
         </p>
         <p className="text-sm text-emerald-700 font-medium mt-2">
-          נחזור אליך תוך יום עסקים אחד
+          {cfg?.response_text || 'נחזור אליך תוך יום עסקים אחד'}
         </p>
       </div>
+
+      <StatusTracker stage={lead.stage || 1} />
+
+      {cfg?.video_url && (
+        <div className="mt-5">
+          {cfg.video_title && (
+            <h2 className="text-sm font-semibold text-slate-700 mb-2">{cfg.video_title}</h2>
+          )}
+          <video
+            src={cfg.video_url}
+            controls
+            playsInline
+            preload="metadata"
+            className="w-full rounded-xl bg-black"
+          />
+        </div>
+      )}
 
       {rows.length > 0 && (
         <div className="mt-6 rounded-xl border bg-slate-50/70 overflow-hidden">
@@ -168,6 +188,42 @@ export default function EventInquiryThanks() {
         שמרו את הקישור הזה — הוא מרכז את פרטי הפנייה שלכם.
       </p>
     </Shell>
+  );
+}
+
+// Where the request stands. The same row the manager works on the leads board,
+// so marking "התקשרתי" there moves this here — no syncing, one record.
+function StatusTracker({ stage }) {
+  const steps = ['הפנייה התקבלה', 'דיברנו איתך', 'הצעת מחיר נשלחה', 'סגור — נתראה!'];
+  return (
+    <div className="mt-6">
+      <h2 className="text-sm font-semibold text-slate-700 mb-3">סטטוס הפנייה</h2>
+      <div className="flex items-start">
+        {steps.map((label, i) => {
+          const n = i + 1;
+          const done = n <= stage;
+          const current = n === stage;
+          return (
+            <React.Fragment key={label}>
+              <div className="flex flex-col items-center flex-1 min-w-0">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${
+                  done ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'
+                } ${current ? 'ring-4 ring-emerald-100' : ''}`}>
+                  {done ? '✓' : n}
+                </div>
+                <span className={`text-[10px] mt-1.5 text-center leading-tight ${
+                  done ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>
+                  {label}
+                </span>
+              </div>
+              {i < steps.length - 1 && (
+                <div className={`h-0.5 flex-1 mt-3.5 ${n < stage ? 'bg-emerald-600' : 'bg-slate-200'}`} />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

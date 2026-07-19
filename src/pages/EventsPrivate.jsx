@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { base44 } from '@/api/base44Client';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
+import ThanksPageSettings from '../components/events/ThanksPageSettings';
 
 const UTM_SOURCES = [
   { key: 'general',   label: 'כללי (בלי תיוג)', utm: '' },
@@ -166,6 +167,8 @@ function PendingCallbackCard() {
   const shown = view === 'active' ? active : closed;
 
   return (
+    <>
+    <ThanksPageSettings />
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-orange-500" /> אירועים שמחכים שמנהל יתקשר ללקוח</CardTitle>
@@ -249,7 +252,19 @@ function PendingCallbackCard() {
                   <div className="text-xs text-slate-500 mb-3">
                     📥 מקור: <strong>{l.source || '—'}</strong> · 🆔 {l.id.slice(-8)} · נסגר ב-{fmt(l.created_date)}
                     {l.callback_at && <> · עודכן {fmt(l.callback_at)}</>}
+                    {l.thanks_url && (
+                      <> · <a href={l.thanks_url} target="_blank" rel="noreferrer"
+                        className="text-blue-600 underline">דף הלקוח</a></>
+                    )}
                   </div>
+
+                  {/* The customer opening their own summary page is a live buying
+                      signal — someone who looked twice is worth calling first. */}
+                  {l.view_count > 0 && (
+                    <div className="text-xs mb-3 inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 px-2 py-0.5">
+                      👀 הלקוח צפה בדף {l.view_count > 1 ? `${l.view_count} פעמים` : ''} · {fmt(l.viewed_at)}
+                    </div>
+                  )}
 
                   {l.ai_summary && (
                     <div className="mb-3 p-2 bg-emerald-100 border border-emerald-200 rounded text-xs text-emerald-900">
@@ -303,6 +318,7 @@ function PendingCallbackCard() {
         )}
       </CardContent>
     </Card>
+    </>
   );
 }
 
