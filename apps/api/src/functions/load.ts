@@ -25120,3 +25120,39 @@ registerFn('updateMyTenantModule', async ({ user, body }) => {
   return { ok: true, module_key, enabled };
 });
 
+
+// Manual marketing blast — the ONLY path the admin console may use to message
+// customers in bulk. Consent and unsubscribe are enforced server-side in
+// lib/marketingBlast; the client sends IDs and never resolves an address itself.
+registerFn('sendMarketingBlast', async ({ user, body }) => {
+  if (!user || ((user as any).role !== 'admin' && (user as any).role !== 'owner')) {
+    throw new Error('admin only');
+  }
+  const b = (body || {}) as any;
+  const channel = ['sms', 'email', 'whatsapp'].includes(b.channel) ? b.channel : 'sms';
+  const { sendMarketingBlast } = await import('../lib/marketingBlast.js');
+  const res = await sendMarketingBlast({
+    customerIds: Array.isArray(b.customer_ids) ? b.customer_ids : [],
+    channel,
+    message: String(b.message || ''),
+    subject: b.subject ? String(b.subject) : undefined,
+    imageUrl: b.image_url ? String(b.image_url) : undefined,
+  });
+
+  try {
+    await (prisma as any).campaignLog.create({
+      data: {
+        type_: channel,
+        channel,
+        subject: b.subject ? String(b.subject).slice(0, 200) : null,
+        body_preview: String(b.message || '').slice(0, 100),
+        recipients_count: res.sent + res.failed,
+        sent_count: res.sent,
+        failed_count: res.failed,
+        sent_at: new Date(),
+      },
+    });
+  } catch { /* logging must never fail a send that already happened */ }
+
+  return res;
+});

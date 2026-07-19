@@ -13,13 +13,28 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Users, Search, Loader2, AlertTriangle, Heart, Frown, RefreshCw, Upload, Mail, CheckSquare, Square, MessageSquare, UserPlus, ImagePlus, X, QrCode } from 'lucide-react';
-import { sendSms } from '@/functions/sendSms';
-import { sendCustomerEmail } from '@/functions/sendCustomerEmail';
 import { format } from 'date-fns';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
 const PAGE_SIZE = 50;
+
+// Why a send reached fewer people than were selected. Shown always, not only on
+// failure: a smaller number with no explanation reads as a broken send, and the
+// reflex is to retry it.
+function SkippedNote({ skipped }) {
+    if (!skipped) return null;
+    const parts = [];
+    if (skipped.unsubscribed) parts.push(`${skipped.unsubscribed} הסירו את עצמם מרשימת הדיוור`);
+    if (skipped.no_consent) parts.push(`${skipped.no_consent} לא אישרו קבלת דיוור`);
+    if (skipped.no_address) parts.push(`${skipped.no_address} ללא פרטי קשר`);
+    if (!parts.length) return null;
+    return (
+        <div className="mt-1.5 text-xs text-slate-600">
+            לא נשלח ל-{parts.join(' · ')}. זה לא כשל — אסור לנו לפנות אליהם.
+        </div>
+    );
+}
 
 export default function CustomerClubPage() {
     const navigate = useNavigate();
@@ -185,32 +200,25 @@ export default function CustomerClubPage() {
         }
     };
 
+    // Bulk marketing goes through the server, which resolves IDs to phone numbers
+    // only after checking consent. The browser must not decide who may be
+    // messaged — this screen forgot to, and unsubscribed customers were getting
+    // SMS while the automated campaigns correctly skipped them.
     const handleSendSms = async () => {
         if (!smsMessage || selectedCustomers.length === 0) return;
         setSendingSms(true);
         setSmsResult(null);
-        let sent = 0;
-        let failed = 0;
-        const targets = customers.filter(c => selectedCustomers.includes(c.id) && c.phone);
-        // Send in parallel batches of 5
-        const batchSize = 5;
-        for (let i = 0; i < targets.length; i += batchSize) {
-            const batch = targets.slice(i, i + batchSize);
-            const results = await Promise.allSettled(batch.map(c =>
-                sendSms({ to: c.phone, message: smsMessage.replace('{שם}', c.name) })
-            ));
-            results.forEach(r => r.status === 'fulfilled' ? sent++ : failed++);
+        try {
+            const r = await base44.functions.sendMarketingBlast({
+                customer_ids: selectedCustomers,
+                channel: 'sms',
+                message: smsMessage,
+            });
+            const d = (r?.data ?? r) || {};
+            setSmsResult({ success: true, sent: d.sent, failed: d.failed, skipped: d.skipped });
+        } catch (e) {
+            setSmsResult({ success: false, error: e?.message || 'שגיאה בשליחה' });
         }
-        // רשום לוג קמפיין
-        await base44.entities.CampaignLog.create({
-            type: 'sms',
-            body_preview: smsMessage.slice(0, 100),
-            recipients_count: targets.length,
-            sent_count: sent,
-            failed_count: failed,
-            sent_at: new Date().toISOString()
-        });
-        setSmsResult({ success: true, sent, failed });
         setSendingSms(false);
     };
 
@@ -269,43 +277,20 @@ export default function CustomerClubPage() {
         setSendingEmail(true);
         setEmailResult(null);
         try {
-            const targets = customers.filter(c => selectedCustomers.includes(c.id) && c.email);
-            const batchSize = 5;
-            let sent = 0;
-            for (let i = 0; i < targets.length; i += batchSize) {
-                const batch = targets.slice(i, i + batchSize);
-                await Promise.all(batch.map(c => {
-                    const bodyWithImage = emailImageUrl
-                        ? `${emailBody.replace('{שם}', c.name)}\n\n<img src="${emailImageUrl}" style="max-width:100%;border-radius:8px;" />`
-                        : emailBody.replace('{שם}', c.name);
-                    return sendCustomerEmail({
-                        to: c.email,
-                        subject: emailSubject,
-                        body: bodyWithImage
-                    });
-                }));
-                sent += batch.length;
-            }
-            setEmailResult({ success: true, count: sent });
-            // רשום לוג קמפיין
-            await base44.entities.CampaignLog.create({
-                type: 'email',
+            const r = await base44.functions.sendMarketingBlast({
+                customer_ids: selectedCustomers,
+                channel: 'email',
+                message: emailBody,
                 subject: emailSubject,
-                body_preview: emailBody.slice(0, 100),
-                recipients_count: targets.length,
-                sent_count: sent,
-                failed_count: 0,
-                sent_at: new Date().toISOString()
+                image_url: emailImageUrl || undefined,
             });
+            const d = (r?.data ?? r) || {};
+            setEmailResult({ success: true, count: d.sent, skipped: d.skipped });
             setEmailSubject('');
-            setEmailBody('');
-            setEmailImageUrl('');
-            setSelectedCustomers([]);
-        } catch (err) {
-            setEmailResult({ success: false, error: err.message });
-        } finally {
-            setSendingEmail(false);
+        } catch (e) {
+            setEmailResult({ success: false, error: e?.message || 'שגיאה בשליחה' });
         }
+        setSendingEmail(false);
     };
 
     const updateCustomerStatus = async (customerId, newStatus) => {
@@ -705,7 +690,8 @@ export default function CustomerClubPage() {
                         </div>
                         {smsResult && (
                             <div className={`p-3 rounded text-sm ${smsResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                                {smsResult.success ? `✅ נשלחו ${smsResult.sent} הודעות${smsResult.failed > 0 ? ` (${smsResult.failed} נכשלו)` : ''}` : `❌ שגיאה`}
+                                {smsResult.success ? `✅ נשלחו ${smsResult.sent} הודעות${smsResult.failed > 0 ? ` (${smsResult.failed} נכשלו)` : ''}` : `❌ ${smsResult.error || 'שגיאה'}`}
+                                <SkippedNote skipped={smsResult.skipped} />
                             </div>
                         )}
                         <Button
@@ -784,6 +770,7 @@ export default function CustomerClubPage() {
                         {emailResult && (
                             <div className={`p-3 rounded text-sm ${emailResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                                 {emailResult.success ? `✅ נשלחו ${emailResult.count} מיילים בהצלחה!` : `❌ שגיאה: ${emailResult.error}`}
+                                <SkippedNote skipped={emailResult.skipped} />
                             </div>
                         )}
                         {selectedCustomers.length > 0 && customers.filter(c => selectedCustomers.includes(c.id) && c.email).length === 0 && (
