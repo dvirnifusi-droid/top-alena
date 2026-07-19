@@ -112,7 +112,12 @@ export async function computeCapitalForecast(daysIn) {
     // ── real obligations ─────────────────────────────────────────────────────
     const matched = await dbx().$queryRawUnsafe(`SELECT DISTINCT invoice_id FROM "BankTxMatch"`).catch(() => []);
     const paid = new Set(matched.map((r) => String(r.invoice_id)));
-    const invoices = (await loadOpenInvoices()).filter((i) => !paid.has(i.id));
+    // A supplier settled on the company card is already inside the monthly card
+    // payment the bank shows. Scheduling their invoices as separate transfers on
+    // top of it would bill the owner twice for the same purchase.
+    const allOpen = (await loadOpenInvoices()).filter((i) => !paid.has(i.id));
+    const cardCovered = allOpen.filter((i) => i.paid_by_card);
+    const invoices = allOpen.filter((i) => !i.paid_by_card);
     const startKey = ymd(start), endKey = ymd(end);
     // How long past due before "unpaid" stops being believable. A business that
     // pays its suppliers does not have a three-month-old invoice still open — that
@@ -297,6 +302,8 @@ export async function computeCapitalForecast(daysIn) {
         overdue_amount: Math.round(overdueTotal),
         stale_invoices: stale.length,
         stale_amount: Math.round(staleTotal),
+        card_covered_invoices: cardCovered.length,
+        card_covered_amount: Math.round(cardCovered.reduce((t, i) => t + i.amount, 0)),
         warnings,
     };
 }

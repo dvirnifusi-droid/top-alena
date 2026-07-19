@@ -50,8 +50,16 @@ export default function BankStatementCard() {
         content_base64, filename: file.name, dry_run: true,
       });
       const d = (r?.data ?? r) || {};
-      if (!d.ok) setMsg({ ok: false, t: (d.warnings || []).join(' · ') || 'לא הצלחתי לקרוא את הקובץ' });
-      else setPreview({ ...d, _file: file.name, _b64: content_base64 });
+      if (d.ok) { setPreview({ ...d, _kind: 'bank', _file: file.name, _b64: content_base64 }); return; }
+
+      // Not a bank statement — try it as a credit-card statement before giving
+      // up. The owner should not have to know which upload button to press.
+      const c = await base44.functions.importCardStatement({
+        content_base64, filename: file.name, dry_run: true,
+      });
+      const cd = (c?.data ?? c) || {};
+      if (cd.ok) setPreview({ ...cd, _kind: 'card', _file: file.name, _b64: content_base64 });
+      else setMsg({ ok: false, t: (d.warnings || []).concat(cd.warnings || []).join(' · ') || 'לא הצלחתי לקרוא את הקובץ' });
     } catch (e) { setMsg({ ok: false, t: e?.message || 'שגיאה בקריאת הקובץ' }); }
     setBusy(false);
   };
@@ -60,10 +68,16 @@ export default function BankStatementCard() {
     if (!preview) return;
     setBusy(true); setMsg(null);
     try {
-      const r = await base44.functions.importBankStatement({
-        content_base64: preview._b64, filename: preview._file, dry_run: false,
-      });
+      const fn = preview._kind === 'card'
+        ? base44.functions.importCardStatement
+        : base44.functions.importBankStatement;
+      const r = await fn({ content_base64: preview._b64, filename: preview._file, dry_run: false });
       const d = (r?.data ?? r) || {};
+      if (preview._kind === 'card') {
+        setMsg({ ok: true, t: `נקלטו ${d.imported} חיובי אשראי${d.duplicates ? `, ${d.duplicates} כבר היו` : ''}` });
+        setPreview(null);
+        return;
+      }
       const extra = d.opening_set
         ? ` · יתרת פתיחה עודכנה ל-${ils(d.opening_set.balance)} (${d.opening_set.date})`
         : '';
@@ -123,15 +137,15 @@ export default function BankStatementCard() {
               accept=".xls,.xlsx,.csv,.txt,.htm,.html"
               onChange={(e) => onFile(e.target.files?.[0])} />
             <Upload className="w-7 h-7 mx-auto text-sky-500 mb-2" />
-            <p className="text-sm font-medium">גרור לכאן את ייצוא העו"ש, או</p>
+            <p className="text-sm font-medium">גרור לכאן ייצוא עו"ש או פירוט אשראי, או</p>
             <Button size="sm" variant="outline" className="mt-2" disabled={busy}
               onClick={() => fileRef.current?.click()}>
               {busy ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : null}
               בחר קובץ
             </Button>
             <p className="text-[11px] text-slate-500 mt-2">
-              כל בנק, כל פורמט — Excel / CSV / דוח מהאתר. אני מזהה את העמודות לבד ומסווג כל תנועה.
-              ייבוא חוזר של אותה תקופה לא ייצור כפילויות.
+              כל בנק וכל חברת אשראי, כל פורמט — Excel / CSV / דוח מהאתר. אני מזהה לבד מה קיבלתי,
+              מסווג כל שורה, וייבוא חוזר של אותה תקופה לא ייצור כפילויות.
             </p>
             <p className="text-[11px] text-sky-700 mt-2 border-t pt-2">
               📧 <b>אוטומטי:</b> הגדר בבנק שליחת דוח תנועות למייל המחובר למערכת — הוא ייקלט לבד
@@ -145,24 +159,53 @@ export default function BankStatementCard() {
           <div className="rounded-xl border border-sky-300 bg-sky-50/60 p-4 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-sm">
-                <b>{preview.bank || 'בנק לא מזוהה'}</b>
-                {preview.account ? <span className="text-slate-500"> · חשבון {preview.account}</span> : null}
-                <div className="text-xs text-slate-600 mt-0.5">
-                  {preview.from} → {preview.to} · {preview.total} תנועות
-                  {preview.new !== preview.total && <> · <b>{preview.new} חדשות</b>, {preview.duplicates} קיימות</>}
-                </div>
+                <b>{preview._kind === 'card' ? '💳 פירוט אשראי' : (preview.bank || 'בנק לא מזוהה')}</b>
+                {preview._kind !== 'card' && preview.account
+                  ? <span className="text-slate-500"> · חשבון {preview.account}</span> : null}
+                {preview._kind !== 'card' && (
+                  <div className="text-xs text-slate-600 mt-0.5">
+                    {preview.from} → {preview.to} · {preview.total} תנועות
+                    {preview.new !== preview.total && <> · <b>{preview.new} חדשות</b>, {preview.duplicates} קיימות</>}
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="ghost" onClick={() => setPreview(null)} disabled={busy}>ביטול</Button>
                 <Button size="sm" className="bg-sky-600 hover:bg-sky-700" onClick={confirmImport}
-                  disabled={busy || !preview.new}>
+                  disabled={busy || (preview._kind !== 'card' && !preview.new)}>
                   {busy ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : null}
-                  {preview.new ? `ייבא ${preview.new} תנועות` : 'הכל כבר קיים'}
+                  {preview._kind === 'card'
+                    ? `ייבא ${preview.total} חיובים`
+                    : (preview.new ? `ייבא ${preview.new} תנועות` : 'הכל כבר קיים')}
                 </Button>
               </div>
             </div>
 
-            {preview.closing_balance != null && (
+            {preview._kind === 'card' && (
+              <div className="text-xs text-slate-700 space-y-1">
+                <p>
+                  💳 <b>פירוט אשראי</b> · {preview.total} חיובים · {preview.from} → {preview.to}
+                </p>
+                <p className="flex flex-wrap gap-2">
+                  {(preview.totals || []).map((t) => (
+                    <span key={t.currency} className="rounded-full bg-white border px-2 py-0.5">
+                      {t.currency} {Math.round(t.total).toLocaleString()} · {t.count} חיובים
+                    </span>
+                  ))}
+                </p>
+                <p className="text-slate-500">
+                  החיובים האלה הם <b>פירוט</b> של תשלום הכרטיס שכבר מופיע בעו"ש — הם לא נספרים כיציאה נוספת.
+                </p>
+                {(preview.merchants || []).slice(0, 6).map((m) => (
+                  <div key={m.merchant + m.currency} className="flex justify-between text-[11px]">
+                    <span className="truncate">{m.merchant}</span>
+                    <span className="tabular-nums font-medium">{m.currency === 'USD' ? '$' : '₪'}{Math.round(m.total).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {preview._kind !== 'card' && preview.closing_balance != null && (
               <p className="text-xs text-slate-700">
                 יתרה בחשבון לפי הדוח: <b className={preview.closing_balance < 0 ? 'text-red-600' : 'text-emerald-700'}>
                   {ils(preview.closing_balance)}</b>
@@ -171,8 +214,8 @@ export default function BankStatementCard() {
               </p>
             )}
 
-            <MonthTable months={preview.months} />
-            <CatChips categories={preview.categories} />
+            {preview._kind !== 'card' && <MonthTable months={preview.months} />}
+            {preview._kind !== 'card' && <CatChips categories={preview.categories} />}
 
             {(preview.warnings || []).map((w, i) => (
               <p key={i} className="text-xs text-amber-800">⚠ {w}</p>

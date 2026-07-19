@@ -9,6 +9,7 @@ import { RecurringCost } from '@/entities/all';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 import BankStatementCard from '../components/cashflow/BankStatementCard';
+import CardChargesCard from '../components/cashflow/CardChargesCard';
 import CapitalForecastCard from '../components/cashflow/CapitalForecastCard';
 import CashActionsCard from '../components/cashflow/CashActionsCard';
 import ReconcileCard from '../components/cashflow/ReconcileCard';
@@ -146,6 +147,7 @@ function CashFlowInner() {
           <Section title="📥 מקורות נתונים — עו״ש ושיוך תשלומים"
             hint="מכאן הצפי מקבל את הנתונים" defaultOpen={!hasOpening}>
             <BankStatementCard />
+            <CardChargesCard />
             <ReconcileCard />
           </Section>
 

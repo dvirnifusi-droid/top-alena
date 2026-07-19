@@ -19,7 +19,7 @@ function cellText(html) {
 function decodeEntities(s) {
     return s
         .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<')
-        .replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;/g, "'")
+        .replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').replace(/&#39;/g, "'").replace(/&apos;/gi, "'")
         .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)));
 }
 function gridFromHtml(s) {
@@ -371,8 +371,12 @@ const colIndex = (ref) => {
         n = n * 26 + (ch.charCodeAt(0) - 64);
     return n - 1;
 };
-/** Real .xlsx (a zip of XML). Parsed by hand — no spreadsheet dependency. */
-async function gridFromXlsx(buf) {
+/**
+ * Every sheet of a real .xlsx (a zip of XML), parsed by hand — no spreadsheet
+ * dependency. All sheets, not just the first: card issuers split their export
+ * one sheet per currency, and reading only sheet1 silently drops the rest.
+ */
+export async function xlsxSheets(buf) {
     const JSZip = (await import('jszip')).default;
     const zip = await JSZip.loadAsync(buf);
     const sstXml = await zip.file('xl/sharedStrings.xml')?.async('string');
@@ -384,33 +388,50 @@ async function gridFromXlsx(buf) {
             shared.push(decodeEntities(parts.map((p) => p.replace(/<[^>]+>/g, '')).join('')));
         }
     }
-    const sheetName = Object.keys(zip.files)
-        .filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort()[0];
-    if (!sheetName)
-        return [];
-    const xml = await zip.file(sheetName).async('string');
-    const grid = [];
-    for (const rowXml of xml.match(/<row[\s\S]*?<\/row>/g) || []) {
-        const cells = [];
-        for (const c of rowXml.match(/<c[^>]*(?:\/>|>[\s\S]*?<\/c>)/g) || []) {
-            const ref = (c.match(/r="([A-Z]+\d+)"/) || [])[1] || '';
-            const type = (c.match(/t="([^"]+)"/) || [])[1] || '';
-            let val = '';
-            if (type === 'inlineStr') {
-                val = decodeEntities((c.match(/<t[^>]*>([\s\S]*?)<\/t>/) || [])[1] || '').replace(/<[^>]+>/g, '');
+    // Sheet display names live in workbook.xml, in document order; the files are
+    // sheet1.xml, sheet2.xml… The name carries the currency for card exports.
+    const wb = await zip.file('xl/workbook.xml')?.async('string');
+    const names = wb
+        ? [...wb.matchAll(/<sheet[^>]*name="([^"]*)"/g)].map((m) => decodeEntities(m[1]))
+        : [];
+    const files = Object.keys(zip.files)
+        .filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))
+        .sort((a, b) => {
+        const na = Number(a.match(/sheet(\d+)/)[1]);
+        const nb = Number(b.match(/sheet(\d+)/)[1]);
+        return na - nb;
+    });
+    const out = [];
+    for (let i = 0; i < files.length; i++) {
+        const xml = await zip.file(files[i]).async('string');
+        const grid = [];
+        for (const rowXml of xml.match(/<row[\s\S]*?<\/row>/g) || []) {
+            const cells = [];
+            for (const c of rowXml.match(/<c[^>]*(?:\/>|>[\s\S]*?<\/c>)/g) || []) {
+                const ref = (c.match(/r="([A-Z]+\d+)"/) || [])[1] || '';
+                const type = (c.match(/t="([^"]+)"/) || [])[1] || '';
+                let val = '';
+                if (type === 'inlineStr') {
+                    val = decodeEntities((c.match(/<t[^>]*>([\s\S]*?)<\/t>/) || [])[1] || '').replace(/<[^>]+>/g, '');
+                }
+                else {
+                    const v = (c.match(/<v>([\s\S]*?)<\/v>/) || [])[1] || '';
+                    val = type === 's' ? (shared[Number(v)] ?? '') : decodeEntities(v);
+                }
+                const idx = ref ? colIndex(ref) : cells.length;
+                while (cells.length < idx)
+                    cells.push('');
+                cells[idx] = String(val).trim();
             }
-            else {
-                const v = (c.match(/<v>([\s\S]*?)<\/v>/) || [])[1] || '';
-                val = type === 's' ? (shared[Number(v)] ?? '') : decodeEntities(v);
-            }
-            const i = ref ? colIndex(ref) : cells.length;
-            while (cells.length < i)
-                cells.push('');
-            cells[i] = String(val).trim();
+            grid.push(cells);
         }
-        grid.push(cells);
+        out.push({ name: names[i] || `sheet${i + 1}`, grid });
     }
-    return grid;
+    return out;
+}
+async function gridFromXlsx(buf) {
+    const sheets = await xlsxSheets(buf);
+    return sheets[0]?.grid || [];
 }
 /**
  * Entry point for an uploaded file of unknown type. Text formats go straight

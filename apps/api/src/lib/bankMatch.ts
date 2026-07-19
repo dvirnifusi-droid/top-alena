@@ -22,6 +22,7 @@ export type MatchInvoice = {
   amount: number;
   invoice_date: string;
   due_date: string;
+  paid_by_card?: boolean;
 };
 
 export type MatchTx = {

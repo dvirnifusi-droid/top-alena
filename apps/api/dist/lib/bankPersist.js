@@ -139,4 +139,47 @@ export function looksLikeStatement(parsed) {
     const spanDays = (Date.parse(dates[dates.length - 1]) - Date.parse(dates[0])) / 86400_000;
     return spanDays >= 5;
 }
+// ── credit-card charges ────────────────────────────────────────────────────
+// Their own table, never BankTransaction: these charges are the itemisation of
+// the monthly card payment that already appears in the bank statement, so
+// storing them alongside it would count the same spend twice.
+export async function ensureCardTables() {
+    await dbx().$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "CardCharge" (
+      id TEXT PRIMARY KEY,
+      billing_date DATE NOT NULL,
+      transaction_date DATE,
+      merchant TEXT,
+      deal_amount NUMERIC(14,2),
+      charged_amount NUMERIC(14,2),
+      currency TEXT DEFAULT 'ILS',
+      hash TEXT NOT NULL UNIQUE,
+      created_date TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(() => { });
+    await dbx().$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CardCharge_date_idx" ON "CardCharge"(billing_date)`).catch(() => { });
+    // Marks a supplier whose invoices are settled on the company card, so the
+    // forecast does not schedule them as separate transfers.
+    await dbx().$executeRawUnsafe(`ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "paid_by_card" BOOLEAN DEFAULT false`).catch(() => { });
+}
+export async function persistCardCharges(charges) {
+    await ensureCardTables();
+    const hashes = charges.map((c) => c.hash);
+    const existing = hashes.length
+        ? await dbx().$queryRawUnsafe(`SELECT hash FROM "CardCharge" WHERE hash = ANY($1::text[])`, hashes).catch(() => [])
+        : [];
+    const have = new Set(existing.map((r) => String(r.hash)));
+    const fresh = charges.filter((c) => !have.has(c.hash));
+    let imported = 0;
+    for (const c of fresh) {
+        try {
+            await dbx().$executeRawUnsafe(`INSERT INTO "CardCharge"
+           (id, billing_date, transaction_date, merchant, deal_amount, charged_amount, currency, hash)
+         VALUES ($1,$2::date,$3::date,$4,$5,$6,$7,$8)
+         ON CONFLICT (hash) DO NOTHING`, `cc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`, c.billing_date, c.transaction_date, c.merchant, c.deal_amount, c.charged_amount, c.currency, c.hash);
+            imported++;
+        }
+        catch { /* one bad row must not abort the import */ }
+    }
+    return { imported, duplicates: charges.length - fresh.length };
+}
 //# sourceMappingURL=bankPersist.js.map

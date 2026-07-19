@@ -32,13 +32,19 @@ async function ensureTable(): Promise<void> {
 /** Open invoices with a due date, ready for matching or forecasting. */
 export async function loadOpenInvoices(): Promise<MatchInvoice[]> {
   const suppliers: any[] = await dbx().$queryRawUnsafe(
-    `SELECT id, company_name, payment_terms, COALESCE(is_occasional,false) AS is_occasional
-     FROM "Supplier"`).catch(() => []);
+    `SELECT id, company_name, payment_terms, COALESCE(is_occasional,false) AS is_occasional,
+            COALESCE(paid_by_card,false) AS paid_by_card
+     FROM "Supplier"`).catch(async () => await dbx().$queryRawUnsafe(
+    `SELECT id, company_name, payment_terms, COALESCE(is_occasional,false) AS is_occasional,
+            false AS paid_by_card
+     FROM "Supplier"`).catch(() => []));
   const termsBy = new Map<string, any>();
   const nameBy = new Map<string, string>();
+  const cardBy = new Map<string, boolean>();
   for (const s of suppliers) {
     termsBy.set(String(s.id), parsePaymentTerms(s.payment_terms, { occasional: s.is_occasional }));
     nameBy.set(String(s.id), s.company_name || 'ספק');
+    cardBy.set(String(s.id), !!s.paid_by_card);
   }
 
   const rows: any[] = await dbx().$queryRawUnsafe(
@@ -62,6 +68,7 @@ export async function loadOpenInvoices(): Promise<MatchInvoice[]> {
       amount: Math.abs(Number(r.total_amount) || 0),
       invoice_date: ymdOf(invDate),
       due_date: ymdOf(due),
+      paid_by_card: cardBy.get(sid) === true,
     };
   }).filter((i) => i.amount > 0);
 }
@@ -444,4 +451,103 @@ registerFn('recategorizeBankTransactions', async ({ user }: any) => {
     changed++;
   }
   return { ok: true, scanned: rows.length, changed };
+});
+
+// ── credit card ────────────────────────────────────────────────────────────
+// Card charges itemise the monthly card payment that the bank statement already
+// records. They are stored to explain that payment and to reveal which
+// suppliers are settled on the card — never as extra outflows.
+
+registerFn('importCardStatement', async ({ user, body }: any) => {
+  await guard(user);
+  const b = (body || {}) as any;
+  if (!b.content_base64) throw new Error('no_content');
+  const { parseCardFile, summarizeCard } = await import('../lib/cardStatement.js');
+  const parsed = await parseCardFile(Buffer.from(String(b.content_base64), 'base64'),
+    String(b.filename || ''));
+  if (!parsed.ok) return { ok: false, warnings: parsed.warnings, imported: 0 };
+
+  const summary = summarizeCard(parsed.charges);
+  const preview = {
+    ok: true, dry_run: b.dry_run === true,
+    total: parsed.charges.length,
+    currencies: parsed.currencies,
+    from: parsed.from, to: parsed.to,
+    totals: summary.totals,
+    merchants: summary.merchants.slice(0, 25),
+    months: summary.months,
+    warnings: parsed.warnings,
+  };
+  if (b.dry_run === true) return preview;
+
+  const { persistCardCharges } = await import('../lib/bankPersist.js');
+  const res = await persistCardCharges(parsed.charges);
+  return { ...preview, dry_run: false, ...res };
+});
+
+/** What is inside the card payment, and which suppliers it covers. */
+registerFn('getCardSummary', async ({ user, body }: any) => {
+  await guard(user);
+  const { ensureCardTables } = await import('../lib/bankPersist.js');
+  await ensureCardTables();
+  const months = Math.min(24, Math.max(1, Number((body || {}).months) || 6));
+  const since = new Date(Date.now() - months * 31 * 86400_000).toISOString().slice(0, 10);
+
+  const rows: any[] = await dbx().$queryRawUnsafe(
+    `SELECT billing_date, transaction_date, merchant, deal_amount, charged_amount, currency
+     FROM "CardCharge" WHERE billing_date >= $1::date ORDER BY billing_date`, since).catch(() => []);
+  if (!rows.length) return { has_data: false, merchants: [], overlap: [], totals: [] };
+
+  const { summarizeCard, matchMerchantsToSuppliers } = await import('../lib/cardStatement.js');
+  const charges = rows.map((r: any) => ({
+    billing_date: dbDate(r.billing_date),
+    transaction_date: dbDate(r.transaction_date),
+    merchant: r.merchant || '',
+    deal_amount: n(r.deal_amount),
+    charged_amount: n(r.charged_amount),
+    currency: r.currency || 'ILS',
+    hash: '',
+  }));
+  const s = summarizeCard(charges as any);
+
+  const sup: any[] = await dbx().$queryRawUnsafe(
+    `SELECT id, company_name, COALESCE(paid_by_card,false) AS paid_by_card FROM "Supplier"`).catch(() => []);
+  const overlap = matchMerchantsToSuppliers(
+    s.merchants.filter((m: any) => m.currency === 'ILS'),
+    sup.map((x: any) => ({ id: String(x.id), name: x.company_name || '' })),
+  ).map((o: any) => ({
+    ...o,
+    paid_by_card: !!sup.find((x: any) => String(x.id) === o.supplier_id)?.paid_by_card,
+  }));
+
+  return {
+    has_data: true,
+    from: charges[0].billing_date,
+    to: charges[charges.length - 1].billing_date,
+    charges: charges.length,
+    totals: s.totals,
+    months: s.months,
+    merchants: s.merchants.slice(0, 40),
+    // Suppliers that appear on the card AND have invoices in the system — the
+    // exact set at risk of being counted twice in the forecast.
+    overlap,
+  };
+});
+
+/**
+ * Mark a supplier as settled on the company card. Their invoices then stop being
+ * projected as separate transfers, because the card payment already carries
+ * them. Deliberately a manual switch: a supplier can be paid part by card and
+ * part by transfer, and only the owner knows which.
+ */
+registerFn('setSupplierPaidByCard', async ({ user, body }: any) => {
+  await guard(user);
+  const { ensureCardTables } = await import('../lib/bankPersist.js');
+  await ensureCardTables();
+  const b = (body || {}) as any;
+  const id = String(b.supplier_id || '');
+  if (!id) throw new Error('supplier_required');
+  await dbx().$executeRawUnsafe(
+    `UPDATE "Supplier" SET paid_by_card = $2 WHERE id = $1`, id, b.paid_by_card === true);
+  return { ok: true, supplier_id: id, paid_by_card: b.paid_by_card === true };
 });
