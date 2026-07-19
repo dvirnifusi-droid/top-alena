@@ -29,7 +29,8 @@ import { sendEmail } from '../lib/email.js';
 import { withOptOut, verifyCustomerSignature, signCustomer } from '../lib/marketingBlast.js';
 import {
   getClubConfig, saveClubConfig, grantBenefit, listBenefits,
-  findBenefitByCode, redeemBenefit, tierLabel,
+  findBenefitByCode, redeemBenefit, tierLabel, ensureClubTables,
+  tournamentStandings, myStanding, closeTournamentRound,
 } from '../lib/clubCore.js';
 
 /** The member card is reached by the same signed link as the opt-out page. */
@@ -2519,7 +2520,7 @@ registerFn('updateQueueEntry', async ({ body }) => {
 /* ----- Waiting-room trivia game (public, anonymous customers) ----- */
 
 registerFn('createGameSession', async ({ body }) => {
-  const { player_name, queue_entry_id } = body as any;
+  const { player_name, queue_entry_id, c, s } = body as any;
   const session = await db.queueGameSession.create({
     data: {
       player_name: player_name || 'אורח',
@@ -2529,7 +2530,24 @@ registerFn('createGameSession', async ({ body }) => {
       finished: false,
     },
   });
-  return { session };
+
+  // A member who arrives through their card plays as themselves, so their points
+  // accumulate across visits instead of evaporating with the session. Signed,
+  // because otherwise anyone could post points onto anyone's name — and the
+  // standings decide who gets free food.
+  let identified = false;
+  const cid = String(c || '');
+  if (cid && verifyCustomerSignature(cid, String(s || ''))) {
+    try {
+      await ensureClubTables();
+      await (db as any).$executeRawUnsafe(
+        `UPDATE "QueueGameSession" SET customer_id = $2 WHERE id = $1`, session.id, cid);
+      identified = true;
+    } catch (e) {
+      console.warn('could not attach club member to game session:', e);
+    }
+  }
+  return { session, identified };
 }, { public: true });
 
 registerFn('updateGameSession', async ({ body }) => {
@@ -3916,8 +3934,12 @@ registerFn('clubMemberCard', async ({ body }) => {
   const cust = await db.customer.findUnique({ where: { id: cid } });
   if (!cust) throw new Error('not_found');
   const { active, used } = await listBenefits(cid);
+  const cfg = await getClubConfig();
   return {
     name: cust.name || '',
+    tournament: cfg.tournament_enabled
+      ? { prize: cfg.tournament_prize, ...(await myStanding(cid)) }
+      : null,
     first_name: (cust.name || '').split(' ')[0] || '',
     coins: (cust as any).coin_balance || 0,
     coin_value_ils: 4,
@@ -3966,6 +3988,35 @@ registerFn('clubRedeemBenefit', async ({ body, user }) => {
     redeemed_by: r.benefit?.redeemed_by || null,
   };
 });
+
+/** The shared standings. Public — the whole point is that members can see it. */
+registerFn('clubTournament', async ({ body }) => {
+  const cfg = await getClubConfig();
+  const { since, standings } = await tournamentStandings(20);
+  const cid = String((body as any)?.c || '');
+  const signed = cid && verifyCustomerSignature(cid, String((body as any)?.s || ''));
+  return {
+    enabled: cfg.tournament_enabled,
+    prize: cfg.tournament_prize,
+    winners_count: cfg.tournament_winners,
+    since,
+    // First names only. A leaderboard is a public wall, and a club should not
+    // publish the full name of every member who played on it.
+    standings: standings.map((x) => ({
+      rank: x.rank,
+      name: (x.name || '').split(' ')[0] || 'אורח',
+      points: x.points,
+      games: x.games,
+    })),
+    me: signed ? await myStanding(cid) : null,
+  };
+}, { public: true });
+
+/** Owner-side: see who would win before anything is given away. */
+registerFn('clubTournamentPreview', async () => await closeTournamentRound({ dryRun: true }));
+
+/** Owner-side: award the prizes and start the next round. */
+registerFn('clubTournamentClose', async () => await closeTournamentRound());
 
 registerFn('getClubSettings', async () => ({ settings: await getClubConfig() }));
 

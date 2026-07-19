@@ -26,6 +26,7 @@ import ReservationView from './pages/ReservationView';
 import EventInquiryThanks from './pages/EventInquiryThanks';
 import Unsubscribe from './pages/Unsubscribe';
 import MemberCard from './pages/MemberCard';
+import ClubLeaderboard from './pages/ClubLeaderboard';
 import Waiter from './pages/Waiter';
 import QueueJoin from './pages/QueueJoin';
 import QueueDashboard from './pages/QueueDashboard';
@@ -188,6 +189,7 @@ function App() {
           <Route path="/club" element={<ClubJoin />} />
           <Route path="/ClubUpdate" element={<ClubUpdate />} />
           <Route path="/MemberCard" element={<MemberCard />} />
+          <Route path="/ClubLeaderboard" element={<ClubLeaderboard />} />
           <Route path="/ClubQR" element={<ClubQR />} />
           <Route path="/PrivacyAndAccessibility" element={<PrivacyAndAccessibility />} />
           <Route path="/JobApplication" element={<JobApplication />} />

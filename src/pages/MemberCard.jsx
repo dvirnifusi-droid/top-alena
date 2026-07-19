@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Loader2, Gift, Coins } from 'lucide-react';
+import { Loader2, Gift, Coins, Trophy } from 'lucide-react';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 // What a member can see about their own membership.
@@ -119,6 +119,41 @@ export default function MemberCard() {
                     שווים ₪{coins * (card?.coin_value_ils || 4)} בהטבות
                   </span>
                 </span>
+              </div>
+            )}
+
+            {/* The tournament is the reason to open this page when there is no
+                benefit waiting. Points cost the restaurant nothing, so playing
+                is unlimited — the prize is what is bounded, not the play. */}
+            {card?.tournament && (
+              <div className="mt-5 pt-5 border-t">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm text-gray-600 flex items-center gap-1.5">
+                    <Trophy className="w-4 h-4" style={{ color: '#D9BD83' }} /> טורניר המועדון
+                  </span>
+                  {card.tournament.rank ? (
+                    <span className="text-sm font-black" style={{ color: ACCENT }}>
+                      מקום {card.tournament.rank}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400">עוד לא שיחקת</span>
+                  )}
+                </div>
+                {card.tournament.points > 0 && (
+                  <p className="text-xs text-gray-500 mb-3">
+                    {card.tournament.points} נקודות · {card.tournament.games} משחקים
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mb-3">הפרס למובילים: {card.tournament.prize}</p>
+                <a href={`/QueueGame?c=${encodeURIComponent(c)}&s=${encodeURIComponent(s)}&name=${encodeURIComponent(card.first_name || '')}`}
+                  className="block w-full text-center rounded-xl py-3 font-bold text-white"
+                  style={{ background: ACCENT }}>
+                  {card.tournament.points > 0 ? 'לשחק עוד' : 'לשחק ולצבור נקודות'}
+                </a>
+                <a href={`/ClubLeaderboard?c=${encodeURIComponent(c)}&s=${encodeURIComponent(s)}`}
+                  className="block text-center text-xs mt-2 underline" style={{ color: ACCENT }}>
+                  לטבלת המובילים
+                </a>
               </div>
             )}
 

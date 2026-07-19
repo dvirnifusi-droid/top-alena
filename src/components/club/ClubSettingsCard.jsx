@@ -4,12 +4,88 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Gift, Gamepad2, Save } from 'lucide-react';
+import { Loader2, Gift, Gamepad2, Save, Trophy } from 'lucide-react';
 
 // The two numbers that decide what club membership is worth, in one place the
 // owner can reach. They are defaults, not decisions baked into the code — the
 // welcome benefit and the game payout both cost real money, and that is the
 // owner's call to make and to change once he sees what it does to footfall.
+// Ending a round gives away food, so it is two steps and never a timer: see who
+// won, then decide. The owner asked that the app stop acting on its own
+// schedule, and this is exactly the kind of thing he meant.
+function TournamentCloser() {
+  const [preview, setPreview] = useState(null);
+  const [done, setDone] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const look = async () => {
+    setBusy(true); setDone(null);
+    try {
+      const r = await base44.functions.clubTournamentPreview();
+      setPreview((r?.data ?? r) || null);
+    } catch { setPreview(null); }
+    setBusy(false);
+  };
+
+  const award = async () => {
+    setBusy(true);
+    try {
+      const r = await base44.functions.clubTournamentClose();
+      setDone((r?.data ?? r) || null);
+      setPreview(null);
+    } catch { /* the button coming back to rest is the signal */ }
+    setBusy(false);
+  };
+
+  if (done) {
+    return (
+      <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4">
+        <p className="font-bold text-emerald-800 text-sm mb-2">הפרסים חולקו · סבב חדש התחיל</p>
+        {(done.winners || []).map((w) => (
+          <p key={w.rank} className="text-sm text-slate-700">
+            {w.rank}. {w.name} — קוד <span className="font-black tracking-wider">{w.code}</span>
+          </p>
+        ))}
+        <p className="text-xs text-slate-500 mt-2">הקודים מופיעים גם בכרטיס החבר של כל זוכה.</p>
+      </div>
+    );
+  }
+
+  if (preview) {
+    const winners = preview.winners || [];
+    return (
+      <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+        {winners.length === 0 ? (
+          <>
+            <p className="text-sm text-slate-700">אף אחד לא שיחק בסבב הזה — אין למי להעניק.</p>
+            <Button variant="ghost" onClick={() => setPreview(null)} className="w-full mt-2 text-slate-500">סגירה</Button>
+          </>
+        ) : (
+          <>
+            <p className="font-bold text-amber-900 text-sm mb-2">אלה הזוכים — לאשר?</p>
+            {winners.map((w) => (
+              <p key={w.rank} className="text-sm text-slate-700">
+                {w.rank}. {w.name} — {w.points} נקודות
+              </p>
+            ))}
+            <p className="text-xs text-slate-600 mt-2">כל אחד יקבל: {preview.prize}</p>
+            <Button onClick={award} disabled={busy} className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700">
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'להעניק ולפתוח סבב חדש'}
+            </Button>
+            <Button variant="ghost" onClick={() => setPreview(null)} className="w-full mt-1 text-slate-500">ביטול</Button>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <Button variant="outline" onClick={look} disabled={busy} className="w-full">
+      {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'לסגור סבב ולחלק פרסים'}
+    </Button>
+  );
+}
+
 export default function ClubSettingsCard() {
   const [s, setS] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -84,6 +160,35 @@ export default function ClubSettingsCard() {
             </span>
           </div>
         </div>
+
+        <div className="pt-4 border-t">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-amber-600" /> טורניר המועדון
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5 mb-3">
+            כל חבר מועדון יכול לשחק מכל מקום. נקודות לא עולות לך כלום — רק הפרס למובילים עולה,
+            ולכן העלות שלך קבועה מראש בלי קשר לכמה שיחקו.
+          </p>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-slate-700">טורניר פעיל</span>
+            <Switch checked={s.tournament_enabled} onCheckedChange={(v) => set('tournament_enabled', v)} />
+          </div>
+          {s.tournament_enabled && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-slate-500">הפרס למובילים</label>
+                <Input value={s.tournament_prize} onChange={(e) => set('tournament_prize', e.target.value)} className="mt-1" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">כמה זוכים</label>
+                <Input type="number" min={1} value={s.tournament_winners}
+                  onChange={(e) => set('tournament_winners', e.target.value)} className="mt-1 w-24" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {s.tournament_enabled && <TournamentCloser />}
 
         <Button onClick={save} disabled={saving} className="w-full">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" />

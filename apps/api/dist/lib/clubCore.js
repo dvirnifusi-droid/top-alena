@@ -23,6 +23,10 @@ export const CLUB_DEFAULTS = {
     game_coins: 5,
     birthday_enabled: false,
     birthday_text: 'קינוח יום הולדת על חשבון הבית 🎂',
+    tournament_enabled: true,
+    tournament_winners: 3,
+    tournament_prize: 'קינוח על חשבון הבית 🏆',
+    tournament_started_at: null,
 };
 export async function ensureClubTables() {
     await dbx().$executeRawUnsafe(`
@@ -36,6 +40,14 @@ export async function ensureClubTables() {
       birthday_text TEXT,
       updated_date TIMESTAMPTZ DEFAULT NOW()
     )`).catch(() => { });
+    for (const col of [
+        `ADD COLUMN IF NOT EXISTS tournament_enabled BOOLEAN DEFAULT true`,
+        `ADD COLUMN IF NOT EXISTS tournament_winners INT DEFAULT 3`,
+        `ADD COLUMN IF NOT EXISTS tournament_prize TEXT`,
+        `ADD COLUMN IF NOT EXISTS tournament_started_at TIMESTAMPTZ`,
+    ]) {
+        await dbx().$executeRawUnsafe(`ALTER TABLE "ClubConfig" ${col}`).catch(() => { });
+    }
     // CustomerBenefit predates this work and is declared in the Prisma schema, so
     // it is extended in place rather than replaced — the three admin screens that
     // already write benefits by hand keep working untouched. Added additively;
@@ -51,6 +63,11 @@ export async function ensureClubTables() {
     await dbx().$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "CustomerBenefit_code_key" ON "CustomerBenefit"(code) WHERE code IS NOT NULL`).catch(() => { });
     // Credit a game session only once, however many times the finish call arrives.
     await dbx().$executeRawUnsafe(`ALTER TABLE "QueueGameSession" ADD COLUMN IF NOT EXISTS coins_awarded INT DEFAULT 0`).catch(() => { });
+    // Whose points these are. A session used to be anonymous or, at best, tied to
+    // a queue entry — which meant a member who played could not accumulate
+    // anything across visits, and the leaderboard was a list of nicknames.
+    await dbx().$executeRawUnsafe(`ALTER TABLE "QueueGameSession" ADD COLUMN IF NOT EXISTS customer_id TEXT`).catch(() => { });
+    await dbx().$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "QueueGameSession_customer_idx" ON "QueueGameSession"(customer_id)`).catch(() => { });
 }
 export async function getClubConfig() {
     await ensureClubTables();
@@ -67,6 +84,10 @@ export async function getClubConfig() {
         game_coins: Number.isFinite(Number(r.game_coins)) ? Number(r.game_coins) : CLUB_DEFAULTS.game_coins,
         birthday_enabled: r.birthday_enabled === true,
         birthday_text: r.birthday_text || CLUB_DEFAULTS.birthday_text,
+        tournament_enabled: r.tournament_enabled !== false,
+        tournament_winners: Number(r.tournament_winners) || CLUB_DEFAULTS.tournament_winners,
+        tournament_prize: r.tournament_prize || CLUB_DEFAULTS.tournament_prize,
+        tournament_started_at: r.tournament_started_at ? new Date(r.tournament_started_at).toISOString() : null,
     };
 }
 export async function saveClubConfig(patch) {
@@ -75,9 +96,13 @@ export async function saveClubConfig(patch) {
     // and a negative one should not silently drain balances.
     next.game_coins = Math.max(0, Math.min(500, Math.round(Number(next.game_coins) || 0)));
     next.welcome_valid_days = Math.max(1, Math.min(3650, Math.round(Number(next.welcome_valid_days) || 90)));
+    // Prize count is a direct multiplier on what a round costs, so it is bounded
+    // for the same reason the payout box is.
+    next.tournament_winners = Math.max(1, Math.min(50, Math.round(Number(next.tournament_winners) || 3)));
     await dbx().$executeRawUnsafe(`INSERT INTO "ClubConfig"
-       (id, welcome_enabled, welcome_text, welcome_valid_days, game_coins, birthday_enabled, birthday_text, updated_date)
-     VALUES ('default', $1, $2, $3, $4, $5, $6, NOW())
+       (id, welcome_enabled, welcome_text, welcome_valid_days, game_coins, birthday_enabled, birthday_text,
+        tournament_enabled, tournament_winners, tournament_prize, tournament_started_at, updated_date)
+     VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW()), NOW())
      ON CONFLICT (id) DO UPDATE SET
        welcome_enabled = EXCLUDED.welcome_enabled,
        welcome_text = EXCLUDED.welcome_text,
@@ -85,8 +110,12 @@ export async function saveClubConfig(patch) {
        game_coins = EXCLUDED.game_coins,
        birthday_enabled = EXCLUDED.birthday_enabled,
        birthday_text = EXCLUDED.birthday_text,
-       updated_date = NOW()`, next.welcome_enabled, next.welcome_text, next.welcome_valid_days, next.game_coins, next.birthday_enabled, next.birthday_text);
-    return next;
+       tournament_enabled = EXCLUDED.tournament_enabled,
+       tournament_winners = EXCLUDED.tournament_winners,
+       tournament_prize = EXCLUDED.tournament_prize,
+       tournament_started_at = EXCLUDED.tournament_started_at,
+       updated_date = NOW()`, next.welcome_enabled, next.welcome_text, next.welcome_valid_days, next.game_coins, next.birthday_enabled, next.birthday_text, next.tournament_enabled, next.tournament_winners, next.tournament_prize, next.tournament_started_at);
+    return await getClubConfig();
 }
 // ── redeem codes ───────────────────────────────────────────────────────────
 // Read aloud across a counter in a noisy room and typed by a waiter mid-shift,
@@ -202,6 +231,79 @@ export async function redeemBenefit(code, by) {
         return { ok: false, reason: 'already_used', benefit: b };
     const fresh = await findBenefitByCode(code);
     return { ok: true, benefit: fresh || b };
+}
+/** Standings for the round in progress, best first. */
+export async function tournamentStandings(limit = 20) {
+    const cfg = await getClubConfig();
+    const since = cfg.tournament_started_at;
+    const rows = await dbx().$queryRawUnsafe(`SELECT g.customer_id,
+            COALESCE(MAX(c.name), MAX(g.player_name)) AS name,
+            SUM(COALESCE(g.score, 0))::int AS points,
+            COUNT(*)::int AS games
+       FROM "QueueGameSession" g
+       LEFT JOIN "Customer" c ON c.id = g.customer_id
+      WHERE g.customer_id IS NOT NULL
+        AND g.finished = true
+        AND ($1::timestamptz IS NULL OR g."createdAt" >= $1::timestamptz)
+      GROUP BY g.customer_id
+      HAVING SUM(COALESCE(g.score, 0)) > 0
+      ORDER BY points DESC, games ASC
+      LIMIT $2`, since, Math.max(1, Math.min(100, limit))).catch(() => []);
+    return {
+        since,
+        standings: (rows || []).map((r, i) => ({
+            customer_id: r.customer_id,
+            name: r.name || 'אורח',
+            points: Number(r.points) || 0,
+            games: Number(r.games) || 0,
+            rank: i + 1,
+        })),
+    };
+}
+/** One member's own position, for their card. */
+export async function myStanding(customerId) {
+    const { standings } = await tournamentStandings(100);
+    const me = standings.find((s) => s.customer_id === customerId);
+    if (me)
+        return { points: me.points, games: me.games, rank: me.rank };
+    const cfg = await getClubConfig();
+    const rows = await dbx().$queryRawUnsafe(`SELECT SUM(COALESCE(score,0))::int AS points, COUNT(*)::int AS games
+       FROM "QueueGameSession"
+      WHERE customer_id = $1 AND finished = true
+        AND ($2::timestamptz IS NULL OR "createdAt" >= $2::timestamptz)`, customerId, cfg.tournament_started_at).catch(() => []);
+    return { points: Number(rows?.[0]?.points) || 0, games: Number(rows?.[0]?.games) || 0, rank: null };
+}
+/**
+ * End the round: give the winners their prize and start the next one.
+ *
+ * Deliberately not on a timer. The owner asked that the app stop acting on its
+ * own schedule, and giving away food is a decision — he presses the button, sees
+ * exactly who won, and the next round starts from that moment. A week he forgets
+ * about becomes a longer round rather than a round nobody won.
+ *
+ * `dryRun` is the preview behind the confirmation, so nobody discovers who won
+ * by having already given it away.
+ */
+export async function closeTournamentRound(opts = {}) {
+    const cfg = await getClubConfig();
+    const { standings } = await tournamentStandings(cfg.tournament_winners);
+    const winners = standings.slice(0, cfg.tournament_winners);
+    if (opts.dryRun)
+        return { winners, prize: cfg.tournament_prize, awarded: false };
+    const out = [];
+    for (const w of winners) {
+        // Unique source per round start, so pressing the button twice by accident
+        // does not issue a second prize for the same round.
+        const b = await grantBenefit({
+            customerId: w.customer_id,
+            description: cfg.tournament_prize,
+            source: `tournament:${cfg.tournament_started_at || 'first'}:${w.rank}`,
+            validDays: cfg.welcome_valid_days,
+        });
+        out.push({ ...w, code: b?.code ?? null });
+    }
+    await saveClubConfig({ tournament_started_at: new Date().toISOString() });
+    return { winners: out, prize: cfg.tournament_prize, awarded: true };
 }
 // ── tier naming ────────────────────────────────────────────────────────────
 // clubTier.ts computes 'silver'/'gold', while the marketing segments and the

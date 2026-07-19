@@ -20,7 +20,7 @@ const TOTAL_Q = 6;
 const TIME_PER_Q = 12;
 
 // ===== TRIVIA GAME =====
-function TriviaGame({ playerName, entryId, allQuestions }) {
+function TriviaGame({ playerName, entryId, allQuestions, club }) {
   const brandName = useTenantBranding()?.name || 'המסעדה';
   const [phase, setPhase] = useState('playing');
   const [questions] = useState(() => {
@@ -44,7 +44,12 @@ function TriviaGame({ playerName, entryId, allQuestions }) {
   };
 
   useEffect(() => {
-    invokePublic('createGameSession', { player_name: playerName, queue_entry_id: entryId })
+    invokePublic('createGameSession', {
+      player_name: playerName, queue_entry_id: entryId,
+      // Present when the player arrived from their member card, so the points
+      // land on their club account instead of vanishing with the session.
+      c: club?.c || undefined, s: club?.s || undefined,
+    })
       .then(res => setSessionId(res?.session?.id || null))
       .catch(() => {});
     fetchLeaderboard();
@@ -173,6 +178,11 @@ export default function QueueGame() {
   const urlParams = new URLSearchParams(window.location.search);
   const entryId = urlParams.get('entry') || '';
   const playerName = urlParams.get('name') || 'אורח';
+  // A club member playing from their card carries their signed identity, which
+  // is what separates "someone scored 600" from "רון scored 600 and is second".
+  const clubC = urlParams.get('c') || '';
+  const clubS = urlParams.get('s') || '';
+  const club = clubC && clubS ? { c: clubC, s: clubS } : null;
 
   const [game, setGame] = useState(null); // null=lobby | 'trivia' | 'tictactoe' | 'setup'
   const [questions, setQuestions] = useState([]);
@@ -199,8 +209,19 @@ export default function QueueGame() {
         <>
           <div className="text-center mb-8">
             <div className="text-6xl mb-3 animate-bounce">🎮</div>
-            <h1 className="text-3xl font-black text-white">משחקי ממתינים</h1>
+            {/* Two audiences now: someone killing time in the queue, and a club
+                member playing from home for the tournament. Calling the second
+                one "משחקי ממתינים" would be telling them they are waiting for
+                something when they are not. */}
+            <h1 className="text-3xl font-black text-white">
+              {entryId ? 'משחקי ממתינים' : 'טורניר המועדון'}
+            </h1>
             <p className="text-[#D9BD83] mt-1">שלום, {playerName}! בחר משחק 👇</p>
+            {!entryId && club && (
+              <p className="text-white/60 text-xs mt-2 max-w-xs mx-auto">
+                הנקודות נצברות לטבלת הטורניר. מטבעות נצברים כשמגיעים למסעדה.
+              </p>
+            )}
           </div>
 
           <div className="w-full max-w-sm space-y-4 mb-6">
@@ -225,11 +246,11 @@ export default function QueueGame() {
             📤 שלח לחבר שיצטרף
           </button>
           <button onClick={() => window.history.back()} className="text-white/50 text-sm hover:text-white/80 transition-colors">
-            🔙 חזור לתור
+            {entryId ? '🔙 חזור לתור' : '🔙 חזרה לכרטיס החבר'}
           </button>
         </>
       ) : game === 'trivia' ? (
-        <TriviaGame playerName={playerName} entryId={entryId} allQuestions={questions} />
+        <TriviaGame playerName={playerName} entryId={entryId} allQuestions={questions} club={club} />
       ) : game === 'setup' ? (
         <div className="w-full max-w-sm">
           {!gameConfig ? (
