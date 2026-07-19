@@ -268,11 +268,23 @@ export async function computeCapitalForecast(daysIn: number): Promise<any> {
   }
 
   // ── drivers ──────────────────────────────────────────────────────────────
+  // Group by category, but label by CATEGORY — not by whichever event happened
+  // to arrive first. Every invoice shares one category, so taking the first
+  // event's label reported the entire supplier-invoice total under a single
+  // supplier's name: "חשבונית — חמישה קצבים ₪151,142" when that supplier
+  // accounted for ₪11,774 of it. The maths was right; the label libelled a
+  // supplier for ten times what they were owed.
+  const CATEGORY_LABEL: Record<string, string> = {
+    expense_supplier_invoice: 'ספקים — חשבוניות עם מועד תשלום',
+    expense_supplier_estimate: 'ספקים — השלמה להערכה',
+    expense_vat: 'מע"מ',
+  };
   const agg = new Map<string, { label: string; total: number }>();
   for (const e of events) {
     if (e.date <= ymd(start) || e.date > endKey) continue;
     const k = e.category;
-    const cur = agg.get(k) || { label: e.label.replace(/\s*\(.*\)$/, ''), total: 0 };
+    const cur = agg.get(k)
+      || { label: CATEGORY_LABEL[k] || e.label.replace(/\s*\(.*\)$/, ''), total: 0 };
     cur.total += e.amount;
     agg.set(k, cur);
   }
