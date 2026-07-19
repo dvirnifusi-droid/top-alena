@@ -36,6 +36,8 @@ export default function CashRegister() {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null);   // row id being edited
   const [edit, setEdit] = useState({});
+  const [tagging, setTagging] = useState(null);   // bank row being named
+  const [suppliers, setSuppliers] = useState([]);
   const [draft, setDraft] = useState({ date: '', name: '', out: '', in: '', category: '', note: '' });
 
   const load = useCallback(async () => {
@@ -49,6 +51,11 @@ export default function CashRegister() {
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    base44.functions.listSupplierNames({})
+      .then((r) => setSuppliers(((r?.data ?? r) || {}).suppliers || []))
+      .catch(() => {});
+  }, []);
 
   const add = async () => {
     if (!draft.date || !draft.name) return;
@@ -108,6 +115,16 @@ export default function CashRegister() {
         });
       }
       setEditing(null);
+      await load();
+    } catch { /* ignore */ }
+    setBusy(false);
+  };
+
+  const tagRow = async (row, name) => {
+    setBusy(true);
+    try {
+      await base44.functions.setBankTxCounterparty({ id: row.id, counterparty: name });
+      setTagging(null);
       await load();
     } catch { /* ignore */ }
     setBusy(false);
@@ -262,6 +279,12 @@ export default function CashRegister() {
                           </p>
                           <p className="text-[11px] text-slate-400 truncate">
                             {r.category} · {SOURCE_HE[r.source]}
+                            {r.taggable && (
+                              <button className="text-blue-600 underline mr-2"
+                                onClick={() => setTagging(tagging === r.id ? null : r.id)}>
+                                למי זה הלך?
+                              </button>
+                            )}
                           </p>
                         </div>
 
@@ -321,6 +344,26 @@ export default function CashRegister() {
                           )}
                         </div>
                       </div>
+
+                      {tagging === r.id && (
+                        <div className="bg-blue-50 px-3 py-2.5 border-t">
+                          <p className="text-[11px] text-slate-600 mb-1.5">
+                            הבנק לא שולח שם לתשלום הזה. בחר ספק והשם יישמר על התנועה.
+                          </p>
+                          <div className="flex gap-2 flex-wrap">
+                            <select className="h-9 text-sm border rounded px-2 bg-white flex-1 min-w-[160px]"
+                              defaultValue=""
+                              onChange={(e) => { if (e.target.value) tagRow(r, e.target.value); }}>
+                              <option value="">בחר ספק…</option>
+                              {suppliers.map((sp) => (
+                                <option key={sp.id} value={sp.name}>{sp.name}</option>
+                              ))}
+                            </select>
+                            <Button size="sm" variant="ghost" className="h-9"
+                              onClick={() => setTagging(null)}>ביטול</Button>
+                          </div>
+                        </div>
+                      )}
 
                       {editing === r.id && (
                         <div className="bg-blue-50 px-3 py-3 border-t">

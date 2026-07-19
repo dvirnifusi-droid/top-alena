@@ -97,6 +97,10 @@ registerFn('getCashFlowRegister', async ({ user, body }) => {
             source: 'bank',
             note: null,
             editable: false,
+            // The bank names almost nothing. A row with no counterparty can be
+            // labelled by the owner, once, and it sticks.
+            taggable: !r.counterparty && amt < 0,
+            named: !!r.counterparty,
         };
     });
     // ── the future: obligations and learned rhythms ─────────────────────────
@@ -316,5 +320,74 @@ registerFn('setCashFlowRowOverride', async ({ user, body }) => {
        settled = EXCLUDED.settled, hidden = EXCLUDED.hidden,
        note = EXCLUDED.note, updated_at = NOW()`, key, newDate, b.name ? String(b.name).slice(0, 120) : null, b.out === undefined || b.out === null || b.out === '' ? null : Math.abs(Number(b.out) || 0), b.in === undefined || b.in === null || b.in === '' ? null : Math.abs(Number(b.in) || 0), b.settled === true, b.hidden === true, b.note ? String(b.note).slice(0, 200) : null);
     return { ok: true };
+});
+/**
+ * Name a bank movement. Israeli banks send supplier payments with no
+ * counterparty at all — just "העברה באינטרנט" — so reconciliation names what it
+ * can match to an invoice and the rest stays anonymous. This lets the owner say
+ * who it was, once, and have it stick.
+ */
+registerFn('setBankTxCounterparty', async ({ user, body }) => {
+    await guard(user);
+    const b = (body || {});
+    const id = String(b.id || '').replace(/^bank_/, '');
+    if (!id)
+        throw new Error('id_required');
+    const name = b.counterparty == null ? null : String(b.counterparty).trim().slice(0, 120) || null;
+    await dbx().$executeRawUnsafe(`UPDATE "BankTransaction" SET counterparty = $2 WHERE id = $1`, id, name);
+    return { ok: true, id, counterparty: name };
+});
+/** Supplier names, for the tagging dropdown. */
+registerFn('listSupplierNames', async ({ user }) => {
+    await guard(user);
+    const rows = await dbx().$queryRawUnsafe(`SELECT id, company_name FROM "Supplier" WHERE company_name IS NOT NULL ORDER BY company_name`)
+        .catch(() => []);
+    return { suppliers: rows.map((r) => ({ id: String(r.id), name: r.company_name })) };
+});
+/**
+ * How much of the money coming in should be held back for VAT.
+ *
+ * The owner asked for 18% of every shekel of income. That is the headline VAT
+ * rate, but it is not what a business owes: output VAT is reduced by the input
+ * VAT on everything purchased, so reserving the full rate on gross income puts
+ * aside far more than will ever be paid. Both figures are returned — the rate
+ * they asked for, and what their own payment history says — so the choice is
+ * made with the gap visible rather than discovered at the end of a quarter.
+ */
+registerFn('getVatReserve', async ({ user, body }) => {
+    await guard(user);
+    const months = Math.min(12, Math.max(1, Number((body || {}).months) || 3));
+    const since = new Date(Date.now() - months * 31 * 86400_000).toISOString().slice(0, 10);
+    const inc = await dbx().$queryRawUnsafe(`SELECT COALESCE(SUM(amount),0)::float AS total
+     FROM "BankTransaction"
+     WHERE amount > 0 AND tx_date >= $1::date
+       AND category IN ('income_card','income_cash','income_delivery','income_transfer','income_check')`, since).catch(() => []);
+    const income = Number(inc[0]?.total) || 0;
+    const paid = await dbx().$queryRawUnsafe(`SELECT COALESCE(SUM(ABS(amount)),0)::float AS total, COUNT(*)::int AS c
+     FROM "BankTransaction" WHERE category = 'expense_vat' AND tx_date >= $1::date`, since).catch(() => []);
+    const vatPaid = Number(paid[0]?.total) || 0;
+    const RATE = 0.18;
+    const effective = income > 0 ? vatPaid / income : 0;
+    return {
+        months,
+        income: Math.round(income),
+        vat_paid: Math.round(vatPaid),
+        // What they asked for.
+        at_headline_rate: Math.round(income * RATE),
+        headline_rate: RATE,
+        // What their own history implies, which is the number that will actually be
+        // needed unless the business changes shape.
+        effective_rate: Math.round(effective * 1000) / 10,
+        at_effective_rate: Math.round(income * effective),
+        // Per shekel of income, from here on.
+        reserve_per_1000_headline: Math.round(1000 * RATE),
+        reserve_per_1000_effective: Math.round(1000 * effective),
+    };
+});
+/** Run the overdue-payment alert now. dry_run returns the message unsent. */
+registerFn('testOverduePaymentAlert', async ({ user, body }) => {
+    await guard(user);
+    const { runOverduePaymentAlerts } = await import('../lib/overdueAlerts.js');
+    return runOverduePaymentAlerts({ dryRun: (body || {}).dry_run !== false });
 });
 //# sourceMappingURL=cashRegister.js.map

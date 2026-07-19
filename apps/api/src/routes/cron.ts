@@ -38,6 +38,12 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
 
   // Hourly — supplier order reminders (WhatsApp + push) on each supplier's
   // configured alert days/time so orders are never missed.
+  // Daily — WhatsApp + Pushover: what is late, and what falls due within days.
+  app.post('/overdue-payment-alerts', async () => {
+    const { runOverduePaymentAlerts } = await import('../lib/overdueAlerts.js');
+    return runOverduePaymentAlerts();
+  });
+
   app.post('/supplier-order-alerts', async () => {
     return runSupplierOrderAlerts();
   });
