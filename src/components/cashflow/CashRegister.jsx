@@ -243,7 +243,7 @@ export default function CashRegister() {
                     </span>
                     <span className={`text-sm font-bold tabular-nums ${
                       g.endBalance < -line ? 'text-red-700' : g.endBalance < 0 ? 'text-amber-700' : 'text-slate-700'}`}>
-                      {signed(g.endBalance)}
+                      בסוף היום {signed(g.endBalance)}
                     </span>
                   </span>
                 </div>
@@ -251,12 +251,12 @@ export default function CashRegister() {
                 <div className="divide-y border border-t-0 rounded-b-lg overflow-hidden">
                   {g.rows.map((r) => (
                     <div key={r.id}>
-                      <div className={`group flex items-center gap-2 px-3 py-2.5 ${
+                      <div className={`group flex items-center gap-2 flex-wrap sm:flex-nowrap px-3 py-2.5 ${
                         r.settled ? 'bg-white' : 'bg-amber-50/40'}`}>
                         <span className={`w-1.5 h-8 rounded-full shrink-0 ${
                           r.settled ? 'bg-emerald-400' : 'bg-amber-400'}`} />
 
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 flex-1 basis-[45%] sm:basis-auto">
                           <p className="text-sm font-medium text-slate-800 truncate" title={r.note || r.name}>
                             {r.name}{r.edited ? <span className="text-blue-500 mr-1">✎</span> : null}
                           </p>
@@ -270,7 +270,29 @@ export default function CashRegister() {
                             r.out ? 'text-red-600' : 'text-emerald-700'}`}>
                             {r.out ? `−₪${ils(r.out)}` : `+₪${ils(r.in)}`}
                           </p>
-                          <p className="text-[11px] text-slate-400 tabular-nums">{signed(r.balance)}</p>
+                        </div>
+
+                        <div className={`text-left shrink-0 rounded-md px-2 py-1 border ${
+                          r.balance < -line ? 'bg-red-50 border-red-200'
+                            : r.balance < 0 ? 'bg-amber-50 border-amber-200'
+                            : 'bg-emerald-50 border-emerald-200'}`}>
+                          <p className="text-[9px] text-slate-500 leading-none">בחשבון</p>
+                          <p className={`text-sm font-bold tabular-nums leading-tight ${
+                            r.balance < -line ? 'text-red-700'
+                              : r.balance < 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
+                            {signed(r.balance)}
+                          </p>
+                          {/* Only once the account is actually into the frame.
+                              On a positive balance "נשאר" would add the credit
+                              line to money already there and read as more cash
+                              than exists. */}
+                          {line > 0 && r.balance < 0 && (
+                            <p className="text-[9px] text-slate-400 leading-none whitespace-nowrap">
+                              {r.balance < -line
+                                ? `חריגה ${ils(r.balance + line)}`
+                                : `נשאר ${ils(line + r.balance)}`}
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0">
