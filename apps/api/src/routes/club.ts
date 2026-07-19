@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../db.js';
 import { requireClubKey } from '../middleware/clubAuth.js';
 import { computeTier, coinsForOrder, ILS_PER_COIN_REDEEM } from '../lib/clubTier.js';
-import { getClubConfig, grantBenefit } from '../lib/clubCore.js';
+import { getClubConfig, grantBenefit, sendJoinMessage } from '../lib/clubCore.js';
 
 // Israeli phone normalization — keeps only digits, strips leading 972
 function normalizePhone(raw: string): string {
@@ -143,6 +143,19 @@ export async function clubRoutes(app: FastifyInstance) {
       }
     } catch (e) {
       req.log?.warn({ err: e }, 'club welcome benefit failed');
+    }
+
+    // Same invitation as the in-app door.
+    try {
+      await sendJoinMessage({
+        customerId: created.id,
+        name: created.name,
+        phone: created.phone,
+        consented: !!created.marketing_consent,
+        benefit: welcome,
+      });
+    } catch (e) {
+      req.log?.warn({ err: e }, 'club join message failed');
     }
 
     return reply.code(201).send({

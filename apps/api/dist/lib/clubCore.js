@@ -28,6 +28,11 @@ export const CLUB_DEFAULTS = {
     tournament_prize: 'קינוח על חשבון הבית 🏆',
     tournament_started_at: null,
     queue_multiplier: 2,
+    join_message_enabled: true,
+    join_message_text: 'היי {name}, אתם רשומים למועדון של {brand} 🎉\n\n' +
+        'מחכה לכם: {benefit}\n' +
+        'הקוד להצגה למלצר: {code}\n\n' +
+        'הכרטיס שלכם, עם ההטבות והנקודות: {card}',
 };
 export async function ensureClubTables() {
     await dbx().$executeRawUnsafe(`
@@ -47,6 +52,8 @@ export async function ensureClubTables() {
         `ADD COLUMN IF NOT EXISTS tournament_prize TEXT`,
         `ADD COLUMN IF NOT EXISTS tournament_started_at TIMESTAMPTZ`,
         `ADD COLUMN IF NOT EXISTS queue_multiplier INT DEFAULT 2`,
+        `ADD COLUMN IF NOT EXISTS join_message_enabled BOOLEAN DEFAULT true`,
+        `ADD COLUMN IF NOT EXISTS join_message_text TEXT`,
     ]) {
         await dbx().$executeRawUnsafe(`ALTER TABLE "ClubConfig" ${col}`).catch(() => { });
     }
@@ -91,6 +98,8 @@ export async function getClubConfig() {
         tournament_prize: r.tournament_prize || CLUB_DEFAULTS.tournament_prize,
         tournament_started_at: r.tournament_started_at ? new Date(r.tournament_started_at).toISOString() : null,
         queue_multiplier: Number(r.queue_multiplier) || CLUB_DEFAULTS.queue_multiplier,
+        join_message_enabled: r.join_message_enabled !== false,
+        join_message_text: r.join_message_text || CLUB_DEFAULTS.join_message_text,
     };
 }
 export async function saveClubConfig(patch) {
@@ -112,8 +121,8 @@ export async function saveClubConfig(patch) {
     await dbx().$executeRawUnsafe(`INSERT INTO "ClubConfig"
        (id, welcome_enabled, welcome_text, welcome_valid_days, game_coins, birthday_enabled, birthday_text,
         tournament_enabled, tournament_winners, tournament_prize, tournament_started_at,
-        queue_multiplier, updated_date)
-     VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW()), $11, NOW())
+        queue_multiplier, join_message_enabled, join_message_text, updated_date)
+     VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW()), $11, $12, $13, NOW())
      ON CONFLICT (id) DO UPDATE SET
        welcome_enabled = EXCLUDED.welcome_enabled,
        welcome_text = EXCLUDED.welcome_text,
@@ -126,7 +135,9 @@ export async function saveClubConfig(patch) {
        tournament_prize = EXCLUDED.tournament_prize,
        tournament_started_at = EXCLUDED.tournament_started_at,
        queue_multiplier = EXCLUDED.queue_multiplier,
-       updated_date = NOW()`, next.welcome_enabled, next.welcome_text, next.welcome_valid_days, next.game_coins, next.birthday_enabled, next.birthday_text, next.tournament_enabled, next.tournament_winners, next.tournament_prize, next.tournament_started_at, next.queue_multiplier);
+       join_message_enabled = EXCLUDED.join_message_enabled,
+       join_message_text = EXCLUDED.join_message_text,
+       updated_date = NOW()`, next.welcome_enabled, next.welcome_text, next.welcome_valid_days, next.game_coins, next.birthday_enabled, next.birthday_text, next.tournament_enabled, next.tournament_winners, next.tournament_prize, next.tournament_started_at, next.queue_multiplier, next.join_message_enabled, next.join_message_text);
     return await getClubConfig();
 }
 // ── redeem codes ───────────────────────────────────────────────────────────
@@ -243,6 +254,55 @@ export async function redeemBenefit(code, by) {
         return { ok: false, reason: 'already_used', benefit: b };
     const fresh = await findBenefitByCode(code);
     return { ok: true, benefit: fresh || b };
+}
+// ── the invitation ─────────────────────────────────────────────────────────
+/**
+ * Tell a new member what they just got, and where to find it.
+ *
+ * The club could issue a benefit and show a card long before anyone was told
+ * either existed: the code appeared once, on a success screen, and then never
+ * again. This closes that gap from both doors — the in-app form and the delivery
+ * site — so a member's first message is the one that makes the club real.
+ *
+ * Sent only to someone who has just consented, and it is not marketing: it
+ * confirms a thing they signed up for seconds ago and hands them their own
+ * property. It still carries the opt-out line, because the cheapest moment to
+ * offer someone the exit is the moment they walked in.
+ *
+ * Never allowed to fail a signup. A member is worth more than a message.
+ */
+export async function sendJoinMessage(opts) {
+    if (!opts.phone)
+        return { sent: false, reason: 'no_phone' };
+    if (!opts.consented)
+        return { sent: false, reason: 'no_consent' };
+    const cfg = await getClubConfig();
+    if (!cfg.join_message_enabled)
+        return { sent: false, reason: 'disabled' };
+    const { memberCardUrl, withOptOut } = await import('./marketingBlast.js');
+    const first = (opts.name || '').trim().split(' ')[0] || 'אורח/ת';
+    let text = cfg.join_message_text
+        .replace(/\{name\}/g, first)
+        .replace(/\{brand\}/g, opts.brand || 'המסעדה')
+        .replace(/\{card\}/g, memberCardUrl(opts.customerId))
+        .replace(/\{benefit\}/g, opts.benefit?.description || '')
+        .replace(/\{code\}/g, opts.benefit?.code || '');
+    // With benefits switched off the template's benefit lines collapse to
+    // "מחכה לכם:" followed by nothing, which reads like a bug. Drop any line left
+    // holding only its label.
+    if (!opts.benefit?.code) {
+        text = text.split('\n').filter((l) => !/^(מחכה לכם|הקוד להצגה למלצר):\s*$/.test(l.trim())).join('\n');
+    }
+    text = text.replace(/\n{3,}/g, '\n\n').trim();
+    try {
+        const { sendWhatsApp } = await import('./twilio.js');
+        const out = await sendWhatsApp(opts.phone, withOptOut(text, opts.customerId));
+        return out?.skipped ? { sent: false, reason: 'provider_skipped' } : { sent: true };
+    }
+    catch (e) {
+        console.warn('club join message failed:', e);
+        return { sent: false, reason: 'error' };
+    }
 }
 /**
  * Standings for the round in progress, best first.

@@ -4,12 +4,45 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Gift, Gamepad2, Save, Trophy } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Loader2, Gift, Gamepad2, Save, Trophy, MessageSquare } from 'lucide-react';
 
 // The two numbers that decide what club membership is worth, in one place the
 // owner can reach. They are defaults, not decisions baked into the code — the
 // welcome benefit and the game payout both cost real money, and that is the
 // owner's call to make and to change once he sees what it does to footfall.
+// Read the real message on a real phone before nineteen thousand people can.
+// Sends with a live signed card link rather than a mock — a preview that fakes
+// the link is exactly where a broken link would hide.
+function JoinMessageTester() {
+  const [phone, setPhone] = useState('');
+  const [state, setState] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const send = async () => {
+    setBusy(true); setState(null);
+    try {
+      const r = await base44.functions.clubTestJoinMessage({ phone: phone.trim() });
+      const d = (r?.data ?? r) || {};
+      setState(d.sent ? 'נשלח — תבדוק בוואטסאפ' : `לא נשלח (${d.reason || 'שגיאה'})`);
+    } catch (e) {
+      setState(e?.message || 'שגיאה בשליחה');
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="mt-3 flex items-center gap-2">
+      <Input value={phone} onChange={(e) => setPhone(e.target.value)}
+        placeholder="מספר לבדיקה" className="text-sm" />
+      <Button variant="outline" onClick={send} disabled={busy || phone.trim().length < 9} className="shrink-0">
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שלח לי לבדיקה'}
+      </Button>
+      {state && <span className="text-xs text-slate-500 shrink-0">{state}</span>}
+    </div>
+  );
+}
+
 // Ending a round gives away food, so it is two steps and never a timer: see who
 // won, then decide. The owner asked that the app stop acting on its own
 // schedule, and this is exactly the kind of thing he meant.
@@ -159,6 +192,30 @@ export default function ClubSettingsCard() {
               מטבעות = ₪{(Number(s.game_coins) || 0) * 4} ללקוח
             </span>
           </div>
+        </div>
+
+        <div className="pt-4 border-t">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-emerald-600" /> ההודעה שנשלחת בהצטרפות
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5 mb-3">
+            נשלחת בוואטסאפ למי שנרשם ואישר דיוור, עם ההטבה, הקוד והקישור לכרטיס.
+            בלי זה אף אחד לא יודע שיש לו כרטיס.
+          </p>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-slate-700">שליחה בהצטרפות</span>
+            <Switch checked={s.join_message_enabled} onCheckedChange={(v) => set('join_message_enabled', v)} />
+          </div>
+          {s.join_message_enabled && (
+            <>
+              <Textarea rows={6} value={s.join_message_text}
+                onChange={(e) => set('join_message_text', e.target.value)} className="text-sm" />
+              <p className="text-[11px] text-slate-400 mt-1">
+                {'{name} · {brand} · {benefit} · {code} · {card}'}
+              </p>
+              <JoinMessageTester />
+            </>
+          )}
         </div>
 
         <div className="pt-4 border-t">

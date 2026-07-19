@@ -120,6 +120,16 @@ export function optOutUrl(cid) {
     return `${base}/Unsubscribe?c=${encodeURIComponent(cid)}&s=${signCustomer(cid)}`;
 }
 /**
+ * The member's own card — benefits, codes, coins, tournament place.
+ *
+ * Lives beside the opt-out URL because they are the same kind of thing: a link
+ * that proves who the holder is without a login. Both doors, one signature.
+ */
+export function memberCardUrl(cid) {
+    const base = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
+    return `${base}/MemberCard?c=${encodeURIComponent(cid)}&s=${signCustomer(cid)}`;
+}
+/**
  * Append the opt-out line to a marketing message.
  *
  * Applied here rather than written into each template, because a template is

@@ -26,18 +26,13 @@ import { registerEmailTenant } from '../lib/emailTenantMap.js';
 import { fireTriggers } from '../lib/triggers.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
-import { withOptOut, verifyCustomerSignature, signCustomer } from '../lib/marketingBlast.js';
+import { withOptOut, verifyCustomerSignature, memberCardUrl } from '../lib/marketingBlast.js';
 import {
   getClubConfig, saveClubConfig, grantBenefit, listBenefits,
   findBenefitByCode, redeemBenefit, tierLabel, ensureClubTables,
-  tournamentStandings, myStanding, closeTournamentRound,
+  tournamentStandings, myStanding, closeTournamentRound, sendJoinMessage,
 } from '../lib/clubCore.js';
 
-/** The member card is reached by the same signed link as the opt-out page. */
-function memberCardUrl(cid: string): string {
-  const base = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
-  return `${base}/MemberCard?c=${encodeURIComponent(cid)}&s=${signCustomer(cid)}`;
-}
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
@@ -2112,7 +2107,14 @@ async function runDripCampaigns(force = false) {
       let ok = 0, fail = 0;
       for (const c of candidates) {
         try {
-          const msg = withOptOut(DRIP_TEMPLATES.welcome.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה').replace(/\{brand\}/g, await getBrandName()), c.id);
+          // These drips go over WhatsApp, where a second link costs nothing —
+          // unlike SMS, where it can push the message into another billable
+          // segment. So the card is appended here rather than left as a token.
+          const msg = withOptOut(
+            `${DRIP_TEMPLATES.welcome
+              .replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה')
+              .replace(/\{brand\}/g, await getBrandName())}\n\nהכרטיס שלך: ${memberCardUrl(c.id)}`,
+            c.id);
           const out = await sendWhatsApp(c.phone, msg);
           if (!(out as any)?.skipped) {
             ok++;
@@ -3191,6 +3193,11 @@ function renderTemplate(template: string, c: CustomerLike, brand?: string): stri
     brand: brand || 'המסעדה',
     // Personal profile-completion link — cid doubles as an unguessable token.
     update_link: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/ClubUpdate?cid=${c.id}`,
+    // Their card: open benefits and codes, coin balance, tournament place. A
+    // token rather than an automatic footer, because on SMS a second long URL
+    // can push the message into another billable segment — the owner decides
+    // which campaigns are worth that.
+    card: memberCardUrl(c.id),
   };
   const rendered = template.replace(/\{(\w+)\}/g, (m, k) => replacements[k] ?? m);
   // Belt-and-suspenders: strip any lingering hardcoded עלינא from stored templates
@@ -3892,10 +3899,26 @@ registerFn('clubJoin', async ({ body }) => {
     console.warn('club welcome benefit failed:', e);
   }
 
+  // And tell them. Until this the club was invisible from the inside: a real
+  // benefit was issued and the code appeared once, on a screen they closed.
+  let notified = false;
+  try {
+    const r = await sendJoinMessage({
+      customerId: customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      consented: !!marketing_consent,
+      benefit: welcome ? { description: welcome.description, code: welcome.code } : null,
+      brand: await getBrandName(),
+    });
+    notified = r.sent;
+  } catch { /* never fails the signup */ }
+
   return {
     ok: true,
     cid: customer.id,
     existing: !!existing,
+    notified,
     card_url: memberCardUrl(customer.id),
     welcome: welcome ? { description: welcome.description, code: welcome.code } : null,
   };
@@ -4018,6 +4041,31 @@ registerFn('clubTournamentPreview', async () => await closeTournamentRound({ dry
 
 /** Owner-side: award the prizes and start the next round. */
 registerFn('clubTournamentClose', async () => await closeTournamentRound());
+
+/**
+ * Send the join message to one number, so the owner can read the real thing
+ * before nineteen thousand people can. Uses a live signed card link, because a
+ * preview that fakes the link is exactly where a broken link hides.
+ */
+registerFn('clubTestJoinMessage', async ({ body, user }) => {
+  const phone = String((body as any)?.phone || '').trim();
+  if (!phone) throw new Error('phone required');
+  const cfg = await getClubConfig();
+  // Addressed to whoever is testing, against their own customer record if they
+  // have one — otherwise the owner's id, which at least yields a working link.
+  const me = await db.customer.findFirst({ where: { phone } });
+  const cid = me?.id || String((user as any)?.id || '');
+  if (!cid) throw new Error('no_customer_for_preview');
+  const r = await sendJoinMessage({
+    customerId: cid,
+    name: me?.name || (user as any)?.full_name || 'בדיקה',
+    phone,
+    consented: true,          // an explicit test is its own consent
+    benefit: cfg.welcome_enabled ? { description: cfg.welcome_text, code: 'ABC123' } : null,
+    brand: await getBrandName(),
+  });
+  return r;
+});
 
 registerFn('getClubSettings', async () => ({ settings: await getClubConfig() }));
 
