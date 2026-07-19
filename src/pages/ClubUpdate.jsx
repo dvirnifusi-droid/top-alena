@@ -16,6 +16,9 @@ const CITIES = [
 export default function ClubUpdate() {
     const [params] = useSearchParams();
     const cid = params.get('cid');
+    // Newer links are signed. Absent on links already sitting in people's
+    // message history, which the server still accepts — so both keep working.
+    const s = params.get('s') || undefined;
     const branding = useTenantBranding();
     const brandName = branding?.name || 'המסעדה';
     const isAlena = isMainAlena();
@@ -32,11 +35,11 @@ export default function ClubUpdate() {
 
     useEffect(() => {
         if (!cid) { setLoading(false); return; }
-        invokePublic('clubGetProfile', { cid })
+        invokePublic('clubGetProfile', { cid, s })
             .then(p => { setProfile(p); setUnsubscribed(!!p?.unsubscribed); })
             .catch(() => setProfile(null))
             .finally(() => setLoading(false));
-    }, [cid]);
+    }, [cid, s]);
 
     const submit = async (e) => {
         e?.preventDefault?.();
@@ -45,7 +48,7 @@ export default function ClubUpdate() {
         setSubmitting(true);
         try {
             const res = await invokePublic('clubUpdateProfile', {
-                cid,
+                cid, s,
                 birthday: form.birthday || null,
                 anniversary: form.anniversary || null,
                 city: city || null,
@@ -63,7 +66,7 @@ export default function ClubUpdate() {
     const handleUnsubscribe = async () => {
         if (!confirm(`להסיר אותך מרשימת הדיוור של ${brandName}?\nלא תקבל/י עוד הודעות שיווק.`)) return;
         try {
-            await invokePublic('clubUnsubscribe', { cid });
+            await invokePublic('clubUnsubscribe', { cid, s });
             setUnsubscribed(true);
         } catch { /* ignore */ }
     };

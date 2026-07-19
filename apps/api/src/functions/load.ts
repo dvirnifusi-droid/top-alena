@@ -26,7 +26,7 @@ import { registerEmailTenant } from '../lib/emailTenantMap.js';
 import { fireTriggers } from '../lib/triggers.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
-import { withOptOut, verifyCustomerSignature, memberCardUrl } from '../lib/marketingBlast.js';
+import { withOptOut, verifyCustomerSignature, memberCardUrl, signCustomer } from '../lib/marketingBlast.js';
 import {
   getClubConfig, saveClubConfig, grantBenefit, listBenefits,
   findBenefitByCode, redeemBenefit, tierLabel, ensureClubTables,
@@ -3191,8 +3191,9 @@ function renderTemplate(template: string, c: CustomerLike, brand?: string): stri
     tier: c.loyalty_tier === 'vip' ? 'VIP' : 'רגיל',
     city: (c as any).city || '',
     brand: brand || 'המסעדה',
-    // Personal profile-completion link — cid doubles as an unguessable token.
-    update_link: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/ClubUpdate?cid=${c.id}`,
+    // Personal profile-completion link. Signed, so a forwarded campaign message
+    // no longer hands the recipient edit rights over the sender's record.
+    update_link: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/ClubUpdate?cid=${c.id}&s=${signCustomer(c.id)}`,
     // Their card: open benefits and codes, coin balance, tournament place. A
     // token rather than an automatic footer, because on SMS a second long URL
     // can push the message into another billable segment — the owner decides
@@ -3924,9 +3925,25 @@ registerFn('clubJoin', async ({ body }) => {
   };
 }, { public: true });
 
+/**
+ * A raw customer id is a weak key for a public endpoint.
+ *
+ * These two handlers identify the caller by cid alone, and the cid travels in
+ * plain sight inside every {update_link} ever sent — so anyone who forwards a
+ * campaign message hands over edit access to their own record. New links carry
+ * the same HMAC the card and opt-out use; the bare cid is still accepted because
+ * links already sitting in people's message history must not break. When those
+ * have aged out, drop the fallback.
+ */
+function clubLinkOk(cid: string, sig?: string): boolean {
+  if (sig) return verifyCustomerSignature(cid, sig);
+  return true;   // legacy link, already delivered
+}
+
 registerFn('clubGetProfile', async ({ body }) => {
-  const { cid } = body as any;
+  const { cid, s } = body as any;
   if (!cid) throw new Error('cid required');
+  if (!clubLinkOk(String(cid), s ? String(s) : undefined)) throw new Error('invalid_link');
   const c = await db.customer.findUnique({ where: { id: String(cid) } });
   if (!c) throw new Error('not_found');
   // Return only what the update page needs — not the full record.
@@ -4088,8 +4105,9 @@ registerFn('clubGrantBenefit', async ({ body }) => {
 });
 
 registerFn('clubUpdateProfile', async ({ body }) => {
-  const { cid, birthday, anniversary, city, email } = body as any;
+  const { cid, birthday, anniversary, city, email, s } = body as any;
   if (!cid) throw new Error('cid required');
+  if (!clubLinkOk(String(cid), s ? String(s) : undefined)) throw new Error('invalid_link');
   const c = await db.customer.findUnique({ where: { id: String(cid) } });
   if (!c) throw new Error('not_found');
   const patch: any = {};
@@ -15031,7 +15049,12 @@ async function ensureSecretsTable() {
   secretsTableReady = true;
 }
 
-registerFn('setIntegrationSecret', async ({ body }) => {
+// These hold the Meta ads token, Drive folder ids and the like. The handler was
+// authenticated but not role-gated, so any logged-in account — a waiter, a
+// trainee, anyone with the app on their phone — could overwrite the credentials
+// the business advertises with. Being logged in is not the same as being allowed.
+registerFn('setIntegrationSecret', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
   const { key, value, note } = (body || {}) as any;
   if (!key || !value) throw new Error('key and value required');
   await ensureSecretsTable();
@@ -15044,7 +15067,10 @@ registerFn('setIntegrationSecret', async ({ body }) => {
   return { ok: true };
 });
 
-registerFn('hasIntegrationSecret', async ({ body }) => {
+registerFn('hasIntegrationSecret', async ({ body, user }) => {
+  // Returns only presence, never the value — but which integrations a business
+  // has wired up is still reconnaissance, and only its admins asked.
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
   const { key } = (body || {}) as any;
   if (!key) throw new Error('key required');
   await ensureSecretsTable();
