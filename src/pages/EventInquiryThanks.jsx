@@ -4,6 +4,14 @@ import { base44 } from '@/api/base44Client';
 import { Calendar, Clock, Users, Wallet, PartyPopper, Phone, MessageCircle, CheckCircle, MapPin } from 'lucide-react';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 import { setPixelId, initMetaPixel, trackLead } from '@/lib/metaPixel';
+import { format, parseISO } from 'date-fns';
+import { he } from 'date-fns/locale';
+
+const heDate = (v) => {
+  if (!v) return null;
+  try { return format(parseISO(String(v)), 'd בMMMM yyyy', { locale: he }); }
+  catch { return String(v); }   // free-text answers like "סוף אוגוסט" pass through
+};
 
 // Where the events bot sends the customer once it has their details.
 // Reached as /EventInquiryThanks?token=<unguessable>. Public — the visitor is a
@@ -86,7 +94,7 @@ export default function EventInquiryThanks() {
 
   const rows = [
     ['סוג האירוע', lead.event_type, PartyPopper],
-    ['תאריך', lead.event_date, Calendar],
+    ['תאריך', heDate(lead.event_date), Calendar],
     ['שעה', lead.event_time, Clock],
     ['מספר אורחים', lead.guest_count ? `${lead.guest_count} אורחים` : null, Users],
     ['תקציב לאדם', lead.budget_per_person ? `₪${lead.budget_per_person}` : null, Wallet],
@@ -135,6 +143,7 @@ export default function EventInquiryThanks() {
         </div>
       )}
 
+      {(branding?.phone || branding?.whatsapp) && (
       <div className="mt-6 rounded-xl bg-slate-800 text-white p-4 text-center">
         <p className="text-sm">רוצה להוסיף משהו או לזרז?</p>
         <div className="flex gap-2 justify-center mt-3">
@@ -153,6 +162,7 @@ export default function EventInquiryThanks() {
           )}
         </div>
       </div>
+      )}
 
       <p className="text-center text-[11px] text-slate-400 mt-5">
         שמרו את הקישור הזה — הוא מרכז את פרטי הפנייה שלכם.

@@ -20,6 +20,7 @@ const DEFAULT_BRANDING = {
   address: null,
   cuisine: null,
   opening_hours: null,
+  phone: null,
   is_default: true,
 };
 
@@ -52,6 +53,9 @@ async function fetchBranding() {
         address: profile?.address || null,
         cuisine: profile?.cuisine_style || profile?.cuisine || null,
         opening_hours: profile?.opening_hours || null,
+        // Public contact number. Deliberately NOT manager_whatsapp_phone —
+        // that is a staff member's personal line, not a customer-facing one.
+        phone: profile?.phone || null,
         is_default: !profile,
       };
       return _cache;
