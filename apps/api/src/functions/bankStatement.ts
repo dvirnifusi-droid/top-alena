@@ -384,6 +384,10 @@ registerFn('reconcileBankTransactions', async ({ user, body }: any) => {
       low: accepted.filter((m) => m.confidence === 'low').length,
     },
     matches: accepted.slice(0, 60),
+    // Payments that are CLOSE to an invoice but not equal — planned 3,000, paid
+    // 3,500. Never auto-applied; the difference is the point.
+    variances: (res.variances || []).slice(0, 40),
+    variance_count: (res.variances || []).length,
     // The biggest unexplained payments — where the owner's attention is worth most.
     top_unmatched: [...res.unmatched_tx]
       .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).slice(0, 15)

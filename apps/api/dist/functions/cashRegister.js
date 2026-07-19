@@ -390,4 +390,46 @@ registerFn('testOverduePaymentAlert', async ({ user, body }) => {
     const { runOverduePaymentAlerts } = await import('../lib/overdueAlerts.js');
     return runOverduePaymentAlerts({ dryRun: (body || {}).dry_run !== false });
 });
+/**
+ * What we owe suppliers right now — "כמה אנחנו פתוחים בחוץ".
+ *
+ * Split by how real each bucket is: money genuinely coming due, money already
+ * late, and invoices so old they are almost certainly a bookkeeping gap. Lumping
+ * them into one number would overstate the debt by the size of the gap.
+ */
+registerFn('getAccountsPayable', async ({ user }) => {
+    await guard(user);
+    const { loadOpenInvoices } = await import('./bankStatement.js');
+    const matched = await dbx().$queryRawUnsafe(`SELECT DISTINCT invoice_id FROM "BankTxMatch"`).catch(() => []);
+    const paid = new Set(matched.map((r) => String(r.invoice_id)));
+    const open = (await loadOpenInvoices()).filter((i) => !paid.has(i.id));
+    const today = ymd(new Date());
+    const staleKey = ymd(new Date(Date.now() - 45 * 86400_000));
+    const sum = (xs) => Math.round(xs.reduce((t, i) => t + i.amount, 0));
+    const upcoming = open.filter((i) => i.due_date >= today);
+    const late = open.filter((i) => i.due_date >= staleKey && i.due_date < today);
+    const stale = open.filter((i) => i.due_date < staleKey);
+    const bySupplier = new Map();
+    for (const i of open) {
+        const e = bySupplier.get(i.supplier_id) || { name: i.supplier_name, total: 0, count: 0, late: 0 };
+        e.total += i.amount;
+        e.count++;
+        if (i.due_date < today && i.due_date >= staleKey)
+            e.late += i.amount;
+        bySupplier.set(i.supplier_id, e);
+    }
+    return {
+        total: sum(open),
+        count: open.length,
+        suppliers: bySupplier.size,
+        buckets: {
+            upcoming: { count: upcoming.length, total: sum(upcoming) },
+            late: { count: late.length, total: sum(late) },
+            stale: { count: stale.length, total: sum(stale) },
+        },
+        top: [...bySupplier.values()]
+            .sort((a, b) => b.total - a.total).slice(0, 12)
+            .map((s) => ({ ...s, total: Math.round(s.total), late: Math.round(s.late) })),
+    };
+});
 //# sourceMappingURL=cashRegister.js.map

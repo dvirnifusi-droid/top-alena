@@ -32,6 +32,18 @@ export type MatchTx = {
   description: string;
 };
 
+export type Variance = {
+  bank_tx_id: string;
+  bank_date: string;
+  bank_amount: number;
+  invoice_id: string;
+  supplier_name: string;
+  invoice_amount: number;
+  diff: number;          // paid minus invoiced; positive = overpaid
+  pct: number;
+  reason: string;
+};
+
 export type Match = {
   bank_tx_id: string;
   bank_date: string;
@@ -87,6 +99,7 @@ function findSubset(pool: MatchInvoice[], target: number, maxSize: number): Matc
 
 export function reconcile(txs: MatchTx[], invoices: MatchInvoice[]): {
   matches: Match[];
+  variances: Variance[];
   unmatched_tx: MatchTx[];
   unmatched_invoices: MatchInvoice[];
 } {
@@ -192,8 +205,46 @@ export function reconcile(txs: MatchTx[], invoices: MatchInvoice[]): {
     if (matches.length === before) break;
   }
 
+  // Pass 3 — near misses. Not matches: a payment that does not equal its
+  // invoice is the thing the owner most wants flagged, and quietly pairing them
+  // would hide it. Reported with the difference so it can be checked.
+  const variances: Variance[] = [];
+  const NEAR_PCT = 0.25;          // within a quarter either way
+  const NEAR_MIN = 100;           // ignore rounding-scale differences
+  // One invoice can only have been paid once. Without this, a supplier with one
+  // scanned invoice and six unscanned weekly deliveries produces six "you paid
+  // the wrong amount" alerts against the same invoice — all false, and enough
+  // noise to make the real ones worthless.
+  const claimed = new Set<string>();
+  for (const tx of txs) {
+    if (matched.has(tx.id)) continue;
+    const target = Math.abs(tx.amount);
+    let best: { inv: MatchInvoice; diff: number } | null = null;
+    for (const inv of open()) {
+      if (claimed.has(inv.id)) continue;
+      const g = days(tx.date, inv.due_date);
+      if (g < -EARLY || g > LATE) continue;
+      const diff = target - inv.amount;
+      if (Math.abs(diff) < NEAR_MIN) continue;
+      if (Math.abs(diff) > inv.amount * NEAR_PCT) continue;
+      if (!best || Math.abs(diff) < Math.abs(best.diff)) best = { inv, diff };
+    }
+    if (!best) continue;
+    claimed.add(best.inv.id);
+    variances.push({
+      bank_tx_id: tx.id, bank_date: tx.date, bank_amount: tx.amount,
+      invoice_id: best.inv.id, supplier_name: best.inv.supplier_name,
+      invoice_amount: best.inv.amount, diff: Math.round(best.diff),
+      pct: Math.round((best.diff / best.inv.amount) * 100),
+      reason: best.diff > 0
+        ? `שולם ${target.toLocaleString()} ₪ מול חשבונית של ${best.inv.amount.toLocaleString()} ₪ — עודף ${Math.round(best.diff).toLocaleString()} ₪`
+        : `שולם ${target.toLocaleString()} ₪ מול חשבונית של ${best.inv.amount.toLocaleString()} ₪ — חסר ${Math.round(-best.diff).toLocaleString()} ₪`,
+    });
+  }
+
   return {
     matches,
+    variances,
     unmatched_tx: txs.filter((t) => !matched.has(t.id)),
     unmatched_invoices: invoices.filter((i) => !used.has(i.id)),
   };
