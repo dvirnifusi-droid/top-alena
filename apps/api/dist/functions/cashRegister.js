@@ -40,7 +40,24 @@ async function ensureManualTable() {
       created_date TIMESTAMPTZ DEFAULT NOW()
     )`).catch(() => { });
     await dbx().$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CashFlowManualRow_date_idx" ON "CashFlowManualRow"(row_date)`).catch(() => { });
+    // Forecast rows are derived — recomputed from patterns and invoices on every
+    // load, so they exist nowhere to be edited. Edits are stored separately,
+    // keyed by the row's ORIGINAL date and label, and reapplied on each build.
+    await dbx().$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "CashFlowRowOverride" (
+      row_key TEXT PRIMARY KEY,
+      new_date DATE,
+      new_name TEXT,
+      new_out NUMERIC(14,2),
+      new_in NUMERIC(14,2),
+      settled BOOLEAN DEFAULT false,
+      hidden BOOLEAN DEFAULT false,
+      note TEXT,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )`).catch(() => { });
 }
+/** Stable identity for a derived row: what it was before any edit. */
+const rowKey = (date, label) => `${date}|${label}`;
 const TAX = 'מיסים';
 const SUPPLIERS = 'ספקים';
 const PAYROLL = 'שכר';
@@ -135,6 +152,42 @@ registerFn('getCashFlowRegister', async ({ user, body }) => {
             }
         }
     }
+    // ── apply the owner's edits to the derived rows ─────────────────────────
+    const ovRows = await dbx().$queryRawUnsafe(`SELECT row_key, new_date, new_name, new_out, new_in, settled, hidden, note
+     FROM "CashFlowRowOverride"`).catch(() => []);
+    const ov = new Map(ovRows.map((r) => [String(r.row_key), r]));
+    const futureEdited = [];
+    // Hidden rows are reported back, not silently dropped: a one-way delete on a
+    // row the owner might have hidden by mistake is a trap, and the forecast has
+    // no other way to tell them the row still exists underneath.
+    const hiddenRows = [];
+    for (const r of future) {
+        const key = rowKey(r.date, r.name);
+        const o = ov.get(key);
+        if (!o) {
+            futureEdited.push({ ...r, id: key, editable: true });
+            continue;
+        }
+        if (o.hidden === true) {
+            hiddenRows.push({ key, date: r.date, name: r.name, out: Math.round(r.out), in: Math.round(r.in) });
+            continue;
+        }
+        futureEdited.push({
+            ...r,
+            id: key,
+            date: o.new_date ? dbDate(o.new_date) : r.date,
+            name: o.new_name || r.name,
+            out: o.new_out == null ? r.out : n(o.new_out),
+            in: o.new_in == null ? r.in : n(o.new_in),
+            // Marking a projected row settled means it already happened. It must stop
+            // counting forward, or the real payment arriving in the next statement
+            // import would be charged a second time.
+            settled: o.settled === true,
+            note: o.note || r.note,
+            edited: true,
+            editable: true,
+        });
+    }
     // ── manual rows: the things only the owner knows ────────────────────────
     const manualRows = await dbx().$queryRawUnsafe(`SELECT id, row_date, category, name, amount_out, amount_in, note, settled
      FROM "CashFlowManualRow" WHERE row_date >= $1::date ORDER BY row_date`, fromKey)
@@ -153,7 +206,7 @@ registerFn('getCashFlowRegister', async ({ user, body }) => {
         editable: true,
     }));
     // ── one chronological series with a running balance ─────────────────────
-    const all = [...past, ...manual, ...future]
+    const all = [...past, ...manual, ...futureEdited]
         .filter((r) => r.date >= fromKey && r.date <= toKey)
         .sort((a, b) => a.date.localeCompare(b.date));
     // Anchor on the last balance the bank actually printed, then walk outwards.
@@ -176,7 +229,10 @@ registerFn('getCashFlowRegister', async ({ user, body }) => {
     for (const r of all) {
         if (r.date <= anchorDate)
             continue;
-        bal = bal + r.in - r.out;
+        // A future row the owner marked as already settled is history the bank will
+        // report on its own; counting it here as well would double it.
+        if (!(r.source !== 'bank' && r.settled))
+            bal = bal + r.in - r.out;
         r.balance = bal;
     }
     const unsettled = all.filter((r) => !r.settled);
@@ -191,6 +247,7 @@ registerFn('getCashFlowRegister', async ({ user, body }) => {
             in: Math.round(r.in),
             balance: Math.round(r.balance),
         })),
+        hidden: hiddenRows,
         totals: {
             settled: all.length - unsettled.length,
             unsettled: unsettled.length,
@@ -230,6 +287,34 @@ registerFn('updateCashFlowRow', async ({ user, body }) => {
     if (b.settled !== undefined) {
         await dbx().$executeRawUnsafe(`UPDATE "CashFlowManualRow" SET settled = $2 WHERE id = $1`, id, b.settled === true);
     }
+    return { ok: true };
+});
+/**
+ * Edit a derived (forecast) row. The row itself is recomputed on every load, so
+ * the edit is stored against its original date+label and reapplied each time.
+ * Clearing every field removes the override and the row returns to what the
+ * data says.
+ */
+registerFn('setCashFlowRowOverride', async ({ user, body }) => {
+    await guard(user);
+    await ensureManualTable();
+    const b = (body || {});
+    const key = String(b.key || '');
+    if (!key.includes('|'))
+        throw new Error('key_required');
+    if (b.reset === true) {
+        await dbx().$executeRawUnsafe(`DELETE FROM "CashFlowRowOverride" WHERE row_key = $1`, key);
+        return { ok: true, reset: true };
+    }
+    const newDate = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || '')) ? String(b.date) : null;
+    await dbx().$executeRawUnsafe(`INSERT INTO "CashFlowRowOverride"
+       (row_key, new_date, new_name, new_out, new_in, settled, hidden, note, updated_at)
+     VALUES ($1,$2::date,$3,$4,$5,$6,$7,$8,NOW())
+     ON CONFLICT (row_key) DO UPDATE SET
+       new_date = EXCLUDED.new_date, new_name = EXCLUDED.new_name,
+       new_out = EXCLUDED.new_out, new_in = EXCLUDED.new_in,
+       settled = EXCLUDED.settled, hidden = EXCLUDED.hidden,
+       note = EXCLUDED.note, updated_at = NOW()`, key, newDate, b.name ? String(b.name).slice(0, 120) : null, b.out === undefined || b.out === null || b.out === '' ? null : Math.abs(Number(b.out) || 0), b.in === undefined || b.in === null || b.in === '' ? null : Math.abs(Number(b.in) || 0), b.settled === true, b.hidden === true, b.note ? String(b.note).slice(0, 200) : null);
     return { ok: true };
 });
 //# sourceMappingURL=cashRegister.js.map

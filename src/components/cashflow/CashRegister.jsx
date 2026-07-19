@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash2, Table2 } from 'lucide-react';
+import { Loader2, Plus, Trash2, Table2, Pencil } from 'lucide-react';
 
 const ils = (n) => Math.round(Math.abs(Number(n || 0))).toLocaleString();
 const signed = (n) => `${n < 0 ? '−' : ''}₪${ils(n)}`;
@@ -25,6 +25,8 @@ export default function CashRegister() {
   const [denied, setDenied] = useState(false);
   const [filter, setFilter] = useState('all');   // all | unsettled | settled
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);   // row id being edited
+  const [edit, setEdit] = useState({});
   const [draft, setDraft] = useState({ date: '', name: '', out: '', in: '', category: '', note: '' });
 
   const load = useCallback(async () => {
@@ -54,10 +56,59 @@ export default function CashRegister() {
     setBusy(false);
   };
 
+  // Manual rows live in their own table; derived rows are edited through an
+  // override keyed by their original date+label, because the row itself is
+  // rebuilt from scratch on every load.
+  const isManual = (row) => row.source === 'manual';
+
   const toggleSettled = async (row) => {
     setBusy(true);
     try {
-      await base44.functions.updateCashFlowRow({ id: row.id, settled: !row.settled });
+      if (isManual(row)) {
+        await base44.functions.updateCashFlowRow({ id: row.id, settled: !row.settled });
+      } else {
+        await base44.functions.setCashFlowRowOverride({
+          key: row.id, settled: !row.settled,
+          date: row.date, name: row.name, out: row.out || '', in: row.in || '',
+        });
+      }
+      await load();
+    } catch { /* ignore */ }
+    setBusy(false);
+  };
+
+  const openEdit = (row) => {
+    setEditing(row.id);
+    setEdit({ date: row.date, name: row.name, out: row.out || '', in: row.in || '' });
+  };
+
+  const saveEdit = async (row) => {
+    setBusy(true);
+    try {
+      if (isManual(row)) {
+        // Replace outright, so manual rows have exactly one write path.
+        await base44.functions.updateCashFlowRow({ id: row.id, delete: true });
+        await base44.functions.addCashFlowRow({
+          date: edit.date, name: edit.name, category: row.category,
+          out: Number(edit.out) || 0, in: Number(edit.in) || 0, settled: row.settled,
+        });
+      } else {
+        await base44.functions.setCashFlowRowOverride({
+          key: row.id, date: edit.date, name: edit.name,
+          out: edit.out, in: edit.in, settled: row.settled,
+        });
+      }
+      setEditing(null);
+      await load();
+    } catch { /* ignore */ }
+    setBusy(false);
+  };
+
+  const resetRow = async (row) => {
+    setBusy(true);
+    try {
+      await base44.functions.setCashFlowRowOverride({ key: row.id, reset: true });
+      setEditing(null);
       await load();
     } catch { /* ignore */ }
     setBusy(false);
@@ -66,7 +117,13 @@ export default function CashRegister() {
   const removeRow = async (row) => {
     setBusy(true);
     try {
-      await base44.functions.updateCashFlowRow({ id: row.id, delete: true });
+      if (isManual(row)) {
+        await base44.functions.updateCashFlowRow({ id: row.id, delete: true });
+      } else {
+        // Never destroy a derived row — hide it. The invoice or pattern behind
+        // it still exists, and the owner can bring it back.
+        await base44.functions.setCashFlowRowOverride({ key: row.id, hidden: true });
+      }
       await load();
     } catch { /* ignore */ }
     setBusy(false);
@@ -196,15 +253,56 @@ export default function CashRegister() {
                             </span>
                           )}
                         </td>
-                        <td className="p-2 text-center text-[10px] text-slate-400">{SOURCE_HE[r.source]}</td>
-                        <td className="p-2 text-center">
+                        <td className="p-2 text-center text-[10px] text-slate-400">
+                          {SOURCE_HE[r.source]}{r.edited ? ' ✎' : ''}
+                        </td>
+                        <td className="p-2 text-center whitespace-nowrap">
                           {r.editable && (
-                            <button onClick={() => removeRow(r)} disabled={busy}>
-                              <Trash2 className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
-                            </button>
+                            <>
+                              <button onClick={() => openEdit(r)} disabled={busy} title="ערוך">
+                                <Pencil className="w-3.5 h-3.5 text-slate-400 hover:text-slate-700" />
+                              </button>
+                              <button onClick={() => removeRow(r)} disabled={busy} title="הסתר" className="mr-1.5">
+                                <Trash2 className="w-3.5 h-3.5 text-red-400 hover:text-red-600" />
+                              </button>
+                            </>
                           )}
                         </td>
                       </tr>
+                      {editing === r.id && (
+                        <tr className="bg-blue-50">
+                          <td colSpan={9} className="p-2">
+                            <div className="flex items-end gap-2 flex-wrap">
+                              <div>
+                                <label className="text-[10px] text-slate-500">תאריך</label>
+                                <Input type="date" className="h-8 w-36" value={edit.date}
+                                  onChange={(e) => setEdit({ ...edit, date: e.target.value })} />
+                              </div>
+                              <div className="flex-1 min-w-[140px]">
+                                <label className="text-[10px] text-slate-500">שם</label>
+                                <Input className="h-8" value={edit.name}
+                                  onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-slate-500">חובה</label>
+                                <Input className="h-8 w-24" type="number" dir="ltr" value={edit.out}
+                                  onChange={(e) => setEdit({ ...edit, out: e.target.value })} />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-slate-500">זכות</label>
+                                <Input className="h-8 w-24" type="number" dir="ltr" value={edit.in}
+                                  onChange={(e) => setEdit({ ...edit, in: e.target.value })} />
+                              </div>
+                              <Button size="sm" className="h-8" onClick={() => saveEdit(r)} disabled={busy}>שמור</Button>
+                              <Button size="sm" variant="ghost" className="h-8" onClick={() => setEditing(null)}>ביטול</Button>
+                              {r.source !== 'manual' && (
+                                <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-500"
+                                  onClick={() => resetRow(r)} disabled={busy}>החזר למקור</Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
                     </React.Fragment>
                   );
                 })}
@@ -213,10 +311,30 @@ export default function CashRegister() {
           </div>
         )}
 
+        {data?.hidden?.length > 0 && (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+            <p className="text-[11px] text-slate-500 mb-1">
+              {data.hidden.length} שורות שהסתרת — עדיין קיימות בנתונים, לא נספרות בצפי
+            </p>
+            {data.hidden.map((h) => (
+              <div key={h.key} className="flex items-center justify-between text-[11px] py-0.5">
+                <span className="truncate text-slate-500">{h.date} · {h.name}</span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className="tabular-nums">{h.out ? `−₪${ils(h.out)}` : `₪${ils(h.in)}`}</span>
+                  <button className="text-blue-600 underline"
+                    onClick={() => resetRow({ id: h.key })} disabled={busy}>החזר</button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {data?.anchor && (
           <p className="text-[11px] text-slate-400">
             היתרה מעוגנת ל-{data.anchor.date} ({signed(data.anchor.balance)}) — היתרה האחרונה שהבנק הדפיס.
-            שורות לפניה מחושבות אחורה, אחריה קדימה.
+            שורות לפניה מחושבות אחורה, אחריה קדימה. ✎ = שורה שערכת.
+            סימון שורת צפי כנפרעה מוציאה אותה מהחישוב קדימה, כדי שהתשלום האמיתי לא ייספר פעמיים
+            כשייכנס העו"ש הבא.
           </p>
         )}
       </CardContent>
