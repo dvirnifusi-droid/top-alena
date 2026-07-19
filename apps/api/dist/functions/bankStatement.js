@@ -500,4 +500,70 @@ registerFn('setSupplierPaidByCard', async ({ user, body }) => {
     await dbx().$executeRawUnsafe(`UPDATE "Supplier" SET paid_by_card = $2 WHERE id = $1`, id, b.paid_by_card === true);
     return { ok: true, supplier_id: id, paid_by_card: b.paid_by_card === true };
 });
+// ── clearing the limbo ─────────────────────────────────────────────────────
+// Invoices that were scanned, never marked paid, and are now months old. They
+// are almost certainly settled — but "almost certainly" is not a licence to
+// rewrite payment records silently, so this previews first and every batch can
+// be undone.
+async function ensureBulkPaidCol() {
+    await dbx().$executeRawUnsafe(`ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "bulk_paid_batch" TEXT`).catch(() => { });
+    // The status before we touched it. Without this, undo restores NULL and a
+    // 'pending' invoice silently becomes 'no status' — an undo that does not
+    // actually undo is worse than no undo, because it is trusted.
+    await dbx().$executeRawUnsafe(`ALTER TABLE "Invoice" ADD COLUMN IF NOT EXISTS "bulk_paid_prev" TEXT`).catch(() => { });
+}
+registerFn('markInvoicesPaidBefore', async ({ user, body }) => {
+    await guard(user);
+    await ensureBulkPaidCol();
+    const b = (body || {});
+    const date = String(b.date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+        throw new Error('invalid_date');
+    const apply = b.apply === true;
+    // Only invoices that are actually open, and only ones the reconciliation has
+    // not already attributed to a real bank payment.
+    const where = `
+    FROM "Invoice" i
+    WHERE COALESCE(i.status,'') <> 'rejected'
+      AND COALESCE(i.payment_status,'') <> 'paid'
+      AND i.invoice_date < $1::date
+      AND NOT EXISTS (SELECT 1 FROM "BankTxMatch" m WHERE m.invoice_id = i.id)`;
+    const preview = await dbx().$queryRawUnsafe(`SELECT COUNT(*)::int AS count, COALESCE(SUM(ABS(i.total_amount)),0)::float AS total ${where}`, date).catch(() => []);
+    const count = Number(preview[0]?.count) || 0;
+    const total = Math.round(Number(preview[0]?.total) || 0);
+    if (!apply)
+        return { ok: true, dry_run: true, date, count, total };
+    if (!count)
+        return { ok: true, dry_run: false, date, count: 0, total: 0, batch: null };
+    const batch = `bulk_${Date.now().toString(36)}`;
+    await dbx().$executeRawUnsafe(`UPDATE "Invoice"
+     SET bulk_paid_prev = payment_status, payment_status = 'paid', bulk_paid_batch = $2
+     WHERE id IN (SELECT i.id ${where})`, date, batch);
+    return { ok: true, dry_run: false, date, count, total, batch };
+});
+/** Undo one bulk-mark batch, in full. */
+registerFn('undoBulkPaid', async ({ user, body }) => {
+    await guard(user);
+    await ensureBulkPaidCol();
+    const batch = String((body || {}).batch || '');
+    if (!batch)
+        throw new Error('batch_required');
+    const r = await dbx().$queryRawUnsafe(`SELECT COUNT(*)::int c FROM "Invoice" WHERE bulk_paid_batch = $1`, batch).catch(() => []);
+    await dbx().$executeRawUnsafe(`UPDATE "Invoice"
+     SET payment_status = bulk_paid_prev, bulk_paid_batch = NULL, bulk_paid_prev = NULL
+     WHERE bulk_paid_batch = $1`, batch);
+    return { ok: true, restored: Number(r[0]?.c) || 0 };
+});
+/** Batches already applied, so the owner can find and undo one later. */
+registerFn('listBulkPaidBatches', async ({ user }) => {
+    await guard(user);
+    await ensureBulkPaidCol();
+    const rows = await dbx().$queryRawUnsafe(`SELECT bulk_paid_batch AS batch, COUNT(*)::int AS count,
+            COALESCE(SUM(ABS(total_amount)),0)::float AS total
+     FROM "Invoice" WHERE bulk_paid_batch IS NOT NULL
+     GROUP BY bulk_paid_batch ORDER BY bulk_paid_batch DESC LIMIT 10`).catch(() => []);
+    return { batches: rows.map((r) => ({
+            batch: r.batch, count: Number(r.count) || 0, total: Math.round(Number(r.total) || 0),
+        })) };
+});
 //# sourceMappingURL=bankStatement.js.map

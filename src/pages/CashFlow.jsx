@@ -10,6 +10,7 @@ import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 import BankStatementCard from '../components/cashflow/BankStatementCard';
 import CardChargesCard from '../components/cashflow/CardChargesCard';
+import ClearLimboCard from '../components/cashflow/ClearLimboCard';
 import CashFlowHero from '../components/cashflow/CashFlowHero';
 import CapitalForecastCard from '../components/cashflow/CapitalForecastCard';
 import CashActionsCard from '../components/cashflow/CashActionsCard';
@@ -155,6 +156,7 @@ function CashFlowInner() {
             <BankStatementCard />
             <CardChargesCard />
             <ReconcileCard />
+            <ClearLimboCard />
           </Section>
 
           <Section title="⚙️ הגדרות תזרים" hint="יתרת פתיחה, משכורות, עלויות קבועות">
