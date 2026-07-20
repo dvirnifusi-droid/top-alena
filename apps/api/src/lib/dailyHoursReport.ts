@@ -14,6 +14,7 @@
 // timer (bootstrapped from load.ts) ticks every ~5min and fires once per slot.
 import { prisma } from '../db.js';
 import { sendWhatsApp } from './twilio.js';
+import { notifyOwner } from './waTemplates.js';
 import { pushoverToAdmins } from './pushover.js';
 import { sendEmail } from './email.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
@@ -239,8 +240,15 @@ export async function sendDailyHoursReport(opts: { force?: boolean } = {}): Prom
   const phones = await reportRecipientPhones();
   let waSent = 0;
   for (const p of phones) {
-    try { await sendWhatsApp(p, report.text); waSent++; }
-    catch (e: any) { console.warn('[daily-hours] wa failed', { p, err: e?.message }); }
+    // Owner report: template when approved (reaches the owner outside the 24h
+    // window), SMS otherwise. Was free-form only — silently dropped if the owner
+    // had not messaged the bot that day.
+    try {
+      const r = await notifyOwner(p, 'דוח שעות יומי', report.text, {
+        link: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/LaborCost`,
+      });
+      if (r.sent) waSent++;
+    } catch (e: any) { console.warn('[daily-hours] wa failed', { p, err: e?.message }); }
   }
 
   // Push → admins (short summary).

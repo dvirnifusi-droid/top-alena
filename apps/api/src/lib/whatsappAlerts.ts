@@ -8,13 +8,17 @@
 // for proactive out-of-session sends are a separate (Meta-approved) flow.
 
 import { sendWhatsApp } from './twilio.js';
+import { notifyOwner } from './waTemplates.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
 
-export async function broadcastToAdmins(text: string): Promise<void> {
+export async function broadcastToAdmins(text: string, title = 'התראה'): Promise<void> {
   const phones = await reportRecipientPhones();
   if (!phones.length) return;
   await Promise.all(phones.map(async (p) => {
-    try { await sendWhatsApp(p, text); }
+    // Real-time alerts (new lead, bad review, critical incident, large booking)
+    // are exactly the kind of proactive send that must reach the owner even when
+    // no session is open. Template with SMS fallback.
+    try { await notifyOwner(p, title, text); }
     catch (e: any) { console.warn('[whatsapp-alert] send failed', { phone: p, err: e?.message }); }
   }));
 }

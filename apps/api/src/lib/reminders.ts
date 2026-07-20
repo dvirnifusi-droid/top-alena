@@ -6,6 +6,7 @@
 
 import { prisma } from '../db.js';
 import { sendWhatsApp } from './twilio.js';
+import { notifyOwner } from './waTemplates.js';
 import { dispatchCalendarNotifications } from './whatsappCalendar.js';
 
 export async function dispatchDueReminders(): Promise<{ sent: number; failed: number; checked: number; calendar?: any }> {
@@ -24,7 +25,9 @@ export async function dispatchDueReminders(): Promise<{ sent: number; failed: nu
     const target = (row.raw as any)?.target_phone || row.to_phone;
     if (!target || target === 'self') continue;
     try {
-      await sendWhatsApp(target, text);
+      // A reminder fires long after it was set, almost always outside the 24h
+      // window — the exact case free-form drops. Template with SMS fallback.
+      await notifyOwner(target, 'תזכורת', text);
       await (prisma as any).whatsAppMessage.update({
         where: { id: row.id },
         data: { is_read: true, status: 'reminder_sent' },

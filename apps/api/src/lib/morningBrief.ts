@@ -5,6 +5,7 @@
 // expected to text the bot at least daily; if not, we log a warning).
 import { prisma } from '../db.js';
 import { sendWhatsApp } from './twilio.js';
+import { notifyOwner } from './waTemplates.js';
 import { invokeLLM } from './llm.js';
 import { listTodayEvents, listOpenTasks } from './whatsappCalendar.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
@@ -387,8 +388,10 @@ export async function sendEndOfDayBrief(): Promise<{ sent: number; failed: numbe
   for (const phone of phones) {
     try {
       const text = await buildEndOfDayBrief(phone);
-      await sendWhatsApp(phone, text);
-      results.push({ phone, ok: true });
+      const r = await notifyOwner(phone, 'סיכום יום', text, {
+        link: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/Dashboard`,
+      });
+      results.push({ phone, ok: r.sent });
     }
     catch (e: any) { results.push({ phone, ok: false, error: e?.message || 'unknown' }); console.warn('[eod-brief] send failed', { phone, err: e?.message }); }
   }
@@ -408,8 +411,10 @@ export async function sendMorningBrief(): Promise<{ sent: number; failed: number
   for (const phone of phones) {
     try {
       const text = await buildMorningBrief(phone);
-      await sendWhatsApp(phone, text);
-      results.push({ phone, ok: true });
+      const r = await notifyOwner(phone, 'בוקר טוב', text, {
+        link: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/Dashboard`,
+      });
+      results.push({ phone, ok: r.sent });
     } catch (e: any) {
       console.warn('[morning-brief] send failed', { phone, err: e?.message });
       results.push({ phone, ok: false, error: e?.message || 'unknown' });

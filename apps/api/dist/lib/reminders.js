@@ -4,7 +4,7 @@
 // Also fans out to the calendar dispatcher (events + wake alarms) so a
 // single crontab entry handles all the minute-tick work.
 import { prisma } from '../db.js';
-import { sendWhatsApp } from './twilio.js';
+import { notifyOwner } from './waTemplates.js';
 import { dispatchCalendarNotifications } from './whatsappCalendar.js';
 export async function dispatchDueReminders() {
     const due = await prisma.whatsAppMessage.findMany({
@@ -26,7 +26,9 @@ export async function dispatchDueReminders() {
         if (!target || target === 'self')
             continue;
         try {
-            await sendWhatsApp(target, text);
+            // A reminder fires long after it was set, almost always outside the 24h
+            // window — the exact case free-form drops. Template with SMS fallback.
+            await notifyOwner(target, 'תזכורת', text);
             await prisma.whatsAppMessage.update({
                 where: { id: row.id },
                 data: { is_read: true, status: 'reminder_sent' },

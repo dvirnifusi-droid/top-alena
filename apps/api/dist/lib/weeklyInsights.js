@@ -2,7 +2,7 @@
 // week-over-week so the manager spots trends early. Each insight comes from
 // a deterministic SQL pass; we DON'T let the LLM hallucinate numbers.
 import { prisma } from '../db.js';
-import { sendWhatsApp } from './twilio.js';
+import { notifyOwner } from './waTemplates.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
 const TZ = 'Asia/Jerusalem';
 function ymd(d) { return d.toLocaleDateString('en-CA', { timeZone: TZ }); }
@@ -186,9 +186,14 @@ export async function sendWeeklyInsights() {
     const text = await buildWeeklyInsights();
     const results = [];
     for (const phone of phones) {
+        // Owner report → template with SMS fallback, so it lands even outside the
+        // 24h window (a Sunday-morning report after a quiet weekend is exactly when
+        // free-form would have failed).
         try {
-            await sendWhatsApp(phone, text);
-            results.push({ phone, ok: true });
+            const r = await notifyOwner(phone, 'סיכום שבועי', text, {
+                link: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/Dashboard`,
+            });
+            results.push({ phone, ok: r.sent });
         }
         catch (e) {
             results.push({ phone, ok: false, error: e?.message || 'unknown' });

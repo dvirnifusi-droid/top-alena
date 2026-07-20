@@ -4,7 +4,7 @@
 // brief is sent free-form (works inside the 24h Twilio session — owner is
 // expected to text the bot at least daily; if not, we log a warning).
 import { prisma } from '../db.js';
-import { sendWhatsApp } from './twilio.js';
+import { notifyOwner } from './waTemplates.js';
 import { listTodayEvents, listOpenTasks } from './whatsappCalendar.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
 const ISRAEL_TZ = 'Asia/Jerusalem';
@@ -445,8 +445,10 @@ export async function sendEndOfDayBrief() {
     for (const phone of phones) {
         try {
             const text = await buildEndOfDayBrief(phone);
-            await sendWhatsApp(phone, text);
-            results.push({ phone, ok: true });
+            const r = await notifyOwner(phone, 'סיכום יום', text, {
+                link: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/Dashboard`,
+            });
+            results.push({ phone, ok: r.sent });
         }
         catch (e) {
             results.push({ phone, ok: false, error: e?.message || 'unknown' });
@@ -468,8 +470,10 @@ export async function sendMorningBrief() {
     for (const phone of phones) {
         try {
             const text = await buildMorningBrief(phone);
-            await sendWhatsApp(phone, text);
-            results.push({ phone, ok: true });
+            const r = await notifyOwner(phone, 'בוקר טוב', text, {
+                link: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/Dashboard`,
+            });
+            results.push({ phone, ok: r.sent });
         }
         catch (e) {
             console.warn('[morning-brief] send failed', { phone, err: e?.message });

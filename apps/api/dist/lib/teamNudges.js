@@ -14,7 +14,7 @@
 // - Default-enabled on the flagship tenant only; other tenants opt in via
 //   RestaurantProfile.team_nudges (JSONB) so no owner is surprised.
 import { prisma } from '../db.js';
-import { sendWhatsApp } from './twilio.js';
+import { notifyOwner, notifyStaff } from './waTemplates.js';
 import { notifyEmployee } from './notifications.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
 const db = prisma;
@@ -80,9 +80,12 @@ async function sendNudge(emp, body, dedupKey, kind) {
     if (!emp.phone)
         return false;
     let sent = false;
+    // Employees almost never have an open bot session, so a free-form nudge was
+    // the likeliest of all to vanish. Template with SMS fallback reaches them.
     try {
-        const r = await sendWhatsApp(emp.phone, body);
-        sent = !r?.skipped;
+        const first = String(emp.full_name || '').trim().split(' ')[0];
+        const r = await notifyStaff(emp.phone, first, body);
+        sent = r.sent;
     }
     catch { /* fall through to push */ }
     try {
@@ -97,7 +100,7 @@ async function ownerSummary(text) {
         const phones = await reportRecipientPhones();
         for (const p of phones) {
             try {
-                await sendWhatsApp(p, text);
+                await notifyOwner(p, 'סיכום תזכורות', text);
             }
             catch { /* per-phone best-effort */ }
         }

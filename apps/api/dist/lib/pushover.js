@@ -14,11 +14,10 @@ async function mirrorToWhatsApp(title, message) {
         const phones = await reportRecipientPhones();
         if (!phones.length)
             return;
-        const { sendWhatsApp } = await import('./twilio.js');
-        const body = `🔔 ${title}\n\n${message}`;
+        const { notifyOwner } = await import('./waTemplates.js');
         for (const phone of phones) {
             try {
-                await sendWhatsApp(phone, body);
+                await notifyOwner(phone, title || 'התראה', message);
             }
             catch (e) {
                 console.warn('[pushover-mirror] whatsapp failed', phone, e?.message);

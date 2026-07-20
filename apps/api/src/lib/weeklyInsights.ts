@@ -3,6 +3,7 @@
 // a deterministic SQL pass; we DON'T let the LLM hallucinate numbers.
 import { prisma } from '../db.js';
 import { sendWhatsApp } from './twilio.js';
+import { notifyOwner } from './waTemplates.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
 
 const TZ = 'Asia/Jerusalem';
@@ -160,7 +161,15 @@ export async function sendWeeklyInsights(): Promise<{ sent: number; failed: numb
   const text = await buildWeeklyInsights();
   const results: Array<{ phone: string; ok: boolean; error?: string }> = [];
   for (const phone of phones) {
-    try { await sendWhatsApp(phone, text); results.push({ phone, ok: true }); }
+    // Owner report → template with SMS fallback, so it lands even outside the
+    // 24h window (a Sunday-morning report after a quiet weekend is exactly when
+    // free-form would have failed).
+    try {
+      const r = await notifyOwner(phone, 'סיכום שבועי', text, {
+        link: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/Dashboard`,
+      });
+      results.push({ phone, ok: r.sent });
+    }
     catch (e: any) { results.push({ phone, ok: false, error: e?.message || 'unknown' }); console.warn('[weekly] send failed', { phone, err: e?.message }); }
   }
   return { sent: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok).length, details: results };

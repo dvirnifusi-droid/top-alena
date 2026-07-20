@@ -300,4 +300,55 @@ export async function sendTemplated(opts) {
     }
     return { sent: false, via: 'none', reason: 'all_channels_failed' };
 }
+// ── ergonomic wrappers ───────────────────────────────────────────────────────
+// One call each, so a business-initiated send site changes from
+//   sendWhatsApp(phone, text)
+// to a wrapper that routes through the right template with an SMS fallback and
+// keeps the original text as both the free-form and SMS body. The app link tells
+// the recipient where to see the full thing — the summary variable only needs to
+// carry a headline, since a template variable cannot hold a long report.
+const APP = () => process.env.PUBLIC_BASE_URL || 'https://topalena.com';
+/** Trim a value to keep well under WhatsApp's per-variable limit. */
+function clip(s, n = 600) {
+    const t = String(s ?? '').trim();
+    return t.length > n ? t.slice(0, n - 1) + '…' : t;
+}
+/**
+ * A scheduled/triggered message to the owner or a manager — reports, briefs,
+ * alerts, reminders. `title` is the headline; `text` is the existing message,
+ * reused verbatim for the SMS/free-form fallback and clipped into the template
+ * summary variable.
+ */
+export async function notifyOwner(phone, title, text, opts = {}) {
+    return sendTemplated({
+        kind: 'owner_notification',
+        to: phone,
+        vars: [clip(opts.brand || 'המערכת', 60), clip(title, 60), clip(text), opts.link || APP()],
+        freeformText: text,
+        smsText: text,
+        smsFallback: true,
+    });
+}
+/** A scheduled/triggered message to an EMPLOYEE — nudges, schedule, broadcasts. */
+export async function notifyStaff(phone, firstName, text, opts = {}) {
+    return sendTemplated({
+        kind: 'staff_notice',
+        to: phone,
+        vars: [clip(firstName || 'עובד/ת', 40), clip(opts.brand || 'המסעדה', 60), clip(text), opts.link || APP()],
+        freeformText: text,
+        smsText: text,
+        smsFallback: true,
+    });
+}
+/** A club message that is neither welcome nor birthday — anniversary, NPS, etc. */
+export async function sendClubMessage(phone, firstName, text, opts = {}) {
+    return sendTemplated({
+        kind: 'club_message',
+        to: phone,
+        vars: [clip(firstName || 'אורח/ת', 40), clip(opts.brand || 'המסעדה', 60), clip(text), opts.link || `${APP()}/MemberCard`],
+        freeformText: text,
+        smsText: text,
+        smsFallback: true,
+    });
+}
 //# sourceMappingURL=waTemplates.js.map

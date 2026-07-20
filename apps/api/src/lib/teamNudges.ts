@@ -16,6 +16,7 @@
 
 import { prisma } from '../db.js';
 import { sendWhatsApp } from './twilio.js';
+import { notifyOwner, notifyStaff } from './waTemplates.js';
 import { notifyEmployee } from './notifications.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
 
@@ -95,7 +96,13 @@ async function logNudge(contactPhone: string, body: string, dedupKey: string, ki
 async function sendNudge(emp: { id?: string; full_name?: string; phone?: string }, body: string, dedupKey: string, kind: string): Promise<boolean> {
   if (!emp.phone) return false;
   let sent = false;
-  try { const r: any = await sendWhatsApp(emp.phone, body); sent = !r?.skipped; } catch { /* fall through to push */ }
+  // Employees almost never have an open bot session, so a free-form nudge was
+  // the likeliest of all to vanish. Template with SMS fallback reaches them.
+  try {
+    const first = String(emp.full_name || '').trim().split(' ')[0];
+    const r = await notifyStaff(emp.phone, first, body);
+    sent = r.sent;
+  } catch { /* fall through to push */ }
   try { await notifyEmployee(emp.id, 'תזכורת מההנהלה 📢', body.slice(0, 180)); } catch { /* best-effort */ }
   await logNudge(digits(emp.phone), body, dedupKey, kind);
   return sent;
@@ -104,7 +111,7 @@ async function sendNudge(emp: { id?: string; full_name?: string; phone?: string 
 async function ownerSummary(text: string) {
   try {
     const phones = await reportRecipientPhones();
-    for (const p of phones) { try { await sendWhatsApp(p, text); } catch { /* per-phone best-effort */ } }
+    for (const p of phones) { try { await notifyOwner(p, 'סיכום תזכורות', text); } catch { /* per-phone best-effort */ } }
   } catch (e: any) { console.warn('[nudge] owner summary failed:', e?.message); }
 }
 
