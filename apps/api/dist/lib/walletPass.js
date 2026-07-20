@@ -105,6 +105,22 @@ export async function walletAvailability() {
         google_missing,
     };
 }
+/**
+ * The restaurant's own primary colour, so a tenant's card looks like the
+ * tenant's brand without anyone configuring it. Falls back to the app's
+ * terracotta if the profile has no colours set.
+ */
+async function brandColor() {
+    try {
+        const row = await dbx().restaurantProfile.findFirst({ select: { brand_colors: true } });
+        const primary = row?.brand_colors?.primary;
+        // Only a real hex value — a malformed one makes Google reject the class.
+        if (typeof primary === 'string' && /^#[0-9a-fA-F]{6}$/.test(primary.trim()))
+            return primary.trim();
+    }
+    catch { /* fall through */ }
+    return '#A04A2E';
+}
 // ── Apple ──────────────────────────────────────────────────────────────────
 /**
  * The pass.json Apple reads.
@@ -242,9 +258,10 @@ export async function buildApplePass(d) {
  * failure where every save 404s against a class nobody remembered to create.
  */
 export async function buildGoogleWalletLink(d) {
-    const [issuerId, saEmail, saKey, logoUrl] = await Promise.all([
+    const [issuerId, saEmail, saKey, logoUrl, heroUrl] = await Promise.all([
         secret('GOOGLE_WALLET_ISSUER_ID'), secret('GOOGLE_WALLET_SA_EMAIL'),
         secret('GOOGLE_WALLET_SA_KEY'), secret('GOOGLE_WALLET_LOGO_URL'),
+        secret('GOOGLE_WALLET_HERO_URL'),
     ]);
     if (!issuerId || !saEmail || !saKey)
         return null;
@@ -255,12 +272,23 @@ export async function buildGoogleWalletLink(d) {
         issuerName: d.brand,
         programName: `מועדון ${d.brand}`,
         reviewStatus: 'UNDER_REVIEW',
-        hexBackgroundColor: '#A04A2E',
+        // The restaurant's own brand colour, read from its profile rather than
+        // hardcoded — every tenant gets its own card without configuring anything.
+        hexBackgroundColor: await brandColor(),
     };
-    // Google rejects a logo entry with no URL, so it is included only when set.
+    // Images are the one thing that cannot be inferred safely. Google fetches
+    // these URLs itself, so a redirect or a very large file gives a card that
+    // silently renders without its logo — and a stored logo may well point at a
+    // host the business no longer controls. Included only when explicitly set.
     if (logoUrl) {
         loyaltyClass.programLogo = {
             sourceUri: { uri: logoUrl },
+            contentDescription: { defaultValue: { language: 'he', value: d.brand } },
+        };
+    }
+    if (heroUrl) {
+        loyaltyClass.heroImage = {
+            sourceUri: { uri: heroUrl },
             contentDescription: { defaultValue: { language: 'he', value: d.brand } },
         };
     }
