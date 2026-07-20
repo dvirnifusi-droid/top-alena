@@ -30,7 +30,7 @@ import { withOptOut, verifyCustomerSignature, memberCardUrl, signCustomer } from
 import { getClubConfig, saveClubConfig, grantBenefit, listBenefits, findBenefitByCode, redeemBenefit, tierLabel, ensureClubTables, tournamentStandings, myStanding, closeTournamentRound, sendJoinMessage, tonightBoard, } from '../lib/clubCore.js';
 import { marketingStats } from '../lib/marketingStats.js';
 import { walletAvailability, applyCertExpiry, normalizePrivateKey, emailFromServiceAccountJson, diagnoseGoogleWallet, } from '../lib/walletPass.js';
-import { TEMPLATES, templateStatus } from '../lib/waTemplates.js';
+import { TEMPLATES, templateStatus, templateRejectionRisk } from '../lib/waTemplates.js';
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
@@ -4231,6 +4231,7 @@ registerFn('getWhatsAppTemplates', async ({ user }) => {
             secret_key: TEMPLATES[s.kind].secretKey,
             body: TEMPLATES[s.kind].body,
             vars: TEMPLATES[s.kind].vars,
+            risk: templateRejectionRisk(TEMPLATES[s.kind].body),
         })),
     };
 });

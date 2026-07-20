@@ -38,7 +38,7 @@ import {
   walletAvailability, applyCertExpiry, normalizePrivateKey, emailFromServiceAccountJson,
   diagnoseGoogleWallet,
 } from '../lib/walletPass.js';
-import { TEMPLATES, templateStatus } from '../lib/waTemplates.js';
+import { TEMPLATES, templateStatus, templateRejectionRisk } from '../lib/waTemplates.js';
 
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
@@ -4190,6 +4190,7 @@ registerFn('getWhatsAppTemplates', async ({ user }) => {
       secret_key: TEMPLATES[s.kind].secretKey,
       body: TEMPLATES[s.kind].body,
       vars: TEMPLATES[s.kind].vars,
+      risk: templateRejectionRisk(TEMPLATES[s.kind].body),
     })),
   };
 });

@@ -117,6 +117,13 @@ export default function WhatsAppTemplatesCard() {
                   {t.vars.map((v, i) => `{{${i + 1}}} = ${v}`).join(' · ')}
                 </p>
 
+                {/* Meta refuses a body that opens or closes on a variable. This
+                    account already has one template rejected for exactly that,
+                    and the cost of finding out is two days of waiting. */}
+                {t.risk && (
+                  <p className="text-[11px] text-red-600 font-bold mt-1">⚠ {t.risk}</p>
+                )}
+
                 <Input
                   className="mt-2 text-sm font-mono"
                   placeholder="HX… — ה-Content SID אחרי האישור"

@@ -25,6 +25,12 @@ const dbx = () => prisma;
  * The text here is the text that must be submitted to Meta for approval, word
  * for word — a template that does not match its approved body is rejected at
  * send time. Keeping it beside the code is the only way the two stay in step.
+ *
+ * RULE, learned from this account's own rejection history: a template may not
+ * BEGIN or END with a variable. An earlier template here was refused with
+ * "Variables can't be at the start or end of the template", and the first draft
+ * of all three below would have been refused the same way — two days of waiting
+ * to find out. Every body therefore opens and closes on fixed words.
  */
 export const TEMPLATES = {
     club_welcome: {
@@ -34,28 +40,48 @@ export const TEMPLATES = {
         body: 'היי {{1}}, ההרשמה למועדון של {{2}} הושלמה 🎉\n\n' +
             'מחכה לך: {{3}}\n' +
             'הקוד להצגה לצוות: {{4}}\n\n' +
-            'הכרטיס שלך: {{5}}',
+            'הכרטיס שלך: {{5}}\n' +
+            'נשמח לראותך אצלנו.',
         vars: ['שם פרטי', 'שם העסק', 'ההטבה', 'קוד המימוש', 'קישור לכרטיס'],
     },
     club_birthday: {
         secretKey: 'WA_TEMPLATE_CLUB_BIRTHDAY',
         label: 'יום הולדת',
         category: 'marketing',
-        body: '{{1}}, יום הולדת שמח מ{{2}} 🎂\n\n' +
-            '{{3}}\n\n' +
-            'הכרטיס שלך: {{4}}',
+        body: 'יום הולדת שמח, {{1}}! 🎂\n\n' +
+            'כל הצוות של {{2}} מאחל לך שנה נהדרת, ומחכה לך אצלנו: {{3}}\n\n' +
+            'הכרטיס שלך: {{4}}\n' +
+            'נשמח לחגוג איתך.',
         vars: ['שם פרטי', 'שם העסק', 'ההטבה', 'קישור לכרטיס'],
     },
     staff_report: {
         secretKey: 'WA_TEMPLATE_STAFF_REPORT',
         label: 'דוח לצוות',
         category: 'utility',
-        body: '{{1}} — {{2}}\n\n' +
+        body: 'דוח {{1}} לתאריך {{2}}:\n\n' +
             '{{3}}\n\n' +
-            'לפרטים: {{4}}',
-        vars: ['כותרת הדוח', 'תאריך', 'תוכן', 'קישור'],
+            'לפרטים המלאים: {{4}}\n' +
+            'תודה.',
+        vars: ['סוג הדוח', 'תאריך', 'תוכן הדוח', 'קישור'],
     },
 };
+/**
+ * Would Meta refuse this body on sight?
+ *
+ * Checked in code rather than trusted to memory, because the cost of getting it
+ * wrong is two days of waiting followed by a rejection notice. Shown next to
+ * each template on the setup screen so nobody submits one that cannot pass.
+ */
+export function templateRejectionRisk(body) {
+    const t = body.trim();
+    if (/^\{\{\d+\}\}/.test(t))
+        return 'התבנית מתחילה במשתנה — Meta תדחה';
+    if (/\{\{\d+\}\}$/.test(t))
+        return 'התבנית מסתיימת במשתנה — Meta תדחה';
+    if (/\{\{\d+\}\}\s*\{\{\d+\}\}/.test(t))
+        return 'שני משתנים צמודים — Meta תדחה';
+    return null;
+}
 async function contentSid(kind) {
     const row = await dbx().integrationSecret
         .findFirst({ where: { key: TEMPLATES[kind].secretKey }, select: { value: true } })
