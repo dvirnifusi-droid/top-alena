@@ -99,15 +99,63 @@ async function contentSid(kind) {
     // sending with it fails in a way that looks like the template was rejected.
     return /^HX[0-9a-fA-F]{32}$/.test(v) ? v : null;
 }
-/** Which templates are wired up — drives the setup screen. */
+/**
+ * Is this template actually approved by WhatsApp right now?
+ *
+ * A stored SID is not the same as an approved template. A SID can be pending
+ * review, or rejected — and sending through an unapproved template fails, which
+ * would make every signup pay for a doomed WhatsApp attempt before the SMS
+ * fallback carries it. So the send path asks Twilio, and only uses the template
+ * when the answer is "approved".
+ *
+ * The answer is cached, because it changes at most a couple of times in a
+ * template's life — on submission and on Meta's verdict — and a signup should
+ * not wait on a status call. This also means the owner never has to come back:
+ * leave the SID stored, and within the cache window of Meta approving, sends
+ * switch to the template on their own. If it stays rejected, SMS just continues.
+ */
+const approvalCache = new Map();
+const APPROVAL_TTL_MS = 60 * 60 * 1000;
+async function isApproved(sid) {
+    const hit = approvalCache.get(sid);
+    if (hit && Date.now() - hit.at < APPROVAL_TTL_MS)
+        return hit.approved;
+    let approved = false;
+    try {
+        const acct = (await dbx().integrationSecret.findFirst({ where: { key: 'TWILIO_ACCOUNT_SID' } }))?.value
+            || process.env.TWILIO_ACCOUNT_SID;
+        const tok = (await dbx().integrationSecret.findFirst({ where: { key: 'TWILIO_AUTH_TOKEN' } }))?.value
+            || process.env.TWILIO_AUTH_TOKEN;
+        if (acct && tok) {
+            const auth = Buffer.from(`${acct}:${tok}`).toString('base64');
+            const res = await fetch(`https://content.twilio.com/v1/Content/${sid}/ApprovalRequests`, {
+                headers: { Authorization: `Basic ${auth}` },
+            });
+            const d = await res.json();
+            approved = d?.whatsapp?.status === 'approved';
+        }
+    }
+    catch {
+        // On any doubt, treat as not approved and let the fallback carry it. A
+        // missed template is a cost; a failed send is a lost message.
+        approved = false;
+    }
+    approvalCache.set(sid, { approved, at: Date.now() });
+    return approved;
+}
+/** Which templates are wired up AND live — drives the setup screen. */
 export async function templateStatus() {
     const out = [];
     for (const kind of Object.keys(TEMPLATES)) {
+        const sid = await contentSid(kind);
         out.push({
             kind,
             label: TEMPLATES[kind].label,
             category: TEMPLATES[kind].category,
-            configured: !!(await contentSid(kind)),
+            configured: !!sid,
+            // Configured is not the same as usable. A SID can sit here rejected or
+            // pending; only an approved one actually sends over WhatsApp.
+            approved: sid ? await isApproved(sid) : false,
         });
     }
     return out;
@@ -126,7 +174,7 @@ export async function sendTemplated(opts) {
     if (!opts.to)
         return { sent: false, via: 'none', reason: 'no_recipient' };
     const sid = await contentSid(opts.kind);
-    if (sid) {
+    if (sid && await isApproved(sid)) {
         try {
             const { sendWhatsAppTemplate } = await import('./twilio.js');
             const variables = {};

@@ -30,7 +30,10 @@ export default function WhatsAppTemplatesCard() {
   useEffect(() => { load(); }, []);
   if (!templates) return null;
 
-  const ready = templates.filter(t => t.configured).length;
+  // Live means Meta-approved and actually sending over WhatsApp — not merely
+  // that a SID was pasted in. A configured-but-unapproved template still sends
+  // by SMS, so the count that matters is the approved one.
+  const ready = templates.filter(t => t.approved).length;
 
   const copy = async (text, key) => {
     try {
@@ -94,11 +97,13 @@ export default function WhatsAppTemplatesCard() {
               <div key={t.kind} className="border rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-bold text-sm text-slate-800 flex items-center gap-1.5">
-                    {t.configured && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                    {t.approved && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
                     {t.label}
                   </span>
                   <span className="text-[11px] text-slate-400">
-                    {t.category === 'utility' ? 'Utility' : 'Marketing'}
+                    {t.approved ? 'פעיל בוואטסאפ'
+                      : t.configured ? 'הוזן — ממתין לאישור Meta'
+                      : t.category === 'utility' ? 'Utility' : 'Marketing'}
                   </span>
                 </div>
 
