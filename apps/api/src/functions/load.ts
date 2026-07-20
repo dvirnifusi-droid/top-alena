@@ -38,7 +38,7 @@ import {
   walletAvailability, applyCertExpiry, normalizePrivateKey, emailFromServiceAccountJson,
   diagnoseGoogleWallet,
 } from '../lib/walletPass.js';
-import { TEMPLATES, templateStatus, templateRejectionRisk, sendTemplated } from '../lib/waTemplates.js';
+import { TEMPLATES, templateStatus, templateRejectionRisk, sendTemplated, notifyOwner, notifyStaff, sendClubMessage } from '../lib/waTemplates.js';
 
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
@@ -2001,7 +2001,7 @@ async function runDailyCelebrationCampaigns(force = false) {
       try {
         const rendered = withOptOut(
           bdayTemplate.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
-        const out = await sendWhatsApp(c.phone, rendered);
+        const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], rendered);
         if ((out as any)?.skipped) { fail++; failures.push({ phone: c.phone, reason: 'skipped' }); }
         else { ok++; await db.customer.update({ where: { id: c.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {}); }
       } catch (e: any) {
@@ -2042,7 +2042,7 @@ async function runDailyCelebrationCampaigns(force = false) {
       try {
         const rendered = withOptOut(
           annivTemplate.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
-        const out = await sendWhatsApp(c.phone, rendered);
+        const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], rendered);
         if ((out as any)?.skipped) { fail++; failures.push({ phone: c.phone, reason: 'skipped' }); }
         else { ok++; await db.customer.update({ where: { id: c.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {}); }
       } catch (e: any) {
@@ -2122,7 +2122,7 @@ async function runDripCampaigns(force = false) {
               .replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה')
               .replace(/\{brand\}/g, await getBrandName())}\n\nהכרטיס שלך: ${memberCardUrl(c.id)}`,
             c.id);
-          const out = await sendWhatsApp(c.phone, msg);
+          const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], msg);
           if (!(out as any)?.skipped) {
             ok++;
             await db.customer.update({ where: { id: c.id }, data: {
@@ -2158,7 +2158,7 @@ async function runDripCampaigns(force = false) {
           // Use 'high' template for VIPs (assume happy), 'low' template for everyone else
           const template = c.loyalty_tier === 'vip' ? DRIP_TEMPLATES.nps_high : DRIP_TEMPLATES.nps_low;
           const msg = withOptOut(template.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
-          const out = await sendWhatsApp(c.phone, msg);
+          const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], msg);
           if (!(out as any)?.skipped) {
             ok++;
             await db.customer.update({ where: { id: c.id }, data: {
@@ -2202,7 +2202,7 @@ async function runDripCampaigns(force = false) {
         if (c.pre_birthday_sent_year === currentYear) continue; // double-check
         try {
           const msg = withOptOut(DRIP_TEMPLATES.pre_birthday.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
-          const out = await sendWhatsApp(c.phone, msg);
+          const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], msg);
           if (!(out as any)?.skipped) {
             ok++;
             await db.customer.update({ where: { id: c.id }, data: {
@@ -2881,7 +2881,9 @@ registerFn('sendWhatsAppBroadcast', async ({ body, user }) => {
   let sent = 0, failed = 0;
   for (const to of recipients) {
     try {
-      await sendWhatsApp(to, message);
+      // Broadcast to past guests, most of whom have not messaged in 24h —
+      // template with SMS fallback so it actually reaches them.
+      await sendClubMessage(to, '', message);
       sent += 1;
     } catch {
       failed += 1;
@@ -3728,7 +3730,7 @@ registerFn('sendVendorWhatsApp', async ({ body, user }) => {
   if (!v) throw new Error('vendor not found');
   const phone = v.whatsapp || v.phone;
   if (!phone) throw new Error('no whatsapp/phone on vendor');
-  const out: any = await sendWhatsApp(phone, message);
+  const out: any = await notifyStaff(phone, String((v as any).name || '').split(' ')[0] || 'שלום', message);
   await db.vendorContact.create({
     data: {
       vendor_id, kind: 'whatsapp_out',
@@ -3819,7 +3821,7 @@ registerFn('sendVendorCampaign', async ({ body, user }) => {
       } else {
         const phone = v.whatsapp || v.phone;
         if (!phone) { fail++; failures.push({ id: v.id, reason: 'no_phone' }); continue; }
-        out = await sendWhatsApp(phone, rendered);
+        out = await notifyStaff(phone, String((v as any).name || '').split(' ')[0] || 'שלום', rendered);
         await db.vendorContact.create({ data: { vendor_id: v.id, kind: 'whatsapp_out', body: rendered, twilio_sid: out?.sid || null, created_by: 'campaign' } }).catch(() => {});
       }
       if ((out as any)?.skipped) { fail++; failures.push({ id: v.id, reason: (out as any).reason || 'skipped' }); }
@@ -4784,7 +4786,9 @@ registerFn('sendDeliveryMessage', async ({ body }) => {
     const p = r?.phone;
     if (!p) { results.push({ phone: p, status: 'skipped', reason: 'no phone' }); continue; }
     try {
-      const out = channel === 'whatsapp' ? await sendWhatsApp(p, message) : await sendSms(p, message);
+      const out = channel === 'whatsapp'
+        ? await sendClubMessage(p, String(r?.name || '').split(' ')[0], message)
+        : await sendSms(p, message);
       results.push({ phone: p, status: (out as any)?.skipped ? 'skipped' : 'sent', sid: (out as any)?.sid });
     } catch (e: any) {
       results.push({ phone: p, status: 'failed', error: e?.message });
@@ -8042,7 +8046,7 @@ export async function runSupplierOrderAlerts() {
       const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
       const nums = await reportRecipientPhones();
       const { sendWhatsApp } = await import('../lib/twilio.js');
-      for (const n of nums) await sendWhatsApp(n, lines).catch(() => {});
+      for (const n of nums) await notifyOwner(n, 'הזמנת ספקים', lines).catch(() => {});
     } catch { /* ignore */ }
     sent++;
   }
@@ -11897,7 +11901,7 @@ export async function runWeeklyScheduleOpen() {
   let sent = 0;
   for (const emp of employees) {
     const msg = `*היי ${emp.full_name}* 👋\n\nהסידור לשבוע הבא (${formatHe(weekDates[0])}-${formatHe(weekDates[6])}) נפתח להגשת זמינות.\n\nהיכנס/י לאפליקציה ומלא/י:\n${link}\n\nסגירה: יום שלישי 16:00.`;
-    try { await sendWhatsApp(emp.phone, msg); sent++; } catch (e: any) { console.warn('[weekly-open] failed', emp.phone, e?.message); }
+    try { const r = await notifyStaff(emp.phone, String(emp.full_name || '').split(' ')[0], msg); if (r.sent) sent++; } catch (e: any) { console.warn('[weekly-open] failed', emp.phone, e?.message); }
   }
   return { ok: true, sent, total: employees.length };
 }
@@ -11916,7 +11920,7 @@ export async function runWeeklyScheduleReminder(opts: { force?: boolean } = {}) 
   let sent = 0;
   for (const emp of missing) {
     const msg = `⏰ *תזכורת — ${emp.full_name}*\n\nעוד לא הגשת זמינות לשבוע הבא. סגירה מחר (שלישי) ב-16:00.\n\n${link}`;
-    try { await sendWhatsApp(emp.phone, msg); sent++; } catch (e: any) { console.warn('[weekly-rem1] failed', emp.phone, e?.message); }
+    try { const r = await notifyStaff(emp.phone, String(emp.full_name || '').split(' ')[0], msg); if (r.sent) sent++; } catch (e: any) { console.warn('[weekly-rem1] failed', emp.phone, e?.message); }
   }
   return { ok: true, sent, missing_count: missing.length };
 }
@@ -11935,7 +11939,7 @@ export async function runWeeklyScheduleFinalReminder() {
   let sent = 0;
   for (const emp of missing) {
     const msg = `🚨 *תזכורת אחרונה — ${emp.full_name}*\n\nנשארו ~2 שעות לסגירה (16:00 היום). אם לא תגיש — לא נוכל לשבץ אותך השבוע.\n\n${link}`;
-    try { await sendWhatsApp(emp.phone, msg); sent++; } catch (e: any) { console.warn('[weekly-rem2] failed', emp.phone, e?.message); }
+    try { const r = await notifyStaff(emp.phone, String(emp.full_name || '').split(' ')[0], msg); if (r.sent) sent++; } catch (e: any) { console.warn('[weekly-rem2] failed', emp.phone, e?.message); }
   }
   return { ok: true, sent, missing_count: missing.length };
 }
@@ -12427,7 +12431,7 @@ ${JSON.stringify(empSummary, null, 2)}
       `💡 *תובנות:*\n${insightLines}\n\n` +
       `🔗 לאישור / עריכה:\n${APP_BASE_URL}/WorkScheduling`;
     for (const p of adminNumbers) {
-      try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[weekly-build] notify failed', e?.message); }
+      try { await notifyOwner(p, 'סידור עבודה', msg); } catch (e: any) { console.warn('[weekly-build] notify failed', e?.message); }
     }
   }
 
@@ -12477,7 +12481,7 @@ export async function runInvoiceClassifier() {
   const { sendWhatsApp } = await import('../lib/twilio.js');
   const msg = `🧾 *חשבוניות חריגות מאתמול*\n\n${anomalies.join('\n')}\n\nכל הפרטים: ${APP_BASE_URL}/Invoices`;
   for (const p of adminNumbers) {
-    try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[invoice-class] failed', e?.message); }
+    try { await notifyOwner(p, 'סיווג חשבוניות', msg); } catch (e: any) { console.warn('[invoice-class] failed', e?.message); }
   }
   return { ok: true, anomalies_count: anomalies.length };
 }
@@ -12513,7 +12517,7 @@ export async function runCrisisAgent() {
   const { sendWhatsApp } = await import('../lib/twilio.js');
   const msg = `${alerts.join('\n')}\n\nכל האירועים: ${APP_BASE_URL}/Incidents`;
   for (const p of adminNumbers) {
-    try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[crisis] failed', e?.message); }
+    try { await notifyOwner(p, 'התראת משבר', msg); } catch (e: any) { console.warn('[crisis] failed', e?.message); }
   }
   return { ok: true, alerts: alerts.length };
 }
@@ -12558,7 +12562,7 @@ ${quotes.join('\n')}
   const { sendWhatsApp } = await import('../lib/twilio.js');
   const msg = `🎨 *תוכן לאישור — מבוסס ${surveys.length} ביקורות 5⭐ מאתמול*\n\n📱 *סטורי:*\n${story}\n\n📝 *פוסט:*\n${post}\n\nהעתק/י ופרסם/י כשמתאים. 🚀`;
   for (const p of adminNumbers) {
-    try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[content] failed', e?.message); }
+    try { await notifyOwner(p, 'תוכן לאישור', msg); } catch (e: any) { console.warn('[content] failed', e?.message); }
   }
   return { ok: true, story, post, source_count: surveys.length };
 }
@@ -12647,7 +12651,7 @@ export async function runNoShowWatcher() {
       `תפקיד: ${c.staff.position || 'לא ידוע'}\n` +
       (waLink ? `📲 שלח לו וואטסאפ בלחיצה: ${waLink}` : `⚠️ אין טלפון רשום לעובד.`);
     for (const a of adminNumbers) {
-      try { await sendWhatsApp(a, msg); } catch (e: any) { console.warn('[no-show] admin notify failed', e?.message); }
+      try { await notifyOwner(a, 'עובד מאחר', msg); } catch (e: any) { console.warn('[no-show] admin notify failed', e?.message); }
     }
     await (prisma as any).whatsAppMessage.create({
       data: {
@@ -13177,7 +13181,7 @@ export async function runCashFlowAgent() {
   const { sendWhatsApp } = await import('../lib/twilio.js');
   const msg = `💸 *התראת תזרים*\n\nהיתרה הצפויה צוללת ל-₪${Math.round(minBal).toLocaleString()} ב-${minDay}.\n\n🔗 פירוט: ${APP_BASE_URL || 'https://topalena.com'}/CashFlow`;
   for (const p of adminNumbers) {
-    try { await sendWhatsApp(p, msg); } catch (e: any) { console.warn('[cashflow] notify failed', e?.message); }
+    try { await notifyOwner(p, 'תזרים מזומנים', msg); } catch (e: any) { console.warn('[cashflow] notify failed', e?.message); }
   }
   return { ok: true, alerted: true, min_balance: Math.round(minBal), min_day: minDay };
 }
@@ -17524,7 +17528,7 @@ registerFn('requestTenantSignup', async ({ body }) => {
       `🔗 כתובת: ${subdomainUrl}\n\n` +
       `אישור/דחייה: ${approvePageUrl}`;
     for (const p of adminNumbers) {
-      try { await sendWhatsApp(p, waMsg); } catch (e: any) { console.warn('[signup] wa notify failed', e?.message); }
+      try { await notifyOwner(p, 'מסעדה חדשה נרשמה', waMsg); } catch (e: any) { console.warn('[signup] wa notify failed', e?.message); }
     }
   }
 
@@ -18172,7 +18176,7 @@ async function sendWelcomeForTenant(tenantId: string): Promise<any> {
   } else {
     results.email_error = 'no_email_on_file';
   }
-  try { results.whatsapp = await sendWhatsApp(t.owner_phone, waMsg); }
+  try { results.whatsapp = await notifyOwner(t.owner_phone, 'המערכת מוכנה', waMsg); }
   catch (e: any) { results.whatsapp_error = e?.message || 'whatsapp_blocked_no_session'; }
 
   const smsStatus = results.sms_error ? 'failed' : (results.sms?.skipped ? 'skipped' : 'sent');
@@ -19921,7 +19925,7 @@ export async function sendT24SurveyReminders() {
     ].join('\n');
 
     try {
-      await sendWhatsApp(phone, body);
+      await sendClubMessage(phone, String(r.customer_name || '').split(' ')[0], body);
       await db.reservation.update({
         where: { id: r.id },
         data: { survey_sent_at: new Date() } as any,
@@ -21831,7 +21835,7 @@ registerFn('sendTeamWhatsApp', async ({ body, user }) => {
     try {
       // Try WhatsApp first (template-less free-form works if they messaged us in 24h);
       // SMS as fallback to ensure delivery.
-      await sendWhatsApp(e.phone, message).catch(() => sendSms(e.phone, message));
+      await notifyStaff(e.phone, String(e.full_name || (e as any).name || '').split(' ')[0], message);
       sent++;
     } catch (err: any) {
       console.warn('[sendTeamWhatsApp] failed for', e.phone, err?.message);
@@ -25201,10 +25205,11 @@ registerFn('approveEmployee', async ({ user, body }) => {
     if (emp.phone) {
       const brand = await getBrandName();
       const origin = process.env.PUBLIC_BASE_URL || `https://${process.env.TENANT_SLUG || 'topalena'}.topalena.com`;
-      const { sendWhatsApp } = await import('../lib/twilio.js');
-      await sendWhatsApp(emp.phone,
-        `🎉 ${emp.full_name}, אושרת לצוות ${brand}!\n\n🔗 כניסה: ${origin}\n📧 מייל: ${emp.email}\n🔑 סיסמה זמנית: *${tempPassword}*\n(שנה/י אותה אחרי הכניסה הראשונה)`,
-      );
+      // Login credentials to a newly approved employee — first contact, so it
+      // must reach them outside any window. notifyStaff = template + SMS.
+      await notifyStaff(emp.phone, String(emp.full_name || '').split(' ')[0],
+        `אושרת לצוות ${brand}! כניסה: ${origin} · מייל: ${emp.email} · סיסמה זמנית: ${tempPassword} (שנה/י אחרי הכניסה הראשונה)`,
+        { link: origin });
       credsSent = true;
     }
   } catch (e: any) {
@@ -25295,8 +25300,12 @@ registerFn('inviteEmployeeViaWhatsApp', async ({ user, body }) => {
   const link = `${origin}/EmployeeComplete?t=${token}`;
   const msg = `שלום ${fullName} 🌿\nהוזמנת להצטרף לצוות ${brand}.\nכדי להשלים את הפרטים (תפקיד, מייל) — לחץ כאן:\n${link}\n\nזה ייקח דקה 🚀`;
   try {
-    const { sendWhatsApp } = await import('../lib/twilio.js');
-    await sendWhatsApp(phone, msg);
+    // A brand-new employee — first contact. Dedicated invite template + SMS.
+    await sendTemplated({
+      kind: 'employee_invite', to: phone,
+      vars: [fullName, brand, link],
+      freeformText: msg, smsText: msg, smsFallback: true,
+    });
   } catch (e: any) {
     console.warn('[inviteEmployeeViaWhatsApp] WhatsApp send failed:', e?.message);
   }

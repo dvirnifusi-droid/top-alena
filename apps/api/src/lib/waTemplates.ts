@@ -377,8 +377,8 @@ function clip(s: any, n = 600): string {
 export async function notifyOwner(
   phone: string, title: string, text: string,
   opts: { brand?: string; link?: string } = {},
-): Promise<SendResult> {
-  return sendTemplated({
+): Promise<SendResult & { skipped: boolean }> {
+  const r = await sendTemplated({
     kind: 'owner_notification',
     to: phone,
     vars: [clip(opts.brand || 'המערכת', 60), clip(title, 60), clip(text), opts.link || APP()],
@@ -386,14 +386,15 @@ export async function notifyOwner(
     smsText: text,
     smsFallback: true,
   });
+  return { ...r, skipped: !r.sent };
 }
 
 /** A scheduled/triggered message to an EMPLOYEE — nudges, schedule, broadcasts. */
 export async function notifyStaff(
   phone: string, firstName: string, text: string,
   opts: { brand?: string; link?: string } = {},
-): Promise<SendResult> {
-  return sendTemplated({
+): Promise<SendResult & { skipped: boolean }> {
+  const r = await sendTemplated({
     kind: 'staff_notice',
     to: phone,
     vars: [clip(firstName || 'עובד/ת', 40), clip(opts.brand || 'המסעדה', 60), clip(text), opts.link || APP()],
@@ -401,14 +402,15 @@ export async function notifyStaff(
     smsText: text,
     smsFallback: true,
   });
+  return { ...r, skipped: !r.sent };
 }
 
 /** A club message that is neither welcome nor birthday — anniversary, NPS, etc. */
 export async function sendClubMessage(
   phone: string, firstName: string, text: string,
   opts: { brand?: string; link?: string } = {},
-): Promise<SendResult> {
-  return sendTemplated({
+): Promise<SendResult & { skipped: boolean }> {
+  const r = await sendTemplated({
     kind: 'club_message',
     to: phone,
     vars: [clip(firstName || 'אורח/ת', 40), clip(opts.brand || 'המסעדה', 60), clip(text), opts.link || `${APP()}/MemberCard`],
@@ -416,4 +418,5 @@ export async function sendClubMessage(
     smsText: text,
     smsFallback: true,
   });
+  return { ...r, skipped: !r.sent };
 }

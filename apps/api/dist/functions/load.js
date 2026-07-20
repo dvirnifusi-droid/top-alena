@@ -30,7 +30,7 @@ import { withOptOut, verifyCustomerSignature, memberCardUrl, signCustomer } from
 import { getClubConfig, saveClubConfig, grantBenefit, listBenefits, findBenefitByCode, redeemBenefit, tierLabel, ensureClubTables, tournamentStandings, myStanding, closeTournamentRound, sendJoinMessage, tonightBoard, } from '../lib/clubCore.js';
 import { marketingStats } from '../lib/marketingStats.js';
 import { walletAvailability, applyCertExpiry, normalizePrivateKey, emailFromServiceAccountJson, diagnoseGoogleWallet, } from '../lib/walletPass.js';
-import { TEMPLATES, templateStatus, templateRejectionRisk, sendTemplated } from '../lib/waTemplates.js';
+import { TEMPLATES, templateStatus, templateRejectionRisk, sendTemplated, notifyOwner, notifyStaff, sendClubMessage } from '../lib/waTemplates.js';
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
@@ -1973,7 +1973,7 @@ async function runDailyCelebrationCampaigns(force = false) {
         for (const c of bdayList) {
             try {
                 const rendered = withOptOut(bdayTemplate.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
-                const out = await sendWhatsApp(c.phone, rendered);
+                const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], rendered);
                 if (out?.skipped) {
                     fail++;
                     failures.push({ phone: c.phone, reason: 'skipped' });
@@ -2021,7 +2021,7 @@ async function runDailyCelebrationCampaigns(force = false) {
         for (const c of annList) {
             try {
                 const rendered = withOptOut(annivTemplate.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
-                const out = await sendWhatsApp(c.phone, rendered);
+                const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], rendered);
                 if (out?.skipped) {
                     fail++;
                     failures.push({ phone: c.phone, reason: 'skipped' });
@@ -2104,7 +2104,7 @@ async function runDripCampaigns(force = false) {
                     const msg = withOptOut(`${DRIP_TEMPLATES.welcome
                         .replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה')
                         .replace(/\{brand\}/g, await getBrandName())}\n\nהכרטיס שלך: ${memberCardUrl(c.id)}`, c.id);
-                    const out = await sendWhatsApp(c.phone, msg);
+                    const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], msg);
                     if (!out?.skipped) {
                         ok++;
                         await db.customer.update({ where: { id: c.id }, data: {
@@ -2148,7 +2148,7 @@ async function runDripCampaigns(force = false) {
                     // Use 'high' template for VIPs (assume happy), 'low' template for everyone else
                     const template = c.loyalty_tier === 'vip' ? DRIP_TEMPLATES.nps_high : DRIP_TEMPLATES.nps_low;
                     const msg = withOptOut(template.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
-                    const out = await sendWhatsApp(c.phone, msg);
+                    const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], msg);
                     if (!out?.skipped) {
                         ok++;
                         await db.customer.update({ where: { id: c.id }, data: {
@@ -2201,7 +2201,7 @@ async function runDripCampaigns(force = false) {
                     continue; // double-check
                 try {
                     const msg = withOptOut(DRIP_TEMPLATES.pre_birthday.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
-                    const out = await sendWhatsApp(c.phone, msg);
+                    const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], msg);
                     if (!out?.skipped) {
                         ok++;
                         await db.customer.update({ where: { id: c.id }, data: {
@@ -2880,7 +2880,9 @@ registerFn('sendWhatsAppBroadcast', async ({ body, user }) => {
     let sent = 0, failed = 0;
     for (const to of recipients) {
         try {
-            await sendWhatsApp(to, message);
+            // Broadcast to past guests, most of whom have not messaged in 24h —
+            // template with SMS fallback so it actually reaches them.
+            await sendClubMessage(to, '', message);
             sent += 1;
         }
         catch {
@@ -3746,7 +3748,7 @@ registerFn('sendVendorWhatsApp', async ({ body, user }) => {
     const phone = v.whatsapp || v.phone;
     if (!phone)
         throw new Error('no whatsapp/phone on vendor');
-    const out = await sendWhatsApp(phone, message);
+    const out = await notifyStaff(phone, String(v.name || '').split(' ')[0] || 'שלום', message);
     await db.vendorContact.create({
         data: {
             vendor_id, kind: 'whatsapp_out',
@@ -3849,7 +3851,7 @@ registerFn('sendVendorCampaign', async ({ body, user }) => {
                     failures.push({ id: v.id, reason: 'no_phone' });
                     continue;
                 }
-                out = await sendWhatsApp(phone, rendered);
+                out = await notifyStaff(phone, String(v.name || '').split(' ')[0] || 'שלום', rendered);
                 await db.vendorContact.create({ data: { vendor_id: v.id, kind: 'whatsapp_out', body: rendered, twilio_sid: out?.sid || null, created_by: 'campaign' } }).catch(() => { });
             }
             if (out?.skipped) {
@@ -4866,7 +4868,9 @@ registerFn('sendDeliveryMessage', async ({ body }) => {
             continue;
         }
         try {
-            const out = channel === 'whatsapp' ? await sendWhatsApp(p, message) : await sendSms(p, message);
+            const out = channel === 'whatsapp'
+                ? await sendClubMessage(p, String(r?.name || '').split(' ')[0], message)
+                : await sendSms(p, message);
             results.push({ phone: p, status: out?.skipped ? 'skipped' : 'sent', sid: out?.sid });
         }
         catch (e) {
@@ -8207,7 +8211,7 @@ export async function runSupplierOrderAlerts() {
             const nums = await reportRecipientPhones();
             const { sendWhatsApp } = await import('../lib/twilio.js');
             for (const n of nums)
-                await sendWhatsApp(n, lines).catch(() => { });
+                await notifyOwner(n, 'הזמנת ספקים', lines).catch(() => { });
         }
         catch { /* ignore */ }
         sent++;
@@ -12021,8 +12025,9 @@ export async function runWeeklyScheduleOpen() {
     for (const emp of employees) {
         const msg = `*היי ${emp.full_name}* 👋\n\nהסידור לשבוע הבא (${formatHe(weekDates[0])}-${formatHe(weekDates[6])}) נפתח להגשת זמינות.\n\nהיכנס/י לאפליקציה ומלא/י:\n${link}\n\nסגירה: יום שלישי 16:00.`;
         try {
-            await sendWhatsApp(emp.phone, msg);
-            sent++;
+            const r = await notifyStaff(emp.phone, String(emp.full_name || '').split(' ')[0], msg);
+            if (r.sent)
+                sent++;
         }
         catch (e) {
             console.warn('[weekly-open] failed', emp.phone, e?.message);
@@ -12047,8 +12052,9 @@ export async function runWeeklyScheduleReminder(opts = {}) {
     for (const emp of missing) {
         const msg = `⏰ *תזכורת — ${emp.full_name}*\n\nעוד לא הגשת זמינות לשבוע הבא. סגירה מחר (שלישי) ב-16:00.\n\n${link}`;
         try {
-            await sendWhatsApp(emp.phone, msg);
-            sent++;
+            const r = await notifyStaff(emp.phone, String(emp.full_name || '').split(' ')[0], msg);
+            if (r.sent)
+                sent++;
         }
         catch (e) {
             console.warn('[weekly-rem1] failed', emp.phone, e?.message);
@@ -12073,8 +12079,9 @@ export async function runWeeklyScheduleFinalReminder() {
     for (const emp of missing) {
         const msg = `🚨 *תזכורת אחרונה — ${emp.full_name}*\n\nנשארו ~2 שעות לסגירה (16:00 היום). אם לא תגיש — לא נוכל לשבץ אותך השבוע.\n\n${link}`;
         try {
-            await sendWhatsApp(emp.phone, msg);
-            sent++;
+            const r = await notifyStaff(emp.phone, String(emp.full_name || '').split(' ')[0], msg);
+            if (r.sent)
+                sent++;
         }
         catch (e) {
             console.warn('[weekly-rem2] failed', emp.phone, e?.message);
@@ -12545,7 +12552,7 @@ ${JSON.stringify(empSummary, null, 2)}
             `🔗 לאישור / עריכה:\n${APP_BASE_URL}/WorkScheduling`;
         for (const p of adminNumbers) {
             try {
-                await sendWhatsApp(p, msg);
+                await notifyOwner(p, 'סידור עבודה', msg);
             }
             catch (e) {
                 console.warn('[weekly-build] notify failed', e?.message);
@@ -12603,7 +12610,7 @@ export async function runInvoiceClassifier() {
     const msg = `🧾 *חשבוניות חריגות מאתמול*\n\n${anomalies.join('\n')}\n\nכל הפרטים: ${APP_BASE_URL}/Invoices`;
     for (const p of adminNumbers) {
         try {
-            await sendWhatsApp(p, msg);
+            await notifyOwner(p, 'סיווג חשבוניות', msg);
         }
         catch (e) {
             console.warn('[invoice-class] failed', e?.message);
@@ -12642,7 +12649,7 @@ export async function runCrisisAgent() {
     const msg = `${alerts.join('\n')}\n\nכל האירועים: ${APP_BASE_URL}/Incidents`;
     for (const p of adminNumbers) {
         try {
-            await sendWhatsApp(p, msg);
+            await notifyOwner(p, 'התראת משבר', msg);
         }
         catch (e) {
             console.warn('[crisis] failed', e?.message);
@@ -12690,7 +12697,7 @@ ${quotes.join('\n')}
     const msg = `🎨 *תוכן לאישור — מבוסס ${surveys.length} ביקורות 5⭐ מאתמול*\n\n📱 *סטורי:*\n${story}\n\n📝 *פוסט:*\n${post}\n\nהעתק/י ופרסם/י כשמתאים. 🚀`;
     for (const p of adminNumbers) {
         try {
-            await sendWhatsApp(p, msg);
+            await notifyOwner(p, 'תוכן לאישור', msg);
         }
         catch (e) {
             console.warn('[content] failed', e?.message);
@@ -12781,7 +12788,7 @@ export async function runNoShowWatcher() {
             (waLink ? `📲 שלח לו וואטסאפ בלחיצה: ${waLink}` : `⚠️ אין טלפון רשום לעובד.`);
         for (const a of adminNumbers) {
             try {
-                await sendWhatsApp(a, msg);
+                await notifyOwner(a, 'עובד מאחר', msg);
             }
             catch (e) {
                 console.warn('[no-show] admin notify failed', e?.message);
@@ -13266,7 +13273,7 @@ export async function runCashFlowAgent() {
     const msg = `💸 *התראת תזרים*\n\nהיתרה הצפויה צוללת ל-₪${Math.round(minBal).toLocaleString()} ב-${minDay}.\n\n🔗 פירוט: ${APP_BASE_URL || 'https://topalena.com'}/CashFlow`;
     for (const p of adminNumbers) {
         try {
-            await sendWhatsApp(p, msg);
+            await notifyOwner(p, 'תזרים מזומנים', msg);
         }
         catch (e) {
             console.warn('[cashflow] notify failed', e?.message);
@@ -17582,7 +17589,7 @@ registerFn('requestTenantSignup', async ({ body }) => {
             `אישור/דחייה: ${approvePageUrl}`;
         for (const p of adminNumbers) {
             try {
-                await sendWhatsApp(p, waMsg);
+                await notifyOwner(p, 'מסעדה חדשה נרשמה', waMsg);
             }
             catch (e) {
                 console.warn('[signup] wa notify failed', e?.message);
@@ -18199,7 +18206,7 @@ async function sendWelcomeForTenant(tenantId) {
         results.email_error = 'no_email_on_file';
     }
     try {
-        results.whatsapp = await sendWhatsApp(t.owner_phone, waMsg);
+        results.whatsapp = await notifyOwner(t.owner_phone, 'המערכת מוכנה', waMsg);
     }
     catch (e) {
         results.whatsapp_error = e?.message || 'whatsapp_blocked_no_session';
@@ -19933,7 +19940,7 @@ export async function sendT24SurveyReminders() {
             `תודה ולהתראות 🌿`,
         ].join('\n');
         try {
-            await sendWhatsApp(phone, body);
+            await sendClubMessage(phone, String(r.customer_name || '').split(' ')[0], body);
             await db.reservation.update({
                 where: { id: r.id },
                 data: { survey_sent_at: new Date() },
@@ -21846,7 +21853,7 @@ registerFn('sendTeamWhatsApp', async ({ body, user }) => {
         try {
             // Try WhatsApp first (template-less free-form works if they messaged us in 24h);
             // SMS as fallback to ensure delivery.
-            await sendWhatsApp(e.phone, message).catch(() => sendSms(e.phone, message));
+            await notifyStaff(e.phone, String(e.full_name || e.name || '').split(' ')[0], message);
             sent++;
         }
         catch (err) {
@@ -25282,8 +25289,9 @@ registerFn('approveEmployee', async ({ user, body }) => {
         if (emp.phone) {
             const brand = await getBrandName();
             const origin = process.env.PUBLIC_BASE_URL || `https://${process.env.TENANT_SLUG || 'topalena'}.topalena.com`;
-            const { sendWhatsApp } = await import('../lib/twilio.js');
-            await sendWhatsApp(emp.phone, `🎉 ${emp.full_name}, אושרת לצוות ${brand}!\n\n🔗 כניסה: ${origin}\n📧 מייל: ${emp.email}\n🔑 סיסמה זמנית: *${tempPassword}*\n(שנה/י אותה אחרי הכניסה הראשונה)`);
+            // Login credentials to a newly approved employee — first contact, so it
+            // must reach them outside any window. notifyStaff = template + SMS.
+            await notifyStaff(emp.phone, String(emp.full_name || '').split(' ')[0], `אושרת לצוות ${brand}! כניסה: ${origin} · מייל: ${emp.email} · סיסמה זמנית: ${tempPassword} (שנה/י אחרי הכניסה הראשונה)`, { link: origin });
             credsSent = true;
         }
     }
@@ -25379,8 +25387,12 @@ registerFn('inviteEmployeeViaWhatsApp', async ({ user, body }) => {
     const link = `${origin}/EmployeeComplete?t=${token}`;
     const msg = `שלום ${fullName} 🌿\nהוזמנת להצטרף לצוות ${brand}.\nכדי להשלים את הפרטים (תפקיד, מייל) — לחץ כאן:\n${link}\n\nזה ייקח דקה 🚀`;
     try {
-        const { sendWhatsApp } = await import('../lib/twilio.js');
-        await sendWhatsApp(phone, msg);
+        // A brand-new employee — first contact. Dedicated invite template + SMS.
+        await sendTemplated({
+            kind: 'employee_invite', to: phone,
+            vars: [fullName, brand, link],
+            freeformText: msg, smsText: msg, smsFallback: true,
+        });
     }
     catch (e) {
         console.warn('[inviteEmployeeViaWhatsApp] WhatsApp send failed:', e?.message);

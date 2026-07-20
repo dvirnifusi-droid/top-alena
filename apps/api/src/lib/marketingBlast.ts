@@ -13,6 +13,7 @@
 // address — after checking whether we are allowed to.
 import { prisma } from '../db.js';
 import { sendSms, sendWhatsApp } from './twilio.js';
+import { sendClubMessage } from './waTemplates.js';
 import { sendEmail } from './email.js';
 
 const dbx = () => prisma as any;
@@ -91,7 +92,11 @@ export async function sendMarketingBlast(opts: {
           : undefined;
         return sendEmail({ to: c.email, subject: opts.subject || '', text, html });
       }
-      if (opts.channel === 'whatsapp') return sendWhatsApp(c.phone, text);
+      // A consent-gated blast reaches mostly out-of-window members — template
+      // with SMS fallback, so it arrives rather than silently dropping.
+      if (opts.channel === 'whatsapp') {
+        return sendClubMessage(c.phone, String(c.name || '').split(' ')[0], text);
+      }
       return sendSms(c.phone, text);
     }));
     for (const r of results) r.status === 'fulfilled' ? res.sent++ : res.failed++;

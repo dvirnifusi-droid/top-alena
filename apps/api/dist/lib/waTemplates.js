@@ -320,7 +320,7 @@ function clip(s, n = 600) {
  * summary variable.
  */
 export async function notifyOwner(phone, title, text, opts = {}) {
-    return sendTemplated({
+    const r = await sendTemplated({
         kind: 'owner_notification',
         to: phone,
         vars: [clip(opts.brand || 'המערכת', 60), clip(title, 60), clip(text), opts.link || APP()],
@@ -328,10 +328,11 @@ export async function notifyOwner(phone, title, text, opts = {}) {
         smsText: text,
         smsFallback: true,
     });
+    return { ...r, skipped: !r.sent };
 }
 /** A scheduled/triggered message to an EMPLOYEE — nudges, schedule, broadcasts. */
 export async function notifyStaff(phone, firstName, text, opts = {}) {
-    return sendTemplated({
+    const r = await sendTemplated({
         kind: 'staff_notice',
         to: phone,
         vars: [clip(firstName || 'עובד/ת', 40), clip(opts.brand || 'המסעדה', 60), clip(text), opts.link || APP()],
@@ -339,10 +340,11 @@ export async function notifyStaff(phone, firstName, text, opts = {}) {
         smsText: text,
         smsFallback: true,
     });
+    return { ...r, skipped: !r.sent };
 }
 /** A club message that is neither welcome nor birthday — anniversary, NPS, etc. */
 export async function sendClubMessage(phone, firstName, text, opts = {}) {
-    return sendTemplated({
+    const r = await sendTemplated({
         kind: 'club_message',
         to: phone,
         vars: [clip(firstName || 'אורח/ת', 40), clip(opts.brand || 'המסעדה', 60), clip(text), opts.link || `${APP()}/MemberCard`],
@@ -350,5 +352,6 @@ export async function sendClubMessage(phone, firstName, text, opts = {}) {
         smsText: text,
         smsFallback: true,
     });
+    return { ...r, skipped: !r.sent };
 }
 //# sourceMappingURL=waTemplates.js.map
