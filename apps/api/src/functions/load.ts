@@ -38,7 +38,7 @@ import {
   walletAvailability, applyCertExpiry, normalizePrivateKey, emailFromServiceAccountJson,
   diagnoseGoogleWallet,
 } from '../lib/walletPass.js';
-import { TEMPLATES, templateStatus, templateRejectionRisk } from '../lib/waTemplates.js';
+import { TEMPLATES, templateStatus, templateRejectionRisk, sendTemplated } from '../lib/waTemplates.js';
 
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
@@ -2689,7 +2689,7 @@ registerFn('getWhatsAppStatus', async ({ user }) => {
   const { sid, token } = await twilioAuth();
   const dbCred: any = (await (prisma as any).restaurantProfile.findFirst({ select: { twilio_credentials: true } }).catch(() => null))?.twilio_credentials || {};
   const from = process.env.TWILIO_WHATSAPP_FROM ?? (process.env.TWILIO_PHONE_NUMBER ? `whatsapp:${process.env.TWILIO_PHONE_NUMBER}` : '');
-  const templateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HX42bd4ae96abaa7312aeeae1af997c3da';
+  const templateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
   const mask = (s: string | undefined) => s ? `${s.slice(0, 6)}…${s.slice(-4)}` : '';
   const out: any = {
     has_sid: !!sid,
@@ -9133,7 +9133,7 @@ async function notifyReservationConfirmed(r: any): Promise<void> {
       ``, `📋 צפיה בהזמנה: ${trackUrl}`,
     ].join('\n');
     sendSms(phone, smsBody).catch((e: any) => console.warn('[confirm sms]', e?.message));
-    const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HX42bd4ae96abaa7312aeeae1af997c3da';
+    const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
     sendWhatsAppTemplate(phone, waTemplateSid, {
       '1': r.customer_name || '', '2': dateStr, '3': r.time || '', '4': String(r.party_size || ''), '5': trackUrl, '6': 'ניתן לבטל לפי מדיניות ההזמנה',
     }).catch(() => { sendWhatsApp(phone, smsBody).catch(() => {}); });
@@ -9208,7 +9208,7 @@ export async function sendReservationReminders() {
         ``, `מחכים לך! לצפייה / ביטול: ${trackUrl}`,
       ].join('\n');
       sendSms(phone, body).catch((e: any) => console.warn('[reminder sms]', e?.message));
-      const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HX42bd4ae96abaa7312aeeae1af997c3da';
+      const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
       sendWhatsAppTemplate(phone, waTemplateSid, {
         '1': r.customer_name || '', '2': dateStr, '3': r.time || '', '4': String(r.party_size || ''), '5': trackUrl, '6': 'לצפייה או ביטול בקישור',
       }).catch(() => { sendWhatsApp(phone, body).catch(() => {}); });
@@ -9413,7 +9413,7 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   // WhatsApp — use the approved template (booking_confirmation_he, SID HX42...).
   // Business-initiated requires a Meta-approved template; passing variables that
   // match the {{1}}..{{6}} placeholders in the template body.
-  const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HX42bd4ae96abaa7312aeeae1af997c3da';
+  const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
   if (!isStandby && !willCollectDeposit) {
     sendWhatsAppTemplate(
       String(customer_phone).trim(),
@@ -9432,10 +9432,18 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       sendWhatsApp(String(customer_phone).trim(), smsBody).catch(() => {});
     });
   } else {
-    // Standby has no approved template yet — try free-form as best-effort.
-    sendWhatsApp(String(customer_phone).trim(), smsBody).catch((e) =>
-      console.warn('[reservation] whatsapp standby failed', e?.message)
-    );
+    // Standby ("you're on the waitlist"): the audit found this was free-form
+    // only, so any guest who had not messaged in 24h received nothing. Route it
+    // through the guest_table_ready template — WhatsApp when approved, SMS
+    // otherwise — so the waitlist confirmation actually arrives.
+    sendTemplated({
+      kind: 'guest_table_ready',
+      to: String(customer_phone).trim(),
+      vars: [customer_name, brand, 'נרשמת לרשימת ההמתנה. נעדכן אותך ברגע שמתפנה שולחן.', trackUrl],
+      freeformText: smsBody,
+      smsText: smsBody,
+      smsFallback: true,
+    }).catch((e) => console.warn('[reservation] standby notify failed', e?.message));
   }
   // Email — best-effort if address provided (held until card is placed for deposit bookings)
   if (customer_email && !willCollectDeposit) {
@@ -9674,8 +9682,17 @@ registerFn('promoteStandbyReservation', async ({ body, user }) => {
     `🔗 ${trackUrl}`,
   ].join('\n');
   if (r.customer_phone) {
-    sendSms(String(r.customer_phone), msg).catch(() => {});
-    sendWhatsApp(String(r.customer_phone), msg).catch(() => {});
+    // "A table opened up — your reservation is confirmed." Was sending BOTH an
+    // SMS and a free-form WhatsApp, so an in-window guest got the message twice.
+    // Route through the template: WhatsApp when approved, SMS otherwise, once.
+    sendTemplated({
+      kind: 'guest_table_ready',
+      to: String(r.customer_phone),
+      vars: [r.customer_name, brand, 'התפנה שולחן וההזמנה שלך אושרה. נשמח לראותך!', trackUrl],
+      freeformText: msg,
+      smsText: msg,
+      smsFallback: true,
+    }).catch(() => {});
   }
   return { success: true, reservation: updated };
 });
