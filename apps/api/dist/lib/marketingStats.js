@@ -27,7 +27,7 @@ export async function marketingStats(days = 30) {
         recipients: Number(r.recipient_count) || 0,
         accepted: Number(r.success_count) || 0,
         failed: Number(r.failure_count) || 0,
-        tracked: Number(r.tracked_recipients) > 0,
+        tracked: Number(r.tracked_recipients) > 0 && (r.channel || 'whatsapp') !== 'email',
         delivered: Number(r.delivered_count) || 0,
         read: Number(r.read_count) || 0,
     }));

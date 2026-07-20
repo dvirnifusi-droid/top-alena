@@ -20,11 +20,14 @@ export type CampaignRow = {
   /**
    * Whether delivery was measured at all.
    *
-   * Only the manual sender and the A/B sender register a Twilio status callback,
-   * so only those ever learn what happened after handoff. The automatic drips
-   * do not, and their delivered_count sits at zero forever — which is absence of
-   * measurement, not evidence of failure. Reporting those as "0% delivered"
-   * would invent a crisis; they are reported as unmeasured instead.
+   * Two things have to be true. The send must have registered a Twilio status
+   * callback — only the manual sender and the A/B sender do, so the automatic
+   * drips never learn what happened after handoff. And the channel must be one
+   * Twilio reports on: email leaves through a different provider entirely and
+   * will never receive a delivery event, so an email campaign that counted as
+   * measured would sit at 0% forever and read as a total failure.
+   *
+   * In both cases zero means nobody counted, not that nobody received it.
    */
   tracked: boolean;
   delivered: number;
@@ -75,7 +78,7 @@ export async function marketingStats(days = 30): Promise<MarketingStats> {
     recipients: Number(r.recipient_count) || 0,
     accepted: Number(r.success_count) || 0,
     failed: Number(r.failure_count) || 0,
-    tracked: Number(r.tracked_recipients) > 0,
+    tracked: Number(r.tracked_recipients) > 0 && (r.channel || 'whatsapp') !== 'email',
     delivered: Number(r.delivered_count) || 0,
     read: Number(r.read_count) || 0,
   }));
