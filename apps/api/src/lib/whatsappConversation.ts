@@ -2056,10 +2056,12 @@ async function tool_propose_mark_sick(args: any, phone: string): Promise<any> {
   // Notify admins
   const adminNumbers = (process.env.WHATSAPP_ADMIN_NUMBERS || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (adminNumbers.length) {
-    const { sendWhatsApp } = await import('./twilio.js');
-    const msg = `🤒 *${scope.employee_name}* מדווח/ת חולה ל-${when.toISOString().slice(0, 10)}. בדוק/י סידור והחלף/י אם צריך.`;
+    // Sick-report alert goes to MANAGERS, who did not just message us — so
+    // free-form could miss them. Template with SMS fallback.
+    const { notifyOwner } = await import('./waTemplates.js');
+    const msg = `🤒 ${scope.employee_name} מדווח/ת חולה ל-${when.toISOString().slice(0, 10)}. בדוק/י סידור והחלף/י אם צריך.`;
     for (const a of adminNumbers) {
-      try { await sendWhatsApp(a, msg); } catch { /* noop */ }
+      try { await notifyOwner(a, 'דיווח מחלה', msg); } catch { /* noop */ }
     }
   }
   return { ok: true, message: `דווחת חולה ל-${when.toISOString().slice(0, 10)}. שלחתי הודעה למנהל, הוא יסדר מחליף. רפואה שלמה 💚` };

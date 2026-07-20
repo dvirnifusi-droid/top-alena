@@ -5,7 +5,7 @@
 //   status = 'task_done'        → completed task (kept for history)
 //   status = 'wake_alarm'       → daily wake-up, raw.hhmm = "07:30"
 import { prisma } from '../db.js';
-import { sendWhatsApp } from './twilio.js';
+import { notifyOwner } from './waTemplates.js';
 const TZ = 'Asia/Jerusalem';
 function israelYMD(d = new Date()) { return d.toLocaleDateString('en-CA', { timeZone: TZ }); }
 function israelHHMM(d = new Date()) {
@@ -147,7 +147,7 @@ export async function dispatchCalendarNotifications() {
         // Lead reminder
         if (!notifiedLead && now >= (at - lead) && now < at) {
             try {
-                await sendWhatsApp(target, `⏰ *בעוד ${Math.round(lead / 60_000)} דקות:*\n${raw.title}`);
+                await notifyOwner(target, 'תזכורת יומן', `⏰ בעוד ${Math.round(lead / 60_000)} דקות: ${raw.title}`);
                 notifiedLead = true;
                 changed = true;
             }
@@ -158,7 +158,7 @@ export async function dispatchCalendarNotifications() {
         // Start-time reminder
         if (!notifiedStart && now >= at) {
             try {
-                await sendWhatsApp(target, `🔔 *עכשיו:*\n${raw.title}`);
+                await notifyOwner(target, 'תזכורת יומן', `🔔 עכשיו: ${raw.title}`);
                 notifiedStart = true;
                 changed = true;
             }
@@ -227,7 +227,7 @@ export async function dispatchCalendarNotifications() {
             }
             else
                 lines.push('✅ אין משימות פתוחות.');
-            await sendWhatsApp(target, lines.join('\n'));
+            await notifyOwner(target, 'בוקר טוב', lines.join('\n'));
             await prisma.whatsAppMessage.update({
                 where: { id: a.id },
                 data: { raw: { ...raw, last_fired_date: todayY } },

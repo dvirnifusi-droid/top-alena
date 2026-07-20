@@ -11,7 +11,8 @@
 // hard checks before showing the confirmation, so a misparse can't sneak through.
 import { prisma } from '../db.js';
 import { invokeLLM } from './llm.js';
-import { sendWhatsApp } from './twilio.js';
+import { sendWhatsApp, sendSms } from './twilio.js';
+import { sendTemplated, notifyStaff, sendClubMessage } from './waTemplates.js';
 import { addScheduledEvent, addTask, completeTaskByMatch, setWakeAlarm, cancelWakeAlarm } from './whatsappCalendar.js';
 import { createCalendarEvent, createTasksItem, isGoogleConnected, buildConsentUrl } from './googleSync.js';
 
@@ -834,7 +835,13 @@ async function executeAction(exec: any): Promise<string> {
         'תודה,',
         `${(await (await import('./brandName.js')).getBrandName())} אירועים 🔥`,
       ].join('\n');
-      await sendWhatsApp(exec.customer_phone, msg);
+      // Event contract with a signing deadline: high value, low volume. Sent
+      // free-form (in-window) with a guaranteed SMS so a customer who has not
+      // messaged still receives the signing link. A dedicated contract template
+      // is a future refinement — a duplicate on a once-a-week booking beats a
+      // lost signature.
+      await sendWhatsApp(exec.customer_phone, msg).catch(() => {});
+      await sendSms(exec.customer_phone, msg).catch(() => {});
       // Mark the contract status as 'sent' so the EventContracts UI shows it.
       await (prisma as any).eventContract.update({
         where: { id: exec.contract_id },
@@ -1081,7 +1088,13 @@ async function executeAction(exec: any): Promise<string> {
       const origin = process.env.PUBLIC_BASE_URL || `https://${process.env.TENANT_SLUG || 'topalena'}.topalena.com`;
       const link = `${origin}/EmployeeComplete?t=${token}`;
       const msg = `שלום ${fullName} 🌿\nהוזמנת להצטרף לצוות ${brand}.\nכדי להשלים את הפרטים (תפקיד, מייל) — לחץ כאן:\n${link}\n\nזה ייקח דקה 🚀`;
-      await sendWhatsApp(empPhone, msg);
+      // A brand-new employee — first contact, so free-form could never reach
+      // them. Dedicated invite template with SMS fallback.
+      await sendTemplated({
+        kind: 'employee_invite', to: empPhone,
+        vars: [fullName, brand, link],
+        freeformText: msg, smsText: msg, smsFallback: true,
+      });
       return `✅ הזמנה נשלחה ל-*${fullName}* (${empPhone}). כשישלים פרטים הוא יופיע ב"ניהול עובדים".`;
     }
     case 'remove_from_shift': {
@@ -1130,8 +1143,13 @@ async function executeAction(exec: any): Promise<string> {
         if (!p) { noPhone++; continue; }
         info.lines.sort((a: any, b: any) => a.date.localeCompare(b.date));
         const body = info.lines.map((l: any) => `• ${dh(l.date)} · ${l.shift_type === 'lunch' ? 'צהריים' : 'ערב'} · ${l.start}-${l.end}${l.position ? ` · ${l.position}` : ''}`).join('\n');
-        const msg = `*היי ${info.name}* 👋\nהסידור לשבוע הבא פורסם. המשמרות שלך:\n\n${body}\n\nבהצלחה! 🔥`;
-        try { await sendWhatsApp(p, msg); sent++; } catch (e: any) { console.warn('[publish_schedule] failed', p, e?.message); }
+        const msg = `היי ${info.name}, הסידור לשבוע הבא פורסם. המשמרות שלך:\n\n${body}\n\nבהצלחה!`;
+        try {
+          const first = String(info.name || '').trim().split(' ')[0];
+          const r = await notifyStaff(p, first, msg,
+            { link: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/WorkScheduling` });
+          if (r.sent) sent++;
+        } catch (e: any) { console.warn('[publish_schedule] failed', p, e?.message); }
       }
       return `📢 הסידור פורסם — נשלח ל-*${sent}* עובדים${noPhone ? ` (${noPhone} ללא טלפון על הכרטיס)` : ''}.`;
     }
@@ -1230,7 +1248,11 @@ async function executeAction(exec: any): Promise<string> {
         const chunk = recipients.slice(i, i + batch);
         const results = await Promise.allSettled(chunk.map(async (r) => {
           const personal = r.name ? exec.text.replace(/\{name\}/g, r.name) : exec.text;
-          await sendWhatsApp(r.phone, personal);
+          // A deliberate broadcast to a chosen audience — reaches people who did
+          // not just message us, so template with SMS fallback rather than
+          // free-form that would drop out of window.
+          const first = String(r.name || '').trim().split(' ')[0];
+          await sendClubMessage(r.phone, first, personal);
         }));
         for (const res of results) res.status === 'fulfilled' ? sent++ : failed++;
       }
