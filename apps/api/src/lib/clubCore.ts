@@ -424,7 +424,11 @@ export async function sendJoinMessage(opts: {
   const r = await sendTemplated({
     kind: 'club_welcome',
     to: opts.phone,
-    vars: [first, opts.brand || '', opts.benefit?.description || '', opts.benefit?.code || '', cardUrl],
+    // Order must match the template body exactly: brand, first name, benefit,
+    // code, card link. The template was reworded and its first two variables
+    // swapped; sending them in the old order would greet a member by the
+    // restaurant's name.
+    vars: [opts.brand || '', first, opts.benefit?.description || '', opts.benefit?.code || '', cardUrl],
     freeformText: body,
     smsText,
     skipFreeform: true,

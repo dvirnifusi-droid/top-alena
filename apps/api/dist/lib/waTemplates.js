@@ -35,14 +35,22 @@ const dbx = () => prisma;
 export const TEMPLATES = {
     club_welcome: {
         secretKey: 'WA_TEMPLATE_CLUB_WELCOME',
+        // Marketing, not Utility. Meta rejected both categories with
+        // INCORRECT_CATEGORY, and this account's own history shows why: a message
+        // that offers a benefit is classed as marketing no matter what we call it,
+        // and the fight is not worth having. Marketing over WhatsApp still costs a
+        // fraction of an SMS.
         label: 'הצטרפות למועדון',
-        category: 'utility',
-        body: 'היי {{1}}, ההרשמה למועדון של {{2}} הושלמה 🎉\n\n' +
-            'מחכה לך: {{3}}\n' +
-            'הקוד להצגה לצוות: {{4}}\n\n' +
-            'הכרטיס שלך: {{5}}\n' +
-            'נשמח לראותך אצלנו.',
-        vars: ['שם פרטי', 'שם העסק', 'ההטבה', 'קוד המימוש', 'קישור לכרטיס'],
+        category: 'marketing',
+        // Reworded from the version Meta rejected. Meta appears to cache a verdict
+        // against an identical body — the duplicate, byte-for-byte the same, was
+        // refused instantly — so this is genuinely new text, mirroring how this
+        // account's own booking_confirmation had to become a v2 to pass.
+        body: 'ברוכים הבאים למועדון של {{1}}, {{2}}! 🎉\n\n' +
+            'כבר מחכה לכם אצלנו {{3}}, עם קוד אישי: {{4}}\n\n' +
+            'כל הפרטים וההטבות בכרטיס החבר שלכם: {{5}}\n' +
+            'נתראה בקרוב 🙌',
+        vars: ['שם העסק', 'שם פרטי', 'ההטבה', 'קוד המימוש', 'קישור לכרטיס'],
     },
     club_birthday: {
         secretKey: 'WA_TEMPLATE_CLUB_BIRTHDAY',
