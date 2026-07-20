@@ -38,6 +38,7 @@ import {
   walletAvailability, applyCertExpiry, normalizePrivateKey, emailFromServiceAccountJson,
   diagnoseGoogleWallet,
 } from '../lib/walletPass.js';
+import { TEMPLATES, templateStatus } from '../lib/waTemplates.js';
 
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
@@ -4171,6 +4172,51 @@ registerFn('saveWalletSecrets', async ({ body, user }) => {
   }
   const [availability, expiry] = await Promise.all([walletAvailability(), applyCertExpiry()]);
   return { ok: true, saved, rejected, availability, expiry };
+});
+
+/**
+ * The WhatsApp templates, their exact approval text, and which are wired up.
+ *
+ * The body text is returned from the code rather than typed into the console by
+ * hand, because a template whose approved wording differs from what we send is
+ * rejected at send time — and the two only stay in step if there is one source.
+ */
+registerFn('getWhatsAppTemplates', async ({ user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const status = await templateStatus();
+  return {
+    templates: status.map((s) => ({
+      ...s,
+      secret_key: TEMPLATES[s.kind].secretKey,
+      body: TEMPLATES[s.kind].body,
+      vars: TEMPLATES[s.kind].vars,
+    })),
+  };
+});
+
+registerFn('saveWhatsAppTemplates', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const allowed = new Set(Object.values(TEMPLATES).map((t) => t.secretKey));
+  const entries = Object.entries(((body as any)?.sids || {}) as Record<string, string>);
+  await ensureSecretsTable();
+  let saved = 0;
+  const rejected: string[] = [];
+  for (const [key, value] of entries) {
+    if (!allowed.has(key)) continue;
+    const v = String(value || '').trim();
+    if (!v) continue;
+    // Content SIDs start with HX. Storing anything else produces a send failure
+    // that looks like Meta rejected the template.
+    if (!/^HX[0-9a-fA-F]{32}$/.test(v)) { rejected.push(key); continue; }
+    const existing = await db.integrationSecret.findFirst({ where: { key } });
+    if (existing) {
+      await db.integrationSecret.update({ where: { id: existing.id }, data: { value: v, updated_at: new Date() } });
+    } else {
+      await db.integrationSecret.create({ data: { key, value: v, note: 'WhatsApp template', updated_at: new Date() } });
+    }
+    saved++;
+  }
+  return { ok: true, saved, rejected, templates: await templateStatus() };
 });
 
 /** Turn Google's "Something went wrong" into a sentence that names the cause. */

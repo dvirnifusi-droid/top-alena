@@ -295,33 +295,34 @@ export async function sendJoinMessage(opts) {
     }
     text = text.replace(/\n{3,}/g, '\n\n').trim();
     const body = withOptOut(text, opts.customerId);
-    // SMS, not WhatsApp, and the reason is worth writing down.
+    // An approved WhatsApp template when one exists, SMS when it does not.
     //
-    // WhatsApp only delivers a free-form message within 24 hours of the customer
-    // writing to the business. A brand-new member has never written, so this
-    // message — the one the whole club depends on — is exactly the case WhatsApp
-    // will not carry. It looked fine in testing only because the tester was
-    // already mid-conversation with the WhatsApp agent.
+    // Free-form WhatsApp is skipped deliberately. A brand-new member has never
+    // written to the business, so the 24-hour window is closed and the message
+    // cannot arrive — and Twilio would still report success, because it accepts
+    // the request and only marks it undelivered asynchronously. Trying it would
+    // lose the message and tell us it went.
     //
-    // A first attempt at this tried WhatsApp and fell back to SMS on failure. That
-    // does not work: Twilio ACCEPTS the request and returns success, then marks the
-    // message undelivered asynchronously with error 63016. There is nothing to
-    // catch. A fallback keyed on the send call throwing would never fire.
-    //
-    // SMS has no window and reaches anyone, at the cost of a few agorot per
-    // signup. The better long-term answer is an approved WhatsApp template, which
-    // needs Meta's approval and cannot be arranged from inside this repo.
-    try {
-        const { sendSms } = await import('./twilio.js');
-        const out = await sendSms(opts.phone, body);
-        return out?.skipped
-            ? { sent: false, reason: 'provider_skipped' }
-            : { sent: true, channel: 'sms' };
-    }
-    catch (e) {
-        console.warn('club join message failed:', e);
-        return { sent: false, reason: 'error' };
-    }
+    // SMS is the paid certainty until the template is approved. It is genuinely
+    // expensive: Hebrew encodes at 70 characters a segment and this account is
+    // billed about $1.35 a message, so the SMS wording below is deliberately much
+    // shorter than the WhatsApp one — the benefit and the code both live on the
+    // card the link opens, and repeating them costs real money per signup.
+    const { sendTemplated } = await import('./waTemplates.js');
+    const cardUrl = memberCardUrl(opts.customerId);
+    const smsText = withOptOut(`היי ${first}, ההרשמה למועדון ${opts.brand || 'שלנו'} הושלמה. ההטבה והקוד שלך: ${cardUrl}`, opts.customerId);
+    const r = await sendTemplated({
+        kind: 'club_welcome',
+        to: opts.phone,
+        vars: [first, opts.brand || '', opts.benefit?.description || '', opts.benefit?.code || '', cardUrl],
+        freeformText: body,
+        smsText,
+        skipFreeform: true,
+        smsFallback: true,
+    });
+    return r.sent
+        ? { sent: true, channel: r.via === 'sms' ? 'sms' : 'whatsapp' }
+        : { sent: false, reason: r.reason };
 }
 /**
  * Standings for the round in progress, best first.
