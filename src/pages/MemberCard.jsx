@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Loader2, Gift, Coins, Trophy } from 'lucide-react';
+import { Loader2, Gift, Coins, Trophy, Wallet } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 
@@ -25,6 +25,8 @@ export default function MemberCard() {
   const brand = branding?.name || 'המסעדה';
   const ACCENT = '#A04A2E';
 
+  const [wallet, setWallet] = useState(null);
+
   useEffect(() => {
     if (!c || !s) { setState('error'); return; }
     (async () => {
@@ -34,6 +36,10 @@ export default function MemberCard() {
         setState('ready');
       } catch { setState('error'); }
     })();
+    // Only offer a wallet the owner has actually set up — a button that leads
+    // to "not configured" is worse than no button.
+    fetch('/api/wallet/availability')
+      .then(r => r.json()).then(setWallet).catch(() => setWallet(null));
   }, [c, s]);
 
   if (state === 'loading') {
@@ -198,6 +204,26 @@ export default function MemberCard() {
                 {h.redeemed_at && ` · ${new Date(h.redeemed_at).toLocaleDateString('he-IL')}`}
               </p>
             ))}
+          </div>
+        )}
+
+        {(wallet?.apple || wallet?.google) && (
+          <div className="mt-5 space-y-2">
+            {wallet.apple && (
+              <a href={`/api/wallet/apple?c=${encodeURIComponent(c)}&s=${encodeURIComponent(s)}`}
+                className="flex items-center justify-center gap-2 w-full rounded-xl py-3 font-bold text-white bg-black">
+                <Wallet className="w-4 h-4" /> הוספה ל-Apple Wallet
+              </a>
+            )}
+            {wallet.google && (
+              <a href={`/api/wallet/google?c=${encodeURIComponent(c)}&s=${encodeURIComponent(s)}`}
+                className="flex items-center justify-center gap-2 w-full rounded-xl py-3 font-bold text-white bg-[#4285F4]">
+                <Wallet className="w-4 h-4" /> הוספה ל-Google Wallet
+              </a>
+            )}
+            <p className="text-center text-[11px] text-gray-400">
+              הכרטיס יופיע בארנק, והצוות יסרוק אותו ישירות משם.
+            </p>
           </div>
         )}
 

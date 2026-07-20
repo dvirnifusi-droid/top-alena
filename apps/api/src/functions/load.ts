@@ -34,6 +34,7 @@ import {
   tonightBoard,
 } from '../lib/clubCore.js';
 import { marketingStats } from '../lib/marketingStats.js';
+import { walletAvailability, applyCertExpiry } from '../lib/walletPass.js';
 
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
@@ -4109,6 +4110,46 @@ registerFn('clubTestJoinMessage', async ({ body, user }) => {
 /** Real campaign results, from the table the sends actually write to. */
 registerFn('getMarketingStats', async ({ body }) =>
   await marketingStats(Number((body as any)?.days) || 30));
+
+/** Wallet setup state: what is configured, and when the Apple cert lapses. */
+registerFn('getWalletSetup', async ({ user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const [availability, expiry] = await Promise.all([walletAvailability(), applyCertExpiry()]);
+  return { availability, expiry };
+});
+
+/**
+ * Store wallet credentials.
+ *
+ * Restricted to the wallet key names on purpose: this is a convenience wrapper
+ * for one setup screen, not a second door onto every secret the business holds.
+ */
+const WALLET_SECRET_KEYS = new Set([
+  'APPLE_PASS_TYPE_ID', 'APPLE_TEAM_ID', 'APPLE_PASS_CERT_PEM', 'APPLE_PASS_KEY_PEM',
+  'APPLE_WWDR_PEM', 'APPLE_PASS_ICON_PNG', 'APPLE_PASS_LOGO_PNG',
+  'GOOGLE_WALLET_ISSUER_ID', 'GOOGLE_WALLET_SA_EMAIL', 'GOOGLE_WALLET_SA_KEY',
+]);
+
+registerFn('saveWalletSecrets', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const entries = Object.entries(((body as any)?.secrets || {}) as Record<string, string>);
+  await ensureSecretsTable();
+  let saved = 0;
+  for (const [key, value] of entries) {
+    if (!WALLET_SECRET_KEYS.has(key)) continue;
+    const v = String(value || '').trim();
+    if (!v) continue;
+    const existing = await db.integrationSecret.findFirst({ where: { key } });
+    if (existing) {
+      await db.integrationSecret.update({ where: { id: existing.id }, data: { value: v, updated_at: new Date() } });
+    } else {
+      await db.integrationSecret.create({ data: { key, value: v, note: 'Wallet pass', updated_at: new Date() } });
+    }
+    saved++;
+  }
+  const [availability, expiry] = await Promise.all([walletAvailability(), applyCertExpiry()]);
+  return { ok: true, saved, availability, expiry };
+});
 
 registerFn('getClubSettings', async () => ({ settings: await getClubConfig() }));
 
