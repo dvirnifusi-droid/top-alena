@@ -42,14 +42,15 @@ export const TEMPLATES = {
         // fraction of an SMS.
         label: 'הצטרפות למועדון',
         category: 'marketing',
-        // Reworded from the version Meta rejected. Meta appears to cache a verdict
-        // against an identical body — the duplicate, byte-for-byte the same, was
-        // refused instantly — so this is genuinely new text, mirroring how this
-        // account's own booking_confirmation had to become a v2 to pass.
-        body: 'ברוכים הבאים למועדון של {{1}}, {{2}}! 🎉\n\n' +
-            'כבר מחכה לכם אצלנו {{3}}, עם קוד אישי: {{4}}\n\n' +
-            'כל הפרטים וההטבות בכרטיס החבר שלכם: {{5}}\n' +
-            'נתראה בקרוב 🙌',
+        // This exact text was submitted to Meta from the API (template
+        // club_join_20260720a) and cleared the category gate that rejected three
+        // earlier versions — the API submission forced allow_category_change true,
+        // which the Console did not. It matches the body Twilio holds for the stored
+        // SID; keep them identical or the send is rejected.
+        body: 'תודה שהצטרפתם למועדון של {{1}}, {{2}} 🙏\n\n' +
+            'ההטבה שלכם מוכנה: {{3}}. הציגו את הקוד {{4}} בעת הביקור.\n\n' +
+            'לצפייה בכל ההטבות והפרטים: {{5}}\n' +
+            'להתראות אצלנו.',
         vars: ['שם העסק', 'שם פרטי', 'ההטבה', 'קוד המימוש', 'קישור לכרטיס'],
     },
     club_birthday: {
@@ -66,11 +67,14 @@ export const TEMPLATES = {
         secretKey: 'WA_TEMPLATE_STAFF_REPORT',
         label: 'דוח לצוות',
         category: 'utility',
-        body: 'דוח {{1}} לתאריך {{2}}:\n\n' +
-            '{{3}}\n\n' +
-            'לפרטים המלאים: {{4}}\n' +
-            'תודה.',
-        vars: ['סוג הדוח', 'תאריך', 'תוכן הדוח', 'קישור'],
+        // Meta rejected the four-variable version: too many variables for the
+        // message length. Three variables, and more fixed wording around them, keeps
+        // the density within what Meta accepts.
+        body: 'שלום, מצורף הדוח היומי מהמערכת של עלינא לתאריך {{1}}.\n\n' +
+            'להלן הנתונים העיקריים:\n{{2}}\n\n' +
+            'ניתן לצפות בפירוט המלא ובשאר הדוחות במערכת, בקישור הבא: {{3}}\n' +
+            'תודה ויום טוב.',
+        vars: ['תאריך', 'תוכן הדוח', 'קישור'],
     },
 };
 /**
