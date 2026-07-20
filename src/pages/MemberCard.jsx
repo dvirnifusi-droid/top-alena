@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Loader2, Gift, Coins, Trophy } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 
 // What a member can see about their own membership.
@@ -86,10 +87,27 @@ export default function MemberCard() {
                     <div key={b.id} className="rounded-2xl p-4 border-2 border-dashed"
                       style={{ borderColor: '#D9BD83', background: '#FFFBF2' }}>
                       <p className="text-gray-800 font-semibold leading-snug">{b.description}</p>
-                      <p className="text-xs text-gray-500 mt-3">הציגו את הקוד למלצר</p>
-                      <p className="text-3xl font-black tracking-[0.2em] mt-1" style={{ color: ACCENT }}>
-                        {b.code}
-                      </p>
+                      {/* The QR encodes a link to the redemption screen rather
+                          than the bare code, so staff can use the phone's own
+                          camera — no scanner library, no in-app camera
+                          permission, and it works on every device in the room.
+                          The code stays printed underneath for when a camera
+                          will not cooperate. */}
+                      <div className="flex items-center gap-4 mt-3">
+                        <div className="bg-white p-2 rounded-lg border shrink-0" style={{ borderColor: '#E8DCC0' }}>
+                          <QRCodeSVG
+                            value={`${window.location.origin}/ClubRedeem?code=${encodeURIComponent(b.code || '')}`}
+                            size={92}
+                            level="M"
+                          />
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-500">הציגו למלצר</p>
+                          <p className="text-2xl font-black tracking-[0.15em]" style={{ color: ACCENT }}>
+                            {b.code}
+                          </p>
+                        </div>
+                      </div>
                       {b.expiry_date && (
                         <p className="text-[11px] text-gray-400 mt-2">בתוקף עד {b.expiry_date.split('-').reverse().join('/')}</p>
                       )}

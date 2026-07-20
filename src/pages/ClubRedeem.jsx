@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,13 +13,29 @@ import { Loader2, CheckCircle2, XCircle, Gift, AlertTriangle } from 'lucide-reac
 // what you are about to give away and to whom, then hand it over. A single
 // button would burn a valid code on a mistyped digit.
 export default function ClubRedeem() {
-  const [code, setCode] = useState('');
+  // A code can arrive from the customer's QR (?code=), scanned with the phone's
+  // own camera. It is looked up automatically but never redeemed automatically —
+  // pointing a camera at something is not the same as deciding to give it away.
+  const [code, setCode] = useState(() => {
+    const c = new URLSearchParams(window.location.search).get('code') || '';
+    return c.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+  });
   const [busy, setBusy] = useState(false);
   const [found, setFound] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
 
   const reset = () => { setCode(''); setFound(null); setResult(null); setError(''); };
+
+  // Look up a scanned code on arrival so the waiter sees what it is without
+  // retyping it. Runs once, on a code that came in through the URL.
+  const scannedRef = useRef(false);
+  useEffect(() => {
+    if (scannedRef.current || code.length < 4) return;
+    scannedRef.current = true;
+    lookup();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const lookup = async () => {
     const c = code.trim().toUpperCase();
