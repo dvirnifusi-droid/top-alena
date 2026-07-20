@@ -4168,6 +4168,7 @@ const WALLET_SECRET_KEYS = new Set([
     'APPLE_PASS_TYPE_ID', 'APPLE_TEAM_ID', 'APPLE_PASS_CERT_PEM', 'APPLE_PASS_KEY_PEM',
     'APPLE_WWDR_PEM', 'APPLE_PASS_ICON_PNG', 'APPLE_PASS_LOGO_PNG',
     'GOOGLE_WALLET_ISSUER_ID', 'GOOGLE_WALLET_SA_EMAIL', 'GOOGLE_WALLET_SA_KEY',
+    'GOOGLE_WALLET_LOGO_URL',
 ]);
 registerFn('saveWalletSecrets', async ({ body, user }) => {
     if (!isAdminRole(user?.role))

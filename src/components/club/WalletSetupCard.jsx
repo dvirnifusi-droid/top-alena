@@ -22,6 +22,7 @@ const GOOGLE_FIELDS = [
   { key: 'GOOGLE_WALLET_ISSUER_ID', label: 'Issuer ID', hint: 'מחשבון Google Wallet', lines: 1 },
   { key: 'GOOGLE_WALLET_SA_EMAIL', label: 'Service account email', hint: 'xxx@yyy.iam.gserviceaccount.com', lines: 1 },
   { key: 'GOOGLE_WALLET_SA_KEY', label: 'Service account private key', hint: 'שדה private_key מקובץ ה-JSON', lines: 4 },
+  { key: 'GOOGLE_WALLET_LOGO_URL', label: 'לוגו (כתובת תמונה) — לא חובה', hint: 'https://... תמונה מרובעת', lines: 1 },
 ];
 
 export default function WalletSetupCard() {

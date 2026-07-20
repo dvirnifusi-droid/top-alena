@@ -217,17 +217,38 @@ export async function buildApplePass(d: PassData): Promise<Buffer | null> {
 
 /**
  * Google takes the opposite approach: no file to sign and serve, just a JWT
- * describing the object, signed with the service account key. The phone opens
- * the link and Google builds the card.
+ * describing the card, signed with the service account key. The phone opens the
+ * link and Google builds it.
+ *
+ * The class definition travels inside the JWT rather than being created in
+ * advance through the API. Google accepts that and creates the class on first
+ * save — which removes an entire setup step for the owner, and removes the
+ * failure where every save 404s against a class nobody remembered to create.
  */
 export async function buildGoogleWalletLink(d: PassData): Promise<string | null> {
-  const [issuerId, saEmail, saKey] = await Promise.all([
-    secret('GOOGLE_WALLET_ISSUER_ID'), secret('GOOGLE_WALLET_SA_EMAIL'), secret('GOOGLE_WALLET_SA_KEY'),
+  const [issuerId, saEmail, saKey, logoUrl] = await Promise.all([
+    secret('GOOGLE_WALLET_ISSUER_ID'), secret('GOOGLE_WALLET_SA_EMAIL'),
+    secret('GOOGLE_WALLET_SA_KEY'), secret('GOOGLE_WALLET_LOGO_URL'),
   ]);
   if (!issuerId || !saEmail || !saKey) return null;
 
   const classId = `${issuerId}.club`;
   const objectId = `${issuerId}.${d.customerId.replace(/[^a-zA-Z0-9_.-]/g, '')}`;
+
+  const loyaltyClass: any = {
+    id: classId,
+    issuerName: d.brand,
+    programName: `מועדון ${d.brand}`,
+    reviewStatus: 'UNDER_REVIEW',
+    hexBackgroundColor: '#A04A2E',
+  };
+  // Google rejects a logo entry with no URL, so it is included only when set.
+  if (logoUrl) {
+    loyaltyClass.programLogo = {
+      sourceUri: { uri: logoUrl },
+      contentDescription: { defaultValue: { language: 'he', value: d.brand } },
+    };
+  }
 
   const loyaltyObject: any = {
     id: objectId,
@@ -259,7 +280,7 @@ export async function buildGoogleWalletLink(d: PassData): Promise<string | null>
       typ: 'savetowallet',
       iat: Math.floor(Date.now() / 1000),
       origins: [d.redeemBaseUrl],
-      payload: { loyaltyObjects: [loyaltyObject] },
+      payload: { loyaltyClasses: [loyaltyClass], loyaltyObjects: [loyaltyObject] },
     },
     // Service-account keys arrive with literal \n when pasted through a form.
     String(saKey).replace(/\\n/g, '\n'),
