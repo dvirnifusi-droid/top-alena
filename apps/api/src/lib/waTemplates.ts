@@ -21,7 +21,10 @@ import { prisma } from '../db.js';
 
 const dbx = () => prisma as any;
 
-export type TemplateKind = 'club_welcome' | 'club_birthday' | 'staff_report';
+export type TemplateKind =
+  | 'club_welcome' | 'club_birthday' | 'staff_report'
+  | 'owner_notification' | 'staff_notice' | 'employee_invite'
+  | 'guest_reservation' | 'guest_table_ready' | 'club_message';
 
 /**
  * What each template says, and what its variables mean.
@@ -88,6 +91,99 @@ export const TEMPLATES: Record<TemplateKind, {
       'ניתן לצפות בפירוט המלא ובשאר הדוחות במערכת, בקישור הבא: {{3}}\n' +
       'תודה ויום טוב.',
     vars: ['תאריך', 'תוכן הדוח', 'קישור'],
+  },
+
+  // ── generic templates, one per message SHAPE ───────────────────────────────
+  // The app has ~40 business-initiated send sites, but they collapse into a
+  // handful of shapes. One reusable template per shape covers them all: an
+  // arbitrary long report becomes a short summary in a variable plus a link to
+  // the full thing in the app — the same pattern the club welcome uses, and the
+  // only pattern that fits WhatsApp's per-variable length and density limits.
+
+  // Every scheduled/triggered message to the owner and managers: daily hours,
+  // morning/evening brief, weekly insights, supplier orders, cash-flow and
+  // crisis alerts, no-show pings, reminders. Title + summary + link.
+  owner_notification: {
+    secretKey: 'WA_TEMPLATE_OWNER_NOTIFICATION',
+    label: 'התראה לבעלים',
+    category: 'utility',
+    body:
+      'עדכון מהמערכת של {{1}} — {{2}}:\n\n' +
+      '{{3}}\n\n' +
+      'לצפייה בפרטים המלאים במערכת: {{4}}\n' +
+      'תודה.',
+    vars: ['שם העסק', 'כותרת', 'תקציר', 'קישור'],
+  },
+
+  // Every scheduled/triggered message to an EMPLOYEE: availability reminders,
+  // schedule opened/published, shift/clock-in nudges, team broadcasts. Employees
+  // almost never have an open session with the bot, so these are the sends most
+  // likely to vanish without a template.
+  staff_notice: {
+    secretKey: 'WA_TEMPLATE_STAFF_NOTICE',
+    label: 'הודעה לעובד',
+    category: 'utility',
+    body:
+      'היי {{1}}, יש לך הודעה חדשה מ{{2}}:\n\n' +
+      '{{3}}\n\n' +
+      'לצפייה ולפעולה במערכת: {{4}}\n' +
+      'תודה.',
+    vars: ['שם פרטי', 'שם העסק', 'תוכן ההודעה', 'קישור'],
+  },
+
+  // Inviting a brand-new employee — by definition first contact, so free-form
+  // could never reach them.
+  employee_invite: {
+    secretKey: 'WA_TEMPLATE_EMPLOYEE_INVITE',
+    label: 'הזמנת עובד',
+    category: 'utility',
+    body:
+      'היי {{1}}, הוזמנת להצטרף לצוות של {{2}} 🎉\n\n' +
+      'להשלמת הפרטים והכניסה למערכת, הקישו כאן: {{3}}\n' +
+      'נשמח לעבוד יחד.',
+    vars: ['שם פרטי', 'שם העסק', 'קישור הצטרפות'],
+  },
+
+  // Reservation confirmed / day-of reminder to a guest.
+  guest_reservation: {
+    secretKey: 'WA_TEMPLATE_GUEST_RESERVATION',
+    label: 'אישור הזמנה',
+    category: 'utility',
+    body:
+      'שלום {{1}}, ההזמנה שלך ב{{2}} מעודכנת 🎉\n\n' +
+      '{{3}}\n\n' +
+      'לצפייה או לעדכון ההזמנה: {{4}}\n' +
+      'נתראה בקרוב.',
+    vars: ['שם פרטי', 'שם העסק', 'פרטי ההזמנה', 'קישור'],
+  },
+
+  // The gap the audit found: "a table opened up / you're on the waitlist" — the
+  // queue notifications that today have no template at all and silently fail.
+  guest_table_ready: {
+    secretKey: 'WA_TEMPLATE_GUEST_TABLE_READY',
+    label: 'התפנה שולחן',
+    category: 'utility',
+    body:
+      'שלום {{1}}, יש לנו עדכון מ{{2}} 🎉\n\n' +
+      '{{3}}\n\n' +
+      'לפרטים ולתיאום: {{4}}\n' +
+      'מחכים לך.',
+    vars: ['שם פרטי', 'שם העסק', 'העדכון', 'קישור'],
+  },
+
+  // Club messages that are neither the welcome nor the birthday: anniversary,
+  // pre-birthday, NPS, and general club broadcasts. Name + business + message +
+  // card link.
+  club_message: {
+    secretKey: 'WA_TEMPLATE_CLUB_MESSAGE',
+    label: 'הודעת מועדון',
+    category: 'marketing',
+    body:
+      'היי {{1}}, הודעה ממועדון {{2}} 💌\n\n' +
+      '{{3}}\n\n' +
+      'לצפייה בכל ההטבות שלך: {{4}}\n' +
+      'להתראות אצלנו.',
+    vars: ['שם פרטי', 'שם העסק', 'תוכן ההודעה', 'קישור לכרטיס'],
   },
 };
 
