@@ -35,6 +35,59 @@ async function secret(key: string): Promise<string | null> {
   return row?.value || null;
 }
 
+/**
+ * Pull a usable PEM out of whatever got pasted into the key box.
+ *
+ * The value lives inside a downloaded JSON file, so the natural thing a person
+ * does is select a bit of that file and paste it — bringing along the
+ * "private_key": label, the surrounding quotes, a neighbouring private_key_id
+ * line, and a trailing comma. Signing then fails with something unhelpful about
+ * PEM formatting, and the owner has no way to tell that the credential was fine
+ * and only the selection was wrong.
+ *
+ * So this accepts the whole JSON file, a fragment of it, a quoted string, or the
+ * bare PEM, and returns the key. It is the one field in the app most likely to
+ * be filled by copying from a file rather than typing.
+ */
+export function normalizePrivateKey(raw: string): string {
+  let v = String(raw || '').trim();
+  if (!v) return '';
+
+  // The entire service-account file.
+  if (v.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(v);
+      if (parsed?.private_key) v = String(parsed.private_key);
+    } catch { /* fall through to the text handling below */ }
+  }
+
+  // A fragment containing the labelled field, with or without escaped newlines.
+  if (v.includes('private_key')) {
+    const m = v.match(/"private_key"\s*:\s*"([\s\S]*?)"\s*[,}]?/);
+    if (m) v = m[1];
+  }
+
+  v = v.replace(/\\n/g, '\n').replace(/^["'\s]+|["'\s,]+$/g, '');
+
+  // Keep only the PEM block, dropping anything that rode along beside it.
+  const block = v.match(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/);
+  if (block) v = block[0];
+
+  return v.trim() ? `${v.trim()}\n` : '';
+}
+
+/** The service-account email, if the whole JSON file was pasted somewhere. */
+export function emailFromServiceAccountJson(raw: string): string | null {
+  const v = String(raw || '').trim();
+  if (!v.startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(v);
+    return parsed?.client_email ? String(parsed.client_email) : null;
+  } catch {
+    return null;
+  }
+}
+
 export type WalletAvailability = {
   apple: boolean;
   google: boolean;
@@ -282,8 +335,7 @@ export async function buildGoogleWalletLink(d: PassData): Promise<string | null>
       origins: [d.redeemBaseUrl],
       payload: { loyaltyClasses: [loyaltyClass], loyaltyObjects: [loyaltyObject] },
     },
-    // Service-account keys arrive with literal \n when pasted through a form.
-    String(saKey).replace(/\\n/g, '\n'),
+    normalizePrivateKey(saKey),
     { algorithm: 'RS256' },
   );
   return `https://pay.google.com/gp/v/save/${token}`;

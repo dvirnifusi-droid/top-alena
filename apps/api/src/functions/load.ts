@@ -34,7 +34,9 @@ import {
   tonightBoard,
 } from '../lib/clubCore.js';
 import { marketingStats } from '../lib/marketingStats.js';
-import { walletAvailability, applyCertExpiry } from '../lib/walletPass.js';
+import {
+  walletAvailability, applyCertExpiry, normalizePrivateKey, emailFromServiceAccountJson,
+} from '../lib/walletPass.js';
 
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
@@ -4133,13 +4135,31 @@ const WALLET_SECRET_KEYS = new Set([
 
 registerFn('saveWalletSecrets', async ({ body, user }) => {
   if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
-  const entries = Object.entries(((body as any)?.secrets || {}) as Record<string, string>);
+  const incoming = { ...(((body as any)?.secrets || {}) as Record<string, string>) };
+
+  // The key box is filled by copying out of a downloaded file, so it arrives
+  // carrying whatever else the selection caught. Clean it here rather than at
+  // signing time, so what is stored is already a usable PEM — and if the whole
+  // file was pasted, take the email out of it too instead of making the owner
+  // hunt for a second field they have already supplied.
+  if (incoming.GOOGLE_WALLET_SA_KEY) {
+    const fromFile = emailFromServiceAccountJson(incoming.GOOGLE_WALLET_SA_KEY);
+    if (fromFile && !String(incoming.GOOGLE_WALLET_SA_EMAIL || '').trim()) {
+      incoming.GOOGLE_WALLET_SA_EMAIL = fromFile;
+    }
+    incoming.GOOGLE_WALLET_SA_KEY = normalizePrivateKey(incoming.GOOGLE_WALLET_SA_KEY);
+  }
+
+  const entries = Object.entries(incoming);
   await ensureSecretsTable();
   let saved = 0;
+  const rejected: string[] = [];
   for (const [key, value] of entries) {
     if (!WALLET_SECRET_KEYS.has(key)) continue;
     const v = String(value || '').trim();
     if (!v) continue;
+    // Refuse to store a key that will only fail later at signing time.
+    if (key === 'GOOGLE_WALLET_SA_KEY' && !v.includes('BEGIN') ) { rejected.push(key); continue; }
     const existing = await db.integrationSecret.findFirst({ where: { key } });
     if (existing) {
       await db.integrationSecret.update({ where: { id: existing.id }, data: { value: v, updated_at: new Date() } });
@@ -4149,7 +4169,7 @@ registerFn('saveWalletSecrets', async ({ body, user }) => {
     saved++;
   }
   const [availability, expiry] = await Promise.all([walletAvailability(), applyCertExpiry()]);
-  return { ok: true, saved, availability, expiry };
+  return { ok: true, saved, rejected, availability, expiry };
 });
 
 registerFn('getClubSettings', async () => ({ settings: await getClubConfig() }));
