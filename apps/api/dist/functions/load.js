@@ -28,6 +28,7 @@ import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
 import { withOptOut, verifyCustomerSignature, memberCardUrl, signCustomer } from '../lib/marketingBlast.js';
 import { getClubConfig, saveClubConfig, grantBenefit, listBenefits, findBenefitByCode, redeemBenefit, tierLabel, ensureClubTables, tournamentStandings, myStanding, closeTournamentRound, sendJoinMessage, tonightBoard, } from '../lib/clubCore.js';
+import { marketingStats } from '../lib/marketingStats.js';
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
@@ -4147,6 +4148,8 @@ registerFn('clubTestJoinMessage', async ({ body, user }) => {
     });
     return r;
 });
+/** Real campaign results, from the table the sends actually write to. */
+registerFn('getMarketingStats', async ({ body }) => await marketingStats(Number(body?.days) || 30));
 registerFn('getClubSettings', async () => ({ settings: await getClubConfig() }));
 registerFn('saveClubSettings', async ({ body }) => ({
     settings: await saveClubConfig(body?.settings || body || {}),

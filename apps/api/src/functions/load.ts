@@ -33,6 +33,7 @@ import {
   tournamentStandings, myStanding, closeTournamentRound, sendJoinMessage,
   tonightBoard,
 } from '../lib/clubCore.js';
+import { marketingStats } from '../lib/marketingStats.js';
 
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
@@ -4104,6 +4105,10 @@ registerFn('clubTestJoinMessage', async ({ body, user }) => {
   });
   return r;
 });
+
+/** Real campaign results, from the table the sends actually write to. */
+registerFn('getMarketingStats', async ({ body }) =>
+  await marketingStats(Number((body as any)?.days) || 30));
 
 registerFn('getClubSettings', async () => ({ settings: await getClubConfig() }));
 
