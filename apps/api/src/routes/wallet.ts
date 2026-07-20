@@ -34,9 +34,58 @@ async function passDataFor(cid: string): Promise<PassData | null> {
   };
 }
 
+/**
+ * The tenant's logo, served from the tenant's own domain.
+ *
+ * Google requires a program logo — a loyalty class cannot be created without one
+ * — and Google's servers fetch the URL themselves. The logo on file here points
+ * at the old base44 host and answers with a redirect to Supabase; the image is
+ * fine, but relying on a third party's redirect chain at Google's fetch time is
+ * how a card quietly loses its logo one day.
+ *
+ * Fetched once and held in memory, because this is asked for by Google's
+ * crawler, not by a customer's phone, and the underlying image changes about
+ * never.
+ */
+let logoCache: { body: Buffer; type: string; at: number } | null = null;
+const LOGO_TTL_MS = 6 * 60 * 60 * 1000;
+
+async function tenantLogo(): Promise<{ body: Buffer; type: string } | null> {
+  if (logoCache && Date.now() - logoCache.at < LOGO_TTL_MS) return logoCache;
+  const profile: any = await dbx().restaurantProfile
+    .findFirst({ select: { logo_url: true } }).catch(() => null);
+  let url: string | undefined = profile?.logo_url || undefined;
+  if (!url) return null;
+  if (url.startsWith('/')) url = `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}${url}`;
+  try {
+    const res = await fetch(url, { redirect: 'follow' });
+    if (!res.ok) return null;
+    const body = Buffer.from(await res.arrayBuffer());
+    // The old host serves PNGs as application/octet-stream; Google wants a real
+    // image type, so trust the PNG magic bytes over the header.
+    const isPng = body.length > 8 && body[0] === 0x89 && body[1] === 0x50;
+    const type = isPng ? 'image/png'
+      : (res.headers.get('content-type') || '').startsWith('image/')
+        ? String(res.headers.get('content-type')) : 'image/png';
+    logoCache = { body, type, at: Date.now() };
+    return logoCache;
+  } catch {
+    return null;
+  }
+}
+
 export const walletRoutes = async (app: FastifyInstance) => {
   /** Availability, so the member card only offers a wallet that is set up. */
   app.get('/availability', async () => await walletAvailability());
+
+  app.get('/logo.png', async (_req, reply) => {
+    const logo = await tenantLogo();
+    if (!logo) return reply.code(404).send({ error: 'no_logo_configured' });
+    return reply
+      .header('Content-Type', logo.type)
+      .header('Cache-Control', 'public, max-age=21600')
+      .send(logo.body);
+  });
 
   app.get('/apple', async (req, reply) => {
     const { c, s } = (req.query || {}) as any;

@@ -29,7 +29,7 @@ import { sendEmail } from '../lib/email.js';
 import { withOptOut, verifyCustomerSignature, memberCardUrl, signCustomer } from '../lib/marketingBlast.js';
 import { getClubConfig, saveClubConfig, grantBenefit, listBenefits, findBenefitByCode, redeemBenefit, tierLabel, ensureClubTables, tournamentStandings, myStanding, closeTournamentRound, sendJoinMessage, tonightBoard, } from '../lib/clubCore.js';
 import { marketingStats } from '../lib/marketingStats.js';
-import { walletAvailability, applyCertExpiry, normalizePrivateKey, emailFromServiceAccountJson, } from '../lib/walletPass.js';
+import { walletAvailability, applyCertExpiry, normalizePrivateKey, emailFromServiceAccountJson, diagnoseGoogleWallet, } from '../lib/walletPass.js';
 import { invokeLLM, generateImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
@@ -4212,6 +4212,12 @@ registerFn('saveWalletSecrets', async ({ body, user }) => {
     }
     const [availability, expiry] = await Promise.all([walletAvailability(), applyCertExpiry()]);
     return { ok: true, saved, rejected, availability, expiry };
+});
+/** Turn Google's "Something went wrong" into a sentence that names the cause. */
+registerFn('diagnoseWallet', async ({ user }) => {
+    if (!isAdminRole(user?.role))
+        throw new Error('admin only');
+    return await diagnoseGoogleWallet();
 });
 registerFn('getClubSettings', async () => ({ settings: await getClubConfig() }));
 registerFn('saveClubSettings', async ({ body }) => ({

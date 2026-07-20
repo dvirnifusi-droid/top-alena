@@ -29,6 +29,52 @@ const GOOGLE_FIELDS = [
     hint: 'קישור ישיר, יחס 3:1, עד 1MB', lines: 1 },
 ];
 
+// Google's save page reduces every failure to "Something went wrong. Please try
+// again" — the same sentence for a bad key, an unauthorised service account and
+// a class that will not validate. This asks Google's API instead and prints what
+// it actually said. Finding that out took a hand-written script the first time.
+function GoogleDiagnostic() {
+  const [res, setRes] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    setBusy(true); setRes(null);
+    try {
+      const r = await base44.functions.diagnoseWallet();
+      setRes((r?.data ?? r) || null);
+    } catch (e) {
+      setRes({ ok: false, steps: [{ step: 'בדיקה', ok: false, detail: e?.message || 'שגיאה' }] });
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="rounded-xl border bg-slate-50 p-3">
+      <Button variant="outline" onClick={run} disabled={busy} className="w-full">
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'בדיקת החיבור מול גוגל'}
+      </Button>
+      {res && (
+        <div className="mt-3 space-y-1.5">
+          {res.steps.map((s, i) => (
+            <div key={i} className="flex items-start gap-2 text-sm">
+              {s.ok
+                ? <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                : <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />}
+              <div>
+                <span className="font-bold text-slate-800">{s.step}</span>
+                <span className="text-slate-600"> — {s.detail}</span>
+              </div>
+            </div>
+          ))}
+          <p className={`text-xs font-bold mt-2 ${res.ok ? 'text-emerald-700' : 'text-red-700'}`}>
+            {res.ok ? 'הכל מחובר — כרטיסים ייווצרו' : 'החיבור לא שלם — ראה את השורה האדומה'}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function WalletSetupCard() {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState(null);
@@ -140,6 +186,8 @@ export default function WalletSetupCard() {
               </p>
               <div className="space-y-3">{GOOGLE_FIELDS.map(f => <Field key={f.key} f={f} />)}</div>
             </div>
+
+            {a.google && <GoogleDiagnostic />}
 
             <Button onClick={save} disabled={saving || Object.keys(vals).length === 0} className="w-full">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? '✓ נשמר' : 'שמירה'}

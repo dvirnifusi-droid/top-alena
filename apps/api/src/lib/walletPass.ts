@@ -313,16 +313,18 @@ export async function buildGoogleWalletLink(d: PassData): Promise<string | null>
     // hardcoded — every tenant gets its own card without configuring anything.
     hexBackgroundColor: await brandColor(),
   };
-  // Images are the one thing that cannot be inferred safely. Google fetches
-  // these URLs itself, so a redirect or a very large file gives a card that
-  // silently renders without its logo — and a stored logo may well point at a
-  // host the business no longer controls. Included only when explicitly set.
-  if (logoUrl) {
-    loyaltyClass.programLogo = {
-      sourceUri: { uri: logoUrl },
-      contentDescription: { defaultValue: { language: 'he', value: d.brand } },
-    };
-  }
+  // A logo is REQUIRED, not decorative: Google refuses to create a loyalty class
+  // without one — "LoyaltyClass cannot be created without a program logo" — and
+  // the save link then fails with nothing but "Something went wrong."
+  //
+  // So it always gets one. An explicitly configured URL wins; otherwise the
+  // tenant's own logo, served from the tenant's own domain rather than whatever
+  // host it was originally uploaded to.
+  const logo = logoUrl || `${d.redeemBaseUrl}/api/wallet/logo.png`;
+  loyaltyClass.programLogo = {
+    sourceUri: { uri: logo },
+    contentDescription: { defaultValue: { language: 'he', value: d.brand } },
+  };
   if (heroUrl) {
     loyaltyClass.heroImage = {
       sourceUri: { uri: heroUrl },
@@ -366,6 +368,90 @@ export async function buildGoogleWalletLink(d: PassData): Promise<string | null>
     { algorithm: 'RS256' },
   );
   return `https://pay.google.com/gp/v/save/${token}`;
+}
+
+/**
+ * Ask Google what is actually wrong.
+ *
+ * The Save-to-Wallet page reduces every failure to "Something went wrong.
+ * Please try again", which is true of a bad key, an unauthorised service
+ * account, a missing issuer and a class that will not validate. The REST API
+ * says which. Getting that answer took a hand-written script the first time;
+ * this makes it a button.
+ */
+export async function diagnoseGoogleWallet(): Promise<{
+  ok: boolean;
+  steps: Array<{ step: string; ok: boolean; detail: string }>;
+}> {
+  const steps: Array<{ step: string; ok: boolean; detail: string }> = [];
+  const push = (step: string, ok: boolean, detail: string) => steps.push({ step, ok, detail });
+
+  const [issuerId, saEmail, rawKey] = await Promise.all([
+    secret('GOOGLE_WALLET_ISSUER_ID'), secret('GOOGLE_WALLET_SA_EMAIL'), secret('GOOGLE_WALLET_SA_KEY'),
+  ]);
+  if (!issuerId || !saEmail || !rawKey) {
+    push('הגדרות', false, 'חסרים פרטי חיבור — Issuer ID, מייל חשבון שירות או מפתח');
+    return { ok: false, steps };
+  }
+  push('הגדרות', true, `מנפיק ${issuerId}`);
+
+  const key = normalizePrivateKey(rawKey);
+  if (!key.includes('BEGIN')) {
+    push('מפתח', false, 'המפתח השמור אינו PEM תקין');
+    return { ok: false, steps };
+  }
+
+  let client: any;
+  try {
+    const { JWT } = await import('google-auth-library');
+    client = new JWT({ email: saEmail, key, scopes: ['https://www.googleapis.com/auth/wallet_object.issuer'] });
+    await client.getAccessToken();
+    push('התחברות לגוגל', true, 'חשבון השירות התחבר');
+  } catch (e: any) {
+    push('התחברות לגוגל', false, String(e?.message || e).slice(0, 200));
+    return { ok: false, steps };
+  }
+
+  const BASE = 'https://walletobjects.googleapis.com/walletobjects/v1';
+  const call = async (method: string, path: string, data?: any) => {
+    const res = await client.request({ url: `${BASE}${path}`, method, data, validateStatus: () => true });
+    return { status: res.status, data: res.data as any };
+  };
+  const reason = (d: any) => d?.error?.message || JSON.stringify(d || {}).slice(0, 200);
+
+  const issuer = await call('GET', `/issuer/${issuerId}`);
+  if (issuer.status === 200) {
+    push('הרשאה על המנפיק', true, `מזוהה בשם "${issuer.data?.name || ''}"`);
+  } else {
+    push('הרשאה על המנפיק', false,
+      `${reason(issuer.data)} — בדרך כלל חסר לצרף את חשבון השירות תחת Users בקונסולת Wallet`);
+    return { ok: false, steps };
+  }
+
+  const classId = `${issuerId}.club`;
+  const existing = await call('GET', `/loyaltyClass/${classId}`);
+  if (existing.status === 200) {
+    push('כרטיס המועדון', true, 'קיים אצל גוגל ומוכן');
+    return { ok: true, steps };
+  }
+
+  // Not there yet — create it, and report Google's own words if it refuses.
+  const created = await call('POST', '/loyaltyClass', {
+    id: classId,
+    issuerName: 'club',
+    programName: 'club',
+    reviewStatus: 'UNDER_REVIEW',
+    hexBackgroundColor: await brandColor(),
+    programLogo: {
+      sourceUri: { uri: `${process.env.PUBLIC_BASE_URL || 'https://topalena.com'}/api/wallet/logo.png` },
+    },
+  });
+  if (created.status < 300) {
+    push('כרטיס המועדון', true, 'נוצר עכשיו אצל גוגל');
+    return { ok: true, steps };
+  }
+  push('כרטיס המועדון', false, reason(created.data));
+  return { ok: false, steps };
 }
 
 // ── certificate expiry ─────────────────────────────────────────────────────
