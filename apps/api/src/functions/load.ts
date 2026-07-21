@@ -4252,6 +4252,56 @@ registerFn('getMarketingHQ', async ({ user }: any) => {
   return { kpis, actions, headline, drips_enabled: dripsEnabled };
 });
 
+/** "בוחן סושיאל" — the AI marketing manager grades a social post/caption the
+ *  (outsourced) social agency prepared, against the business's brand, and returns
+ *  an improved version. Maor: "the agents even vet the social-media company". */
+registerFn('reviewSocialContent', async ({ body, user }: any) => {
+  await requireBackOffice(user, 'reviewSocialContent', 'MarketingHub');
+  const b = body || {};
+  const text = String(b.text || '').trim();
+  const platform = String(b.platform || 'instagram').trim();
+  if (!text) throw new Error('הדבק את התוכן לבדיקה');
+  let profileBlock = '';
+  try {
+    const p: any = await db.businessProfile.findFirst();
+    if (p?.profile_data) profileBlock = `\n--- פרופיל העסק ---\n${JSON.stringify(p.profile_data)}\n--- סוף פרופיל ---\n`;
+  } catch { /* proceed without profile grounding */ }
+  const brand = await getBrandName().catch(() => 'העסק');
+  const res: any = await invokeLLM({
+    prompt: [
+      MARKETING_ADVISOR_PERSONA,
+      `אתה בוחן תוכן שיווקי שחברת סושיאל חיצונית הכינה עבור "${brand}".`,
+      profileBlock,
+      `הפלטפורמה: ${platform}.`,
+      `--- התוכן שהוגש ---\n${text}\n--- סוף התוכן ---`,
+      'בחן: האם התוכן מתאים למותג, ברור, מניע לפעולה, ומנוסח נכון לפלטפורמה. תן ציון 1-10, נקודות חוזק, בעיות/סיכונים, וגרסה משופרת שאתה היית מפרסם — בעברית.',
+    ].join('\n'),
+    responseSchema: {
+      type: 'object',
+      properties: {
+        score: { type: 'number', description: 'ציון 1-10' },
+        verdict: { type: 'string', description: 'משפט סיכום קצר' },
+        strengths: { type: 'array', items: { type: 'string' } },
+        issues: { type: 'array', items: { type: 'string' } },
+        rewrite: { type: 'string', description: 'גרסה משופרת של הפוסט' },
+        hashtags: { type: 'array', items: { type: 'string' } },
+        best_time: { type: 'string', description: 'זמן פרסום מומלץ' },
+      },
+      required: ['score', 'verdict', 'strengths', 'issues', 'rewrite'],
+    },
+    maxOutputTokens: 900,
+  });
+  return {
+    score: Math.max(1, Math.min(10, Math.round(Number(res?.score) || 0))),
+    verdict: String(res?.verdict || ''),
+    strengths: Array.isArray(res?.strengths) ? res.strengths : [],
+    issues: Array.isArray(res?.issues) ? res.issues : [],
+    rewrite: String(res?.rewrite || ''),
+    hashtags: Array.isArray(res?.hashtags) ? res.hashtags : [],
+    best_time: String(res?.best_time || ''),
+  };
+});
+
 /** Wallet setup state: what is configured, and when the Apple cert lapses. */
 registerFn('getWalletSetup', async ({ user }) => {
   if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
