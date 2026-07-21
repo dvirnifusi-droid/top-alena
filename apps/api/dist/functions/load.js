@@ -13721,6 +13721,76 @@ registerFn('createEventLead', async ({ user, body }) => {
     });
     return { ok: true, lead: { id: lead.id } };
 });
+// AUTH — edit an existing event lead's contact/details (owner/manager fixes a
+// phone number, date, guest count, etc.). Preserves the lead's pipeline status,
+// score, source and the internal notes markers; merges the edited extra fields
+// into the ---META--- block, only touching keys that were actually submitted.
+registerFn('updateEventLead', async ({ user, body }) => {
+    const role = (user?.role || '').toLowerCase();
+    if (!['owner', 'admin', 'manager'].includes(role))
+        throw new Error('admin only');
+    const b = body || {};
+    const id = String(b.lead_id || b.id || '').trim();
+    if (!id)
+        throw new Error('lead_id required');
+    const phone = String(b.contact_phone || '').trim();
+    if (!phone)
+        throw new Error('נדרש טלפון');
+    const existing = await db.eventLead.findUnique({ where: { id } });
+    if (!existing)
+        throw new Error('lead not found');
+    const intOrNull = (v) => {
+        if (v === null || v === undefined || String(v).trim() === '')
+            return null;
+        const n = parseInt(String(v).replace(/[^\d]/g, ''), 10);
+        return Number.isFinite(n) ? n : null;
+    };
+    const str = (v) => { const s = String(v ?? '').trim(); return s || undefined; };
+    const META_MARK = '---META---';
+    const raw = existing.notes || '';
+    const mi = raw.indexOf(META_MARK);
+    let prevMeta = {};
+    if (mi >= 0) {
+        try {
+            prevMeta = JSON.parse(raw.slice(mi + META_MARK.length).trim()) || {};
+        }
+        catch {
+            prevMeta = {};
+        }
+    }
+    // The frontend `notes` is the META-stripped text — use it as the new head so
+    // manager edits stick, and re-attach the merged META block.
+    const head = String(b.notes ?? (mi >= 0 ? raw.slice(0, mi).trimEnd() : raw)).trim();
+    const meta = { ...prevMeta };
+    // Only mutate a META key if the field was actually submitted (undefined = leave
+    // as-is, so fields the form doesn't expose — location/special_requests — survive).
+    const setMeta = (k, v) => { if (v === undefined)
+        return; const s = str(v); if (s)
+        meta[k] = s;
+    else
+        delete meta[k]; };
+    setMeta('contact_email', b.contact_email);
+    setMeta('event_time', b.event_time);
+    setMeta('location', b.location);
+    setMeta('location_details', b.location_details);
+    setMeta('special_requests', b.special_requests);
+    const notes = `${head}${head ? '\n' : ''}${META_MARK}\n${JSON.stringify(meta)}`;
+    await db.eventLead.update({
+        where: { id },
+        data: {
+            contact_name: str(b.contact_name) || null,
+            contact_phone: phone,
+            event_date: str(b.event_date) || null,
+            event_type: str(b.event_type) || null,
+            guest_count: intOrNull(b.guest_count),
+            budget_per_person: intOrNull(b.budget_per_person),
+            hours_window: str(b.hours_window) || null,
+            notes,
+            updated_date: new Date().toISOString(),
+        },
+    });
+    return { ok: true };
+});
 // PUBLIC mirror — used by /EventsPrivate's diagnostic banner only when the
 // authenticated listEventLeads returns empty so we can prove the data is there.
 registerFn('listEventLeadsPublicDebug', async () => {

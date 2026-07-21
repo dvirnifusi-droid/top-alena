@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Plus } from 'lucide-react';
+import { Plus, Pencil } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 import ThanksPageSettings from '../components/events/ThanksPageSettings';
@@ -125,22 +125,37 @@ const MANUAL_EVENT_TYPES = ['יום הולדת', 'יום נישואין', 'חת�
 // Owner/manager types a lead in by hand (phone/walk-in inquiry that didn't come
 // through Dana). Creates an EventLead with status 'pending' + source 'manual' so
 // it lands in the active callback board next to Dana's leads.
-function AddEventLeadDialog({ open, onOpenChange, onCreated }) {
+function AddEventLeadDialog({ open, onOpenChange, onCreated, lead }) {
   const EMPTY = { contact_name: '', contact_phone: '', event_type: '', event_date: '', event_time: '', guest_count: '', budget_per_person: '', contact_email: '', notes: '' };
+  const isEdit = !!lead;
   const [form, setForm] = React.useState(EMPTY);
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState('');
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  React.useEffect(() => {
+    if (!open) return;
+    setErr('');
+    setForm(lead ? {
+      contact_name: lead.contact_name || '', contact_phone: lead.contact_phone || '',
+      event_type: lead.event_type || '', event_date: lead.event_date || '',
+      event_time: lead.event_time || '', guest_count: lead.guest_count ?? '',
+      budget_per_person: lead.budget_per_person ?? '', contact_email: lead.contact_email || '',
+      notes: lead.notes || '',
+    } : EMPTY);
+  }, [open, lead]);
+
   const submit = async () => {
     if (!form.contact_phone.trim()) { setErr('חובה להזין טלפון — בלעדיו הליד לא יופיע ברשימת השיחות.'); return; }
     setSaving(true); setErr('');
     try {
-      await base44.functions.createEventLead({
+      const payload = {
         ...form,
         guest_count: form.guest_count === '' ? null : form.guest_count,
         budget_per_person: form.budget_per_person === '' ? null : form.budget_per_person,
-      });
+      };
+      if (isEdit) await base44.functions.updateEventLead({ lead_id: lead.id, ...payload });
+      else await base44.functions.createEventLead(payload);
       setForm(EMPTY);
       onOpenChange(false);
       onCreated && onCreated();
@@ -153,7 +168,7 @@ function AddEventLeadDialog({ open, onOpenChange, onCreated }) {
     <Dialog open={open} onOpenChange={(v) => { if (!saving) onOpenChange(v); }}>
       <DialogContent dir="rtl" className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Plus className="w-4 h-4 text-orange-600" /> הוספת ליד אירוע ידני</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">{isEdit ? <><Pencil className="w-4 h-4 text-orange-600" /> עריכת פרטי ליד</> : <><Plus className="w-4 h-4 text-orange-600" /> הוספת ליד אירוע ידני</>}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 max-h-[70vh] overflow-y-auto px-1">
           <div className="grid grid-cols-2 gap-3">
@@ -208,7 +223,7 @@ function AddEventLeadDialog({ open, onOpenChange, onCreated }) {
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>ביטול</Button>
           <Button onClick={submit} disabled={saving} className="bg-orange-600 hover:bg-orange-700">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'הוסף ליד'}
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (isEdit ? 'שמור שינויים' : 'הוסף ליד')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -224,6 +239,7 @@ function PendingCallbackCard() {
   const [busy, setBusy] = React.useState(null);
   const [view, setView] = React.useState('active'); // 'active' (pending+contacted+quoted) or 'closed' (won+lost)
   const [showAdd, setShowAdd] = React.useState(false);
+  const [editLead, setEditLead] = React.useState(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -268,7 +284,7 @@ function PendingCallbackCard() {
 
   return (
     <>
-    <AddEventLeadDialog open={showAdd} onOpenChange={setShowAdd} onCreated={load} />
+    <AddEventLeadDialog open={showAdd || !!editLead} lead={editLead} onOpenChange={(v) => { if (!v) { setShowAdd(false); setEditLead(null); } }} onCreated={load} />
     <ThanksPageSettings />
     <Card>
       <CardHeader>
@@ -332,7 +348,12 @@ function PendingCallbackCard() {
                         </div>
                       )}
                     </div>
-                    <Badge className={stage.cls + ' font-bold'}>{stage.label}</Badge>
+                    <div className="flex items-center gap-1.5">
+                      <Badge className={stage.cls + ' font-bold'}>{stage.label}</Badge>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-slate-500 hover:text-slate-800" onClick={() => setEditLead(l)} title="ערוך פרטים">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Details grid */}
