@@ -6,6 +6,7 @@
 //   status = 'wake_alarm'       → daily wake-up, raw.hhmm = "07:30"
 import { prisma } from '../db.js';
 import { notifyOwner } from './waTemplates.js';
+import { isNotifEnabled, notifText } from './notificationSettings.js';
 const TZ = 'Asia/Jerusalem';
 function israelYMD(d = new Date()) { return d.toLocaleDateString('en-CA', { timeZone: TZ }); }
 function israelHHMM(d = new Date()) {
@@ -127,6 +128,10 @@ export async function dispatchCalendarNotifications() {
     const now = Date.now();
     let eventsSent = 0;
     let alarmsSent = 0;
+    // Owner master switches (settings page). Resolved once; the merge lib caches.
+    const leadOn = await isNotifEnabled('calendar_reminder_lead');
+    const nowOn = await isNotifEnabled('calendar_reminder_now');
+    const wakeOn = await isNotifEnabled('wake_alarm_brief');
     // ── Scheduled events: fire lead-time reminder + start-time reminder.
     const events = await prisma.whatsAppMessage.findMany({
         where: { status: 'scheduled_event', is_read: false },
@@ -145,9 +150,10 @@ export async function dispatchCalendarNotifications() {
         let notifiedStart = !!raw.notified_start;
         let changed = false;
         // Lead reminder
-        if (!notifiedLead && now >= (at - lead) && now < at) {
+        if (leadOn && !notifiedLead && now >= (at - lead) && now < at) {
             try {
-                await notifyOwner(target, 'תזכורת יומן', `⏰ בעוד ${Math.round(lead / 60_000)} דקות: ${raw.title}`);
+                const t = await notifText('calendar_reminder_lead', `⏰ בעוד ${Math.round(lead / 60_000)} דקות: ${raw.title}`, { minutes: Math.round(lead / 60_000), title: raw.title });
+                await notifyOwner(target, 'תזכורת יומן', t);
                 notifiedLead = true;
                 changed = true;
             }
@@ -156,9 +162,10 @@ export async function dispatchCalendarNotifications() {
             }
         }
         // Start-time reminder
-        if (!notifiedStart && now >= at) {
+        if (nowOn && !notifiedStart && now >= at) {
             try {
-                await notifyOwner(target, 'תזכורת יומן', `🔔 עכשיו: ${raw.title}`);
+                const t = await notifText('calendar_reminder_now', `🔔 עכשיו: ${raw.title}`, { title: raw.title });
+                await notifyOwner(target, 'תזכורת יומן', t);
                 notifiedStart = true;
                 changed = true;
             }
@@ -189,6 +196,8 @@ export async function dispatchCalendarNotifications() {
     const todayY = israelYMD();
     const nowHHMM = israelHHMM();
     for (const a of alarms) {
+        if (!wakeOn)
+            break; // owner turned the morning brief off
         const raw = a.raw || {};
         if (!raw.hhmm)
             continue;

@@ -15,9 +15,11 @@ import './cashflowActions.js';
 import './cashRegister.js';
 import './laborCost.js';
 import './i18nTranslate.js';
+import './notificationSettingsFns.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
 import { ensurePermissionTiers, resolveUserTier, requirePageAccess, requireBackOffice, requireStaff, matchTierForRole } from '../lib/pagePermissions.js';
+import { isNotifEnabled, notifText, notifTime, notifSlot } from '../lib/notificationSettings.js';
 import { registerFn, functionHandlers } from './index.js';
 import { sendSms, sendWhatsApp, sendWhatsAppTemplate, invalidateTwilioCredsCache, twilioAuth } from '../lib/twilio.js';
 import { pushover, pushoverToAdmins, pushoverEventsOwners } from '../lib/pushover.js';
@@ -1969,7 +1971,9 @@ async function runDailyCelebrationCampaigns(force = false) {
     // owner sets DRIP_CAMPAIGNS_ENABLED=true in apps/api/.env.
     if (process.env.DRIP_CAMPAIGNS_ENABLED !== 'true') return;
     const ilHour = (new Date().getUTCHours() + 3) % 24;
-    if (ilHour !== 9) return; // only at 09:00 IL
+    // Owner-editable campaign hour (drives birthday + anniversary + pre-birthday).
+    const campaignHour = parseInt((await notifTime('birthday_greeting', '09:00')).split(':')[0], 10) || 9;
+    if (ilHour !== campaignHour) return;
     // Use a daily lock so we don't re-fire if the timer ticks twice within 9:00 IL hour.
     const today = new Date().toISOString().slice(0, 10);
     const lockKey = (globalThis as any).__lastDailyCelebrationsDate;
@@ -1991,16 +1995,17 @@ async function runDailyCelebrationCampaigns(force = false) {
   const brand = await getBrandName();
   const bdayTemplate = `יום הולדת שמח, {name}! 🎉🎂\nאיזה יום מיוחד — אם תבוא היום, הקינוח על ${brand} 🍰\nנשמח לחגוג איתך 🌿`;
   try {
-    const bdayList = await db.customer.findMany({
+    const bdayList = (await isNotifEnabled('birthday_greeting')) ? await db.customer.findMany({
       where: { ...baseGate, birthday_mmdd: mmdd },
       take: 200,
-    });
+    }) : [];
     let ok = 0, fail = 0;
     const failures: any[] = [];
     for (const c of bdayList) {
       try {
+        const bodyTpl = await notifText('birthday_greeting', bdayTemplate, { name: c.name || 'אורח/ת יקר/ה', brand });
         const rendered = withOptOut(
-          bdayTemplate.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
+          bodyTpl.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
         const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], rendered);
         if ((out as any)?.skipped) { fail++; failures.push({ phone: c.phone, reason: 'skipped' }); }
         else { ok++; await db.customer.update({ where: { id: c.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {}); }
@@ -2032,16 +2037,17 @@ async function runDailyCelebrationCampaigns(force = false) {
     : (rp?.address ? [rp.address, rp.city].filter(Boolean).join(', ') : '');
   const annivTemplate = `מזל טוב, {name}! 🥂\nהיום יום מיוחד — בוא לחגוג אצלנו ויש לנו מתנה.${annAddr ? `\n${annAddr} 🌿` : ''}`;
   try {
-    const annList = await db.customer.findMany({
+    const annList = (await isNotifEnabled('anniversary_greeting')) ? await db.customer.findMany({
       where: { ...baseGate, anniversary_mmdd: mmdd },
       take: 200,
-    });
+    }) : [];
     let ok = 0, fail = 0;
     const failures: any[] = [];
     for (const c of annList) {
       try {
+        const bodyTpl = await notifText('anniversary_greeting', annivTemplate, { name: c.name || 'אורח/ת יקר/ה', address: annAddr });
         const rendered = withOptOut(
-          annivTemplate.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
+          bodyTpl.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
         const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], rendered);
         if ((out as any)?.skipped) { fail++; failures.push({ phone: c.phone, reason: 'skipped' }); }
         else { ok++; await db.customer.update({ where: { id: c.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {}); }
@@ -2106,10 +2112,10 @@ async function runDripCampaigns(force = false) {
   try {
     const minAge = new Date(now.getTime() - 36 * 60 * 60 * 1000);
     const maxAge = new Date(now.getTime() - 18 * 60 * 60 * 1000);
-    const candidates = await db.customer.findMany({
+    const candidates = (await isNotifEnabled('drip_welcome')) ? await db.customer.findMany({
       where: { ...baseGate, visit_count: 1, last_visit: { gte: minAge, lte: maxAge }, welcome_sent_at: null },
       take: 50,
-    });
+    }) : [];
     if (candidates.length > 0) {
       let ok = 0, fail = 0;
       for (const c of candidates) {
@@ -2117,10 +2123,12 @@ async function runDripCampaigns(force = false) {
           // These drips go over WhatsApp, where a second link costs nothing —
           // unlike SMS, where it can push the message into another billable
           // segment. So the card is appended here rather than left as a token.
+          const brandName = await getBrandName();
+          const wTpl = await notifText('drip_welcome', DRIP_TEMPLATES.welcome, { name: c.name || 'אורח/ת יקר/ה', brand: brandName });
           const msg = withOptOut(
-            `${DRIP_TEMPLATES.welcome
+            `${wTpl
               .replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה')
-              .replace(/\{brand\}/g, await getBrandName())}\n\nהכרטיס שלך: ${memberCardUrl(c.id)}`,
+              .replace(/\{brand\}/g, brandName)}\n\nהכרטיס שלך: ${memberCardUrl(c.id)}`,
             c.id);
           const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], msg);
           if (!(out as any)?.skipped) {
@@ -2147,17 +2155,20 @@ async function runDripCampaigns(force = false) {
   try {
     const minAge = new Date(now.getTime() - 4 * 86400000);
     const maxAge = new Date(now.getTime() - 2 * 86400000);
-    const candidates = await db.customer.findMany({
+    const candidates = ((await isNotifEnabled('drip_nps_vip')) || (await isNotifEnabled('drip_nps_regular'))) ? await db.customer.findMany({
       where: { ...baseGate, last_visit: { gte: minAge, lte: maxAge }, nps_sent_at: null },
       take: 100,
-    });
+    }) : [];
     if (candidates.length > 0) {
       let ok = 0, fail = 0;
       for (const c of candidates) {
         try {
           // Use 'high' template for VIPs (assume happy), 'low' template for everyone else
+          const npsKey = c.loyalty_tier === 'vip' ? 'drip_nps_vip' : 'drip_nps_regular';
+          if (!(await isNotifEnabled(npsKey))) continue; // per-tier toggle off
           const template = c.loyalty_tier === 'vip' ? DRIP_TEMPLATES.nps_high : DRIP_TEMPLATES.nps_low;
-          const msg = withOptOut(template.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
+          const npsTpl = await notifText(npsKey, template, { name: c.name || 'אורח/ת יקר/ה' });
+          const msg = withOptOut(npsTpl.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
           const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], msg);
           if (!(out as any)?.skipped) {
             ok++;
@@ -2184,7 +2195,7 @@ async function runDripCampaigns(force = false) {
     const future = new Date(now.getTime() + 7 * 86400000);
     const targetMmdd = String(future.getMonth() + 1).padStart(2, '0') + '-' + String(future.getDate()).padStart(2, '0');
     const currentYear = now.getFullYear();
-    const candidates = await db.customer.findMany({
+    const candidates = (await isNotifEnabled('drip_pre_birthday')) ? await db.customer.findMany({
       where: {
         ...baseGate,
         birthday_mmdd: targetMmdd,
@@ -2195,13 +2206,14 @@ async function runDripCampaigns(force = false) {
         ],
       },
       take: 100,
-    });
+    }) : [];
     if (candidates.length > 0) {
       let ok = 0, fail = 0;
       for (const c of candidates) {
         if (c.pre_birthday_sent_year === currentYear) continue; // double-check
         try {
-          const msg = withOptOut(DRIP_TEMPLATES.pre_birthday.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
+          const pbTpl = await notifText('drip_pre_birthday', DRIP_TEMPLATES.pre_birthday, { name: c.name || 'אורח/ת יקר/ה' });
+          const msg = withOptOut(pbTpl.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
           const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], msg);
           if (!(out as any)?.skipped) {
             ok++;
@@ -8011,6 +8023,7 @@ registerFn('importSupplierSheet', async ({ user, body }: any) => {
 // whose alert_time hour is now, WhatsApp + push the owner the shopping list.
 export async function runSupplierOrderAlerts() {
   await ensureSupplierOrderTable();
+  if (!(await isNotifEnabled('supplier_order_reminder'))) return { skipped: true, reason: 'disabled' };
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', hour12: false }).formatToParts(new Date());
   const g = (t: string) => parts.find((x) => x.type === t)?.value || '';
   const wd: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
@@ -11892,7 +11905,9 @@ const APP_BASE_URL = process.env.APP_BASE_URL || 'https://topalena.com';
 export async function runWeeklyScheduleOpen() {
   const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
     .formatToParts(new Date()).reduce<Record<string, string>>((acc, p) => { if (p.type !== 'literal') acc[p.type] = p.value; return acc; }, {});
-  if (il.weekday !== 'Sun' || parseInt(il.hour, 10) !== 10) return { skipped: true, reason: 'wrong window', il };
+  if (!(await isNotifEnabled('schedule_open'))) return { skipped: true, reason: 'disabled' };
+  const wantHour = parseInt((await notifTime('schedule_open', '10:00')).split(':')[0], 10) || 10;
+  if (il.weekday !== 'Sun' || parseInt(il.hour, 10) !== wantHour) return { skipped: true, reason: 'wrong window', il };
   const employees = await getActiveEmployeesForScheduling();
   const weekDates = getNextWeekDates();
   const formatHe = (ymd: string) => `${ymd.slice(8, 10)}.${ymd.slice(5, 7)}`;
@@ -11900,7 +11915,9 @@ export async function runWeeklyScheduleOpen() {
   const link = `${APP_BASE_URL}/AvailabilityForm`;
   let sent = 0;
   for (const emp of employees) {
-    const msg = `*היי ${emp.full_name}* 👋\n\nהסידור לשבוע הבא (${formatHe(weekDates[0])}-${formatHe(weekDates[6])}) נפתח להגשת זמינות.\n\nהיכנס/י לאפליקציה ומלא/י:\n${link}\n\nסגירה: יום שלישי 16:00.`;
+    const range = `${formatHe(weekDates[0])}-${formatHe(weekDates[6])}`;
+    const fallback = `*היי ${emp.full_name}* 👋\n\nהסידור לשבוע הבא (${range}) נפתח להגשת זמינות.\n\nהיכנס/י לאפליקציה ומלא/י:\n${link}\n\nסגירה: יום שלישי 16:00.`;
+    const msg = await notifText('schedule_open', fallback, { name: emp.full_name, range, link });
     try { const r = await notifyStaff(emp.phone, String(emp.full_name || '').split(' ')[0], msg); if (r.sent) sent++; } catch (e: any) { console.warn('[weekly-open] failed', emp.phone, e?.message); }
   }
   return { ok: true, sent, total: employees.length };
@@ -11910,7 +11927,9 @@ export async function runWeeklyScheduleOpen() {
 export async function runWeeklyScheduleReminder(opts: { force?: boolean } = {}) {
   const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
     .formatToParts(new Date()).reduce<Record<string, string>>((acc, p) => { if (p.type !== 'literal') acc[p.type] = p.value; return acc; }, {});
-  if (!opts.force && (il.weekday !== 'Mon' || parseInt(il.hour, 10) !== 10)) return { skipped: true, reason: 'wrong window', il };
+  if (!opts.force && !(await isNotifEnabled('schedule_reminder'))) return { skipped: true, reason: 'disabled' };
+  const wantHour = parseInt((await notifTime('schedule_reminder', '10:00')).split(':')[0], 10) || 10;
+  if (!opts.force && (il.weekday !== 'Mon' || parseInt(il.hour, 10) !== wantHour)) return { skipped: true, reason: 'wrong window', il };
   const weekDates = getNextWeekDates();
   const submitted = await getSubmittedEmployeeIdsForWeek(weekDates);
   const employees = await getActiveEmployeesForScheduling();
@@ -11919,7 +11938,8 @@ export async function runWeeklyScheduleReminder(opts: { force?: boolean } = {}) 
   const link = `${APP_BASE_URL}/AvailabilityForm`;
   let sent = 0;
   for (const emp of missing) {
-    const msg = `⏰ *תזכורת — ${emp.full_name}*\n\nעוד לא הגשת זמינות לשבוע הבא. סגירה מחר (שלישי) ב-16:00.\n\n${link}`;
+    const fallback = `⏰ *תזכורת — ${emp.full_name}*\n\nעוד לא הגשת זמינות לשבוע הבא. סגירה מחר (שלישי) ב-16:00.\n\n${link}`;
+    const msg = await notifText('schedule_reminder', fallback, { name: emp.full_name, link });
     try { const r = await notifyStaff(emp.phone, String(emp.full_name || '').split(' ')[0], msg); if (r.sent) sent++; } catch (e: any) { console.warn('[weekly-rem1] failed', emp.phone, e?.message); }
   }
   return { ok: true, sent, missing_count: missing.length };
@@ -11929,7 +11949,9 @@ export async function runWeeklyScheduleReminder(opts: { force?: boolean } = {}) 
 export async function runWeeklyScheduleFinalReminder() {
   const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
     .formatToParts(new Date()).reduce<Record<string, string>>((acc, p) => { if (p.type !== 'literal') acc[p.type] = p.value; return acc; }, {});
-  if (il.weekday !== 'Tue' || parseInt(il.hour, 10) !== 14) return { skipped: true, reason: 'wrong window', il };
+  if (!(await isNotifEnabled('schedule_final_reminder'))) return { skipped: true, reason: 'disabled' };
+  const wantHour = parseInt((await notifTime('schedule_final_reminder', '14:00')).split(':')[0], 10) || 14;
+  if (il.weekday !== 'Tue' || parseInt(il.hour, 10) !== wantHour) return { skipped: true, reason: 'wrong window', il };
   const weekDates = getNextWeekDates();
   const submitted = await getSubmittedEmployeeIdsForWeek(weekDates);
   const employees = await getActiveEmployeesForScheduling();
@@ -11938,7 +11960,8 @@ export async function runWeeklyScheduleFinalReminder() {
   const link = `${APP_BASE_URL}/AvailabilityForm`;
   let sent = 0;
   for (const emp of missing) {
-    const msg = `🚨 *תזכורת אחרונה — ${emp.full_name}*\n\nנשארו ~2 שעות לסגירה (16:00 היום). אם לא תגיש — לא נוכל לשבץ אותך השבוע.\n\n${link}`;
+    const fallback = `🚨 *תזכורת אחרונה — ${emp.full_name}*\n\nנשארו ~2 שעות לסגירה (16:00 היום). אם לא תגיש — לא נוכל לשבץ אותך השבוע.\n\n${link}`;
+    const msg = await notifText('schedule_final_reminder', fallback, { name: emp.full_name, link });
     try { const r = await notifyStaff(emp.phone, String(emp.full_name || '').split(' ')[0], msg); if (r.sent) sent++; } catch (e: any) { console.warn('[weekly-rem2] failed', emp.phone, e?.message); }
   }
   return { ok: true, sent, missing_count: missing.length };
@@ -12423,6 +12446,7 @@ ${JSON.stringify(empSummary, null, 2)}
   const adminNumbers = await reportRecipientPhones();
   if (adminNumbers.length) {
     const { sendWhatsApp } = await import('../lib/twilio.js');
+    if (!(await isNotifEnabled('weekly_schedule_ready'))) return { ok: true, createdShifts, assignmentCount: assignments.length, insights, missing: missing.map((m) => m.full_name), notified: false };
     const missingNames = missing.map((m) => m.full_name).join(', ') || 'אף אחד';
     const insightLines = insights.length ? insights.map((i) => `• ${i}`).join('\n') : '• הסידור מאוזן, לא נמצאו חוסרים';
     const msg = `📋 *סידור שבוע ${weekDates[0].slice(8)}.${weekDates[0].slice(5, 7)}-${weekDates[6].slice(8)}.${weekDates[6].slice(5, 7)} מוכן*\n\n` +
@@ -12444,7 +12468,9 @@ ${JSON.stringify(empSummary, null, 2)}
 // (>150% of avg = SPIKE, <50% = DROP). Silent if nothing unusual.
 export async function runInvoiceClassifier() {
   const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }).format(new Date());
-  if (parseInt(il, 10) !== 10) return { skipped: true, hour: il };
+  if (!(await isNotifEnabled('invoice_anomaly_alert'))) return { skipped: true, reason: 'disabled' };
+  const wantHour = parseInt((await notifTime('invoice_anomaly_alert', '10:00')).split(':')[0], 10) || 10;
+  if (parseInt(il, 10) !== wantHour) return { skipped: true, hour: il };
   const since = new Date(Date.now() - 24 * 3600 * 1000);
   const newInvoices: any[] = await (prisma as any).invoice.findMany({
     where: { createdAt: { gte: since } }, take: 200,
@@ -12490,6 +12516,7 @@ export async function runInvoiceClassifier() {
 // Every 10 min. Scans new Incidents (last 15 min). For severity=='high' or
 // 2+ open incidents in the last 4 hours → immediate admin WhatsApp.
 export async function runCrisisAgent() {
+  if (!(await isNotifEnabled('crisis_alert'))) return { skipped: true, reason: 'disabled' };
   const last15min = new Date(Date.now() - 15 * 60 * 1000);
   const recent: any[] = await (prisma as any).incident.findMany({
     where: { createdAt: { gte: last15min } }, take: 50,
@@ -12528,7 +12555,9 @@ export async function runCrisisAgent() {
 // admin for approval (one-click copy paste).
 export async function runContentGenerator() {
   const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }).format(new Date());
-  if (parseInt(il, 10) !== 14) return { skipped: true, hour: il };
+  if (!(await isNotifEnabled('content_for_approval'))) return { skipped: true, reason: 'disabled' };
+  const wantHour = parseInt((await notifTime('content_for_approval', '14:00')).split(':')[0], 10) || 14;
+  if (parseInt(il, 10) !== wantHour) return { skipped: true, hour: il };
   const yesterday = new Date(Date.now() - 24 * 3600 * 1000);
   const surveys: any[] = await (prisma as any).customerSurvey.findMany({
     where: { createdAt: { gte: yesterday }, rating: { gte: 5 } as any }, take: 10,
@@ -12576,6 +12605,7 @@ ${quotes.join('\n')}
 // (employee_id, date, shift_type) using a marker entry in
 // WhatsAppMessage status='no_show_alert_sent'.
 export async function runNoShowWatcher() {
+  if (!(await isNotifEnabled('late_employee_alert'))) return { ok: true, skipped: 'disabled' };
   const now = new Date();
   const ilDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(now); // YYYY-MM-DD
   const ilHourStr = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
@@ -13158,7 +13188,9 @@ registerFn('markCashFlowEntryPaid', async ({ body, user }) => {
 export async function runCashFlowAgent() {
   await ensureInventoryTables();
   const il = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false }).format(new Date());
-  if (parseInt(il, 10) !== 9) return { skipped: true, hour: il };
+  if (!(await isNotifEnabled('cashflow_alert'))) return { skipped: true, reason: 'disabled' };
+  const wantHour = parseInt((await notifTime('cashflow_alert', '09:00')).split(':')[0], 10) || 9;
+  if (parseInt(il, 10) !== wantHour) return { skipped: true, hour: il };
 
   const horizon = new Date(Date.now() + 14 * 86400 * 1000);
   const rows: any[] = await (prisma as any).$queryRawUnsafe(
@@ -13179,7 +13211,8 @@ export async function runCashFlowAgent() {
   const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
   const adminNumbers = await reportRecipientPhones();
   const { sendWhatsApp } = await import('../lib/twilio.js');
-  const msg = `💸 *התראת תזרים*\n\nהיתרה הצפויה צוללת ל-₪${Math.round(minBal).toLocaleString()} ב-${minDay}.\n\n🔗 פירוט: ${APP_BASE_URL || 'https://topalena.com'}/CashFlow`;
+  const fallback = `💸 *התראת תזרים*\n\nהיתרה הצפויה צוללת ל-₪${Math.round(minBal).toLocaleString()} ב-${minDay}.\n\n🔗 פירוט: ${APP_BASE_URL || 'https://topalena.com'}/CashFlow`;
+  const msg = await notifText('cashflow_alert', fallback, { balance: Math.round(minBal).toLocaleString(), day: minDay, url: APP_BASE_URL || 'https://topalena.com' });
   for (const p of adminNumbers) {
     try { await notifyOwner(p, 'תזרים מזומנים', msg); } catch (e: any) { console.warn('[cashflow] notify failed', e?.message); }
   }
@@ -19884,6 +19917,7 @@ ${seatedNow.map((s: any) => `שולחן ${s.table} ×${s.party} ${s.name || ''}`
 // ---------------------------------------------------------------------------
 export async function sendT24SurveyReminders() {
   await ensureReservationSourceCols();
+  if (!(await isNotifEnabled('t24_survey'))) return { ok: true, skipped: 'disabled' };
   const now = new Date();
   // Yesterday in Asia/Jerusalem (UTC+3 approx — close enough for "yesterday")
   const tzNow = new Date(now.getTime() + 3 * 3600 * 1000);
@@ -19914,15 +19948,17 @@ export async function sendT24SurveyReminders() {
     const phone = String(r.customer_phone || '').trim();
     if (!phone) continue;
     const link = `${baseUrl}/CustomerSurvey?source=t24&res=${r.id}`;
-    const body = [
+    const brandName = await getBrandName();
+    const fallback = [
       `שלום ${r.customer_name || ''}!`,
       ``,
-      `איך הייתה הארוחה אתמול ב${await getBrandName()}?`,
+      `איך הייתה הארוחה אתמול ב${brandName}?`,
       `נשמח לחוות דעתך — לוקח 30 שניות:`,
       `${link}`,
       ``,
       `תודה ולהתראות 🌿`,
     ].join('\n');
+    const body = await notifText('t24_survey', fallback, { name: r.customer_name || '', brand: brandName, link });
 
     try {
       await sendClubMessage(phone, String(r.customer_name || '').split(' ')[0], body);
@@ -25202,14 +25238,14 @@ registerFn('approveEmployee', async ({ user, body }) => {
         data: { email: emp.email, passwordHash: hash, role: 'user', fullName: emp.full_name },
       });
     }
-    if (emp.phone) {
+    if (emp.phone && await isNotifEnabled('employee_approved_credentials')) {
       const brand = await getBrandName();
       const origin = process.env.PUBLIC_BASE_URL || `https://${process.env.TENANT_SLUG || 'topalena'}.topalena.com`;
       // Login credentials to a newly approved employee — first contact, so it
       // must reach them outside any window. notifyStaff = template + SMS.
-      await notifyStaff(emp.phone, String(emp.full_name || '').split(' ')[0],
-        `אושרת לצוות ${brand}! כניסה: ${origin} · מייל: ${emp.email} · סיסמה זמנית: ${tempPassword} (שנה/י אחרי הכניסה הראשונה)`,
-        { link: origin });
+      const credsFallback = `אושרת לצוות ${brand}! כניסה: ${origin} · מייל: ${emp.email} · סיסמה זמנית: ${tempPassword} (שנה/י אחרי הכניסה הראשונה)`;
+      const credsText = await notifText('employee_approved_credentials', credsFallback, { brand, url: origin, email: emp.email, password: tempPassword });
+      await notifyStaff(emp.phone, String(emp.full_name || '').split(' ')[0], credsText, { link: origin });
       credsSent = true;
     }
   } catch (e: any) {

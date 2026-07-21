@@ -9,6 +9,7 @@ import { notifyOwner } from './waTemplates.js';
 import { invokeLLM } from './llm.js';
 import { listTodayEvents, listOpenTasks } from './whatsappCalendar.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
+import { isNotifEnabled } from './notificationSettings.js';
 
 const ISRAEL_TZ = 'Asia/Jerusalem';
 function israelYMD(d: Date = new Date()): string {
@@ -382,6 +383,7 @@ export async function buildEndOfDayBrief(forPhone?: string): Promise<string> {
 }
 
 export async function sendEndOfDayBrief(): Promise<{ sent: number; failed: number; details: Array<{ phone: string; ok: boolean; error?: string }> }> {
+  if (!(await isNotifEnabled('end_of_day_brief'))) return { sent: 0, failed: 0, details: [] };
   const phones = await reportRecipientPhones();
   if (!phones.length) { console.warn('[eod-brief] no recipient (tenant owner) configured'); return { sent: 0, failed: 0, details: [] }; }
   const results: Array<{ phone: string; ok: boolean; error?: string }> = [];
@@ -402,6 +404,7 @@ export async function sendEndOfDayBrief(): Promise<{ sent: number; failed: numbe
 // Each admin gets a brief PERSONALIZED with their own events + tasks
 // (so several admins don't all see the same person's calendar).
 export async function sendMorningBrief(): Promise<{ sent: number; failed: number; details: Array<{ phone: string; ok: boolean; error?: string }> }> {
+  if (!(await isNotifEnabled('morning_brief'))) return { sent: 0, failed: 0, details: [] };
   const phones = await reportRecipientPhones();
   if (!phones.length) {
     console.warn('[morning-brief] no recipient (tenant owner) configured; skipping');

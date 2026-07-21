@@ -5,6 +5,7 @@ import { prisma } from '../db.js';
 import { sendWhatsApp } from './twilio.js';
 import { notifyOwner } from './waTemplates.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
+import { isNotifEnabled } from './notificationSettings.js';
 
 const TZ = 'Asia/Jerusalem';
 function ymd(d: Date): string { return d.toLocaleDateString('en-CA', { timeZone: TZ }); }
@@ -156,6 +157,7 @@ export async function buildWeeklyInsights(): Promise<string> {
 }
 
 export async function sendWeeklyInsights(): Promise<{ sent: number; failed: number; details: Array<{ phone: string; ok: boolean; error?: string }> }> {
+  if (!(await isNotifEnabled('weekly_insights'))) return { sent: 0, failed: 0, details: [] };
   const phones = await reportRecipientPhones();
   if (!phones.length) return { sent: 0, failed: 0, details: [] };
   const text = await buildWeeklyInsights();

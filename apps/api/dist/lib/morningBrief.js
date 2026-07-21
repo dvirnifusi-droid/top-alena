@@ -7,6 +7,7 @@ import { prisma } from '../db.js';
 import { notifyOwner } from './waTemplates.js';
 import { listTodayEvents, listOpenTasks } from './whatsappCalendar.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
+import { isNotifEnabled } from './notificationSettings.js';
 const ISRAEL_TZ = 'Asia/Jerusalem';
 function israelYMD(d = new Date()) {
     return d.toLocaleDateString('en-CA', { timeZone: ISRAEL_TZ });
@@ -436,6 +437,8 @@ export async function buildEndOfDayBrief(forPhone) {
     return lines.join('\n');
 }
 export async function sendEndOfDayBrief() {
+    if (!(await isNotifEnabled('end_of_day_brief')))
+        return { sent: 0, failed: 0, details: [] };
     const phones = await reportRecipientPhones();
     if (!phones.length) {
         console.warn('[eod-brief] no recipient (tenant owner) configured');
@@ -461,6 +464,8 @@ export async function sendEndOfDayBrief() {
 // Each admin gets a brief PERSONALIZED with their own events + tasks
 // (so several admins don't all see the same person's calendar).
 export async function sendMorningBrief() {
+    if (!(await isNotifEnabled('morning_brief')))
+        return { sent: 0, failed: 0, details: [] };
     const phones = await reportRecipientPhones();
     if (!phones.length) {
         console.warn('[morning-brief] no recipient (tenant owner) configured; skipping');

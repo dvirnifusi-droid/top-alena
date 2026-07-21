@@ -7,6 +7,7 @@
 import { prisma } from '../db.js';
 import { sendWhatsApp } from './twilio.js';
 import { notifyOwner } from './waTemplates.js';
+import { isNotifEnabled, notifText } from './notificationSettings.js';
 
 const TZ = 'Asia/Jerusalem';
 function israelYMD(d: Date = new Date()): string { return d.toLocaleDateString('en-CA', { timeZone: TZ }); }
@@ -141,6 +142,11 @@ export async function dispatchCalendarNotifications(): Promise<{ events_sent: nu
   let eventsSent = 0;
   let alarmsSent = 0;
 
+  // Owner master switches (settings page). Resolved once; the merge lib caches.
+  const leadOn = await isNotifEnabled('calendar_reminder_lead');
+  const nowOn = await isNotifEnabled('calendar_reminder_now');
+  const wakeOn = await isNotifEnabled('wake_alarm_brief');
+
   // ── Scheduled events: fire lead-time reminder + start-time reminder.
   const events: any[] = await (prisma as any).whatsAppMessage.findMany({
     where: { status: 'scheduled_event', is_read: false },
@@ -157,16 +163,18 @@ export async function dispatchCalendarNotifications(): Promise<{ events_sent: nu
     let notifiedStart = !!raw.notified_start;
     let changed = false;
     // Lead reminder
-    if (!notifiedLead && now >= (at - lead) && now < at) {
+    if (leadOn && !notifiedLead && now >= (at - lead) && now < at) {
       try {
-        await notifyOwner(target, 'תזכורת יומן', `⏰ בעוד ${Math.round(lead / 60_000)} דקות: ${raw.title}`);
+        const t = await notifText('calendar_reminder_lead', `⏰ בעוד ${Math.round(lead / 60_000)} דקות: ${raw.title}`, { minutes: Math.round(lead / 60_000), title: raw.title });
+        await notifyOwner(target, 'תזכורת יומן', t);
         notifiedLead = true; changed = true;
       } catch (e: any) { console.warn('[calendar] lead notify failed', { id: ev.id, err: e?.message }); }
     }
     // Start-time reminder
-    if (!notifiedStart && now >= at) {
+    if (nowOn && !notifiedStart && now >= at) {
       try {
-        await notifyOwner(target, 'תזכורת יומן', `🔔 עכשיו: ${raw.title}`);
+        const t = await notifText('calendar_reminder_now', `🔔 עכשיו: ${raw.title}`, { title: raw.title });
+        await notifyOwner(target, 'תזכורת יומן', t);
         notifiedStart = true; changed = true;
       } catch (e: any) { console.warn('[calendar] start notify failed', { id: ev.id, err: e?.message }); }
     }
@@ -192,6 +200,7 @@ export async function dispatchCalendarNotifications(): Promise<{ events_sent: nu
   const todayY = israelYMD();
   const nowHHMM = israelHHMM();
   for (const a of alarms) {
+    if (!wakeOn) break; // owner turned the morning brief off
     const raw = (a.raw as any) || {};
     if (!raw.hhmm) continue;
     if (raw.last_fired_date === todayY) continue;

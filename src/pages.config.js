@@ -151,6 +151,7 @@ import AdminAmbient from './pages/AdminAmbient';
 import AdminWhatsApp from './pages/AdminWhatsApp';
 import AdminWhatsAppInbox from './pages/AdminWhatsAppInbox';
 import AdminSettings from './pages/AdminSettings';
+import NotificationSettings from './pages/NotificationSettings';
 import EventsHub from './pages/EventsHub';
 import MarketingHub from './pages/MarketingHub';
 import StoriesHub from './pages/StoriesHub';
@@ -286,6 +287,7 @@ export const PAGES = {
     "AdminWhatsApp": AdminWhatsApp,
     "AdminWhatsAppInbox": AdminWhatsAppInbox,
     "AdminSettings": AdminSettings,
+    "NotificationSettings": NotificationSettings,
     "EventsHub": EventsHub,
     "MarketingHub": MarketingHub,
     "StoriesHub": StoriesHub,

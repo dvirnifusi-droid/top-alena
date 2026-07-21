@@ -100,6 +100,7 @@ export const adminLinks = [
 
   { title: "הגדרות ואינטגרציות ⚙️", url: "#", icon: Settings, isCategory: true, color: "espresso" },
   { title: "מרכז הגדרות וחיבורים", url: createPageUrl("AdminSettings"), icon: Settings, isSubItem: true, color: "espresso" },
+  { title: "התראות וואטסאפ 🔔", url: createPageUrl("NotificationSettings"), icon: Bell, isSubItem: true, color: "espresso" },
   { title: "מיתוג המסעדה 🎨", url: createPageUrl("Branding"), icon: Sparkles, isSubItem: true, color: "espresso" },
   // Integrations / AdminWhatsApp / WhatsApp Templates / DataExport / PushNotifications /
   // Popups moved into the "מרכז הגדרות וחיבורים" hub (AdminSettings) to declutter
@@ -409,7 +410,7 @@ export default function Layout({ children, currentPageName }) {
     const next = links[i + 1];
     return next && next.isSubItem;
   });
-  const MANAGER_EXCLUDE = new Set(['AdminSettings', 'PlatformSettings', 'Branding', 'Integrations', 'DataExport', 'PushNotifications', 'Popups', 'PlatformAdmin']);
+  const MANAGER_EXCLUDE = new Set(['AdminSettings', 'NotificationSettings', 'PlatformSettings', 'Branding', 'Integrations', 'DataExport', 'PushNotifications', 'Popups', 'PlatformAdmin']);
   const SHIFT_LEAD_URLS = new Set(['Dashboard', 'BriefingManagement', 'MenuManagement', 'PrepSheet', 'DishGuide', 'TablesManagement', 'SeatingSetup', 'RestroomCleaning', 'Checklists', 'Incidents', 'ShiftEndReport', 'QueueHub', 'EmployeesHub']);
   const managerLinks = React.useMemo(() => dropEmptyCategories(adminLinksFiltered.filter((l) => l.isCategory || !MANAGER_EXCLUDE.has(urlKey(l.url)))), [adminLinksFiltered]);
   const shiftLeadLinks = React.useMemo(() => dropEmptyCategories(adminLinksFiltered.filter((l) => l.isCategory || SHIFT_LEAD_URLS.has(urlKey(l.url)))), [adminLinksFiltered]);

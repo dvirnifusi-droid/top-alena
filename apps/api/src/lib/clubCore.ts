@@ -10,6 +10,7 @@
 // nothing and you could not see what you had. This module supplies both halves:
 // benefits that are really issued, and a code the restaurant can honour.
 import { prisma } from '../db.js';
+import { isNotifEnabled } from './notificationSettings.js';
 
 const dbx = () => prisma as any;
 const rid = (p: string) => `${p}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
@@ -381,6 +382,7 @@ export async function sendJoinMessage(opts: {
   if (!opts.consented) return { sent: false, reason: 'no_consent' };
   const cfg = await getClubConfig();
   if (!cfg.join_message_enabled) return { sent: false, reason: 'disabled' };
+  if (!(await isNotifEnabled('club_welcome'))) return { sent: false, reason: 'disabled_setting' };
 
   const { memberCardUrl, withOptOut } = await import('./marketingBlast.js');
   const first = (opts.name || '').trim().split(' ')[0] || 'אורח/ת';

@@ -10,6 +10,7 @@
 import { sendWhatsApp } from './twilio.js';
 import { notifyOwner } from './waTemplates.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
+import { isNotifEnabled, notifText } from './notificationSettings.js';
 
 export async function broadcastToAdmins(text: string, title = 'התראה'): Promise<void> {
   const phones = await reportRecipientPhones();
@@ -26,6 +27,7 @@ export async function broadcastToAdmins(text: string, title = 'התראה'): Pro
 // ─── Alert builders ────────────────────────────────────────────────────────
 
 export async function alertNewEventLead(row: any): Promise<void> {
+  if (!(await isNotifEnabled('event_lead_alert'))) return;
   // Triggered on EventLead.created (Dana finishes a chat). We send a short
   // call-to-action so the manager can ring back fast — leads >24h stale
   // drop conversion 4x per our brief logic.
@@ -49,6 +51,7 @@ export async function alertBadCustomerFeedback(row: any): Promise<void> {
   // and gets included in the morning brief, not a real-time push.
   const rating = Number(row.rating || row.overall_rating || 0);
   if (!rating || rating > 3) return;
+  if (!(await isNotifEnabled('bad_review_alert'))) return;
   const lines = [
     `👎 *ביקורת חדשה ${rating}/5*`,
     row.customer_name ? `👤 ${row.customer_name}` : null,
@@ -66,6 +69,7 @@ export async function alertCriticalIncident(row: any): Promise<void> {
   // gets a Pushover via the existing trigger; doubling up would be spam.
   const sev = String(row.severity || '').toLowerCase();
   if (sev !== 'critical' && sev !== 'high') return;
+  if (!(await isNotifEnabled('critical_incident_alert'))) return;
   const lines = [
     `${sev === 'critical' ? '🔴' : '🟠'} *אירוע ${sev === 'critical' ? 'קריטי' : 'חמור'}*`,
     row.category ? `🏷️ ${row.category}` : null,
@@ -81,6 +85,7 @@ export async function alertLargeReservation(row: any): Promise<void> {
   // but justifies a different staffing plan.
   const party = Number(row.party_size || row.guests || 0);
   if (party < 20) return;
+  if (!(await isNotifEnabled('large_reservation_alert'))) return;
   const lines = [
     `📅 *הזמנה גדולה — ${party} סועדים*`,
     row.customer_name ? `👤 ${row.customer_name}` : null,
@@ -99,6 +104,7 @@ export async function alertCashDiscrepancy(row: any): Promise<void> {
   // across older schemas. Read all known variants; alert if magnitude >₪200.
   const diff = Number(row.cash_diff ?? row.cash_difference ?? row.cash_variance ?? 0);
   if (!isFinite(diff) || Math.abs(diff) < 200) return;
+  if (!(await isNotifEnabled('cash_discrepancy_alert'))) return;
   const sign = diff > 0 ? '➕' : '➖';
   const lines = [
     `${sign} *פער קופה: ₪${Math.abs(diff).toLocaleString('he-IL')}*`,
@@ -111,15 +117,19 @@ export async function alertCashDiscrepancy(row: any): Promise<void> {
 }
 
 export async function alertEmailInvoicesImported(count: number): Promise<void> {
-  await broadcastToAdmins([
+  if (!(await isNotifEnabled('invoices_imported_alert'))) return;
+  const fallback = [
     `📬 *נקלטו ${count} חשבוניות חדשות מהמייל*`,
     'ממתינות לבדיקה ואישור בדף /Invoices.',
-  ].join('\n'));
+  ].join('\n');
+  await broadcastToAdmins(await notifText('invoices_imported_alert', fallback, { count }));
 }
 
 export async function alertEmailAccountDisconnected(email: string): Promise<void> {
-  await broadcastToAdmins([
+  if (!(await isNotifEnabled('email_disconnected_alert'))) return;
+  const fallback = [
     `⚠️ *תיבת המייל ${email} נותקה*`,
     'סיסמת האפליקציה בוטלה או השתנתה. חבר מחדש בדף /EmailInvoiceSettings.',
-  ].join('\n'));
+  ].join('\n');
+  await broadcastToAdmins(await notifText('email_disconnected_alert', fallback, { email }));
 }

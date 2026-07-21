@@ -8,6 +8,7 @@ import { prisma } from '../db.js';
 import { sendWhatsApp } from './twilio.js';
 import { notifyOwner } from './waTemplates.js';
 import { dispatchCalendarNotifications } from './whatsappCalendar.js';
+import { isNotifEnabled, notifText } from './notificationSettings.js';
 
 export async function dispatchDueReminders(): Promise<{ sent: number; failed: number; checked: number; calendar?: any }> {
   const due: any[] = await (prisma as any).whatsAppMessage.findMany({
@@ -16,12 +17,17 @@ export async function dispatchDueReminders(): Promise<{ sent: number; failed: nu
   }).catch(() => []);
   const now = Date.now();
   let sent = 0; let failed = 0;
+  // Owner master switch: if reminders are turned off in settings, leave the rows
+  // untouched (they'll deliver if re-enabled) and just fall through to calendar.
+  const reminderOn = await isNotifEnabled('owner_reminder');
   for (const row of due) {
+    if (!reminderOn) break;
     const at = (row.raw as any)?.deliver_at;
     if (!at) continue;
     const t = new Date(at).getTime();
     if (isNaN(t) || t > now) continue; // future — leave for later
-    const text = String(row.body || `⏰ תזכורת: ${(row.raw as any)?.remind_text || ''}`).trim();
+    const fallback = String(row.body || `⏰ תזכורת: ${(row.raw as any)?.remind_text || ''}`).trim();
+    const text = await notifText('owner_reminder', fallback, { text: (row.raw as any)?.remind_text || '' });
     const target = (row.raw as any)?.target_phone || row.to_phone;
     if (!target || target === 'self') continue;
     try {

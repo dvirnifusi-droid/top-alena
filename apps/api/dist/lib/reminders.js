@@ -6,6 +6,7 @@
 import { prisma } from '../db.js';
 import { notifyOwner } from './waTemplates.js';
 import { dispatchCalendarNotifications } from './whatsappCalendar.js';
+import { isNotifEnabled, notifText } from './notificationSettings.js';
 export async function dispatchDueReminders() {
     const due = await prisma.whatsAppMessage.findMany({
         where: { status: 'scheduled_reminder', is_read: false },
@@ -14,14 +15,20 @@ export async function dispatchDueReminders() {
     const now = Date.now();
     let sent = 0;
     let failed = 0;
+    // Owner master switch: if reminders are turned off in settings, leave the rows
+    // untouched (they'll deliver if re-enabled) and just fall through to calendar.
+    const reminderOn = await isNotifEnabled('owner_reminder');
     for (const row of due) {
+        if (!reminderOn)
+            break;
         const at = row.raw?.deliver_at;
         if (!at)
             continue;
         const t = new Date(at).getTime();
         if (isNaN(t) || t > now)
             continue; // future — leave for later
-        const text = String(row.body || `⏰ תזכורת: ${row.raw?.remind_text || ''}`).trim();
+        const fallback = String(row.body || `⏰ תזכורת: ${row.raw?.remind_text || ''}`).trim();
+        const text = await notifText('owner_reminder', fallback, { text: row.raw?.remind_text || '' });
         const target = row.raw?.target_phone || row.to_phone;
         if (!target || target === 'self')
             continue;

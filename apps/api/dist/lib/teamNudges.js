@@ -17,6 +17,7 @@ import { prisma } from '../db.js';
 import { notifyOwner, notifyStaff } from './waTemplates.js';
 import { notifyEmployee } from './notifications.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
+import { isNotifEnabled, notifText } from './notificationSettings.js';
 const db = prisma;
 const APP_BASE = () => (process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || `https://${process.env.TENANT_SLUG || 'topalena'}.topalena.com`).replace(/\/$/, '');
 const DEFAULTS = {
@@ -97,6 +98,8 @@ async function sendNudge(emp, body, dedupKey, kind) {
 }
 async function ownerSummary(text) {
     try {
+        if (!(await isNotifEnabled('nudge_summary')))
+            return;
         const phones = await reportRecipientPhones();
         for (const p of phones) {
             try {
@@ -123,6 +126,8 @@ const staffMatches = (emp, a) => (a?.employee_id && String(a.employee_id) === St
 // ── nudge 1: availability not submitted ────────────────────────────────────
 async function checkAvailability(cfg) {
     if (cfg.availability.enabled === false)
+        return;
+    if (!(await isNotifEnabled('nudge_availability')))
         return;
     const now = ilParts();
     if (!cfg.availability.days.includes(now.day) || now.hour !== cfg.availability.hour)
@@ -152,10 +157,13 @@ async function checkAvailability(cfg) {
     let sent = 0;
     for (const emp of missing) {
         const first = String(emp.full_name || '').split(' ')[0] || 'היי';
-        const body = `היי ${first} 👋\n` +
-            `תזכורת מההנהלה — עדיין לא הגשת זמינות לשבוע הבא (${start.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' })}-${new Date(end.getTime() - 86_400_000).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' })}).\n` +
+        const range = `${start.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' })}-${new Date(end.getTime() - 86_400_000).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' })}`;
+        const availLink = `${APP_BASE()}/EmployeeAvailability`;
+        const fallback = `היי ${first} 👋\n` +
+            `תזכורת מההנהלה — עדיין לא הגשת זמינות לשבוע הבא (${range}).\n` +
             `בלי הגשה אי אפשר לשבץ אותך 🙏\n` +
-            `🔗 ${APP_BASE()}/EmployeeAvailability`;
+            `🔗 ${availLink}`;
+        const body = await notifText('nudge_availability', fallback, { first, range, link: availLink });
         if (await sendNudge(emp, body, `${batchKey}_${emp.id}`, 'availability'))
             sent++;
     }
@@ -164,6 +172,8 @@ async function checkAvailability(cfg) {
 // ── nudge 2: scheduled but not clocked in ──────────────────────────────────
 async function checkClockIn(cfg) {
     if (cfg.clockin.enabled === false)
+        return;
+    if (!(await isNotifEnabled('nudge_clockin')))
         return;
     const now = ilParts();
     const nowMin = now.hour * 60 + now.minute;
@@ -197,12 +207,15 @@ async function checkClockIn(cfg) {
             if (await alreadySent(key))
                 continue;
             const first = String(emp.full_name || '').split(' ')[0] || 'היי';
-            const body = `היי ${first} 👋\n` +
-                `שים/י לב — את/ה משובץ/ת למשמרת שהתחילה ב-${String(ws.start_time).slice(0, 5)} ועדיין אין החתמת כניסה.\n` +
+            const startHHMM = String(ws.start_time).slice(0, 5);
+            const clockLink = `${APP_BASE()}/EmployeeHome`;
+            const fallback = `היי ${first} 👋\n` +
+                `שים/י לב — את/ה משובץ/ת למשמרת שהתחילה ב-${startHHMM} ועדיין אין החתמת כניסה.\n` +
                 `אם את/ה כבר פה — תחתום/י עכשיו 🙏 ואם יש בעיה, עדכנו את המנהל.\n` +
-                `🔗 ${APP_BASE()}/EmployeeHome`;
+                `🔗 ${clockLink}`;
+            const body = await notifText('nudge_clockin', fallback, { first, start: startHHMM, link: clockLink });
             if (await sendNudge(emp, body, key, 'clockin'))
-                nudged.push(`${emp.full_name} (${String(ws.start_time).slice(0, 5)})`);
+                nudged.push(`${emp.full_name} (${startHHMM})`);
         }
     }
     if (nudged.length)
@@ -211,6 +224,8 @@ async function checkClockIn(cfg) {
 // ── nudge 3: shift checklist incomplete at checkpoint ──────────────────────
 async function checkChecklists(cfg) {
     if (cfg.checklist.enabled === false)
+        return;
+    if (!(await isNotifEnabled('nudge_checklist')))
         return;
     const now = ilParts();
     let slot = null;

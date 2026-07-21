@@ -17,6 +17,7 @@ import { notifyOwner } from './waTemplates.js';
 import { pushoverToAdmins } from './pushover.js';
 import { sendEmail } from './email.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
+import { isNotifEnabled, notifSlot } from './notificationSettings.js';
 const db = prisma;
 const TZ = 'Asia/Jerusalem';
 // Israel wall-clock date/time parts for a given instant.
@@ -271,11 +272,13 @@ export async function sendDailyHoursReport(opts = {}) {
 // TZ-safe scheduler tick — call every ~5 min. Fires once per slot (12h throttle).
 export async function checkDailyHoursReportSchedule() {
     try {
+        if (!(await isNotifEnabled('daily_hours_report')))
+            return; // owner turned it off
         if (!(await reportRecipientPhones()).length)
             return; // no owner for this tenant → don't send
         const now = new Date();
         const { dow, minutes } = ilParts(now);
-        const slot = SLOTS[dow];
+        const slot = await notifSlot('daily_hours_report', dow, SLOTS); // owner-editable per-weekday time
         if (!slot)
             return;
         const [sh, sm] = slot.split(':').map(n => parseInt(n, 10));

@@ -4,6 +4,7 @@
 import { prisma } from '../db.js';
 import { notifyOwner } from './waTemplates.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
+import { isNotifEnabled } from './notificationSettings.js';
 const TZ = 'Asia/Jerusalem';
 function ymd(d) { return d.toLocaleDateString('en-CA', { timeZone: TZ }); }
 function addDays(d, n) { const c = new Date(d); c.setUTCDate(c.getUTCDate() + n); return c; }
@@ -180,6 +181,8 @@ export async function buildWeeklyInsights() {
     return lines.join('\n');
 }
 export async function sendWeeklyInsights() {
+    if (!(await isNotifEnabled('weekly_insights')))
+        return { sent: 0, failed: 0, details: [] };
     const phones = await reportRecipientPhones();
     if (!phones.length)
         return { sent: 0, failed: 0, details: [] };
