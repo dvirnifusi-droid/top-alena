@@ -4418,6 +4418,56 @@ registerFn('reviewSocialContent', async ({ body, user }) => {
         best_time: String(res.best_time || ''),
     };
 });
+/** Story Studio — the owner uploads a product photo; the AI (vision) writes a
+ *  short punchy overlay line + full caption + hashtags + CTA. The frontend
+ *  composes the photo + overlay into a downloadable Instagram-story image
+ *  (client-side canvas — no image-gen dependency). Maor: photo → nice post → story. */
+registerFn('generateStoryContent', async ({ body, user }) => {
+    await requireBackOffice(user, 'generateStoryContent', 'MarketingHub');
+    const b = body || {};
+    const imageUrl = String(b.image_url || '').trim();
+    const note = String(b.note || '').trim();
+    if (!imageUrl)
+        throw new Error('העלה תמונת מוצר/מנה');
+    const brand = await getBrandName().catch(() => 'העסק');
+    let profileBlock = '';
+    try {
+        const p = await db.businessProfile.findFirst();
+        if (p?.profile_data)
+            profileBlock = `\nפרופיל העסק: ${JSON.stringify(p.profile_data).slice(0, 1500)}\n`;
+    }
+    catch { /* proceed */ }
+    const res = await invokeLLM({
+        prompt: [
+            MARKETING_ADVISOR_PERSONA,
+            `אתה יוצר תוכן לסטורי אינסטגרם עבור "${brand}".`,
+            profileBlock,
+            note ? `הקשר מהבעלים: ${note}` : '',
+            'מצורפת תמונת מוצר/מנה. צור תוכן סטורי מוכן לפרסום שיגרום לאנשים לבוא: כותרת קצרה וקליטה שתופיע על התמונה (overlay, עד 6 מילים), כיתוב מלא לפוסט, האשטגים, וקריאה לפעולה. בעברית, בטון של המותג.',
+        ].filter(Boolean).join('\n'),
+        fileUrls: [imageUrl],
+        responseSchema: {
+            type: 'object',
+            properties: {
+                overlay_text: { type: 'string', description: 'טקסט קצר להצגה על התמונה (עד 6 מילים)' },
+                caption: { type: 'string', description: 'כיתוב מלא לפוסט' },
+                hashtags: { type: 'array', items: { type: 'string' } },
+                cta: { type: 'string', description: 'קריאה לפעולה קצרה' },
+            },
+            required: ['overlay_text', 'caption'],
+        },
+        maxOutputTokens: 1500,
+    });
+    if (!res || res.raw || !res.overlay_text)
+        throw new Error('היצירה לא הושלמה — נסה שוב (אולי תמונה גדולה מדי).');
+    return {
+        overlay_text: String(res.overlay_text || ''),
+        caption: String(res.caption || ''),
+        hashtags: Array.isArray(res.hashtags) ? res.hashtags : [],
+        cta: String(res.cta || ''),
+        brand,
+    };
+});
 /** Wallet setup state: what is configured, and when the Apple cert lapses. */
 registerFn('getWalletSetup', async ({ user }) => {
     if (!isAdminRole(user?.role))
