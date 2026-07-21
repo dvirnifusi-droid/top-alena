@@ -27,6 +27,8 @@ export const CLUB_DEFAULTS = {
     punchcard_enabled: false,
     punchcard_threshold: 10,
     punchcard_text: 'מנה על חשבון הבית — כל 10 ביקורים 🎉',
+    referral_enabled: false,
+    referral_text: 'הטבה על הזמנת חבר למועדון 🎁',
     tournament_enabled: true,
     tournament_winners: 3,
     tournament_prize: 'קינוח על חשבון הבית 🏆',
@@ -61,6 +63,8 @@ export async function ensureClubTables() {
         `ADD COLUMN IF NOT EXISTS punchcard_enabled BOOLEAN DEFAULT false`,
         `ADD COLUMN IF NOT EXISTS punchcard_threshold INT DEFAULT 10`,
         `ADD COLUMN IF NOT EXISTS punchcard_text TEXT`,
+        `ADD COLUMN IF NOT EXISTS referral_enabled BOOLEAN DEFAULT false`,
+        `ADD COLUMN IF NOT EXISTS referral_text TEXT`,
     ]) {
         await dbx().$executeRawUnsafe(`ALTER TABLE "ClubConfig" ${col}`).catch(() => { });
     }
@@ -103,6 +107,8 @@ export async function getClubConfig() {
         punchcard_enabled: r.punchcard_enabled === true,
         punchcard_threshold: Number(r.punchcard_threshold) || CLUB_DEFAULTS.punchcard_threshold,
         punchcard_text: r.punchcard_text || CLUB_DEFAULTS.punchcard_text,
+        referral_enabled: r.referral_enabled === true,
+        referral_text: r.referral_text || CLUB_DEFAULTS.referral_text,
         tournament_enabled: r.tournament_enabled !== false,
         tournament_winners: Number(r.tournament_winners) || CLUB_DEFAULTS.tournament_winners,
         tournament_prize: r.tournament_prize || CLUB_DEFAULTS.tournament_prize,
@@ -133,8 +139,9 @@ export async function saveClubConfig(patch) {
        (id, welcome_enabled, welcome_text, welcome_valid_days, game_coins, birthday_enabled, birthday_text,
         tournament_enabled, tournament_winners, tournament_prize, tournament_started_at,
         queue_multiplier, join_message_enabled, join_message_text,
-        punchcard_enabled, punchcard_threshold, punchcard_text, updated_date)
-     VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW()), $11, $12, $13, $14, $15, $16, NOW())
+        punchcard_enabled, punchcard_threshold, punchcard_text,
+        referral_enabled, referral_text, updated_date)
+     VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW()), $11, $12, $13, $14, $15, $16, $17, $18, NOW())
      ON CONFLICT (id) DO UPDATE SET
        welcome_enabled = EXCLUDED.welcome_enabled,
        welcome_text = EXCLUDED.welcome_text,
@@ -152,7 +159,9 @@ export async function saveClubConfig(patch) {
        punchcard_enabled = EXCLUDED.punchcard_enabled,
        punchcard_threshold = EXCLUDED.punchcard_threshold,
        punchcard_text = EXCLUDED.punchcard_text,
-       updated_date = NOW()`, next.welcome_enabled, next.welcome_text, next.welcome_valid_days, next.game_coins, next.birthday_enabled, next.birthday_text, next.tournament_enabled, next.tournament_winners, next.tournament_prize, next.tournament_started_at, next.queue_multiplier, next.join_message_enabled, next.join_message_text, next.punchcard_enabled, next.punchcard_threshold, next.punchcard_text);
+       referral_enabled = EXCLUDED.referral_enabled,
+       referral_text = EXCLUDED.referral_text,
+       updated_date = NOW()`, next.welcome_enabled, next.welcome_text, next.welcome_valid_days, next.game_coins, next.birthday_enabled, next.birthday_text, next.tournament_enabled, next.tournament_winners, next.tournament_prize, next.tournament_started_at, next.queue_multiplier, next.join_message_enabled, next.join_message_text, next.punchcard_enabled, next.punchcard_threshold, next.punchcard_text, next.referral_enabled, next.referral_text);
     return await getClubConfig();
 }
 // ── redeem codes ───────────────────────────────────────────────────────────
@@ -240,10 +249,13 @@ export async function maybeGrantReferral(referrerId, newMemberId) {
     const ref = String(referrerId || '').trim();
     if (!ref || ref === newMemberId)
         return null;
+    const cfg = await getClubConfig().catch(() => null);
+    if (!cfg?.referral_enabled)
+        return null;
     const exists = await dbx().$queryRawUnsafe(`SELECT id FROM "Customer" WHERE id = $1 LIMIT 1`, ref).catch(() => []);
     if (!exists?.length)
         return null;
-    return grantBenefit({ customerId: ref, description: 'הטבה על הזמנת חבר למועדון 🎁', source: `referral_${newMemberId}`, validDays: 60 });
+    return grantBenefit({ customerId: ref, description: cfg.referral_text || CLUB_DEFAULTS.referral_text, source: `referral_${newMemberId}`, validDays: 60 });
 }
 export async function listBenefits(customerId) {
     await ensureClubTables();

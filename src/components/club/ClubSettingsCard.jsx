@@ -226,6 +226,25 @@ export default function ClubSettingsCard() {
 
         <div className="pt-4 border-t">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            🤝 הזמנת חבר
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5 mb-3">
+            חבר קיים שולח לינק הצטרפות מכרטיס החבר. כשמישהו מצטרף דרכו — המזמין מקבל הטבה אוטומטית (חד־פעמית לכל חבר חדש).
+          </p>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-slate-700">הטבת הזמנת חבר פעילה</span>
+            <Switch checked={!!s.referral_enabled} onCheckedChange={(v) => set('referral_enabled', v)} />
+          </div>
+          {s.referral_enabled && (
+            <div>
+              <label className="text-xs text-slate-500">נוסח ההטבה למזמין — זה מה שהוא והמלצר רואים</label>
+              <Input value={s.referral_text || ''} onChange={(e) => set('referral_text', e.target.value)} className="mt-1" />
+            </div>
+          )}
+        </div>
+
+        <div className="pt-4 border-t">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
             <Gamepad2 className="w-4 h-4 text-indigo-600" /> תשלום על משחק בתור
           </h3>
           <p className="text-xs text-slate-500 mt-0.5 mb-3">
