@@ -4167,6 +4167,133 @@ registerFn('clubTestJoinMessage', async ({ body, user }) => {
 });
 /** Real campaign results, from the table the sends actually write to. */
 registerFn('getMarketingStats', async ({ body }) => await marketingStats(Number(body?.days) || 30));
+/** Marketing HQ command center: live KPIs + a ranked, executable action list.
+ *  Numbers are deterministic SQL (never the LLM); only the one-line "manager says"
+ *  headline is LLM, best-effort. Each action carries a segment + default message
+ *  the UI fires via the existing sendCustomerCampaign (consent/throttle/opt-out
+ *  already enforced there) — HQ adds no new way to message customers. */
+registerFn('getMarketingHQ', async ({ user }) => {
+    await requireBackOffice(user, 'getMarketingHQ', 'MarketingHub');
+    const TZ = 'Asia/Jerusalem';
+    const ymd = (d) => d.toLocaleDateString('en-CA', { timeZone: TZ });
+    const addDays = (d, n) => { const c = new Date(d); c.setUTCDate(c.getUTCDate() + n); return c; };
+    const now = new Date();
+    const wd = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' }).format(now);
+    const ilDow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(wd);
+    const dow = ilDow < 0 ? now.getUTCDay() : ilDow;
+    const weekStart = addDays(now, -dow);
+    const wkStart = ymd(weekStart), wkEnd = ymd(now);
+    const pvStart = ymd(addDays(weekStart, -7)), pvEnd = ymd(addDays(weekStart, -1));
+    // Revenue this week vs last week from Beecomm orders (mirrors weeklyInsights).
+    let revThis = 0, revPrev = 0;
+    try {
+        const orders = await db.beecommOrder.findMany({ orderBy: { date: 'desc' }, take: 5000 });
+        for (const o of orders) {
+            const d = o.date instanceof Date ? o.date.toISOString().slice(0, 10) : String(o.date).slice(0, 10);
+            const v = Number(o.total_ils ?? o.total ?? 0) || 0;
+            if (d >= wkStart && d <= wkEnd)
+                revThis += v;
+            else if (d >= pvStart && d <= pvEnd)
+                revPrev += v;
+        }
+    }
+    catch { /* no beecomm data — revenue stays 0 */ }
+    const revPct = revPrev ? Math.round(((revThis - revPrev) / revPrev) * 100) : null;
+    const cnt = async (where) => (await db.customer.count({ where }).catch(() => 0)) || 0;
+    const consentGate = { marketing_consent: true, marketing_unsubscribed_at: null };
+    const activeMembers = await cnt(consentGate);
+    const lapsed = await cnt(buildSegmentWhere('winback_60', null));
+    const vip = await cnt(buildSegmentWhere('vip', null));
+    const withCoins = await cnt(buildSegmentWhere('with_coins', null));
+    const mmdds = [];
+    for (let i = 0; i < 7; i++)
+        mmdds.push(ymd(addDays(now, i)).slice(5));
+    const birthdays = await cnt({ ...consentGate, birthday_mmdd: { in: mmdds } });
+    const stats = await marketingStats(30).catch(() => null);
+    const delivery = stats?.delivery || null;
+    const dripsEnabled = process.env.DRIP_CAMPAIGNS_ENABLED === 'true';
+    const kpis = {
+        active_members: activeMembers,
+        revenue: { current: Math.round(revThis), prev: Math.round(revPrev), pct: revPct },
+        lapsed,
+        birthdays_7d: birthdays,
+        delivery_pct: delivery?.delivered_pct ?? null,
+        delivery_tracked: delivery?.tracked_recipients ?? 0,
+    };
+    // Ranked actions — emitted only when the data warrants (an honest list).
+    const actions = [];
+    if (lapsed > 0)
+        actions.push({
+            id: 'winback', priority: 1, icon: '🔄', title: 'החזרת לקוחות נוטשים',
+            why: `${lapsed} לקוחות לא ביקרו 60–90 יום`, impact: `פוטנציאל להחזיר עד ${lapsed} לקוחות`,
+            segment: 'winback_60', channel: 'whatsapp', count: lapsed, kind: 'campaign',
+            default_message: 'היי {name}, מתגעגעים אליך! 🌿 חוזרים אלינו השבוע? יש הפתעה קטנה שמחכה לך.',
+        });
+    if (delivery && (delivery.delivered_pct ?? 100) < 70 && (delivery.tracked_recipients ?? 0) >= 20)
+        actions.push({
+            id: 'delivery', priority: 1, icon: '⚠️', title: 'בעיית מסירה בקמפיינים',
+            why: `רק ${delivery.delivered_pct}% מהקמפיינים נמסרו`, impact: 'הודעות לא מגיעות ללקוחות', kind: 'link', link: '/MarketingHub',
+        });
+    if (revPct !== null && revPct < 0)
+        actions.push({
+            id: 'revenue_push', priority: 2, icon: '📉', title: 'ירידה בהכנסה — דחיפה לשבוע',
+            why: `ההכנסה השבוע ${revPct}% מתחת לשבוע שעבר`, impact: 'למלא את השבוע',
+            segment: 'all_consented', channel: 'whatsapp', count: activeMembers, kind: 'campaign',
+            default_message: 'היי {name} 🌿 השבוע יש לנו משהו מיוחד — בוא לבקר, נשמח לראות אותך!',
+        });
+    if (birthdays > 0)
+        actions.push({
+            id: 'birthdays', priority: 2, icon: '🎂', title: 'ימי הולדת השבוע',
+            why: `${birthdays} לקוחות עם יום הולדת ב-7 הימים הקרובים`, impact: 'הזמנה חוזרת בסבירות גבוהה',
+            segment: 'birthday_this_month', channel: 'whatsapp', count: birthdays, kind: 'campaign',
+            default_message: 'יום הולדת שמח, {name}! 🎉 בוא לחגוג אצלנו החודש והקינוח עלינו 🍰',
+        });
+    if (vip > 0)
+        actions.push({
+            id: 'vip', priority: 3, icon: '⭐', title: 'פינוק לקוחות VIP',
+            why: `${vip} לקוחות VIP`, impact: 'שימור הלקוחות הכי שווים',
+            segment: 'vip', channel: 'whatsapp', count: vip, kind: 'campaign',
+            default_message: 'היי {name}, כלקוח מועדף שלנו רצינו לפנק אותך 🌟 בביקור הקרוב יש לך הטבה מיוחדת.',
+        });
+    if (withCoins > 0)
+        actions.push({
+            id: 'coins', priority: 4, icon: '🪙', title: 'תזכורת מימוש מטבעות',
+            why: `${withCoins} לקוחות עם מטבעות שלא מומשו`, impact: 'עוד ביקור',
+            segment: 'with_coins', channel: 'whatsapp', count: withCoins, kind: 'campaign',
+            default_message: 'היי {name}, יש לך {coins} מטבעות במועדון 🪙 בוא לממש אותם בביקור הבא!',
+        });
+    if (!dripsEnabled)
+        actions.push({
+            id: 'drips_off', priority: 5, icon: '🔌', title: 'הדיוורים האוטומטיים כבויים',
+            why: 'ברוך הבא / NPS / יום הולדת לא נשלחים אוטומטית', impact: 'מפספסים נקודות מגע', kind: 'link', link: '/NotificationSettings',
+        });
+    actions.sort((a, b) => a.priority - b.priority);
+    // Advisor voice — best-effort, never blocks the page.
+    let headline = '';
+    try {
+        const res = await invokeLLM({
+            prompt: [
+                MARKETING_ADVISOR_PERSONA,
+                'נתוני השבוע:',
+                `- חברי מועדון פעילים: ${activeMembers}`,
+                `- הכנסה השבוע: ₪${Math.round(revThis)}${revPct !== null ? ` (${revPct}% מול שבוע שעבר)` : ''}`,
+                `- נוטשים: ${lapsed} · ימי הולדת השבוע: ${birthdays} · VIP: ${vip}`,
+                `- פעולות מומלצות: ${actions.map((a) => a.title).join(', ') || 'אין'}`,
+                'כתוב פסקה קצרה אחת (2-3 משפטים) בעברית, בגוף ראשון, כמנהל השיווק של העסק — מה הכי חשוב לעשות השבוע ולמה. בלי כותרת ובלי רשימה.',
+            ].join('\n'),
+            responseSchema: { type: 'object', properties: { headline: { type: 'string' } }, required: ['headline'] },
+            maxOutputTokens: 220,
+        });
+        headline = String(res?.headline || '').trim();
+    }
+    catch { /* deterministic fallback below */ }
+    if (!headline || headline.includes('[object')) {
+        headline = actions.some((a) => a.kind === 'campaign')
+            ? `השבוע כדאי להתמקד ב: ${actions.filter((a) => a.kind === 'campaign').slice(0, 2).map((a) => a.title).join(' ו')}.`
+            : 'הנתונים יציבים השבוע — המשך לתחזק את הקשר עם הלקוחות.';
+    }
+    return { kpis, actions, headline, drips_enabled: dripsEnabled };
+});
 /** Wallet setup state: what is configured, and when the Apple cert lapses. */
 registerFn('getWalletSetup', async ({ user }) => {
     if (!isAdminRole(user?.role))

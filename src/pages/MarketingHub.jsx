@@ -1,8 +1,9 @@
 // Marketing hub — all marketing/customer-comms admin pages in one shell.
 import React, { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Megaphone, Users, Send, MessageSquare, QrCode, Image, FileText } from 'lucide-react';
+import { Megaphone, Users, Send, MessageSquare, QrCode, Image, FileText, Sparkles } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
+import MarketingHQ from './MarketingHQ';
 import MarketingDashboard from './MarketingDashboard';
 import CustomerClub from './CustomerClub';
 import MarketingCampaigns from './MarketingCampaigns';
@@ -12,6 +13,7 @@ import CustomerSurveys from './CustomerSurveys';
 import SurveyQRCodes from './SurveyQRCodes';
 
 const TABS = [
+    { id: 'hq', label: 'מטה שיווק', icon: Sparkles, C: MarketingHQ },
     { id: 'dashboard', label: 'דשבורד', icon: Megaphone, C: MarketingDashboard },
     { id: 'club', label: 'מועדון לקוחות', icon: Users, C: CustomerClub },
     { id: 'campaigns', label: 'קמפיינים', icon: Send, C: MarketingCampaigns },
@@ -24,7 +26,7 @@ const TABS = [
 export default function MarketingHub() {
     const [tab, setTab] = useState(() => {
         const h = (typeof window !== 'undefined' && window.location.hash.replace('#', '')) || '';
-        return TABS.find(t => t.id === h) ? h : 'dashboard';
+        return TABS.find(t => t.id === h) ? h : 'hq';
     });
     const onChange = (v) => { setTab(v); if (typeof window !== 'undefined') window.location.hash = v; };
     return (
@@ -32,7 +34,7 @@ export default function MarketingHub() {
             <PageHeader title="שיווק ולקוחות" icon={Megaphone} />
             <Tabs value={tab} onValueChange={onChange}>
                 <div className="sticky top-0 z-10 bg-white -mx-4 px-4 pb-2 mb-3 border-b">
-                    <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 justify-start md:grid md:grid-cols-7">
+                    <TabsList className="flex w-full overflow-x-auto h-auto p-1 gap-1 justify-start md:grid md:grid-cols-8">
                         {TABS.map(t => (
                             <TabsTrigger key={t.id} value={t.id} className="text-sm py-2.5 px-3 whitespace-nowrap flex-shrink-0">
                                 <t.icon className="w-4 h-4 ml-1.5 hidden md:inline" />
