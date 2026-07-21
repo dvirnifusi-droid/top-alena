@@ -18610,6 +18610,64 @@ registerFn('getChainMetrics', async ({ user, body }: any) => {
   return { chain_id: chainId, branch_count: members.length, per_branch: perBranch, totals };
 });
 
+// D.2 — network tasks (Maor's "Mundial promo"): a chain-level task fans out to a
+// per-branch status row, tracked from the HQ. Public-schema, super-admin.
+async function ensureNetworkTaskTables(): Promise<void> {
+  const dbx = prisma as any;
+  await dbx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "NetworkTask" (id TEXT PRIMARY KEY, chain_id TEXT, title TEXT, detail TEXT, "createdAt" TIMESTAMPTZ DEFAULT NOW())`).catch(() => {});
+  await dbx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "NetworkTaskBranch" (id TEXT PRIMARY KEY, task_id TEXT, slug TEXT, name TEXT, done BOOLEAN DEFAULT false, done_at TIMESTAMPTZ)`).catch(() => {});
+  await dbx.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "NetworkTaskBranch_task_slug" ON "NetworkTaskBranch"(task_id, slug)`).catch(() => {});
+}
+
+registerFn('createNetworkTask', async ({ user, body }: any) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensureChainTables(); await ensureNetworkTaskTables();
+  const b = (body || {}) as any;
+  const chainId = String(b.chain_id || '').trim();
+  const title = String(b.title || '').trim();
+  if (!chainId || !title) throw new Error('chain_id and title required');
+  const id = `ntask_${Date.now().toString(36)}`;
+  await (prisma as any).$executeRawUnsafe(`INSERT INTO "NetworkTask" (id, chain_id, title, detail) VALUES ($1,$2,$3,$4)`, id, chainId, title.slice(0, 200), String(b.detail || '').slice(0, 2000));
+  const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name FROM "ChainMember" WHERE chain_id=$1`, chainId).catch(() => []);
+  for (const m of members) {
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "NetworkTaskBranch" (id, task_id, slug, name) VALUES ($1,$2,$3,$4) ON CONFLICT (task_id, slug) DO NOTHING`,
+      `ntb_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`, id, m.slug, m.name).catch(() => {});
+  }
+  return { ok: true, id };
+});
+
+registerFn('listNetworkTasks', async ({ user, body }: any) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensureNetworkTaskTables();
+  const chainId = String((body as any)?.chain_id || '').trim();
+  if (!chainId) throw new Error('chain_id required');
+  const tasks: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, title, detail, "createdAt" FROM "NetworkTask" WHERE chain_id=$1 ORDER BY "createdAt" DESC`, chainId).catch(() => []);
+  const branches: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT b.task_id, b.slug, b.name, b.done FROM "NetworkTaskBranch" b JOIN "NetworkTask" t ON t.id=b.task_id WHERE t.chain_id=$1`, chainId).catch(() => []);
+  return { tasks: tasks.map((t: any) => ({ ...t, branches: branches.filter((x: any) => x.task_id === t.id) })) };
+});
+
+registerFn('setNetworkTaskBranch', async ({ user, body }: any) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensureNetworkTaskTables();
+  const b = (body || {}) as any;
+  const done = !!b.done;
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "NetworkTaskBranch" SET done=$1, done_at=CASE WHEN $1 THEN NOW() ELSE NULL END WHERE task_id=$2 AND slug=$3`,
+    done, String(b.task_id || ''), String(b.slug || '')).catch(() => {});
+  return { ok: true };
+});
+
+registerFn('deleteNetworkTask', async ({ user, body }: any) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensureNetworkTaskTables();
+  const id = String((body as any)?.id || '');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "NetworkTaskBranch" WHERE task_id=$1`, id).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "NetworkTask" WHERE id=$1`, id).catch(() => {});
+  return { ok: true };
+});
+
 // ── Phase 2: plan / feature engine ─────────────────────────────────────────
 // The optional (non-core) module catalog the Plan Builder toggles per plan.
 const optionalModuleDefs = () => MODULE_CATALOG.filter((m) => !m.core).map((m) => ({

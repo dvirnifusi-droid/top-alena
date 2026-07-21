@@ -7,6 +7,78 @@ import { Loader2, Plus, Trash2, Network, RefreshCw } from 'lucide-react';
 
 const ils = (n) => `₪${(Number(n) || 0).toLocaleString('he-IL')}`;
 
+function NetworkTasks({ chainId }) {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [title, setTitle] = useState('');
+  const [detail, setDetail] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try { const r = await base44.functions.listNetworkTasks({ chain_id: chainId }); setTasks((r?.data || r)?.tasks || []); }
+    catch { setTasks([]); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, [chainId]);
+
+  const create = async () => {
+    if (!title.trim()) return;
+    setBusy(true);
+    try { await base44.functions.createNetworkTask({ chain_id: chainId, title: title.trim(), detail: detail.trim() }); setTitle(''); setDetail(''); load(); }
+    catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setBusy(false); }
+  };
+  const toggle = async (taskId, slug, done) => {
+    try { await base44.functions.setNetworkTaskBranch({ task_id: taskId, slug, done }); load(); }
+    catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+  };
+  const del = async (id) => {
+    if (!window.confirm('למחוק את המשימה?')) return;
+    try { await base44.functions.deleteNetworkTask({ id }); load(); }
+    catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+  };
+
+  return (
+    <div className="mt-4 pt-4 border-t border-slate-800">
+      <div className="text-sm font-bold text-white mb-2">🎯 משימות רשתיות</div>
+      <div className="flex flex-col gap-2 mb-3">
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="כותרת משימה (למשל: מבצע מונדיאל)" className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
+        <div className="flex gap-2">
+          <input value={detail} onChange={(e) => setDetail(e.target.value)} placeholder="פרטים (אופציונלי)" className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
+          <button onClick={create} disabled={busy || !title.trim()} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-lg px-3 py-2 text-sm disabled:opacity-50">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שגר לסניפים'}</button>
+        </div>
+      </div>
+      {loading ? <div className="flex justify-center py-2"><Loader2 className="w-4 h-4 animate-spin text-slate-500" /></div> : (
+        <div className="space-y-2">
+          {tasks.map((t) => {
+            const done = (t.branches || []).filter((b) => b.done).length;
+            return (
+              <div key={t.id} className="bg-slate-800/60 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium text-white text-sm">{t.title} <span className="text-xs text-slate-400">· {done}/{(t.branches || []).length} סניפים</span></div>
+                  <button onClick={() => del(t.id)} className="text-red-400 hover:text-red-300"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+                {t.detail && <div className="text-xs text-slate-400 mt-0.5">{t.detail}</div>}
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {(t.branches || []).map((b) => (
+                    <button key={b.slug} onClick={() => toggle(t.id, b.slug, !b.done)}
+                      className={`text-xs px-2 py-1 rounded-full border ${b.done ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>
+                      {b.done ? '✓ ' : ''}{b.name}
+                    </button>
+                  ))}
+                  {(t.branches || []).length === 0 && <span className="text-xs text-slate-500">אין סניפים ברשת</span>}
+                </div>
+              </div>
+            );
+          })}
+          {tasks.length === 0 && <div className="text-xs text-slate-500 text-center py-2">אין משימות רשתיות עדיין.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChainCard({ chain, available, onChanged }) {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -88,6 +160,8 @@ function ChainCard({ chain, available, onChanged }) {
         </select>
         <button onClick={addBranch} disabled={busy || !addSlug} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-lg px-3 py-1.5 text-sm disabled:opacity-50"><Plus className="w-4 h-4 inline" /> הוסף</button>
       </div>
+
+      <NetworkTasks chainId={chain.id} />
     </div>
   );
 }
