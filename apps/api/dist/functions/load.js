@@ -4337,16 +4337,17 @@ registerFn('getOperationsHQ', async ({ user }) => {
         : `הכל תחת שליטה 🌿 ${bits.join(' · ')}.`;
     return { kpis, actions, headline };
 });
-/** "בוחן סושיאל" — the AI marketing manager grades a social post/caption the
- *  (outsourced) social agency prepared, against the business's brand, and returns
- *  an improved version. Maor: "the agents even vet the social-media company". */
+/** "בוחן סושיאל" — the AI marketing manager grades a social post (image and/or
+ *  caption) the outsourced social agency prepared, against the business's brand,
+ *  explains exactly what's wrong, and returns an improved version. */
 registerFn('reviewSocialContent', async ({ body, user }) => {
     await requireBackOffice(user, 'reviewSocialContent', 'MarketingHub');
     const b = body || {};
     const text = String(b.text || '').trim();
     const platform = String(b.platform || 'instagram').trim();
-    if (!text)
-        throw new Error('הדבק את התוכן לבדיקה');
+    const imageUrl = String(b.image_url || '').trim();
+    if (!text && !imageUrl)
+        throw new Error('הדבק טקסט או העלה תמונה לבדיקה');
     let profileBlock = '';
     try {
         const p = await db.businessProfile.findFirst();
@@ -4355,15 +4356,22 @@ registerFn('reviewSocialContent', async ({ body, user }) => {
     }
     catch { /* proceed without profile grounding */ }
     const brand = await getBrandName().catch(() => 'העסק');
+    const promptLines = [
+        MARKETING_ADVISOR_PERSONA,
+        `אתה בוחן תוכן שיווקי שחברת סושיאל חיצונית הכינה עבור "${brand}".`,
+        profileBlock,
+        `הפלטפורמה: ${platform}.`,
+    ];
+    if (imageUrl)
+        promptLines.push('מצורפת התמונה/העיצוב של הפוסט — בחן גם את החזות: עיצוב, איכות, התאמה למותג, קריאוּת וקריאה-לפעולה ויזואלית.');
+    if (text)
+        promptLines.push(`--- הכיתוב שהוגש ---\n${text}\n--- סוף הכיתוב ---`);
+    else
+        promptLines.push('(לא הוגש כיתוב — בחן את התמונה בלבד, והצע כיתוב מתאים.)');
+    promptLines.push('החזר ניתוח מפורט וספציפי בעברית: ציון 1-10; משפט שורה-תחתונה; לפחות 2-3 נקודות חוזק; לפחות 2-3 בעיות/סיכונים קונקרטיים — הסבר בדיוק מה לא טוב ולמה; וגרסה משופרת מלאה שאתה היית מפרסם.');
     const res = await invokeLLM({
-        prompt: [
-            MARKETING_ADVISOR_PERSONA,
-            `אתה בוחן תוכן שיווקי שחברת סושיאל חיצונית הכינה עבור "${brand}".`,
-            profileBlock,
-            `הפלטפורמה: ${platform}.`,
-            `--- התוכן שהוגש ---\n${text}\n--- סוף התוכן ---`,
-            'בחן: האם התוכן מתאים למותג, ברור, מניע לפעולה, ומנוסח נכון לפלטפורמה. תן ציון 1-10, נקודות חוזק, בעיות/סיכונים, וגרסה משופרת שאתה היית מפרסם — בעברית.',
-        ].join('\n'),
+        prompt: promptLines.filter(Boolean).join('\n'),
+        fileUrls: imageUrl ? [imageUrl] : undefined,
         responseSchema: {
             type: 'object',
             properties: {
@@ -4377,16 +4385,20 @@ registerFn('reviewSocialContent', async ({ body, user }) => {
             },
             required: ['score', 'verdict', 'strengths', 'issues', 'rewrite'],
         },
-        maxOutputTokens: 900,
+        maxOutputTokens: 2500,
     });
+    // invokeLLM returns { raw } when the JSON didn't parse (truncated/malformed).
+    // Don't silently degrade to a bogus score — tell the owner to retry.
+    if (!res || res.raw || res.score == null)
+        throw new Error('הניתוח לא הושלם — נסה שוב (אולי התמונה גדולה מדי או הטקסט ארוך).');
     return {
-        score: Math.max(1, Math.min(10, Math.round(Number(res?.score) || 0))),
-        verdict: String(res?.verdict || ''),
-        strengths: Array.isArray(res?.strengths) ? res.strengths : [],
-        issues: Array.isArray(res?.issues) ? res.issues : [],
-        rewrite: String(res?.rewrite || ''),
-        hashtags: Array.isArray(res?.hashtags) ? res.hashtags : [],
-        best_time: String(res?.best_time || ''),
+        score: Math.max(1, Math.min(10, Math.round(Number(res.score) || 0))),
+        verdict: String(res.verdict || ''),
+        strengths: Array.isArray(res.strengths) ? res.strengths : [],
+        issues: Array.isArray(res.issues) ? res.issues : [],
+        rewrite: String(res.rewrite || ''),
+        hashtags: Array.isArray(res.hashtags) ? res.hashtags : [],
+        best_time: String(res.best_time || ''),
     };
 });
 /** Wallet setup state: what is configured, and when the Apple cert lapses. */
