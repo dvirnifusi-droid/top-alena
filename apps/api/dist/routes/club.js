@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { prisma } from '../db.js';
 import { requireClubKey } from '../middleware/clubAuth.js';
 import { computeTier, coinsForOrder, ILS_PER_COIN_REDEEM } from '../lib/clubTier.js';
-import { getClubConfig, grantBenefit, sendJoinMessage } from '../lib/clubCore.js';
+import { getClubConfig, grantBenefit, sendJoinMessage, maybeGrantPunchCard } from '../lib/clubCore.js';
 // Israeli phone normalization — keeps only digits, strips leading 972
 function normalizePhone(raw) {
     const digits = raw.replace(/\D/g, '');
@@ -179,12 +179,15 @@ export async function clubRoutes(app) {
                 last_visit: new Date(),
             },
         });
+        // Punch card: reward the Nth visit with a real code (idempotent per count).
+        const punch = await maybeGrantPunchCard(customer.id, newVisitCount).catch(() => null);
         req.log.info({ phone, order_id: parsed.data.order_id, coinsEarned, newBalance }, 'club_order_received');
         return {
             coins_earned: coinsEarned,
             new_balance: newBalance,
             new_tier: newTier,
             visit_count: newVisitCount,
+            punchcard: punch ? { code: punch.code, description: punch.description } : null,
         };
     });
     // -------- POST /api/club/redeem --------

@@ -30,7 +30,7 @@ import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
 import { withOptOut, verifyCustomerSignature, memberCardUrl, signCustomer } from '../lib/marketingBlast.js';
 import {
-  getClubConfig, saveClubConfig, grantBenefit, listBenefits,
+  getClubConfig, saveClubConfig, grantBenefit, maybeGrantPunchCard, listBenefits,
   findBenefitByCode, redeemBenefit, tierLabel, ensureClubTables,
   tournamentStandings, myStanding, closeTournamentRound, sendJoinMessage,
   tonightBoard,
@@ -2663,14 +2663,16 @@ registerFn('seatGuest', async ({ body }) => {
     try {
       const customer = await db.customer.findFirst({ where: { phone: entry.phone } });
       if (customer) {
+        const newVisits = (customer.visit_count || 0) + 1;
         await db.customer.update({
           where: { id: customer.id },
           data: {
             coin_balance: (customer.coin_balance || 0) + entry.time_credits_earned,
             last_visit: now,
-            visit_count: (customer.visit_count || 0) + 1,
+            visit_count: newVisits,
           },
         });
+        maybeGrantPunchCard(customer.id, newVisits).catch(() => {});
       } else {
         await db.customer.create({
           data: {

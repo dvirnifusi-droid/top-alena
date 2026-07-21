@@ -29,7 +29,7 @@ import { fireTriggers } from '../lib/triggers.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
 import { withOptOut, verifyCustomerSignature, memberCardUrl, signCustomer } from '../lib/marketingBlast.js';
-import { getClubConfig, saveClubConfig, grantBenefit, listBenefits, findBenefitByCode, redeemBenefit, tierLabel, ensureClubTables, tournamentStandings, myStanding, closeTournamentRound, sendJoinMessage, tonightBoard, } from '../lib/clubCore.js';
+import { getClubConfig, saveClubConfig, grantBenefit, maybeGrantPunchCard, listBenefits, findBenefitByCode, redeemBenefit, tierLabel, ensureClubTables, tournamentStandings, myStanding, closeTournamentRound, sendJoinMessage, tonightBoard, } from '../lib/clubCore.js';
 import { marketingStats } from '../lib/marketingStats.js';
 import { walletAvailability, applyCertExpiry, normalizePrivateKey, emailFromServiceAccountJson, diagnoseGoogleWallet, } from '../lib/walletPass.js';
 import { TEMPLATES, templateStatus, templateRejectionRisk, sendTemplated, notifyOwner, notifyStaff, sendClubMessage } from '../lib/waTemplates.js';
@@ -2645,14 +2645,16 @@ registerFn('seatGuest', async ({ body }) => {
         try {
             const customer = await db.customer.findFirst({ where: { phone: entry.phone } });
             if (customer) {
+                const newVisits = (customer.visit_count || 0) + 1;
                 await db.customer.update({
                     where: { id: customer.id },
                     data: {
                         coin_balance: (customer.coin_balance || 0) + entry.time_credits_earned,
                         last_visit: now,
-                        visit_count: (customer.visit_count || 0) + 1,
+                        visit_count: newVisits,
                     },
                 });
+                maybeGrantPunchCard(customer.id, newVisits).catch(() => { });
             }
             else {
                 await db.customer.create({

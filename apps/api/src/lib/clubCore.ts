@@ -22,6 +22,9 @@ export type ClubConfig = {
   game_coins: number;
   birthday_enabled: boolean;
   birthday_text: string;
+  punchcard_enabled: boolean;
+  punchcard_threshold: number;
+  punchcard_text: string;
   tournament_enabled: boolean;
   tournament_winners: number;
   tournament_prize: string;
@@ -66,6 +69,9 @@ export const CLUB_DEFAULTS: ClubConfig = {
   game_coins: 5,
   birthday_enabled: false,
   birthday_text: 'קינוח יום הולדת על חשבון הבית 🎂',
+  punchcard_enabled: false,
+  punchcard_threshold: 10,
+  punchcard_text: 'מנה על חשבון הבית — כל 10 ביקורים 🎉',
   tournament_enabled: true,
   tournament_winners: 3,
   tournament_prize: 'קינוח על חשבון הבית 🏆',
@@ -99,6 +105,9 @@ export async function ensureClubTables(): Promise<void> {
     `ADD COLUMN IF NOT EXISTS queue_multiplier INT DEFAULT 2`,
     `ADD COLUMN IF NOT EXISTS join_message_enabled BOOLEAN DEFAULT true`,
     `ADD COLUMN IF NOT EXISTS join_message_text TEXT`,
+    `ADD COLUMN IF NOT EXISTS punchcard_enabled BOOLEAN DEFAULT false`,
+    `ADD COLUMN IF NOT EXISTS punchcard_threshold INT DEFAULT 10`,
+    `ADD COLUMN IF NOT EXISTS punchcard_text TEXT`,
   ]) {
     await dbx().$executeRawUnsafe(`ALTER TABLE "ClubConfig" ${col}`).catch(() => {});
   }
@@ -145,6 +154,9 @@ export async function getClubConfig(): Promise<ClubConfig> {
     game_coins: Number.isFinite(Number(r.game_coins)) ? Number(r.game_coins) : CLUB_DEFAULTS.game_coins,
     birthday_enabled: r.birthday_enabled === true,
     birthday_text: r.birthday_text || CLUB_DEFAULTS.birthday_text,
+    punchcard_enabled: r.punchcard_enabled === true,
+    punchcard_threshold: Number(r.punchcard_threshold) || CLUB_DEFAULTS.punchcard_threshold,
+    punchcard_text: r.punchcard_text || CLUB_DEFAULTS.punchcard_text,
     tournament_enabled: r.tournament_enabled !== false,
     tournament_winners: Number(r.tournament_winners) || CLUB_DEFAULTS.tournament_winners,
     tournament_prize: r.tournament_prize || CLUB_DEFAULTS.tournament_prize,
@@ -161,6 +173,7 @@ export async function saveClubConfig(patch: Partial<ClubConfig>): Promise<ClubCo
   // and a negative one should not silently drain balances.
   next.game_coins = Math.max(0, Math.min(500, Math.round(Number(next.game_coins) || 0)));
   next.welcome_valid_days = Math.max(1, Math.min(3650, Math.round(Number(next.welcome_valid_days) || 90)));
+  next.punchcard_threshold = Math.max(1, Math.min(100, Math.round(Number(next.punchcard_threshold) || 10)));
   // Prize count is a direct multiplier on what a round costs, so it is bounded
   // for the same reason the payout box is.
   next.tournament_winners = Math.max(1, Math.min(50, Math.round(Number(next.tournament_winners) || 3)));
@@ -175,8 +188,9 @@ export async function saveClubConfig(patch: Partial<ClubConfig>): Promise<ClubCo
     `INSERT INTO "ClubConfig"
        (id, welcome_enabled, welcome_text, welcome_valid_days, game_coins, birthday_enabled, birthday_text,
         tournament_enabled, tournament_winners, tournament_prize, tournament_started_at,
-        queue_multiplier, join_message_enabled, join_message_text, updated_date)
-     VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW()), $11, $12, $13, NOW())
+        queue_multiplier, join_message_enabled, join_message_text,
+        punchcard_enabled, punchcard_threshold, punchcard_text, updated_date)
+     VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW()), $11, $12, $13, $14, $15, $16, NOW())
      ON CONFLICT (id) DO UPDATE SET
        welcome_enabled = EXCLUDED.welcome_enabled,
        welcome_text = EXCLUDED.welcome_text,
@@ -191,12 +205,16 @@ export async function saveClubConfig(patch: Partial<ClubConfig>): Promise<ClubCo
        queue_multiplier = EXCLUDED.queue_multiplier,
        join_message_enabled = EXCLUDED.join_message_enabled,
        join_message_text = EXCLUDED.join_message_text,
+       punchcard_enabled = EXCLUDED.punchcard_enabled,
+       punchcard_threshold = EXCLUDED.punchcard_threshold,
+       punchcard_text = EXCLUDED.punchcard_text,
        updated_date = NOW()`,
     next.welcome_enabled, next.welcome_text, next.welcome_valid_days,
     next.game_coins, next.birthday_enabled, next.birthday_text,
     next.tournament_enabled, next.tournament_winners, next.tournament_prize,
     next.tournament_started_at, next.queue_multiplier,
     next.join_message_enabled, next.join_message_text,
+    next.punchcard_enabled, next.punchcard_threshold, next.punchcard_text,
   );
   return await getClubConfig();
 }
@@ -291,6 +309,17 @@ export async function grantBenefit(opts: {
     }
   }
   return null;
+}
+
+/** If the customer just hit a punch-card threshold visit, issue the reward once.
+ *  Idempotent per exact visit count (source punch_<n>). Returns the benefit or null. */
+export async function maybeGrantPunchCard(customerId: string, visitCount: number): Promise<Benefit | null> {
+  if (!customerId || !visitCount) return null;
+  const cfg = await getClubConfig().catch(() => null);
+  if (!cfg?.punchcard_enabled) return null;
+  const t = Number(cfg.punchcard_threshold) || 10;
+  if (t < 1 || visitCount % t !== 0) return null;
+  return grantBenefit({ customerId, description: cfg.punchcard_text, source: `punch_${visitCount}`, validDays: 60 });
 }
 
 export async function listBenefits(customerId: string): Promise<{ active: Benefit[]; used: Benefit[] }> {

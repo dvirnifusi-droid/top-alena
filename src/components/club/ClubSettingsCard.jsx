@@ -199,6 +199,33 @@ export default function ClubSettingsCard() {
 
         <div className="pt-4 border-t">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            🎟 כרטיסיית ניקובים
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5 mb-3">
+            הטבה אוטומטית על כל X ביקורים (נספר בהזמנה או בהושבה מהתור). הקוד מופיע בכרטיס החבר.
+          </p>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-slate-700">כרטיסיית ניקובים פעילה</span>
+            <Switch checked={!!s.punchcard_enabled} onCheckedChange={(v) => set('punchcard_enabled', v)} />
+          </div>
+          {s.punchcard_enabled && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-500">כל</span>
+                <Input type="number" min={1} value={s.punchcard_threshold ?? 10}
+                  onChange={(e) => set('punchcard_threshold', e.target.value)} className="w-20" />
+                <span className="text-sm text-slate-500">ביקורים — הטבה</span>
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">נוסח ההטבה — זה מה שהלקוח והמלצר רואים</label>
+                <Input value={s.punchcard_text || ''} onChange={(e) => set('punchcard_text', e.target.value)} className="mt-1" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="pt-4 border-t">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
             <Gamepad2 className="w-4 h-4 text-indigo-600" /> תשלום על משחק בתור
           </h3>
           <p className="text-xs text-slate-500 mt-0.5 mb-3">
