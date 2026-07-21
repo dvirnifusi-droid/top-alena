@@ -7,6 +7,7 @@ import { Loader2, ChefHat, RefreshCw, TrendingUp, AlertTriangle, Edit3, Upload, 
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader from '@/components/shared/PageHeader';
+import IngredientPriceUpdatesCard from '@/components/recipes/IngredientPriceUpdatesCard';
 import { isMainAlena } from '@/lib/tenant';
 
 function RecipesInner() {
@@ -236,6 +237,8 @@ function RecipesInner() {
         </div>
         }
       />
+
+      <IngredientPriceUpdatesCard onApplied={load} />
 
       {aiPreps && filter === 'PREP' && (
         <Card className="border-amber-200 bg-amber-50">

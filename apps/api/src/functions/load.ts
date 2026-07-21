@@ -13605,6 +13605,103 @@ registerFn('updateIngredientPrice', async ({ body, user }) => {
   return { ok: true };
 });
 
+// ── C.1: the invoice → product-tree bridge ──────────────────────────────────
+// Proposes ingredient price changes derived from the most recent invoice price
+// of each purchased product, matched to a recipe-tree Ingredient (alias → exact
+// name → fuzzy). Approving one re-prices every affected dish's food_cost_percent
+// through the existing engine. This is the link Maor asked for: supplier price
+// change → the product tree updates.
+registerFn('getIngredientPriceUpdates', async ({ user }: any) => {
+  await requireBackOffice(user, 'getIngredientPriceUpdates', 'Recipes');
+  await ensureInventoryTables();
+  const dbx = prisma as any;
+  const norm = (s: any) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const ings: any[] = await dbx.$queryRawUnsafe(`SELECT id, name, price_per_unit, unit FROM "Ingredient"`).catch(() => []);
+  const aliases: any[] = await dbx.$queryRawUnsafe(`SELECT alias, ingredient_id FROM "IngredientAlias"`).catch(() => []);
+  const items: any[] = await dbx.$queryRawUnsafe(
+    `SELECT ii.product_name, ii.unit_price, ii.unit, s.company_name AS supplier
+     FROM "InvoiceItem" ii
+     JOIN "Invoice" inv ON inv.id = ii.invoice_id
+     LEFT JOIN "Supplier" s ON s.id = inv.supplier_id
+     WHERE ii.unit_price > 0
+     ORDER BY ii.id DESC LIMIT 2000`).catch(() => []);
+  const counts: any[] = await dbx.$queryRawUnsafe(
+    `SELECT ingredient_id, COUNT(DISTINCT recipe_id) AS c FROM "RecipeIngredient" WHERE ingredient_id IS NOT NULL GROUP BY ingredient_id`).catch(() => []);
+  const countMap = new Map(counts.map((c: any) => [String(c.ingredient_id), Number(c.c) || 0]));
+  const aliasMap = new Map(aliases.map((a: any) => [norm(a.alias), String(a.ingredient_id)]));
+  const ingById = new Map(ings.map((i: any) => [String(i.id), i]));
+  const ingByName = new Map(ings.map((i: any) => [norm(i.name), i]));
+
+  const seen = new Set<string>();
+  const recent: any[] = [];
+  for (const it of items) { const k = norm(it.product_name); if (!k || seen.has(k)) continue; seen.add(k); recent.push(it); }
+
+  const tokens = (s: any) => norm(s).split(' ').filter(Boolean);
+  const sim = (a: any, b: any) => {
+    const A = new Set(tokens(a)), B = new Set(tokens(b));
+    if (!A.size || !B.size) return 0;
+    let sh = 0; for (const t of A) if (B.has(t)) sh++;
+    return sh / Math.max(A.size, B.size);
+  };
+
+  const updates: any[] = []; const unmatched: any[] = [];
+  for (const it of recent) {
+    const k = norm(it.product_name);
+    let ing: any = null; let conf = 'exact';
+    if (aliasMap.has(k)) ing = ingById.get(aliasMap.get(k)!);
+    if (!ing && ingByName.has(k)) { ing = ingByName.get(k); conf = 'name'; }
+    if (!ing) {
+      let best: any = null; let bestS = 0;
+      for (const i of ings) { const s = sim(it.product_name, i.name); if (s > bestS) { bestS = s; best = i; } }
+      if (best && bestS >= 0.6) { ing = best; conf = 'fuzzy'; }
+    }
+    if (!ing) { unmatched.push({ product_name: it.product_name, unit_price: Math.round(Number(it.unit_price) * 100) / 100, unit: it.unit, supplier: it.supplier || null }); continue; }
+    const curNum = ing.price_per_unit == null ? null : Number(ing.price_per_unit);
+    const np = Math.round(Number(it.unit_price) * 100) / 100;
+    const changePct = (curNum != null && curNum > 0) ? Math.round(((np - curNum) / curNum) * 100) : null;
+    const material = curNum == null || (Math.abs(np - curNum) >= 0.05 && Math.abs(changePct || 0) >= 2);
+    if (!material) continue;
+    updates.push({
+      ingredient_id: String(ing.id), ingredient_name: ing.name, unit: ing.unit || it.unit,
+      current_price: curNum, new_price: np, change_pct: changePct,
+      product_name: it.product_name, supplier: it.supplier || null, confidence: conf,
+      affected_count: countMap.get(String(ing.id)) || 0,
+    });
+  }
+  updates.sort((a, b) => Math.abs(b.change_pct ?? 999) - Math.abs(a.change_pct ?? 999));
+  return { updates, unmatched: unmatched.slice(0, 40), ingredients: ings.map((i: any) => ({ id: String(i.id), name: i.name })) };
+});
+
+// Apply one ingredient price (from an invoice), learn the product→ingredient
+// alias so next time the match is exact, and re-price every affected dish.
+registerFn('applyIngredientPriceUpdate', async ({ body, user }: any) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  await ensureInventoryTables();
+  const b = (body || {}) as any;
+  const id = String(b.ingredient_id || '').trim();
+  const price = Number(b.price_per_unit);
+  if (!id || !Number.isFinite(price) || price < 0) throw new Error('ingredient_id and price_per_unit required');
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Ingredient" SET price_per_unit = $1, "updatedAt" = NOW() WHERE id = $2`, price, id);
+  const pn = String(b.product_name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (pn) {
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "IngredientAlias"("id","alias","ingredient_id") VALUES ($1,$2,$3)
+       ON CONFLICT (alias) DO UPDATE SET ingredient_id = EXCLUDED.ingredient_id`,
+      randomUUID(), pn, id).catch(() => {});
+  }
+  await recomputeAffectedRecipes([], id);
+  const dishes: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT DISTINCT r.id, r.name, r.total_cost, r.food_cost_percent
+     FROM "Recipe" r
+     WHERE r.kind='DISH' AND (
+       r.id IN (SELECT recipe_id FROM "RecipeIngredient" WHERE ingredient_id = $1)
+       OR r.id IN (SELECT recipe_id FROM "RecipeIngredient" WHERE prep_recipe_id IN (
+         SELECT recipe_id FROM "RecipeIngredient" WHERE ingredient_id = $1))
+     ) ORDER BY r.food_cost_percent DESC NULLS LAST LIMIT 20`, id).catch(() => []);
+  return { ok: true, affected_dishes: dishes };
+});
+
 registerFn('analyzeEmployeeAnomalies', async ({ body, user }) => {
   await requireBackOffice(user, 'analyzeEmployeeAnomalies');
 
