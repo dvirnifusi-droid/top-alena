@@ -13868,9 +13868,11 @@ registerFn('getDishCostAnalysis', async ({ body, user }) => {
             const k = norm(t.name);
             if (!k)
                 continue;
-            const e = sold.get(k) || { name: t.name, qty: 0, revenue: 0 };
+            const e = sold.get(k) || { name: t.name, qty: 0, revenue: 0, category: t.categoryName || '' };
             e.qty += Number(t.quantity) || 0;
             e.revenue += Number(t.sum) || 0;
+            if (!e.category && t.categoryName)
+                e.category = t.categoryName;
             sold.set(k, e);
         }
     }
@@ -13887,9 +13889,10 @@ registerFn('getDishCostAnalysis', async ({ body, user }) => {
                 sh++;
         return sh / Math.max(A.size, B.size);
     };
+    const isDrink = (c) => /שתי|משק|אלכוהו|יין|בירה|קוקטי|צ.?יי?זר|בר\b|shot|drink|\bbar\b|beer|wine|cocktail|soft|coffee|קפה|תה\b|לימונ|סודה|מיץ/i.test(String(c || ''));
     const dishes = [];
     const unmatched = [];
-    let totRev = 0, totCogs = 0;
+    let totRev = 0, totCogs = 0, foodRev = 0, foodCogs = 0, drinkRev = 0, drinkCogs = 0;
     for (const s of sold.values()) {
         let rec = recByName.get(norm(s.name));
         if (!rec) {
@@ -13913,6 +13916,14 @@ registerFn('getDishCostAnalysis', async ({ body, user }) => {
         const fc = s.revenue > 0 ? (cogs / s.revenue) * 100 : null;
         totRev += s.revenue;
         totCogs += cogs;
+        if (isDrink(s.category)) {
+            drinkRev += s.revenue;
+            drinkCogs += cogs;
+        }
+        else {
+            foodRev += s.revenue;
+            foodCogs += cogs;
+        }
         dishes.push({
             name: rec.name, units_sold: s.qty, revenue: Math.round(s.revenue),
             unit_cost: Math.round(unitCost * 100) / 100, cogs: Math.round(cogs),
@@ -13928,6 +13939,10 @@ registerFn('getDishCostAnalysis', async ({ body, user }) => {
     return {
         period_days: days,
         totals: { revenue: Math.round(totRev), cogs: Math.round(totCogs), food_cost_pct: overallFc, dishes_matched: dishes.length, dishes_unmatched: unmatched.length },
+        by_category: {
+            food: { revenue: Math.round(foodRev), cogs: Math.round(foodCogs), fc_pct: foodRev > 0 ? Math.round((foodCogs / foodRev) * 100) : null },
+            drink: { revenue: Math.round(drinkRev), cogs: Math.round(drinkCogs), fc_pct: drinkRev > 0 ? Math.round((drinkCogs / drinkRev) * 100) : null },
+        },
         dishes: dishes.slice(0, 60), offenders, unmatched: unmatched.slice(0, 30),
     };
 });

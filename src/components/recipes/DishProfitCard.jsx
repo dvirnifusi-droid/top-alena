@@ -44,6 +44,13 @@ export default function DishProfitCard() {
           <div className="bg-white rounded-lg border p-2 flex-1 min-w-[110px]"><div className="text-xs text-slate-500">פוד-קוסט כולל</div><div className={`text-xl font-bold ${fcColor(t.food_cost_pct)}`}>{t.food_cost_pct != null ? t.food_cost_pct + '%' : '—'}</div></div>
         </div>
 
+        {data.by_category && (data.by_category.food?.fc_pct != null || data.by_category.drink?.fc_pct != null) && (
+          <div className="flex flex-wrap gap-4 text-sm">
+            {data.by_category.food?.fc_pct != null && <span className="text-slate-600">🍽️ מזון: <b className={fcColor(data.by_category.food.fc_pct)}>{data.by_category.food.fc_pct}%</b> <span className="text-xs text-slate-400">({ils(data.by_category.food.revenue)})</span></span>}
+            {data.by_category.drink?.fc_pct != null && <span className="text-slate-600">🍹 שתייה: <b className={fcColor(data.by_category.drink.fc_pct)}>{data.by_category.drink.fc_pct}%</b> <span className="text-xs text-slate-400">({ils(data.by_category.drink.revenue)})</span></span>}
+          </div>
+        )}
+
         {offenders.length > 0 && (
           <div>
             <div className="text-sm font-semibold text-red-700 mb-1">⚠️ מנות חורגות (פוד-קוסט מעל 35%)</div>
