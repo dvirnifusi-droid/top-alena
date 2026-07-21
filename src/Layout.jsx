@@ -64,6 +64,7 @@ export const adminLinks = [
   // settings hub (מרכז הגדרות וחיבורים) to declutter the sidebar.
 
   { title: "תפעול המסעדה", url: "#", icon: Utensils, isCategory: true, color: "cinnamon" },
+  { title: "🎛 מטה תפעול", url: createPageUrl("OperationsHub"), icon: LayoutGrid, isSubItem: true, color: "cinnamon" },
   { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "cinnamon" },
   { title: "🍽 ניהול תפריט", url: createPageUrl("MenuManagement"), icon: Utensils, isSubItem: true, color: "cinnamon" },
   { title: "👨‍🍳 דף הכנות", url: createPageUrl("PrepSheet"), icon: ChefHat, isSubItem: true, color: "cinnamon" },

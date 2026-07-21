@@ -4252,6 +4252,48 @@ registerFn('getMarketingHQ', async ({ user }: any) => {
   return { kpis, actions, headline, drips_enabled: dripsEnabled };
 });
 
+// ── Workstream F: Operations HQ — live ops KPIs + a ranked "needs attention"
+// list, assembled from the existing getOwnerDashboard + getOwnerInsights so all
+// the tested logic (day bounds, counts, attention list) is reused, not copied.
+registerFn('getOperationsHQ', async ({ user }: any) => {
+  await requireBackOffice(user, 'getOperationsHQ', 'OperationsHub');
+  const dash: any = await (functionHandlers as any)['getOwnerDashboard']({ user }).catch(() => ({}));
+  const ins: any = await (functionHandlers as any)['getOwnerInsights']({ user }).catch(() => ({}));
+
+  const cl = dash?.checklists || { done: 0, total: 0 };
+  const kpis = {
+    incidents_open: dash?.incidents_open ?? 0,
+    checklists: { done: cl.done ?? 0, total: cl.total ?? 0 },
+    reservations_today: dash?.reservations_today ?? 0,
+    revenue_today: Math.round(Number(dash?.sales_today) || 0),
+    labor_pct: ins?.labor?.pct ?? null,
+    food_cost_pct: ins?.menu?.avg_food_cost_pct ?? null,
+  };
+
+  const iconFor = (key: string) => (({
+    incidents: '🚨', candidates: '🧑‍💼', requests: '📝', tips: '💰', invoices: '🧾', inventory: '📦',
+  } as any)[key] || '•');
+
+  const actions: any[] = [];
+  for (const a of (dash?.attention || [])) {
+    actions.push({ id: a.key, icon: iconFor(a.key), title: a.label, why: a.how || '', count: a.count, kind: 'link', link: a.url || '#' });
+  }
+  if (ins?.labor?.pct != null && ins.labor.pct > 32) actions.push({ id: 'labor', icon: '👥', title: `עלות עבודה גבוהה — ${ins.labor.pct}%`, why: 'מעל היעד (32%)', kind: 'link', link: '/LaborCost' });
+  if ((ins?.menu?.high_cost_count || 0) > 0) actions.push({ id: 'foodcost', icon: '🍽️', title: `${ins.menu.high_cost_count} מנות עם פוד-קוסט גבוה`, why: `ממוצע ${ins.menu.avg_food_cost_pct}%`, kind: 'link', link: '/Recipes' });
+  if ((ins?.cashflow?.alerts?.length || 0) > 0) actions.push({ id: 'cashflow', icon: '💸', title: 'התראת תזרים', why: String((ins.cashflow.alerts[0] as any)?.msg || ins.cashflow.alerts[0] || ''), kind: 'link', link: '/CashFlow' });
+  if ((ins?.price_drift?.count || 0) > 0) actions.push({ id: 'drift', icon: '📈', title: `${ins.price_drift.count} ספקים ייקרו מחירים`, why: ins.price_drift.top ? `${ins.price_drift.top.product} +${ins.price_drift.top.drift_pct}%` : '', kind: 'link', link: '/Recipes' });
+
+  const bits: string[] = [];
+  if (kpis.incidents_open > 0) bits.push(`${kpis.incidents_open} אירועים פתוחים`);
+  if (kpis.checklists.total > 0) bits.push(`צ׳קליסטים ${kpis.checklists.done}/${kpis.checklists.total}`);
+  if (kpis.labor_pct != null) bits.push(`עלות עבודה ${kpis.labor_pct}%`);
+  const headline = actions.length
+    ? `${actions.length} דברים דורשים תשומת לב. ${bits.join(' · ')}.`
+    : `הכל תחת שליטה 🌿 ${bits.join(' · ')}.`;
+
+  return { kpis, actions, headline };
+});
+
 /** "בוחן סושיאל" — the AI marketing manager grades a social post/caption the
  *  (outsourced) social agency prepared, against the business's brand, and returns
  *  an improved version. Maor: "the agents even vet the social-media company". */
