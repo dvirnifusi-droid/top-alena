@@ -36,6 +36,7 @@ export default function EmailInvoiceSettingsPage() {
   const [form, setForm] = useState({ email: '', app_password: '' });
   const [busy, setBusy] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
+  const [sinceDate, setSinceDate] = useState('');
   const [msg, setMsg] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const refreshTimer = useRef(null);
@@ -91,8 +92,8 @@ export default function EmailInvoiceSettingsPage() {
     setScanBusy(true); setMsg(null);
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
     try {
-      await api('/email-accounts/scan-now', { method: 'POST' });
-      setMsg({ kind: 'ok', text: 'הסריקה התחילה ברקע — תקבל הודעת WhatsApp אם נקלטו חשבוניות חדשות.' });
+      await api('/email-accounts/scan-now', { method: 'POST', body: JSON.stringify(sinceDate ? { since: sinceDate } : {}) });
+      setMsg({ kind: 'ok', text: `הסריקה התחילה ברקע${sinceDate ? ` מתאריך ${sinceDate}` : ''} — תקבל הודעת WhatsApp אם נקלטו חשבוניות חדשות.` });
       refreshTimer.current = setTimeout(() => {
         if (!isMounted.current) return;
         load({ background: true });
@@ -131,12 +132,16 @@ export default function EmailInvoiceSettingsPage() {
         )}
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
             <CardTitle>תיבות מחוברות</CardTitle>
-            <Button variant="outline" size="sm" onClick={scanNow} disabled={scanBusy || accounts.length === 0}>
-              <RefreshCw className={`w-4 h-4 ml-2 ${scanBusy ? 'animate-spin' : ''}`} />
-              סרוק עכשיו
-            </Button>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-slate-500 whitespace-nowrap">מתאריך:</label>
+              <Input type="date" value={sinceDate} onChange={e => setSinceDate(e.target.value)} className="h-9 w-auto" title="השאר ריק לסריקה רגילה, או בחר תאריך התחלה לסריקה היסטורית" />
+              <Button variant="outline" size="sm" onClick={scanNow} disabled={scanBusy || accounts.length === 0}>
+                <RefreshCw className={`w-4 h-4 ml-2 ${scanBusy ? 'animate-spin' : ''}`} />
+                סרוק עכשיו
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {accounts.map(a => (

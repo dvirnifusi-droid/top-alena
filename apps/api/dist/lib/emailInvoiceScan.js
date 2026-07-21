@@ -361,11 +361,17 @@ export async function scanEmailInvoices(opts = {}) {
         const scanStart = new Date();
         for (const acct of accounts) {
             try {
-                const since = opts.backfillDays
-                    ? new Date(scanStart.getTime() - opts.backfillDays * 24 * 3600 * 1000)
-                    : acct.last_checked_at
-                        ? new Date(new Date(acct.last_checked_at).getTime() - OVERLAP_MS)
-                        : new Date(Date.now() - FIRST_RUN_LOOKBACK_MS);
+                // Manager-chosen start date (from the settings screen) overrides the saved
+                // cursor for a one-off historical sweep; the log-based dedupe stops any
+                // already-imported message from being re-created.
+                const explicitSince = opts.sinceDate ? new Date(opts.sinceDate) : null;
+                const since = (explicitSince && !isNaN(explicitSince.getTime()))
+                    ? explicitSince
+                    : opts.backfillDays
+                        ? new Date(scanStart.getTime() - opts.backfillDays * 24 * 3600 * 1000)
+                        : acct.last_checked_at
+                            ? new Date(new Date(acct.last_checked_at).getTime() - OVERLAP_MS)
+                            : new Date(Date.now() - FIRST_RUN_LOOKBACK_MS);
                 // A transient failure (LLM/S3 blip) shouldn't drop the invoice forever: keep
                 // recent 'error' rows OUT of `known` so they're re-fetched and retried for a
                 // bounded window, after which they're treated as permanently known (no

@@ -47,12 +47,16 @@ export const emailAccountsRoutes = async (app) => {
         });
         return reply.code(204).send();
     });
-    // Manual "scan now" from the settings screen.
-    app.post('/scan-now', async () => {
+    // Manual "scan now" from the settings screen. Optional { since: 'YYYY-MM-DD' }
+    // forces a sweep from that date (overriding the saved cursor); empty = normal
+    // incremental scan.
+    app.post('/scan-now', async (req) => {
+        const since = String(req.body?.since || '').trim();
+        const opts = /^\d{4}-\d{2}-\d{2}/.test(since) ? { sinceDate: since } : {};
         // Don't await — a first-run backfill can outlast the 100s Cloudflare hard
         // limit. The mutex inside scanEmailInvoices() prevents parallel runs.
-        void scanEmailInvoices().catch((e) => console.error('[scan-now] background scan failed', e?.message));
-        return { started: true };
+        void scanEmailInvoices(opts).catch((e) => console.error('[scan-now] background scan failed', e?.message));
+        return { started: true, since: opts.sinceDate || null };
     });
 };
 //# sourceMappingURL=emailAccounts.js.map
