@@ -30,7 +30,7 @@ import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
 import { withOptOut, verifyCustomerSignature, memberCardUrl, signCustomer } from '../lib/marketingBlast.js';
 import {
-  getClubConfig, saveClubConfig, grantBenefit, maybeGrantPunchCard, listBenefits,
+  getClubConfig, saveClubConfig, grantBenefit, maybeGrantPunchCard, maybeGrantReferral, listBenefits,
   findBenefitByCode, redeemBenefit, tierLabel, ensureClubTables,
   tournamentStandings, myStanding, closeTournamentRound, sendJoinMessage,
   tonightBoard,
@@ -3911,6 +3911,9 @@ registerFn('clubJoin', async ({ body }) => {
     customer = await db.customer.create({
       data: { phone: cleanPhone, visit_count: 0, loyalty_tier: 'regular', ...data },
     });
+    // Referral: reward the referrer (from ?ref=) on a genuinely NEW join only.
+    const ref = String((body as any)?.ref || '').trim();
+    if (ref) maybeGrantReferral(ref, customer.id).catch(() => {});
   }
   // Joining now gives something. The signup page has always promised "הטבות",
   // and until this line it was the one screen in the app that said something

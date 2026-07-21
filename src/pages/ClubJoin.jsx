@@ -35,6 +35,7 @@ export default function ClubJoin() {
         if (!city) return setError('יש לבחור עיר מגורים');
         setSubmitting(true);
         try {
+            const ref = new URLSearchParams(window.location.search).get('ref') || '';
             const res = await invokePublic('clubJoin', {
                 name: form.name.trim(),
                 phone,
@@ -43,6 +44,7 @@ export default function ClubJoin() {
                 anniversary: form.anniversary || null,
                 email: form.email.trim() || null,
                 marketing_consent: !!form.consent,
+                ref: ref || undefined,
             });
             if (res?.ok) { setJoined(res); setDone(true); }
             else setError(res?.message || 'שגיאה — נסו שוב');

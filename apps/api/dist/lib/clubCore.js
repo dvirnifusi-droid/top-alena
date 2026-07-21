@@ -233,6 +233,18 @@ export async function maybeGrantPunchCard(customerId, visitCount) {
         return null;
     return grantBenefit({ customerId, description: cfg.punchcard_text, source: `punch_${visitCount}`, validDays: 60 });
 }
+/** Reward the referrer when a friend joins via their link (?ref=<referrerId>).
+ *  Idempotent per referred friend (source referral_<newMemberId>), so a referrer
+ *  earns once per unique friend. The referrer must be a real customer. */
+export async function maybeGrantReferral(referrerId, newMemberId) {
+    const ref = String(referrerId || '').trim();
+    if (!ref || ref === newMemberId)
+        return null;
+    const exists = await dbx().$queryRawUnsafe(`SELECT id FROM "Customer" WHERE id = $1 LIMIT 1`, ref).catch(() => []);
+    if (!exists?.length)
+        return null;
+    return grantBenefit({ customerId: ref, description: 'הטבה על הזמנת חבר למועדון 🎁', source: `referral_${newMemberId}`, validDays: 60 });
+}
 export async function listBenefits(customerId) {
     await ensureClubTables();
     const rows = await dbx().$queryRawUnsafe(`SELECT * FROM "CustomerBenefit"

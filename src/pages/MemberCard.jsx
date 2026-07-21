@@ -195,6 +195,16 @@ export default function MemberCard() {
           </div>
         </div>
 
+        {c && (
+          <a
+            href={`https://wa.me/?text=${encodeURIComponent(`הצטרפו למועדון של ${brand} דרך הקישור שלי — ושנינו נרוויח הטבה 🎁\n${window.location.origin}/ClubJoin?ref=${encodeURIComponent(c)}`)}`}
+            target="_blank" rel="noreferrer"
+            className="flex items-center justify-center gap-2 w-full rounded-xl py-3 font-bold text-white mt-4"
+            style={{ background: '#25D366' }}>
+            🎁 הזמינו חבר — ושניכם מרוויחים
+          </a>
+        )}
+
         {card?.history?.length > 0 && (
           <div className="mt-4 bg-white/60 rounded-2xl p-4 border" style={{ borderColor: '#E8DCC0' }}>
             <p className="text-xs font-bold text-gray-500 mb-2">הטבות שכבר מימשת</p>
