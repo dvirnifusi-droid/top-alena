@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Plus, Pencil } from 'lucide-react';
+import { Plus, Pencil, CreditCard } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 import ThanksPageSettings from '../components/events/ThanksPageSettings';
@@ -231,6 +231,114 @@ function AddEventLeadDialog({ open, onOpenChange, onCreated, lead }) {
   );
 }
 
+// Generate a PayPlus deposit (מקדמה) or security-hold (אשראי ביטחון) link for a
+// lead. Amount defaults to 25% of the entered quote, editable; the manager then
+// sends the returned link to the customer in WhatsApp.
+function EventDepositDialog({ open, onOpenChange, lead, onDone }) {
+  const suggestQuote = lead ? (Number(lead.budget_per_person) || 0) * (Number(lead.guest_count) || 0) : 0;
+  const [quote, setQuote] = React.useState('');
+  const [amount, setAmount] = React.useState('');
+  const [hold, setHold] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const [result, setResult] = React.useState(null);
+  const [copied, setCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open) return;
+    setErr(''); setResult(null); setCopied(false); setHold(false);
+    const q = suggestQuote || 0;
+    setQuote(q ? String(q) : '');
+    setAmount(q ? String(Math.round(q * 0.25)) : '');
+  }, [open, lead]);
+
+  const onQuote = (v) => {
+    setQuote(v);
+    const n = parseInt(String(v).replace(/[^\d]/g, ''), 10);
+    if (Number.isFinite(n) && n > 0) setAmount(String(Math.round(n * 0.25)));
+  };
+
+  const create = async () => {
+    const amt = parseInt(String(amount).replace(/[^\d]/g, ''), 10);
+    if (!Number.isFinite(amt) || amt <= 0) { setErr('הזן סכום תקין'); return; }
+    if (!lead?.contact_phone) { setErr('אין ללקוח מספר טלפון — ערוך את הליד קודם.'); return; }
+    setSaving(true); setErr('');
+    try {
+      const r = await base44.functions.sendEventDeposit({ lead_id: lead.id, amount: amt, hold });
+      const link = r?.data?.link || r?.link;
+      if (!link) throw new Error('לא התקבל קישור');
+      setResult({ link, amount: amt, hold });
+      onDone && onDone();
+    } catch (e) { setErr('יצירת הקישור נכשלה: ' + (e?.message || '')); }
+    finally { setSaving(false); }
+  };
+
+  const phoneClean = (lead?.contact_phone || '').replace(/\D/g, '');
+  const waNumber = phoneClean.startsWith('0') ? '972' + phoneClean.slice(1) : phoneClean;
+  const waText = result ? encodeURIComponent(
+    `שלום ${lead?.contact_name || ''} 👋\n${result.hold ? 'לאבטחת הכרטיס (אשראי ביטחון) לאירוע שלך' : 'לתשלום המקדמה לאירוע שלך'}:\n${result.link}`) : '';
+  const activePaid = lead?.deposit?.status === 'paid' || lead?.deposit?.status === 'authorized';
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!saving) onOpenChange(v); }}>
+      <DialogContent dir="rtl" className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><CreditCard className="w-4 h-4 text-orange-600" /> {result ? 'הקישור מוכן — שלח ללקוח' : 'מקדמה / אשראי ביטחון'}</DialogTitle>
+        </DialogHeader>
+
+        {!result ? (
+          <div className="space-y-3">
+            <div className="text-sm text-slate-600">לקוח: <strong>{lead?.contact_name || '—'}</strong> · {lead?.contact_phone || 'אין טלפון'}</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">סכום ההצעה (₪)</Label>
+                <Input type="number" min="0" value={quote} onChange={(e) => onQuote(e.target.value)} placeholder="למשל 8000" />
+                <p className="text-[11px] text-slate-400 mt-1">ממלא 25% אוטומטית</p>
+              </div>
+              <div>
+                <Label className="text-xs">סכום לגבייה/תפיסה (₪) <span className="text-red-500">*</span></Label>
+                <Input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="למשל 2000" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">סוג</Label>
+              <div className="flex gap-2 mt-1">
+                <button type="button" onClick={() => setHold(false)} className={`flex-1 rounded-lg border px-3 py-2 text-sm ${!hold ? 'border-orange-500 bg-orange-50 text-orange-700 font-semibold' : 'border-slate-200 text-slate-600'}`}>💳 מקדמה (גבייה)</button>
+                <button type="button" onClick={() => setHold(true)} className={`flex-1 rounded-lg border px-3 py-2 text-sm ${hold ? 'border-orange-500 bg-orange-50 text-orange-700 font-semibold' : 'border-slate-200 text-slate-600'}`}>🔒 אשראי ביטחון</button>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">{hold ? 'הכרטיס נתפס בלבד — לא מחויב עד שתחליט.' : 'הכרטיס מחויב מיד בסכום שנקבע.'}</p>
+            </div>
+            {activePaid && <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded p-2">כבר קיים תשלום פעיל לליד הזה (₪{lead.deposit.amount}). קישור חדש = בקשה נוספת.</p>}
+            {err && <p className="text-sm text-red-600">{err}</p>}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-emerald-700">נוצר קישור {result.hold ? 'לאשראי ביטחון' : 'לתשלום מקדמה'} על סך <strong>₪{result.amount}</strong>.</p>
+            <div className="bg-slate-50 border rounded p-2 text-xs break-all">{result.link}</div>
+            <div className="flex gap-2">
+              {waNumber && <a href={`https://wa.me/${waNumber}?text=${waText}`} target="_blank" rel="noreferrer" className="flex-1"><Button className="w-full bg-green-600 hover:bg-green-700"><MessageCircle className="w-4 h-4 me-1" /> שלח בוואטסאפ</Button></a>}
+              <Button variant="outline" onClick={() => { try { navigator.clipboard?.writeText(result.link); } catch { /* ignore */ } setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
+                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter className="gap-2">
+          {!result ? (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>ביטול</Button>
+              <Button onClick={create} disabled={saving} className="bg-orange-600 hover:bg-orange-700">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'צור קישור'}</Button>
+            </>
+          ) : (
+            <Button variant="outline" onClick={() => onOpenChange(false)}>סגור</Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PendingCallbackCard() {
   const _branding = useTenantBranding();
   const brandName = _branding?.name || 'המסעדה';
@@ -240,6 +348,7 @@ function PendingCallbackCard() {
   const [view, setView] = React.useState('active'); // 'active' (pending+contacted+quoted) or 'closed' (won+lost)
   const [showAdd, setShowAdd] = React.useState(false);
   const [editLead, setEditLead] = React.useState(null);
+  const [depositLead, setDepositLead] = React.useState(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -285,6 +394,7 @@ function PendingCallbackCard() {
   return (
     <>
     <AddEventLeadDialog open={showAdd || !!editLead} lead={editLead} onOpenChange={(v) => { if (!v) { setShowAdd(false); setEditLead(null); } }} onCreated={load} />
+    <EventDepositDialog open={!!depositLead} lead={depositLead} onOpenChange={(v) => { if (!v) setDepositLead(null); }} onDone={load} />
     <ThanksPageSettings />
     <Card>
       <CardHeader>
@@ -350,6 +460,9 @@ function PendingCallbackCard() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Badge className={stage.cls + ' font-bold'}>{stage.label}</Badge>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-slate-500 hover:text-emerald-700" onClick={() => setDepositLead(l)} title="מקדמה / אשראי ביטחון">
+                        <CreditCard className="w-3.5 h-3.5" />
+                      </Button>
                       <Button size="sm" variant="ghost" className="h-7 px-2 text-slate-500 hover:text-slate-800" onClick={() => setEditLead(l)} title="ערוך פרטים">
                         <Pencil className="w-3.5 h-3.5" />
                       </Button>
@@ -372,6 +485,21 @@ function PendingCallbackCard() {
                       <span className="font-bold">⚠️ דרישות מיוחדות: </span>{l.special_requests}
                     </div>
                   )}
+
+                  {l.deposit && (() => {
+                    const map = {
+                      pending: ['⏳ ממתין לתשלום', 'bg-amber-50 text-amber-800 border-amber-200'],
+                      paid: ['✅ שולמה', 'bg-emerald-50 text-emerald-800 border-emerald-200'],
+                      authorized: ['🔒 אשראי ביטחון נתפס', 'bg-emerald-50 text-emerald-800 border-emerald-200'],
+                      failed: ['❌ נכשל', 'bg-red-50 text-red-700 border-red-200'],
+                    };
+                    const [lbl, cls] = map[l.deposit.status] || map.pending;
+                    return (
+                      <div className={`mb-3 inline-flex items-center gap-1 rounded-full px-2 py-0.5 border text-xs font-semibold ${cls}`}>
+                        💳 {l.deposit.hold ? 'אשראי ביטחון' : 'מקדמה'} ₪{l.deposit.amount} · {lbl}
+                      </div>
+                    );
+                  })()}
 
                   {/* Meta */}
                   <div className="text-xs text-slate-500 mb-3">

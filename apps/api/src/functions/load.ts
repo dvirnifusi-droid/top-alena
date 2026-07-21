@@ -8785,6 +8785,60 @@ registerFn('sendDepositRequest', async ({ body, user, req }: any) => {
   return { success: true, link: link.payment_page_link, amount };
 });
 
+// AUTHED — generate a PayPlus link for an EVENT lead deposit (מקדמה) or security
+// hold (אשראי ביטחון), and return it so the manager can send it in WhatsApp.
+// Reuses the same per-tenant PayPlus terminal as reservation deposits.
+//   hold=false → charge_method 1 (charge now)   hold=true → charge_method 2 (J5 hold)
+// The deposit state is stored in the lead's notes ---META--- block; payplusCallback
+// flips it to paid/authorized when PayPlus confirms.
+registerFn('sendEventDeposit', async ({ body, user, req }: any) => {
+  const role = (user?.role || '').toLowerCase();
+  if (!['owner', 'admin', 'manager'].includes(role)) throw new Error('admin only');
+  const b = body || {};
+  const leadId = String(b.lead_id || b.id || '').trim();
+  if (!leadId) throw new Error('lead_id required');
+  const amount = Math.round(Number(b.amount) || 0);
+  if (amount <= 0) throw new Error('סכום המקדמה חייב להיות גדול מ-0');
+  const hold = !!b.hold;
+  const lead: any = await db.eventLead.findUnique({ where: { id: leadId } });
+  if (!lead) throw new Error('lead not found');
+
+  const s: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+  const cred = s?.provider_credentials;
+  if (!cred?.api_key || !cred?.payment_page_uid) throw new Error('PayPlus לא מוגדר — הזן מפתחות בהגדרות סליקה לפיקדון.');
+
+  const META_MARK = '---META---';
+  const rawNotes = lead.notes || '';
+  const mi = rawNotes.indexOf(META_MARK);
+  let meta: any = {};
+  if (mi >= 0) { try { meta = JSON.parse(rawNotes.slice(mi + META_MARK.length).trim()) || {}; } catch { meta = {}; } }
+
+  const host = req?.headers?.host || (process.env.PUBLIC_BASE_URL || 'topalena.com').replace(/^https?:\/\//, '');
+  const base = `https://${host}`;
+  const link = await payplusGenerateLink(cred, {
+    amount,
+    charge_method: hold ? 2 : 1,
+    customer: { customer_name: lead.contact_name || '', email: meta.contact_email || '', phone: lead.contact_phone || '' },
+    more_info: `evlead_${lead.id}`,
+    callback_url: `${base}/api/public/fn/payplusCallback`,
+    success_url: `${base}/`,
+    failure_url: `${base}/`,
+  });
+
+  meta.deposit = {
+    amount, hold, status: 'pending',
+    ref: link.page_request_uid || null,
+    link: link.payment_page_link || null,
+    sent_at: new Date().toISOString(),
+  };
+  const head = mi >= 0 ? rawNotes.slice(0, mi).trimEnd() : rawNotes.trimEnd();
+  await db.eventLead.update({
+    where: { id: lead.id },
+    data: { notes: `${head}${head ? '\n' : ''}${META_MARK}\n${JSON.stringify(meta)}`, updated_date: new Date().toISOString() },
+  });
+  return { ok: true, link: link.payment_page_link, amount, hold };
+});
+
 // PUBLIC webhook — PayPlus posts the transaction result here. Matches the reservation by
 // more_info (= reservation id). Lands on this tenant's own container (per-tenant callback host).
 registerFn('payplusCallback', async ({ body }: any) => {
@@ -8796,6 +8850,34 @@ registerFn('payplusCallback', async ({ body }: any) => {
     const approved = statusCode === '000' || !!tx.approval_num || String(tx.status || '').toLowerCase() === 'approved';
     console.log('[payplusCallback] more_info=%s uid=%s status=%s approved=%s', moreInfo, transactionUid, statusCode, approved);
     if (!moreInfo || moreInfo === 'connection_test') return { ok: true, note: 'no reservation' };
+    // Event-lead deposit / security hold — more_info is prefixed evlead_<leadId>.
+    if (String(moreInfo).startsWith('evlead_')) {
+      const leadId = String(moreInfo).slice('evlead_'.length);
+      const lead: any = await db.eventLead.findUnique({ where: { id: leadId } }).catch(() => null);
+      if (!lead) return { ok: true, note: 'event lead not found' };
+      const MK = '---META---';
+      const rawN = lead.notes || '';
+      const idx = rawN.indexOf(MK);
+      let m: any = {};
+      if (idx >= 0) { try { m = JSON.parse(rawN.slice(idx + MK.length).trim()) || {}; } catch { m = {}; } }
+      const dep = m.deposit || {};
+      // Terminal states are final — a duplicate/late IPN must not revert them.
+      if (dep.status === 'paid' || dep.status === 'authorized') return { ok: true, note: `event deposit already ${dep.status}` };
+      dep.status = approved ? (dep.hold ? 'authorized' : 'paid') : 'failed';
+      dep.ref = transactionUid || dep.ref || null;
+      if (approved) dep.paid_at = new Date().toISOString();
+      m.deposit = dep;
+      const head = idx >= 0 ? rawN.slice(0, idx).trimEnd() : rawN.trimEnd();
+      await db.eventLead.update({
+        where: { id: lead.id },
+        data: { notes: `${head}${head ? '\n' : ''}${MK}\n${JSON.stringify(m)}`, updated_date: new Date().toISOString() },
+      }).catch(() => {});
+      if (approved) {
+        const label = dep.hold ? 'אשראי ביטחון נתפס 🔒' : 'מקדמה שולמה ✅';
+        pushoverEventsOwners(`💳 ${label}`, `${lead.contact_name || 'לקוח'} — ₪${dep.amount}\nאירוע: ${lead.event_type || '-'} · ${lead.event_date || '-'}`).catch(() => {});
+      }
+      return { ok: true, note: `event deposit ${dep.status}` };
+    }
     const r: any = await db.reservation.findUnique({ where: { id: String(moreInfo) } }).catch(() => null);
     if (!r) return { ok: true, note: 'reservation not found' };
     // Terminal states are final. PayPlus retries webhooks, so a late/duplicate IPN
@@ -13541,6 +13623,7 @@ registerFn('listEventLeads', async () => {
       contact_email: meta.contact_email || null,
       callback_at: meta.callback_at || null,
       callback_notes: meta.callback_notes || null,
+      deposit: meta.deposit || null,
       // Strip the META block from notes so the UI shows clean human text only.
       notes: raw.slice(0, i).trimEnd() || null,
     };
