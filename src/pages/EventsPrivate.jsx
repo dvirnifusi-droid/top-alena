@@ -6,6 +6,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Loader2, RefreshCw, Sparkles, CalendarHeart, Copy, Check, ExternalLink, QrCode, Flame, CheckCircle2, Trash2, Search, Filter, MessageCircle, Phone, X, CalendarDays } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Plus } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
 import ThanksPageSettings from '../components/events/ThanksPageSettings';
@@ -117,6 +120,102 @@ const CALLBACK_STAGES = {
   lost:      { label: '❌ לא רלוונטי',  cls: 'bg-slate-100 text-slate-500',    accent: 'border-slate-300' },
 };
 
+const MANUAL_EVENT_TYPES = ['יום הולדת', 'יום נישואין', 'חתונה', 'בר/בת מצווה', 'ברית / בריתה', 'אירוע חברה', 'מסיבת רווקים/ות', 'כנס / השתלמות', 'אירוע פרטי אחר'];
+
+// Owner/manager types a lead in by hand (phone/walk-in inquiry that didn't come
+// through Dana). Creates an EventLead with status 'pending' + source 'manual' so
+// it lands in the active callback board next to Dana's leads.
+function AddEventLeadDialog({ open, onOpenChange, onCreated }) {
+  const EMPTY = { contact_name: '', contact_phone: '', event_type: '', event_date: '', event_time: '', guest_count: '', budget_per_person: '', contact_email: '', notes: '' };
+  const [form, setForm] = React.useState(EMPTY);
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const submit = async () => {
+    if (!form.contact_phone.trim()) { setErr('חובה להזין טלפון — בלעדיו הליד לא יופיע ברשימת השיחות.'); return; }
+    setSaving(true); setErr('');
+    try {
+      await base44.functions.createEventLead({
+        ...form,
+        guest_count: form.guest_count === '' ? null : form.guest_count,
+        budget_per_person: form.budget_per_person === '' ? null : form.budget_per_person,
+      });
+      setForm(EMPTY);
+      onOpenChange(false);
+      onCreated && onCreated();
+    } catch (e) {
+      setErr('שמירה נכשלה: ' + (e?.message || ''));
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!saving) onOpenChange(v); }}>
+      <DialogContent dir="rtl" className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Plus className="w-4 h-4 text-orange-600" /> הוספת ליד אירוע ידני</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 max-h-[70vh] overflow-y-auto px-1">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">שם הלקוח</Label>
+              <Input value={form.contact_name} onChange={(e) => set('contact_name', e.target.value)} placeholder="שם מלא" />
+            </div>
+            <div>
+              <Label className="text-xs">טלפון / וואטסאפ <span className="text-red-500">*</span></Label>
+              <Input value={form.contact_phone} onChange={(e) => set('contact_phone', e.target.value)} placeholder="05X-XXXXXXX" inputMode="tel" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">סוג אירוע</Label>
+              <select value={form.event_type} onChange={(e) => set('event_type', e.target.value)} className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
+                <option value="">בחר/י…</option>
+                {MANUAL_EVENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs">מספר אורחים</Label>
+              <Input type="number" min="0" value={form.guest_count} onChange={(e) => set('guest_count', e.target.value)} placeholder="למשל 25" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">תאריך</Label>
+              <Input type="date" value={form.event_date} onChange={(e) => set('event_date', e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs">שעה</Label>
+              <Input type="time" value={form.event_time} onChange={(e) => set('event_time', e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">תקציב לאדם (₪)</Label>
+              <Input type="number" min="0" value={form.budget_per_person} onChange={(e) => set('budget_per_person', e.target.value)} placeholder="אופציונלי" />
+            </div>
+            <div>
+              <Label className="text-xs">אימייל</Label>
+              <Input type="email" value={form.contact_email} onChange={(e) => set('contact_email', e.target.value)} placeholder="אופציונלי" />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">הערות</Label>
+            <Textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} placeholder="פרטים נוספים שעלו בשיחה…" />
+          </div>
+          {err && <p className="text-sm text-red-600">{err}</p>}
+        </div>
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>ביטול</Button>
+          <Button onClick={submit} disabled={saving} className="bg-orange-600 hover:bg-orange-700">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'הוסף ליד'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PendingCallbackCard() {
   const _branding = useTenantBranding();
   const brandName = _branding?.name || 'המסעדה';
@@ -124,6 +223,7 @@ function PendingCallbackCard() {
   const [loading, setLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(null);
   const [view, setView] = React.useState('active'); // 'active' (pending+contacted+quoted) or 'closed' (won+lost)
+  const [showAdd, setShowAdd] = React.useState(false);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -168,17 +268,21 @@ function PendingCallbackCard() {
 
   return (
     <>
+    <AddEventLeadDialog open={showAdd} onOpenChange={setShowAdd} onCreated={load} />
     <ThanksPageSettings />
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-orange-500" /> אירועים שמחכים שמנהל יתקשר ללקוח</CardTitle>
         <CardDescription>דנה אספה את הפרטים — עכשיו דורש שיחת טלפון מהמנהל. סמן <strong>"📞 התקשרתי"</strong> אחרי השיחה, <strong>"💰 הצעת מחיר"</strong> כששלחת מחיר, <strong>"✅ נסגר"</strong> כשהלקוח חתם.</CardDescription>
-        <div className="flex gap-2 pt-2">
+        <div className="flex gap-2 pt-2 items-center flex-wrap">
           <Button size="sm" variant={view === 'active' ? 'default' : 'outline'} onClick={() => setView('active')} className={view === 'active' ? 'bg-orange-600 hover:bg-orange-700' : ''}>
             🔥 פעילים ({active.length})
           </Button>
           <Button size="sm" variant={view === 'closed' ? 'default' : 'outline'} onClick={() => setView('closed')}>
             📁 סגורים ({closed.length})
+          </Button>
+          <Button size="sm" onClick={() => setShowAdd(true)} className="ms-auto bg-[#44512C] hover:bg-[#3a4526]">
+            <Plus className="w-4 h-4 me-1" /> הוסף ליד ידני
           </Button>
         </div>
       </CardHeader>

@@ -13572,6 +13572,55 @@ registerFn('listEventLeads', async () => {
   return { leads: withViews, _count: withViews.length };
 });
 
+// AUTH — manually add an event lead (owner/manager types it in after a phone or
+// walk-in inquiry that didn't go through Dana). Mirrors the Dana create shape:
+// extra fields (event_time/location/email/special_requests) packed into the
+// notes ---META--- block, status 'pending' so it lands in the active callback
+// board, source defaults to 'manual'. Uses db.eventLead.create directly (not the
+// entity route) so it does NOT fire the "new lead" automation alert to the owner.
+registerFn('createEventLead', async ({ user, body }: any) => {
+  const role = (user?.role || '').toLowerCase();
+  if (!['owner', 'admin', 'manager'].includes(role)) throw new Error('admin only');
+  const b = body || {};
+  const phone = String(b.contact_phone || '').trim();
+  if (!phone) throw new Error('נדרש טלפון'); // must have a phone to appear in the callback board
+  const intOrNull = (v: any) => {
+    if (v === null || v === undefined || String(v).trim() === '') return null;
+    const n = parseInt(String(v).replace(/[^\d]/g, ''), 10);
+    return Number.isFinite(n) ? n : null;
+  };
+  const str = (v: any) => { const s = String(v ?? '').trim(); return s || undefined; };
+  const META_MARK = '---META---';
+  const meta: any = {};
+  if (str(b.contact_email)) meta.contact_email = str(b.contact_email);
+  if (str(b.event_time)) meta.event_time = str(b.event_time);
+  if (str(b.location)) meta.location = str(b.location);
+  if (str(b.location_details)) meta.location_details = str(b.location_details);
+  if (str(b.special_requests)) meta.special_requests = str(b.special_requests);
+  const head = String(b.notes || '').trim();
+  const notes = `${head}${head ? '\n' : ''}${META_MARK}\n${JSON.stringify(meta)}`;
+  const nowIso = new Date().toISOString();
+  const lead = await db.eventLead.create({
+    data: {
+      contact_name: str(b.contact_name) || null,
+      contact_phone: phone,
+      event_date: str(b.event_date) || null,
+      event_type: str(b.event_type) || null,
+      guest_count: intOrNull(b.guest_count),
+      budget_per_person: intOrNull(b.budget_per_person),
+      hours_window: str(b.hours_window) || null,
+      status: 'pending',
+      score: null,
+      source: str(b.source) || 'manual',
+      notes,
+      created_by: user?.email || user?.id || 'manual',
+      created_date: nowIso,
+      updated_date: nowIso,
+    },
+  });
+  return { ok: true, lead: { id: lead.id } };
+});
+
 // PUBLIC mirror — used by /EventsPrivate's diagnostic banner only when the
 // authenticated listEventLeads returns empty so we can prove the data is there.
 registerFn('listEventLeadsPublicDebug', async () => {
