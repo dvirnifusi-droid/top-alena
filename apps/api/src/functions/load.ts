@@ -13702,6 +13702,77 @@ registerFn('applyIngredientPriceUpdate', async ({ body, user }: any) => {
   return { ok: true, affected_dishes: dishes };
 });
 
+// ── C.2: real food-cost % per dish, from actual POS sales × recipe cost ──────
+// Joins Beecomm per-dish sold quantity+revenue (top_dishes) to the recipe tree's
+// per-dish total_cost, so food_cost% reflects what actually sold — and surfaces
+// the specific dishes whose cost deviates. Reuses fuzzy name matching.
+registerFn('getDishCostAnalysis', async ({ body, user }: any) => {
+  await requireBackOffice(user, 'getDishCostAnalysis', 'Recipes');
+  await ensureInventoryTables();
+  const dbx = prisma as any;
+  const days = Math.min(120, Math.max(1, Number((body as any)?.days) || 30));
+  const now = new Date();
+  const since = new Date(now.getTime() - days * 864e5);
+  const sinceStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(since);
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(now);
+
+  const hist: any[] = await dbx.beecommHistoricalDay.findMany({
+    where: { date: { gte: sinceStr, lte: todayStr } }, orderBy: { date: 'asc' },
+  }).catch(() => []);
+
+  const norm = (s: any) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const sold = new Map<string, { name: string; qty: number; revenue: number }>();
+  for (const d of hist) {
+    for (const t of (d.top_dishes || [])) {
+      const k = norm(t.name);
+      if (!k) continue;
+      const e = sold.get(k) || { name: t.name, qty: 0, revenue: 0 };
+      e.qty += Number(t.quantity) || 0;
+      e.revenue += Number(t.sum) || 0;
+      sold.set(k, e);
+    }
+  }
+
+  const recipes: any[] = await dbx.$queryRawUnsafe(
+    `SELECT id, name, total_cost, sale_price, food_cost_percent FROM "Recipe" WHERE kind='DISH'`).catch(() => []);
+  const recByName = new Map(recipes.map((r: any) => [norm(r.name), r]));
+  const tokens = (s: any) => norm(s).split(' ').filter(Boolean);
+  const sim = (a: any, b: any) => {
+    const A = new Set(tokens(a)), B = new Set(tokens(b));
+    if (!A.size || !B.size) return 0;
+    let sh = 0; for (const t of A) if (B.has(t)) sh++;
+    return sh / Math.max(A.size, B.size);
+  };
+
+  const dishes: any[] = []; const unmatched: any[] = [];
+  let totRev = 0, totCogs = 0;
+  for (const s of sold.values()) {
+    let rec: any = recByName.get(norm(s.name));
+    if (!rec) { let best: any = null, bestS = 0; for (const r of recipes) { const sc = sim(s.name, r.name); if (sc > bestS) { bestS = sc; best = r; } } if (best && bestS >= 0.6) rec = best; }
+    if (!rec || rec.total_cost == null) { unmatched.push({ name: s.name, qty: s.qty, revenue: Math.round(s.revenue) }); continue; }
+    const unitCost = Number(rec.total_cost) || 0;
+    const cogs = unitCost * s.qty;
+    const fc = s.revenue > 0 ? (cogs / s.revenue) * 100 : null;
+    totRev += s.revenue; totCogs += cogs;
+    dishes.push({
+      name: rec.name, units_sold: s.qty, revenue: Math.round(s.revenue),
+      unit_cost: Math.round(unitCost * 100) / 100, cogs: Math.round(cogs),
+      food_cost_pct: fc == null ? null : Math.round(fc),
+      theoretical_fc: rec.food_cost_percent == null ? null : Math.round(rec.food_cost_percent),
+      margin: Math.round(s.revenue - cogs),
+    });
+  }
+  dishes.sort((a, b) => b.cogs - a.cogs);
+  const offenders = dishes.filter((d) => d.food_cost_pct != null && d.food_cost_pct > 35)
+    .sort((a, b) => b.food_cost_pct - a.food_cost_pct).slice(0, 8);
+  const overallFc = totRev > 0 ? Math.round((totCogs / totRev) * 100) : null;
+  return {
+    period_days: days,
+    totals: { revenue: Math.round(totRev), cogs: Math.round(totCogs), food_cost_pct: overallFc, dishes_matched: dishes.length, dishes_unmatched: unmatched.length },
+    dishes: dishes.slice(0, 60), offenders, unmatched: unmatched.slice(0, 30),
+  };
+});
+
 registerFn('analyzeEmployeeAnomalies', async ({ body, user }) => {
   await requireBackOffice(user, 'analyzeEmployeeAnomalies');
 

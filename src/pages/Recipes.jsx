@@ -8,6 +8,7 @@ import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader from '@/components/shared/PageHeader';
 import IngredientPriceUpdatesCard from '@/components/recipes/IngredientPriceUpdatesCard';
+import DishProfitCard from '@/components/recipes/DishProfitCard';
 import { isMainAlena } from '@/lib/tenant';
 
 function RecipesInner() {
@@ -239,6 +240,7 @@ function RecipesInner() {
       />
 
       <IngredientPriceUpdatesCard onApplied={load} />
+      <DishProfitCard />
 
       {aiPreps && filter === 'PREP' && (
         <Card className="border-amber-200 bg-amber-50">
