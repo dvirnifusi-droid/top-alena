@@ -200,6 +200,55 @@ async function recentShiftContext() {
   } catch { return ''; }
 }
 
+// An aggregate portrait of the ACTUAL customer base, so the advisor reasons from
+// who this restaurant's customers really are — their tiers, cities, spend, and
+// which segments have critical mass — rather than generic best-practice. This is
+// the "agent wired to the customer profile" Maor asked for. Everything here is
+// aggregate and read-only: no single customer's details leave this function.
+async function customerBaseContext(): Promise<string> {
+  try {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const d30 = new Date(now.getTime() - 30 * 86400000);
+    const d60 = new Date(now.getTime() - 60 * 86400000);
+    const consentGate: any = { marketing_consent: true, marketing_unsubscribed_at: null };
+    const [total, consented, vip, withCoins, birthdays, lapsed60, newLast30, coinAgg, spendAgg, visitAgg] = await Promise.all([
+      db.customer.count().catch(() => 0),
+      db.customer.count({ where: consentGate }).catch(() => 0),
+      db.customer.count({ where: { loyalty_tier: 'vip' } }).catch(() => 0),
+      db.customer.count({ where: { coin_balance: { gt: 0 } } }).catch(() => 0),
+      db.customer.count({ where: { birthday_mmdd: { startsWith: mm + '-' } } }).catch(() => 0),
+      db.customer.count({ where: { last_visit: { lt: d60 } } }).catch(() => 0),
+      db.customer.count({ where: { createdAt: { gte: d30 } } }).catch(() => 0),
+      db.customer.aggregate({ _sum: { coin_balance: true } }).catch(() => ({ _sum: { coin_balance: 0 } })),
+      db.customer.aggregate({ _avg: { total_spent: true } }).catch(() => ({ _avg: { total_spent: 0 } })),
+      db.customer.aggregate({ _avg: { visit_count: true } }).catch(() => ({ _avg: { visit_count: 0 } })),
+    ]);
+    if (!total) return '';
+    let cities = '';
+    try {
+      const rows: any[] = await db.customer.groupBy({
+        by: ['city'], _count: { _all: true },
+        where: { city: { not: null } }, orderBy: { _count: { city: 'desc' } }, take: 5,
+      });
+      const named = rows.filter((r: any) => r.city && String(r.city).trim());
+      if (named.length) cities = named.map((r: any) => `${r.city} (${r._count?._all || 0})`).join(', ');
+    } catch { /* groupBy unsupported / column drift — cities are optional */ }
+    const avgSpend = Math.round((spendAgg as any)?._avg?.total_spent || 0);
+    const avgVisits = Math.round(((visitAgg as any)?._avg?.visit_count || 0) * 10) / 10;
+    const coins = (coinAgg as any)?._sum?.coin_balance || 0;
+    return [
+      '\n--- מאגר הלקוחות שלך (נתוני אמת, מצטבר) ---',
+      `סה"כ חברי מועדון: ${total} · ניתנים לפנייה שיווקית (עם הסכמה): ${consented}`,
+      `VIP: ${vip} · מחזיקי מטבעות: ${withCoins} (סה"כ ${coins} מטבעות פתוחים במאזן)`,
+      `ממוצע ביקורים ללקוח: ${avgVisits} · ממוצע הוצאה מצטברת: ₪${avgSpend}`,
+      `ימי הולדת החודש: ${birthdays} · נוטשים (מעל 60 יום): ${lapsed60} · חדשים ב-30 יום אחרונים: ${newLast30}`,
+      cities ? `ערים מובילות: ${cities}` : '',
+      'כוון המלצות לסגמנטים אמיתיים שיש להם מסה קריטית מהמספרים האלה — לא לקהל תיאורטי.',
+    ].filter(Boolean).join('\n') + '\n';
+  } catch { return ''; }
+}
+
 // Generate 6-month strategy + initial tasks based on the saved profile.
 registerFn('generateMarketingStrategy', async ({ user }) => {
   await requireBackOffice(user, 'generateMarketingStrategy');
@@ -207,12 +256,13 @@ registerFn('generateMarketingStrategy', async ({ user }) => {
   const profile = await db.businessProfile.findFirst();
   if (!profile?.profile_data) throw new Error('profile_not_found');
   const shiftContext = await recentShiftContext();
+  const baseContext = await customerBaseContext();
 
   const result: any = await invokeLLM({
     prompt:
       MARKETING_ADVISOR_PERSONA +
       `\n\nמטרת השיחה: לבנות אסטרטגיית שיווק ל-6 חודשים שמטרתה להכפיל את המחזור החודשי של העסק.\n\n` +
-      `--- פרופיל העסק ---\n${JSON.stringify(profile.profile_data, null, 2)}\n--- סוף פרופיל ---${shiftContext}\n` +
+      `--- פרופיל העסק ---\n${JSON.stringify(profile.profile_data, null, 2)}\n--- סוף פרופיל ---${shiftContext}${baseContext}\n` +
       `החזר JSON בלבד עם השדות:\n` +
       `- goal_summary (string): משפט אחד שמתאר את היעד.\n` +
       `- monthly_plan: מערך של 6 חודשים, לכל חודש: { month: 1-6, focus: "...", theme: "...", expected_outcomes: ["..."], milestones: ["..."] }.\n` +
@@ -594,12 +644,13 @@ registerFn('marketingAdvisorChat', async ({ body, user }) => {
   const transcript = turns
     .map((t) => `${t.role === 'assistant' ? 'יועץ' : 'בעלים'}: ${t.content}`)
     .join('\n');
+  const baseContext = await customerBaseContext();
 
   const result: any = await invokeLLM({
     prompt:
       MARKETING_ADVISOR_PERSONA +
-      `\n\nאתה משוחח עם בעל העסק על שיווק. שמור על קשר עם הפרופיל והאסטרטגיה, ותן עצות קונקרטיות.\n\n` +
-      `--- פרופיל ---\n${JSON.stringify(profile?.profile_data || {})}\n--- אסטרטגיה ---\n${JSON.stringify(strategy?.months_plan || [])}\n--- שיחה עד כה ---\n${transcript || '(תחילת השיחה)'}\nבעלים: ${message || ''}\n\nענה ב-JSON: { reply: "התשובה לבעל העסק" }`,
+      `\n\nאתה משוחח עם בעל העסק על שיווק. שמור על קשר עם הפרופיל, האסטרטגיה ומאגר הלקוחות בפועל, ותן עצות קונקרטיות.\n\n` +
+      `--- פרופיל ---\n${JSON.stringify(profile?.profile_data || {})}\n--- אסטרטגיה ---\n${JSON.stringify(strategy?.months_plan || [])}\n${baseContext}--- שיחה עד כה ---\n${transcript || '(תחילת השיחה)'}\nבעלים: ${message || ''}\n\nענה ב-JSON: { reply: "התשובה לבעל העסק" }`,
     responseSchema: {
       type: 'object',
       properties: { reply: { type: 'string' } },
