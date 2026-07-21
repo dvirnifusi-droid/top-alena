@@ -18836,6 +18836,44 @@ registerFn('deleteNetworkTask', async ({ user, body }) => {
     await prisma.$executeRawUnsafe(`DELETE FROM "NetworkTask" WHERE id=$1`, id).catch(() => { });
     return { ok: true };
 });
+// D.3 (safe fan-out): send a network task to each branch's OWNER on WhatsApp,
+// read from public.Tenant.owner_phone in the main container — no cross-schema
+// access into tenant DBs. This is how the task actually reaches the branches.
+registerFn('notifyBranchesOfTask', async ({ user, body }) => {
+    if (!isSuperAdmin(user))
+        throw new Error('super-admin only');
+    await ensureNetworkTaskTables();
+    const taskId = String(body?.task_id || '').trim();
+    if (!taskId)
+        throw new Error('task_id required');
+    const task = await prisma.$queryRawUnsafe(`SELECT title, detail, chain_id FROM "NetworkTask" WHERE id=$1`, taskId).catch(() => []);
+    if (!task.length)
+        throw new Error('task not found');
+    const t = task[0];
+    const members = await prisma.$queryRawUnsafe(`SELECT slug, name FROM "ChainMember" WHERE chain_id=$1`, t.chain_id).catch(() => []);
+    let sent = 0;
+    let skipped = 0;
+    for (const m of members) {
+        if (m.slug === 'alena' || m.slug === 'public') {
+            skipped++;
+            continue;
+        } // the HQ operator's own branch
+        const tr = await prisma.$queryRawUnsafe(`SELECT owner_phone FROM "Tenant" WHERE slug=$1 LIMIT 1`, m.slug).catch(() => []);
+        const phone = tr[0]?.owner_phone;
+        if (!phone) {
+            skipped++;
+            continue;
+        }
+        try {
+            await notifyOwner(String(phone), 'משימת רשת', `${t.title}${t.detail ? '\n' + t.detail : ''}`);
+            sent++;
+        }
+        catch {
+            skipped++;
+        }
+    }
+    return { ok: true, sent, skipped };
+});
 // ── Phase 2: plan / feature engine ─────────────────────────────────────────
 // The optional (non-core) module catalog the Plan Builder toggles per plan.
 const optionalModuleDefs = () => MODULE_CATALOG.filter((m) => !m.core).map((m) => ({

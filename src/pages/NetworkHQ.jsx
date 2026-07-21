@@ -3,7 +3,7 @@
 // Platform-owner only (rendered inside PlatformLayout). D.1 of Apollo-for-chains.
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Loader2, Plus, Trash2, Network, RefreshCw } from 'lucide-react';
+import { Loader2, Plus, Trash2, Network, RefreshCw, Send } from 'lucide-react';
 
 const ils = (n) => `₪${(Number(n) || 0).toLocaleString('he-IL')}`;
 
@@ -38,6 +38,14 @@ function NetworkTasks({ chainId }) {
     try { await base44.functions.deleteNetworkTask({ id }); load(); }
     catch (e) { alert('שגיאה: ' + (e?.message || '')); }
   };
+  const notify = async (id) => {
+    if (!window.confirm('לשלוח את המשימה בוואטסאפ לבעלי הסניפים?')) return;
+    try {
+      const r = await base44.functions.notifyBranchesOfTask({ task_id: id });
+      const d = r?.data || r;
+      alert(`נשלח ל-${d?.sent || 0} סניפים${d?.skipped ? ` (${d.skipped} דולגו — ללא טלפון/הסניף הראשי)` : ''}`);
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+  };
 
   return (
     <div className="mt-4 pt-4 border-t border-slate-800">
@@ -57,7 +65,10 @@ function NetworkTasks({ chainId }) {
               <div key={t.id} className="bg-slate-800/60 rounded-lg p-3">
                 <div className="flex items-center justify-between">
                   <div className="font-medium text-white text-sm">{t.title} <span className="text-xs text-slate-400">· {done}/{(t.branches || []).length} סניפים</span></div>
-                  <button onClick={() => del(t.id)} className="text-red-400 hover:text-red-300"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => notify(t.id)} title="שלח בוואטסאפ לסניפים" className="text-emerald-400 hover:text-emerald-300"><Send className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => del(t.id)} className="text-red-400 hover:text-red-300"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
                 </div>
                 {t.detail && <div className="text-xs text-slate-400 mt-0.5">{t.detail}</div>}
                 <div className="flex flex-wrap gap-1.5 mt-2">
