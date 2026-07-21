@@ -155,6 +155,7 @@ import NotificationSettings from './pages/NotificationSettings';
 import EventsHub from './pages/EventsHub';
 import MarketingHub from './pages/MarketingHub';
 import OperationsHub from './pages/OperationsHub';
+import NetworkHQ from './pages/NetworkHQ';
 import StoriesHub from './pages/StoriesHub';
 import EmployeesHub from './pages/EmployeesHub';
 import RecruitmentHub from './pages/RecruitmentHub';
@@ -292,6 +293,7 @@ export const PAGES = {
     "EventsHub": EventsHub,
     "MarketingHub": MarketingHub,
     "OperationsHub": OperationsHub,
+    "NetworkHQ": NetworkHQ,
     "StoriesHub": StoriesHub,
     "EmployeesHub": EmployeesHub,
     "RecruitmentHub": RecruitmentHub,

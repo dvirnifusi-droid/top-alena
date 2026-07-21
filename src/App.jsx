@@ -58,7 +58,7 @@ import PlatformLayout from '@/components/platform/PlatformLayout';
 const PLATFORM_PAGES = new Set([
   'PlatformAdmin', 'PlatformAdminPending', 'PlatformAdminTenants',
   'PlatformFeatures', 'PlatformSubscriptions', 'PlatformUsers',
-  'PlatformInvites', 'PlatformWhiteLabel',
+  'PlatformInvites', 'PlatformWhiteLabel', 'NetworkHQ',
 ]);
 
 const { Pages, Layout, mainPage } = pagesConfig;

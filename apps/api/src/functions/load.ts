@@ -18517,6 +18517,99 @@ registerFn('getSuperAdminMetrics', async ({ user }) => {
   };
 });
 
+// ── Apollo for chains (D.1) ─────────────────────────────────────────────────
+// Group tenants (branches) into a Chain and give a network HQ that aggregates
+// each branch's headline KPIs. Cross-tenant reads reuse the exact schema-
+// qualified pattern of getSuperAdminMetrics. Public-schema tables, super-admin.
+let chainTablesReady = false;
+async function ensureChainTables(): Promise<void> {
+  if (chainTablesReady) return;
+  const dbx = prisma as any;
+  await dbx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Chain" (id TEXT PRIMARY KEY, name TEXT, owner_email TEXT, "createdAt" TIMESTAMPTZ DEFAULT NOW())`).catch(() => {});
+  await dbx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "ChainMember" (id TEXT PRIMARY KEY, chain_id TEXT, slug TEXT, name TEXT, added_at TIMESTAMPTZ DEFAULT NOW())`).catch(() => {});
+  await dbx.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "ChainMember_chain_slug" ON "ChainMember"(chain_id, slug)`).catch(() => {});
+  chainTablesReady = true;
+}
+
+const branchSchema = (slug: string) => (slug === 'alena' || slug === 'public' ? 'public' : `tenant_${slug}`);
+
+async function branchKpis(slug: string): Promise<any> {
+  const schema = branchSchema(slug);
+  try {
+    const r: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT
+         (SELECT COUNT(*)::int FROM "${schema}"."User") AS users,
+         (SELECT COUNT(*)::int FROM "${schema}"."Employee" WHERE status='active') AS employees,
+         (SELECT COUNT(*)::int FROM "${schema}"."ShiftTracking" WHERE status IN ('active','on_break')) AS active_shifts,
+         (SELECT COALESCE(SUM(subtotal_ils),0)::int FROM "${schema}"."EventContract" WHERE status='signed') AS contract_revenue,
+         (SELECT COUNT(*)::int FROM "${schema}"."Invoice" WHERE payment_status='unpaid') AS unpaid_invoices`);
+    return { users: r[0]?.users || 0, employees: r[0]?.employees || 0, active_shifts: r[0]?.active_shifts || 0, contract_revenue: r[0]?.contract_revenue || 0, unpaid_invoices: r[0]?.unpaid_invoices || 0 };
+  } catch (e: any) {
+    return { users: 0, employees: 0, active_shifts: 0, contract_revenue: 0, unpaid_invoices: 0, error: String(e?.message || 'schema query failed').slice(0, 120) };
+  }
+}
+
+registerFn('listChains', async ({ user }: any) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensurePlatformTables(); await ensureChainTables();
+  const dbx = prisma as any;
+  const chains: any[] = await dbx.$queryRawUnsafe(`SELECT id, name, owner_email, "createdAt" FROM "Chain" ORDER BY "createdAt"`).catch(() => []);
+  const members: any[] = await dbx.$queryRawUnsafe(`SELECT id, chain_id, slug, name FROM "ChainMember" ORDER BY name`).catch(() => []);
+  const live: any[] = await dbx.$queryRawUnsafe(`SELECT slug, restaurant_name FROM "Tenant" WHERE status='live' ORDER BY restaurant_name`).catch(() => []);
+  const available = [{ slug: 'alena', name: 'עלינא (הבסיסית)' }, ...live.map((t: any) => ({ slug: t.slug, name: t.restaurant_name || t.slug }))];
+  return { chains: chains.map((c: any) => ({ ...c, members: members.filter((m: any) => m.chain_id === c.id) })), available };
+});
+
+registerFn('createChain', async ({ user, body }: any) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensureChainTables();
+  const name = String((body as any)?.name || '').trim();
+  if (!name) throw new Error('שם רשת חובה');
+  const id = `chain_${Date.now().toString(36)}`;
+  await (prisma as any).$executeRawUnsafe(`INSERT INTO "Chain" (id, name, owner_email) VALUES ($1,$2,$3)`, id, name.slice(0, 120), String((user as any)?.email || '') || null);
+  return { ok: true, id };
+});
+
+registerFn('addBranchToChain', async ({ user, body }: any) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensureChainTables();
+  const b = (body || {}) as any;
+  const chainId = String(b.chain_id || '').trim();
+  const slug = String(b.slug || '').trim();
+  const name = String(b.name || slug).trim();
+  if (!chainId || !slug) throw new Error('chain_id and slug required');
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "ChainMember" (id, chain_id, slug, name) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (chain_id, slug) DO UPDATE SET name = EXCLUDED.name`,
+    `cm_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`, chainId, slug, name.slice(0, 120));
+  return { ok: true };
+});
+
+registerFn('removeBranchFromChain', async ({ user, body }: any) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensureChainTables();
+  const b = (body || {}) as any;
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "ChainMember" WHERE chain_id=$1 AND slug=$2`, String(b.chain_id || ''), String(b.slug || '')).catch(() => {});
+  return { ok: true };
+});
+
+registerFn('getChainMetrics', async ({ user, body }: any) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensureChainTables();
+  const chainId = String((body as any)?.chain_id || '').trim();
+  if (!chainId) throw new Error('chain_id required');
+  const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name FROM "ChainMember" WHERE chain_id=$1 ORDER BY name`, chainId).catch(() => []);
+  const perBranch: any[] = [];
+  const totals = { users: 0, employees: 0, active_shifts: 0, contract_revenue: 0, unpaid_invoices: 0 };
+  for (const m of members) {
+    const k = await branchKpis(m.slug);
+    perBranch.push({ slug: m.slug, name: m.name, ...k });
+    totals.users += k.users; totals.employees += k.employees; totals.active_shifts += k.active_shifts;
+    totals.contract_revenue += k.contract_revenue; totals.unpaid_invoices += k.unpaid_invoices;
+  }
+  return { chain_id: chainId, branch_count: members.length, per_branch: perBranch, totals };
+});
+
 // ── Phase 2: plan / feature engine ─────────────────────────────────────────
 // The optional (non-core) module catalog the Plan Builder toggles per plan.
 const optionalModuleDefs = () => MODULE_CATALOG.filter((m) => !m.core).map((m) => ({

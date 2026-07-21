@@ -4,7 +4,7 @@ import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import {
   Crown, Home, CheckCircle2, Building, Sparkles, Users, Send, CreditCard, Layers,
-  LogOut, ArrowLeft, Loader2,
+  Network, LogOut, ArrowLeft, Loader2,
 } from 'lucide-react';
 
 // The standalone Super-Admin shell. Platform pages render INSIDE this instead
@@ -16,6 +16,7 @@ const NAV = [
   { key: 'PlatformAdmin', label: 'דף הבית', icon: Home },
   { key: 'PlatformAdminPending', label: 'אישור מסעדות', icon: CheckCircle2 },
   { key: 'PlatformAdminTenants', label: 'כל המסעדות', icon: Building },
+  { key: 'NetworkHQ', label: 'מטה רשתות', icon: Network },
   { key: 'PlatformFeatures', label: "פיצ'רים גלובליים", icon: Sparkles },
   { key: 'PlatformUsers', label: 'ניהול משתמשים', icon: Users },
   { key: 'PlatformInvites', label: 'הזמנות', icon: Send },
