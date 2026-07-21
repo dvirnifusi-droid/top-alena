@@ -11,8 +11,13 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || '/api'
 
 async function api(path, opts = {}) {
   const tok = localStorage.getItem('auth_token');
+  const method = (opts.method || 'GET').toUpperCase();
+  // Fastify rejects an empty body when Content-Type is application/json, so for
+  // body-bearing methods (POST/DELETE with no explicit body) send at least {}.
+  const body = opts.body ?? (method === 'GET' || method === 'HEAD' ? undefined : '{}');
   const res = await fetch(`${API_BASE}${path}`, {
     ...opts,
+    body,
     headers: {
       'Content-Type': 'application/json',
       ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
