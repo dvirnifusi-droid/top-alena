@@ -13936,8 +13936,20 @@ registerFn('getDishCostAnalysis', async ({ body, user }) => {
     const offenders = dishes.filter((d) => d.food_cost_pct != null && d.food_cost_pct > 35)
         .sort((a, b) => b.food_cost_pct - a.food_cost_pct).slice(0, 8);
     const overallFc = totRev > 0 ? Math.round((totCogs / totRev) * 100) : null;
+    // C.4 — pull labor % from the existing schedule-based forecast, so we can show a
+    // "prime cost" (food + labor), the standard restaurant health metric.
+    let labor = null;
+    try {
+        const m = await import('../lib/businessForecasts.js');
+        const fl = await m.forecastLaborCost();
+        if (fl?.week && fl.week.labor_pct != null)
+            labor = { pct: Math.round(Number(fl.week.labor_pct)), missing_rates: fl.missing_rates || 0 };
+    }
+    catch { /* labor optional — food-cost view still works */ }
+    const primeCostPct = (overallFc != null && labor?.pct != null) ? overallFc + labor.pct : null;
     return {
         period_days: days,
+        labor, prime_cost_pct: primeCostPct,
         totals: { revenue: Math.round(totRev), cogs: Math.round(totCogs), food_cost_pct: overallFc, dishes_matched: dishes.length, dishes_unmatched: unmatched.length },
         by_category: {
             food: { revenue: Math.round(foodRev), cogs: Math.round(foodCogs), fc_pct: foodRev > 0 ? Math.round((foodCogs / foodRev) * 100) : null },

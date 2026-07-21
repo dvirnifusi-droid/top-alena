@@ -51,6 +51,14 @@ export default function DishProfitCard() {
           </div>
         )}
 
+        {(data.labor?.pct != null || data.prime_cost_pct != null) && (
+          <div className="flex flex-wrap gap-4 items-center bg-white rounded-lg border p-2 text-sm">
+            {data.labor?.pct != null && <span className="text-slate-600">👥 עלות עבודה: <b>{data.labor.pct}%</b> <span className="text-xs text-slate-400">(לפי סידור)</span></span>}
+            {data.prime_cost_pct != null && <span className="text-slate-800 font-semibold">⚡ Prime cost ≈ <b className={data.prime_cost_pct > 65 ? 'text-red-600' : data.prime_cost_pct > 60 ? 'text-amber-600' : 'text-emerald-600'}>{data.prime_cost_pct}%</b></span>}
+            {data.labor?.missing_rates > 0 && <span className="text-xs text-amber-600">⚠️ {data.labor.missing_rates} עובדים בלי שכר מוגדר</span>}
+          </div>
+        )}
+
         {offenders.length > 0 && (
           <div>
             <div className="text-sm font-semibold text-red-700 mb-1">⚠️ מנות חורגות (פוד-קוסט מעל 35%)</div>
