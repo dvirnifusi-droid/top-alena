@@ -180,6 +180,25 @@ export default function ClubSettingsCard() {
 
         <div className="pt-4 border-t">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            🎂 הטבת יום הולדת
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5 mb-3">
+            ביום ההולדת של חבר מועדון נשלחת ברכה עם קוד הטבה אמיתי לממש (פעם בשנה, תוקף 30 יום). דורש שהדיוורים דלוקים.
+          </p>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-slate-700">הטבת יום הולדת פעילה</span>
+            <Switch checked={!!s.birthday_enabled} onCheckedChange={(v) => set('birthday_enabled', v)} />
+          </div>
+          {s.birthday_enabled && (
+            <div>
+              <label className="text-xs text-slate-500">נוסח ההטבה — זה מה שהלקוח והמלצר רואים</label>
+              <Input value={s.birthday_text || ''} onChange={(e) => set('birthday_text', e.target.value)} className="mt-1" />
+            </div>
+          )}
+        </div>
+
+        <div className="pt-4 border-t">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
             <Gamepad2 className="w-4 h-4 text-indigo-600" /> תשלום על משחק בתור
           </h3>
           <p className="text-xs text-slate-500 mt-0.5 mb-3">

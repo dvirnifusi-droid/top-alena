@@ -1974,10 +1974,21 @@ async function runDailyCelebrationCampaigns(force = false) {
         }) : [];
         let ok = 0, fail = 0;
         const failures = [];
+        // Birthday benefit: issue a REAL redeemable code (once per year, idempotent on
+        // source) so the birthday message carries a gift, not just a greeting. Gated by
+        // the club config's birthday toggle.
+        const clubCfg = await getClubConfig().catch(() => null);
+        const bYear = new Date().getFullYear();
         for (const c of bdayList) {
             try {
+                let benefitLine = '';
+                if (clubCfg?.birthday_enabled) {
+                    const ben = await grantBenefit({ customerId: c.id, description: clubCfg.birthday_text, source: `birthday_${bYear}`, validDays: 30 }).catch(() => null);
+                    if (ben?.code)
+                        benefitLine = `\n\n🎁 מתנת יום ההולדת שלך: ${clubCfg.birthday_text}\nהצג/י את הקוד למלצר: ${ben.code}`;
+                }
                 const bodyTpl = await notifText('birthday_greeting', bdayTemplate, { name: c.name || 'אורח/ת יקר/ה', brand });
-                const rendered = withOptOut(bodyTpl.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
+                const rendered = withOptOut(bodyTpl.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה') + benefitLine, c.id);
                 const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], rendered);
                 if (out?.skipped) {
                     fail++;
