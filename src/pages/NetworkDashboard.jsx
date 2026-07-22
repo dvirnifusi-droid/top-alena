@@ -37,7 +37,7 @@ function NetworkDashboardInner() {
             הטננט הזה אינו משויך לרשת. אם זו טעות — פנה למנהל הפלטפורמה.
           </div>
         ) : (
-          <ChainCard chain={data.chain} available={[]} isSuper={false} onChanged={load} />
+          <ChainCard chain={data.chain} available={[]} isSuper={false} onChanged={load} hideCommissary />
         )}
       </div>
     </div>

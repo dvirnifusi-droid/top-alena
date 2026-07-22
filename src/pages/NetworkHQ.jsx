@@ -53,8 +53,8 @@ function EtaPicker({ value, onChange }) {
 
 // The commissary (בית הכנות) — a NETWORK-level operation inside the chain HQ.
 // The owner manages the catalog + sees every branch's order + production + cost.
-function ChainCommissary({ chainId }) {
-  const [open, setOpen] = useState(false);
+export function ChainCommissary({ chainId, defaultOpen }) {
+  const [open, setOpen] = useState(!!defaultOpen);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [date, setDate] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
@@ -577,7 +577,7 @@ function OwnerAssign({ chain, onChanged }) {
   );
 }
 
-export function ChainCard({ chain, available, onChanged, isSuper }) {
+export function ChainCard({ chain, available, onChanged, isSuper, hideCommissary }) {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [addSlug, setAddSlug] = useState('');
@@ -683,7 +683,7 @@ export function ChainCard({ chain, available, onChanged, isSuper }) {
         </div>
       )}
 
-      <ChainCommissary chainId={chain.id} />
+      {!hideCommissary && <ChainCommissary chainId={chain.id} />}
       <NetworkTasks chainId={chain.id} />
     </div>
   );
