@@ -7,7 +7,7 @@ import { UploadFile } from '@/integrations/Core';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Upload, X, Copy, Check, Download, Sparkles, Wand2, RotateCcw } from 'lucide-react';
+import { Loader2, Upload, X, Copy, Check, Download, Sparkles, Wand2, RotateCcw, Camera, Film } from 'lucide-react';
 
 const withHash = (tags) => (tags || []).map((h) => (String(h).startsWith('#') ? h : '#' + h)).join(' ');
 
@@ -45,7 +45,9 @@ export default function StoryStudio() {
   const [err, setErr] = useState('');
   const [copied, setCopied] = useState(false);
   const [rendered, setRendered] = useState(false);
+  const [videoSrc, setVideoSrc] = useState(''); // local object URL while picking a frame
   const canvasRef = useRef(null);
+  const videoRef = useRef(null);
 
   const fmt = FORMATS.find((f) => f.key === formatKey) || FORMATS[0];
   // What the design is built on: the AI-retouched photo if asked for, else the upload.
@@ -57,14 +59,44 @@ export default function StoryStudio() {
   };
   useEffect(() => { loadUsage(); }, []);
 
+  const clearVideo = () => { if (videoSrc) { try { URL.revokeObjectURL(videoSrc); } catch { /* ignore */ } setVideoSrc(''); } };
+
   const onFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true); setErr(''); setRes(null); setRendered(false); setEnhancedUrl('');
+    setErr(''); setRes(null); setRendered(false); setEnhancedUrl(''); setImageUrl('');
+    // Video → scrub locally and grab a frame. The clip itself never uploads;
+    // only the captured still does, so this stays cheap.
+    if ((file.type || '').startsWith('video/')) {
+      clearVideo();
+      setVideoSrc(URL.createObjectURL(file));
+      return;
+    }
+    setUploading(true);
     try {
       const { file_url } = await UploadFile({ file });
       setImageUrl(file_url);
     } catch (er) { setErr('העלאת התמונה נכשלה: ' + (er?.message || '')); }
+    finally { setUploading(false); }
+  };
+
+  // Grab the frame currently shown in the video, upload it as a JPEG, and treat
+  // it exactly like an uploaded photo from here on.
+  const captureFrame = async () => {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) { setErr('הסרטון עוד נטען — נסה שוב בעוד רגע'); return; }
+    setUploading(true); setErr('');
+    try {
+      const c = document.createElement('canvas');
+      c.width = v.videoWidth; c.height = v.videoHeight;
+      c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+      const blob = await new Promise((resolve) => c.toBlob(resolve, 'image/jpeg', 0.95));
+      if (!blob) throw new Error('לכידה נכשלה');
+      const file = new File([blob], 'frame.jpg', { type: 'image/jpeg' });
+      const { file_url } = await UploadFile({ file });
+      setImageUrl(file_url);
+      clearVideo();
+    } catch (er) { setErr('לכידת הפריים נכשלה: ' + (er?.message || '')); }
     finally { setUploading(false); }
   };
 
@@ -210,11 +242,22 @@ export default function StoryStudio() {
               </div>
               {!enhancedUrl && <p className="text-[11px] text-slate-400">משפר תאורה, צבע ורקע — המנה נשארת בדיוק כמו שצילמת. אופציונלי, ~15 אג׳ לתמונה.</p>}
             </div>
+          ) : videoSrc ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs text-slate-600"><Film className="w-4 h-4 text-orange-600" /> עצור את הסרטון על הרגע הכי טוב ולחץ "צלם פריים".</div>
+              <video ref={videoRef} src={videoSrc} controls playsInline className="max-h-56 rounded-lg border w-full bg-black" />
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={captureFrame} disabled={uploading} className="bg-[#A04A2E] hover:bg-[#7A3722]">
+                  {uploading ? <><Loader2 className="w-4 h-4 animate-spin ml-1" /> תופס…</> : <><Camera className="w-4 h-4 ml-1" /> צלם את הפריים הנוכחי</>}
+                </Button>
+                <button onClick={clearVideo} className="text-xs text-slate-500 hover:text-slate-700 inline-flex items-center gap-1"><X className="w-3.5 h-3.5" /> בטל</button>
+              </div>
+            </div>
           ) : (
             <label className="inline-flex items-center gap-2 cursor-pointer border border-dashed border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {uploading ? 'מעלה…' : 'העלה תמונה'}
-              <input type="file" accept="image/*" onChange={onFile} disabled={uploading} className="hidden" />
+              {uploading ? 'מעלה…' : 'העלה תמונה או סרטון'}
+              <input type="file" accept="image/*,video/*" onChange={onFile} disabled={uploading} className="hidden" />
             </label>
           )}
 
