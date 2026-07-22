@@ -6,6 +6,52 @@ import { prisma } from '../db.js';
 import { canViewPay, canEditPay, ALL_SCOPE } from '../lib/payAccess.js';
 import { buildPayViewer } from '../lib/payViewer.js';
 
+// Per-role hourly rates (for staff with several jobs) live in a JSONB column NOT
+// in the prisma schema — added with additive SQL only (prisma db push is
+// forbidden on prod). The prisma EmployeePay model therefore never sees it; we
+// read/write it with raw SQL and merge it into the returned pay object.
+let _payColsEnsured = false;
+async function ensurePayCols(): Promise<void> {
+  if (_payColsEnsured) return;
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "EmployeePay" ADD COLUMN IF NOT EXISTS "role_rates" JSONB`).catch(() => {});
+  _payColsEnsured = true;
+}
+
+// Raw-read role_rates for a set of employees → Map<employee_id, {role:rate}>.
+async function roleRatesFor(employeeIds: string[]): Promise<Map<string, Record<string, number>>> {
+  const out = new Map<string, Record<string, number>>();
+  if (!employeeIds.length) return out;
+  await ensurePayCols();
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT employee_id, role_rates FROM "EmployeePay" WHERE employee_id = ANY($1::text[]) AND role_rates IS NOT NULL`,
+    employeeIds,
+  ).catch(() => []);
+  for (const r of rows) if (r.role_rates && typeof r.role_rates === 'object') out.set(r.employee_id, r.role_rates);
+  return out;
+}
+
+// Validate + persist role_rates for one employee (raw UPDATE — the row is
+// guaranteed to exist because the prisma upsert ran first). {} / null clears it.
+async function writeRoleRates(employeeId: string, raw: any): Promise<void> {
+  if (raw === undefined) return; // caller didn't touch role rates → leave as-is
+  await ensurePayCols();
+  let clean: Record<string, number> | null = null;
+  if (raw && typeof raw === 'object') {
+    const o: Record<string, number> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      const name = String(k || '').trim();
+      const n = Number(v);
+      if (name && Number.isFinite(n) && n > 0) o[name] = n;
+    }
+    if (Object.keys(o).length) clean = o;
+  }
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "EmployeePay" SET "role_rates" = $1::jsonb WHERE employee_id = $2`,
+    clean === null ? null : JSON.stringify(clean),
+    employeeId,
+  ).catch(() => {});
+}
+
 async function loadTarget(employeeId: string): Promise<{ employeeId: string; department: string | null; full_name: string } | null> {
   const t: any = await (prisma as any).employee.findUnique({
     where: { id: employeeId },
@@ -23,7 +69,15 @@ registerFn('getEmployeePay', async ({ body, user }) => {
   const viewer = await buildPayViewer(user);
   if (!canViewPay(viewer, target)) throw new Error('forbidden');
   const pay = await (prisma as any).employeePay.findUnique({ where: { employee_id: employeeId } }).catch(() => null);
-  return { pay: pay ?? null, can_edit: canEditPay(viewer, target) };
+  const rr = (await roleRatesFor([employeeId])).get(employeeId) || null;
+  // Also return the employee's positions so the editor knows which roles to price.
+  const emp: any = await (prisma as any).employee.findUnique({
+    where: { id: employeeId }, select: { positions: true, role: true },
+  }).catch(() => null);
+  const positions = Array.isArray(emp?.positions)
+    ? emp.positions.map((p: any) => p?.position_name).filter(Boolean)
+    : (emp?.role ? [emp.role] : []);
+  return { pay: pay ? { ...pay, role_rates: rr } : (rr ? { role_rates: rr } : null), positions, can_edit: canEditPay(viewer, target) };
 });
 
 // Returns pay rows the caller may see (owner/all → everyone; dept manager → their
@@ -31,7 +85,7 @@ registerFn('getEmployeePay', async ({ body, user }) => {
 registerFn('listEmployeePay', async ({ user }) => {
   const viewer = await buildPayViewer(user);
   const employees: any[] = await (prisma as any).employee.findMany({
-    select: { id: true, full_name: true, department: true, status: true },
+    select: { id: true, full_name: true, department: true, status: true, positions: true, role: true },
   }).catch(() => []);
   const visibleIds = employees
     .filter(e => canViewPay(viewer, { employeeId: e.id, department: e.department ?? null }))
@@ -40,12 +94,23 @@ registerFn('listEmployeePay', async ({ user }) => {
     where: { employee_id: { in: visibleIds } },
   }).catch(() => []);
   const payById = new Map(pays.map(p => [p.employee_id, p]));
+  const rrById = await roleRatesFor(visibleIds);
   return employees
     .filter(e => visibleIds.includes(e.id))
-    .map(e => ({
-      employee_id: e.id, full_name: e.full_name, department: e.department ?? null,
-      status: e.status ?? null, pay: payById.get(e.id) ?? null,
-    }));
+    .map(e => {
+      const pay = payById.get(e.id) ?? null;
+      const rr = rrById.get(e.id) || null;
+      // Distinct role list so the matrix can offer a rate per role (multi-role staff).
+      const positions = Array.isArray(e.positions)
+        ? [...new Set(e.positions.map((p: any) => p?.position_name).filter(Boolean))]
+        : (e.role ? [e.role] : []);
+      return {
+        employee_id: e.id, full_name: e.full_name, department: e.department ?? null,
+        status: e.status ?? null,
+        pay: pay ? { ...pay, role_rates: rr } : (rr ? { role_rates: rr } : null),
+        positions,
+      };
+    });
 });
 
 // Upsert pay for an employee. Requires canEditPay. Validates numbers.
@@ -79,6 +144,7 @@ registerFn('setEmployeePay', async ({ body, user }) => {
     update: data,
     create: { employee_id: employeeId, ...data },
   });
+  await writeRoleRates(employeeId, p.role_rates);
   return { ok: true };
 });
 
@@ -116,6 +182,7 @@ registerFn('setEmployeePayBulk', async ({ body, user }) => {
         update: data,
         create: { employee_id: employeeId, ...data },
       });
+      if (r.role_rates !== undefined) await writeRoleRates(employeeId, r.role_rates);
       saved++;
     } catch (e: any) {
       errors.push({ employee_id: employeeId, error: String(e?.message || e).slice(0, 120) });

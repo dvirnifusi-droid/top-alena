@@ -3,6 +3,29 @@
 // variable cost the schedule controls. Monthly-salary staff are a fixed cost
 // (handled as recurring in cash flow); tips staff are excluded entirely.
 import { computeEmployerCost } from './payAccess.js';
+// Normalize a role/position label so a rate keyed "מלצר/ית" matches the shift's
+// "מלצרית" (same rule the schedule + pagePermissions use).
+export const normRoleKey = (x) => String(x || '').replace(/[\s"'׳״־\-/\\|,.]+/g, '').toLowerCase();
+// THE single source of truth for "what does this person earn per hour in THIS
+// role". role-specific rate (role_rates) wins; otherwise the employee's base
+// hourly_rate. Returns 0 when neither is set (caller may then fall back to the
+// WorkPosition rate). Used by BOTH /LaborCost, the schedule grid, and the
+// employee report so a rate entered anywhere shows up everywhere.
+export function resolveHourlyRate(pay, role) {
+    const rr = pay && pay.role_rates && typeof pay.role_rates === 'object' ? pay.role_rates : null;
+    if (rr && role) {
+        const nrole = normRoleKey(role);
+        for (const k of Object.keys(rr)) {
+            if (normRoleKey(k) === nrole) {
+                const v = Number(rr[k]);
+                if (Number.isFinite(v) && v > 0)
+                    return v;
+            }
+        }
+    }
+    const base = Number(pay?.hourly_rate);
+    return Number.isFinite(base) && base > 0 ? base : 0;
+}
 // Hours between two HH:mm strings; an end earlier than start means an overnight
 // shift (+24h). Clamped to [0, 24]. Invalid input → 0.
 export function parseShiftHours(start, end) {
@@ -24,11 +47,11 @@ export function parseShiftHours(start, end) {
     const hours = diff / 60;
     return Math.min(24, Math.max(0, hours));
 }
-// Cost of `hours` for one employee. Hourly only; monthly/tips → 0.
-export function laborCostForHours(pay, hours) {
+// Cost of `hours` for one employee in an optional role. Hourly only; monthly/tips → 0.
+export function laborCostForHours(pay, hours, role) {
     if (!pay || pay.pay_type !== 'hourly')
         return 0;
-    const rate = Number(pay.hourly_rate) || 0;
+    const rate = resolveHourlyRate(pay, role);
     const h = Number.isFinite(hours) && hours > 0 ? hours : 0;
     const gross = rate * h;
     // Employer overhead for HOURLY staff must scale with the hours worked, i.e. the
@@ -46,7 +69,7 @@ export function aggregateLabor(entries, payById) {
             continue;
         const pay = payById.get(e.employee_id);
         const hours = Number(e.hours) || 0;
-        const cost = laborCostForHours(pay, hours);
+        const cost = laborCostForHours(pay, hours, e.role);
         const cur = perEmp.get(e.employee_id) || { hours: 0, cost: 0 };
         cur.hours += hours;
         cur.cost += cost;

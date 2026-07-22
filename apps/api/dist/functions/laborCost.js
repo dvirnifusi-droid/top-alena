@@ -23,7 +23,11 @@ async function visiblePay(viewer) {
     const visible = employees.filter(e => canViewPay(viewer, { employeeId: e.id, department: e.department ?? null }));
     const visibleIds = new Set(visible.map(e => e.id));
     const pays = await prisma.employeePay.findMany({ where: { employee_id: { in: [...visibleIds] } } }).catch(() => []);
-    const payById = new Map(pays.map(p => [p.employee_id, p]));
+    // Merge per-role rates (raw JSONB column, not in the prisma model) so the
+    // resolver can pick a role-specific rate for multi-role staff.
+    const rrRows = await prisma.$queryRawUnsafe(`SELECT employee_id, role_rates FROM "EmployeePay" WHERE employee_id = ANY($1::text[]) AND role_rates IS NOT NULL`, [...visibleIds]).catch(() => []);
+    const rrById = new Map(rrRows.map(r => [r.employee_id, r.role_rates]));
+    const payById = new Map(pays.map(p => [p.employee_id, { ...p, role_rates: rrById.get(p.employee_id) ?? null }]));
     // ESTIMATE FALLBACK — when an employee has no personal rate, use the hourly
     // rate set on their POSITION (ניהול תפקידים). The schedule cost already did
     // this; /LaborCost and the dashboard KPI did not, so a per-role estimate
@@ -66,8 +70,11 @@ registerFn('getLaborCost', async ({ body, user }) => {
         const staff = Array.isArray(s.assigned_staff) ? s.assigned_staff : [];
         for (const a of staff) {
             const id = a?.employee_id;
+            // Planned assignments carry the role, so a multi-role employee is costed at
+            // the rate for the role they're scheduled in. (Actual/clock hours have no
+            // role → base rate; ShiftTracking doesn't record which job was worked.)
             if (id && visibleIds.has(id))
-                plannedEntries.push({ employee_id: id, hours });
+                plannedEntries.push({ employee_id: id, hours, role: a?.position || null });
         }
     }
     // Actual — from ShiftTracking worked hours.

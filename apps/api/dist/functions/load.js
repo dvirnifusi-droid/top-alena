@@ -6973,6 +6973,7 @@ registerFn('getScheduleLaborCost', async ({ user, body }) => {
     }
     try {
         await ensureScheduleConfig();
+        const { resolveHourlyRate } = await import('../lib/laborCost.js');
         const b = (body || {});
         const weekStart = String(b.week_start || '').slice(0, 10);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart))
@@ -6981,7 +6982,9 @@ registerFn('getScheduleLaborCost', async ({ user, body }) => {
         const dates = new Set();
         for (let d = 0; d < 7; d++)
             dates.add(new Date(start.getTime() + d * 86400000).toISOString().slice(0, 10));
-        const pays = await prisma.$queryRawUnsafe(`SELECT employee_id, hourly_rate, employer_pct FROM "EmployeePay"`).catch(() => []);
+        // role_rates is an additive JSONB column (per-role pay for multi-role staff).
+        await prisma.$executeRawUnsafe(`ALTER TABLE "EmployeePay" ADD COLUMN IF NOT EXISTS "role_rates" JSONB`).catch(() => { });
+        const pays = await prisma.$queryRawUnsafe(`SELECT employee_id, hourly_rate, employer_pct, role_rates FROM "EmployeePay"`).catch(() => []);
         const payMap = new Map();
         for (const p of pays)
             payMap.set(p.employee_id, p);
@@ -7041,7 +7044,8 @@ registerFn('getScheduleLaborCost', async ({ user, body }) => {
                 if (a.total_break_minutes)
                     hrs = Math.max(0, hrs - Number(a.total_break_minutes) / 60);
                 const pay = payMap.get(a.employee_id);
-                const rate = (pay && pay.hourly_rate != null) ? Number(pay.hourly_rate) : (posRate.get(a.position) ?? 0);
+                // role_rate for the scheduled role → base rate → the position's rate.
+                const rate = resolveHourlyRate(pay, a.position) || (posRate.get(a.position) ?? 0);
                 if (rate > 0)
                     hasRates = true;
                 const mult = 1 + (Number(pay?.employer_pct) || 0) / 100;

@@ -642,27 +642,71 @@ function EmployeeReportsInner() {
         sendWhatsApp(text);
     };
 
-    // When employee changes, pre-fill rates from their positions config
+    // When the employee changes, load rates from the SHARED source (EmployeePay,
+    // the same one עלות שכר + the schedule use) — not the old per-employee
+    // positions[].rate, which never reached labor cost. role_rate wins; otherwise
+    // the base hourly_rate. Legacy positions[].rate seeds the view until saved once.
     React.useEffect(() => {
         if (!selectedEmployeeId || selectedEmployeeId === 'all') return;
-        const emp = employees.find(e => e.id === selectedEmployeeId);
-        const savedPositions = (emp?.positions || []).filter(p => p.position_name);
-        setEmployeePositions(savedPositions.map(p => ({ position_name: p.position_name, rate: p.rate || 0 })));
-        const rates = {};
-        savedPositions.forEach(p => { if (p.rate) rates[p.position_name] = p.rate; });
-        setPositionRates(rates);
+        let cancelled = false;
+        (async () => {
+            const emp = employees.find(e => e.id === selectedEmployeeId);
+            let roleNames = (emp?.positions || []).map(p => p.position_name).filter(Boolean);
+            let baseRate = 0, roleRates = {};
+            try {
+                const res = await base44.functions.getEmployeePay({ employee_id: selectedEmployeeId });
+                const data = res?.data || res;
+                const pay = data?.pay || {};
+                baseRate = Number(pay.hourly_rate) || 0;
+                roleRates = (pay.role_rates && typeof pay.role_rates === 'object') ? pay.role_rates : {};
+                if (!roleNames.length && Array.isArray(data?.positions)) roleNames = data.positions;
+            } catch { /* no pay access → fall back to the employee record's rates */ }
+            if (cancelled) return;
+            const legacy = {};
+            (emp?.positions || []).forEach(p => { if (p.position_name && p.rate) legacy[p.position_name] = p.rate; });
+            const rates = {};
+            roleNames.forEach(name => {
+                const rr = roleRates[name];
+                rates[name] = (rr != null && rr !== '') ? rr : (baseRate > 0 ? baseRate : (legacy[name] || 0));
+            });
+            setEmployeePositions(roleNames.map(name => ({ position_name: name, rate: rates[name] || 0 })));
+            setPositionRates(rates);
+        })();
+        return () => { cancelled = true; };
     }, [selectedEmployeeId, employees]);
 
     const savePositionRates = async () => {
         if (!selectedEmployeeId || selectedEmployeeId === 'all') return;
         setSavingRates(true);
-        const positionsToSave = employeePositions.map(p => ({
-            position_name: p.position_name,
-            pay_type: 'hourly',
-            rate: parseFloat(positionRates[p.position_name] || 0),
-        }));
-        await base44.entities.Employee.update(selectedEmployeeId, { positions: positionsToSave });
-        setEmployees(prev => prev.map(e => e.id === selectedEmployeeId ? { ...e, positions: positionsToSave } : e));
+        try {
+            // Canonical write → EmployeePay.role_rates (per role) so עלות שכר, the
+            // schedule grid and this report all read the SAME number. One role → that
+            // rate is also the base hourly_rate; several → keep a base for callers
+            // that have no role context.
+            const roleRates = {};
+            employeePositions.forEach(p => {
+                const r = parseFloat(positionRates[p.position_name] || 0);
+                if (p.position_name && r > 0) roleRates[p.position_name] = r;
+            });
+            const values = Object.values(roleRates);
+            const baseRate = employeePositions.length === 1 ? (values[0] || 0) : (values[0] || 0);
+            await base44.functions.setEmployeePay({
+                employee_id: selectedEmployeeId,
+                pay_type: 'hourly',
+                hourly_rate: baseRate,
+                role_rates: roleRates,
+            });
+            // Keep the employee's role LIST in sync (names) so the roster still shows
+            // which jobs they hold; the rate now lives in EmployeePay.
+            const positionsToSave = employeePositions.map(p => ({
+                position_name: p.position_name, pay_type: 'hourly',
+                rate: parseFloat(positionRates[p.position_name] || 0),
+            }));
+            await base44.entities.Employee.update(selectedEmployeeId, { positions: positionsToSave });
+            setEmployees(prev => prev.map(e => e.id === selectedEmployeeId ? { ...e, positions: positionsToSave } : e));
+        } catch (e) {
+            alert('שגיאה בשמירת תעריפים: ' + (e?.message || 'unknown'));
+        }
         setSavingRates(false);
     };
 

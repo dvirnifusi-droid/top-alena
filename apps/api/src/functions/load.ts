@@ -6858,6 +6858,7 @@ registerFn('getScheduleLaborCost', async ({ user, body }: any) => {
   }
   try {
     await ensureScheduleConfig();
+    const { resolveHourlyRate } = await import('../lib/laborCost.js');
     const b = (body || {}) as any;
     const weekStart = String(b.week_start || '').slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) return { total: 0, hours: 0, by_day: {}, by_shift: {}, has_rates: false, budget: null };
@@ -6865,7 +6866,9 @@ registerFn('getScheduleLaborCost', async ({ user, body }: any) => {
     const dates = new Set<string>();
     for (let d = 0; d < 7; d++) dates.add(new Date(start.getTime() + d * 86400000).toISOString().slice(0, 10));
 
-    const pays: any[] = await (prisma as any).$queryRawUnsafe(`SELECT employee_id, hourly_rate, employer_pct FROM "EmployeePay"`).catch(() => []);
+    // role_rates is an additive JSONB column (per-role pay for multi-role staff).
+    await (prisma as any).$executeRawUnsafe(`ALTER TABLE "EmployeePay" ADD COLUMN IF NOT EXISTS "role_rates" JSONB`).catch(() => {});
+    const pays: any[] = await (prisma as any).$queryRawUnsafe(`SELECT employee_id, hourly_rate, employer_pct, role_rates FROM "EmployeePay"`).catch(() => []);
     const payMap = new Map<string, any>(); for (const p of pays) payMap.set(p.employee_id, p);
     const positions: any[] = await (prisma as any).$queryRawUnsafe(`SELECT position_name, hourly_rate FROM "WorkPosition"`).catch(() => []);
     const posRate = new Map<string, number>(); for (const p of positions) if (p.hourly_rate != null) posRate.set(p.position_name, Number(p.hourly_rate));
@@ -6917,7 +6920,8 @@ registerFn('getScheduleLaborCost', async ({ user, body }: any) => {
         let hrs = hoursBetween(a.start_time, a.end_time);
         if (a.total_break_minutes) hrs = Math.max(0, hrs - Number(a.total_break_minutes) / 60);
         const pay = payMap.get(a.employee_id);
-        const rate = (pay && pay.hourly_rate != null) ? Number(pay.hourly_rate) : (posRate.get(a.position) ?? 0);
+        // role_rate for the scheduled role → base rate → the position's rate.
+        const rate = resolveHourlyRate(pay, a.position) || (posRate.get(a.position) ?? 0);
         if (rate > 0) hasRates = true;
         const mult = 1 + (Number(pay?.employer_pct) || 0) / 100;
         // Tip position → zero labor cost, but still listed so the shift shows who's on.

@@ -23,6 +23,7 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
   const [msg, setMsg] = useState(null);
   const [bulkPct, setBulkPct] = useState('');
   const [showInactive, setShowInactive] = useState(false);
+  const [expanded, setExpanded] = useState(() => new Set()); // employee_ids with the per-role editor open
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -32,6 +33,11 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
       setRows(list.map((e) => {
         const p = e.pay || {};
         const type = p.pay_type || 'hourly';
+        const positions = Array.isArray(e.positions) ? e.positions.filter(Boolean) : [];
+        const roleRates = {};
+        if (p.role_rates && typeof p.role_rates === 'object') {
+          for (const [k, v] of Object.entries(p.role_rates)) roleRates[k] = v;
+        }
         return {
           employee_id: e.employee_id,
           full_name: e.full_name,
@@ -40,6 +46,8 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
           pay_type: type,
           rate: type === 'monthly' ? (p.monthly_salary ?? '') : (p.hourly_rate ?? ''),
           employer_pct: p.employer_pct ?? '',
+          positions,       // roles this employee holds → per-role pricing
+          role_rates: roleRates,
         };
       }));
     } catch {
@@ -51,6 +59,9 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
   useEffect(() => { load(); }, [load]);
 
   const patch = (id, key, val) => setRows((rs) => rs.map((r) => r.employee_id === id ? { ...r, [key]: val } : r));
+  const patchRoleRate = (id, role, val) => setRows((rs) => rs.map((r) =>
+    r.employee_id === id ? { ...r, role_rates: { ...(r.role_rates || {}), [role]: val } } : r));
+  const toggleExpand = (id) => setExpanded((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   // Active employees only by default — inactive rows are noise when pricing payroll.
   const visible = showInactive ? rows : rows.filter((r) => r.status === 'active');
   const inactiveCount = rows.length - rows.filter((r) => r.status === 'active').length;
@@ -63,13 +74,24 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
   const save = async () => {
     setSaving(true); setMsg(null);
     try {
-      const payload = visible.map((r) => ({
-        employee_id: r.employee_id,
-        pay_type: r.pay_type,
-        hourly_rate: r.pay_type === 'hourly' ? r.rate : '',
-        monthly_salary: r.pay_type === 'monthly' ? r.rate : '',
-        employer_pct: r.employer_pct,
-      }));
+      const payload = visible.map((r) => {
+        // Only send role rates for hourly staff with real numbers; {} clears them.
+        const roleRates = {};
+        if (r.pay_type === 'hourly' && r.role_rates) {
+          for (const [role, val] of Object.entries(r.role_rates)) {
+            const n = parseFloat(val);
+            if (role && n > 0) roleRates[role] = n;
+          }
+        }
+        return {
+          employee_id: r.employee_id,
+          pay_type: r.pay_type,
+          hourly_rate: r.pay_type === 'hourly' ? r.rate : '',
+          monthly_salary: r.pay_type === 'monthly' ? r.rate : '',
+          employer_pct: r.employer_pct,
+          role_rates: roleRates,
+        };
+      });
       const res = await base44.functions.setEmployeePayBulk({ rows: payload });
       const r = res?.data || res;
       setMsg({ ok: true, text: `נשמרו תעריפים ל-${r?.saved ?? 0} עובדים${r?.errors?.length ? ` · ${r.errors.length} נכשלו` : ''}` });
@@ -128,8 +150,12 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {visible.map((r) => (
-                    <tr key={r.employee_id} className="hover:bg-slate-50">
+                  {visible.map((r) => {
+                    const multiRole = r.pay_type === 'hourly' && Array.isArray(r.positions) && r.positions.length >= 2;
+                    const isOpen = expanded.has(r.employee_id);
+                    return (
+                    <React.Fragment key={r.employee_id}>
+                    <tr className="hover:bg-slate-50">
                       <td className="p-2 font-medium whitespace-nowrap">{r.full_name}</td>
                       <td className="p-2 text-slate-500 whitespace-nowrap">{r.department || '—'}</td>
                       <td className="p-2">
@@ -143,9 +169,17 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
                       <td className="p-2">
                         {r.pay_type === 'tips'
                           ? <span className="text-xs text-slate-400">—</span>
-                          : <Input type="number" dir="ltr" className="h-8 w-28"
-                              placeholder={r.pay_type === 'monthly' ? 'משכורת' : 'לשעה'}
-                              value={r.rate} onChange={(e) => patch(r.employee_id, 'rate', e.target.value)} />}
+                          : <div className="flex flex-col gap-0.5">
+                              <Input type="number" dir="ltr" className="h-8 w-28"
+                                placeholder={r.pay_type === 'monthly' ? 'משכורת' : 'לשעה'}
+                                value={r.rate} onChange={(e) => patch(r.employee_id, 'rate', e.target.value)} />
+                              {multiRole && (
+                                <button type="button" onClick={() => toggleExpand(r.employee_id)}
+                                  className="text-[11px] text-amber-700 hover:underline text-right">
+                                  {isOpen ? '▲ הסתר תעריף לפי תפקיד' : `▾ תעריף לפי תפקיד (${r.positions.length})`}
+                                </button>
+                              )}
+                            </div>}
                       </td>
                       <td className="p-2">
                         {r.pay_type === 'tips'
@@ -154,7 +188,29 @@ export default function EmployeePayMatrix({ defaultOpen = true, onSaved }) {
                               value={r.employer_pct} onChange={(e) => patch(r.employee_id, 'employer_pct', e.target.value)} />}
                       </td>
                     </tr>
-                  ))}
+                    {multiRole && isOpen && (
+                      <tr className="bg-amber-50/40">
+                        <td colSpan={5} className="px-3 pb-3 pt-1">
+                          <div className="text-[11px] text-slate-500 mb-1">
+                            תעריף שעתי נפרד לכל תפקיד (השאר ריק כדי להשתמש בתעריף הבסיסי {r.rate ? `₪${r.rate}` : ''}):
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {r.positions.map((pos) => (
+                              <label key={pos} className="flex items-center gap-1 text-xs bg-white rounded-lg border px-2 py-1">
+                                <span className="text-slate-600 whitespace-nowrap">{pos}</span>
+                                <Input type="number" dir="ltr" className="h-7 w-20"
+                                  placeholder={r.rate || 'לשעה'}
+                                  value={(r.role_rates && r.role_rates[pos] != null && r.role_rates[pos] !== '') ? r.role_rates[pos] : ''}
+                                  onChange={(e) => patchRoleRate(r.employee_id, pos, e.target.value)} />
+                              </label>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
