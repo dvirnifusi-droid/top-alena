@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Package, Factory, Plus, Save, Trash2, RefreshCw, Receipt, ClipboardList } from 'lucide-react';
+import { Loader2, Package, Factory, Plus, Save, Trash2, RefreshCw, Receipt, ClipboardList, BarChart3, AlertTriangle, TrendingUp } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
@@ -36,6 +36,10 @@ function CommissaryOrdersInner() {
   // Distribution
   const [dist, setDist] = useState(null);
 
+  // Analytics
+  const [analytics, setAnalytics] = useState(null);
+  const [anDays, setAnDays] = useState(30);
+
   const loadBase = useCallback(async () => {
     setLoading(true);
     try {
@@ -65,8 +69,19 @@ function CommissaryOrdersInner() {
     } catch (e) { setDist(null); setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
   }, [date]);
 
+  const loadAnalytics = useCallback(async () => {
+    try {
+      const to = todayStr();
+      const from = new Date(Date.now() - (anDays - 1) * 86400000);
+      const fromStr = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-${String(from.getDate()).padStart(2, '0')}`;
+      const res = await base44.functions.getCommissaryAnalytics({ date_from: fromStr, date_to: to });
+      setAnalytics(res?.data || res);
+    } catch (e) { setAnalytics(null); setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+  }, [anDays]);
+
   useEffect(() => { loadBase(); }, [loadBase]);
   useEffect(() => { loadOrders(); if (tab === 'distribution') loadDist(); }, [date, tab, loadOrders, loadDist]);
+  useEffect(() => { if (tab === 'analytics') loadAnalytics(); }, [tab, anDays, loadAnalytics]);
 
   const addCustomer = async () => {
     const name = newCustomer.trim();
@@ -145,6 +160,7 @@ function CommissaryOrdersInner() {
         <div className="flex gap-2">
           <Button variant={tab === 'orders' ? 'default' : 'outline'} size="sm" onClick={() => setTab('orders')} className="gap-1"><ClipboardList className="w-4 h-4" /> הזמנות מסעדות</Button>
           <Button variant={tab === 'distribution' ? 'default' : 'outline'} size="sm" onClick={() => setTab('distribution')} className="gap-1"><Factory className="w-4 h-4" /> הפצה — מה להכין + חשבוניות</Button>
+          <Button variant={tab === 'analytics' ? 'default' : 'outline'} size="sm" onClick={() => setTab('analytics')} className="gap-1"><BarChart3 className="w-4 h-4" /> אנליטיקה ורווחיות</Button>
         </div>
 
         {loading ? (
@@ -252,7 +268,7 @@ function CommissaryOrdersInner() {
               </CardContent>
             </Card>
           </>
-        ) : (
+        ) : tab === 'distribution' ? (
           /* Distribution tab */
           <>
             {!dist || !dist.production?.length ? (
@@ -310,6 +326,104 @@ function CommissaryOrdersInner() {
                     </div>
                   </CardContent>
                 </Card>
+              </>
+            )}
+          </>
+        ) : (
+          /* Analytics tab */
+          <>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-600">טווח:</span>
+              {[7, 30, 90].map((d) => (
+                <Button key={d} size="sm" variant={anDays === d ? 'default' : 'outline'} className="h-7 px-2 text-xs" onClick={() => setAnDays(d)}>{d} ימים</Button>
+              ))}
+              {analytics && <span className="text-xs text-slate-400 mr-auto">{analytics.from} — {analytics.to}</span>}
+            </div>
+            {!analytics ? (
+              <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Card className="bg-slate-50"><CardContent className="p-4"><div className="text-xs text-slate-500">מכירה פנימית</div><div className="text-xl font-bold mt-1 text-indigo-700">{cur(analytics.totals.revenue)}</div></CardContent></Card>
+                  <Card className="bg-amber-50 border-amber-200"><CardContent className="p-4"><div className="text-xs text-slate-500">עלות ייצור</div><div className="text-xl font-bold mt-1">{cur(analytics.totals.cost)}</div></CardContent></Card>
+                  <Card className="bg-emerald-50 border-emerald-200"><CardContent className="p-4"><div className="text-xs text-slate-500 flex items-center gap-1"><TrendingUp className="w-3 h-3" /> רווח</div><div className="text-xl font-bold mt-1 text-emerald-700">{cur(analytics.totals.margin)}</div></CardContent></Card>
+                  <Card className="bg-indigo-50 border-indigo-200"><CardContent className="p-4"><div className="text-xs text-slate-500">מרווח ממוצע</div><div className="text-2xl font-bold mt-1 text-indigo-700">{analytics.totals.margin_pct != null ? `${analytics.totals.margin_pct}%` : '—'}</div></CardContent></Card>
+                </div>
+
+                {analytics.totals.item_count === 0 ? (
+                  <Card><CardContent className="p-8 text-center text-slate-500">אין הזמנות בטווח. ההזמנות (ידניות + סניפים) יופיעו כאן.</CardContent></Card>
+                ) : (
+                  <>
+                    {analytics.alerts?.length > 0 && (
+                      <Card className="border-amber-200">
+                        <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2 text-amber-700"><AlertTriangle className="w-4 h-4" /> התראות תמחור ({analytics.alerts.length})</CardTitle></CardHeader>
+                        <CardContent className="p-0"><div className="divide-y">
+                          {analytics.alerts.slice(0, 12).map((a, i) => (
+                            <div key={i} className="flex items-center justify-between p-2.5 text-sm">
+                              <div><span className="font-medium">{a.name}</span> <span className="text-xs text-slate-400">{a.department || ''}</span></div>
+                              <div className="text-left text-xs">
+                                {a.issue === 'loss' && <span className="text-red-600 font-bold">מוכר בהפסד · קוסט {cur(a.cost_per_unit)} מול {cur(a.internal_price)}</span>}
+                                {a.issue === 'thin' && <span className="text-amber-600">מרווח דק · {a.margin_pct}%</span>}
+                                {a.issue === 'no_cost' && <span className="text-slate-500">חסר מחיר חומר גלם</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div></CardContent>
+                      </Card>
+                    )}
+
+                    <Card>
+                      <CardHeader className="pb-2"><CardTitle className="text-base">רווחיות לפי פריט</CardTitle></CardHeader>
+                      <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-slate-50 text-xs text-slate-600"><tr>
+                              <th className="p-2 text-right">פריט</th><th className="p-2 text-right">מחלקה</th>
+                              <th className="p-2 text-center">כמות</th><th className="p-2 text-left">מכירה</th><th className="p-2 text-left">עלות</th><th className="p-2 text-left">רווח</th>
+                            </tr></thead>
+                            <tbody className="divide-y">
+                              {analytics.by_item.slice(0, 25).map((it, i) => (
+                                <tr key={i} className="hover:bg-slate-50">
+                                  <td className="p-2 font-medium">{it.name}</td>
+                                  <td className="p-2 text-xs text-slate-500">{it.department || '—'}</td>
+                                  <td className="p-2 text-center whitespace-nowrap">{it.qty} {it.unit}</td>
+                                  <td className="p-2 text-left whitespace-nowrap">{cur(it.revenue)}</td>
+                                  <td className="p-2 text-left whitespace-nowrap text-slate-500">{cur(it.cost)}</td>
+                                  <td className={`p-2 text-left whitespace-nowrap font-bold ${it.margin >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{cur(it.margin)} {it.margin_pct != null ? <span className="text-xs font-normal">({it.margin_pct}%)</span> : ''}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <Card>
+                        <CardHeader className="pb-2"><CardTitle className="text-base">לפי מחלקה</CardTitle></CardHeader>
+                        <CardContent className="p-0"><div className="divide-y">
+                          {analytics.by_department.map((d, i) => (
+                            <div key={i} className="flex items-center justify-between p-2.5 text-sm">
+                              <span className="font-medium">{d.department}</span>
+                              <div className="text-left"><div className="font-bold text-indigo-700">{cur(d.revenue)}</div><div className="text-xs text-emerald-600">רווח {cur(d.margin)}</div></div>
+                            </div>
+                          ))}
+                        </div></CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Receipt className="w-4 h-4" /> חשבונית תקופתית למסעדה</CardTitle></CardHeader>
+                        <CardContent className="p-0"><div className="divide-y">
+                          {analytics.by_customer.map((c, i) => (
+                            <div key={i} className="flex items-center justify-between p-2.5 text-sm">
+                              <span className="font-medium">{c.customer_name}</span>
+                              <div className="text-left"><div className="font-bold text-indigo-700">{cur(c.revenue)}</div><div className="text-xs text-slate-400">רווח {cur(c.margin)}</div></div>
+                            </div>
+                          ))}
+                        </div></CardContent>
+                      </Card>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </>

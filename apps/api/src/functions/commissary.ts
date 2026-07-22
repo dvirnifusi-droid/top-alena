@@ -634,3 +634,95 @@ registerFn('submitBranchCommissaryOrder', async ({ user, body }) => {
   }
   return { ok: true, order_id: orderId, lines_saved: saved };
 });
+
+// ── P5: analytics ─────────────────────────────────────────────────────────────
+// Profitability of the commissary over a date range (local + chain orders), a
+// per-restaurant summary (a period "internal invoice"), and pricing-health
+// alerts computed from the CURRENT catalog (loss / thin-margin / no-cost items).
+registerFn('getCommissaryAnalytics', async ({ user, body }) => {
+  await requireBackOffice(user, 'getCommissaryAnalytics');
+  await ensureCommissaryTables();
+  const b = (body || {}) as any;
+  const DAY = 86400000;
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date_to)) ? String(b.date_to).slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date_from))
+    ? String(b.date_from).slice(0, 10)
+    : new Date(new Date(to + 'T00:00:00Z').getTime() - 29 * DAY).toISOString().slice(0, 10);
+
+  // Live catalog → cost lookup for chain lines + the pricing-health alerts.
+  const { catalog } = await buildCatalog();
+  const costByKey = new Map<string, any>();
+  for (const c of catalog) costByKey.set(`${c.source}:${c.ref_id}`, c);
+
+  // Local order lines in range.
+  const local: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT l.source, l.ref_id, l.name, l.unit, l.department, l.qty, l.cost_per_unit, l.internal_price,
+            c.name AS customer_name
+     FROM "CommissaryOrderLine" l JOIN "CommissaryOrder" o ON o.id=l.order_id
+     LEFT JOIN "CommissaryCustomer" c ON c.id=o.customer_id
+     WHERE o.order_date >= $1 AND o.order_date <= $2`, from, to,
+  ).catch(() => []);
+
+  // Chain (branch) order lines in range.
+  const rowsAll: any[] = [...local];
+  const chain = await myChain().catch(() => null);
+  if (chain?.chain_id) {
+    await ensureChainCommissaryTables();
+    const cr: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT l.item_key, l.name, l.unit, l.department, l.qty, l.internal_price, o.branch_name
+       FROM public."CommissaryChainOrderLine" l JOIN public."CommissaryChainOrder" o ON o.id=l.order_id
+       WHERE o.chain_id=$1 AND o.order_date >= $2 AND o.order_date <= $3`, chain.chain_id, from, to,
+    ).catch(() => []);
+    for (const l of cr) {
+      const [source, ...rest] = String(l.item_key || '').split(':');
+      const cat = costByKey.get(l.item_key);
+      rowsAll.push({
+        source, ref_id: rest.join(':'), name: l.name, unit: l.unit, department: l.department || null,
+        qty: l.qty, cost_per_unit: cat ? cat.cost_per_unit : 0, internal_price: l.internal_price,
+        customer_name: l.branch_name,
+      });
+    }
+  }
+
+  const byItem = new Map<string, any>();
+  const byDept = new Map<string, any>();
+  const byCustomer = new Map<string, any>();
+  let tCost = 0, tRev = 0;
+  for (const l of rowsAll) {
+    const qty = Number(l.qty) || 0;
+    const cost = qty * (Number(l.cost_per_unit) || 0);
+    const rev = qty * (Number(l.internal_price) || 0);
+    tCost += cost; tRev += rev;
+    const ik = `${l.source}:${l.ref_id}`;
+    if (!byItem.has(ik)) byItem.set(ik, { name: l.name, unit: l.unit, department: l.department || null, qty: 0, cost: 0, revenue: 0 });
+    const it = byItem.get(ik); it.qty += qty; it.cost += cost; it.revenue += rev;
+    const dk = l.department || 'ללא מחלקה';
+    if (!byDept.has(dk)) byDept.set(dk, { department: dk, cost: 0, revenue: 0 });
+    const dt = byDept.get(dk); dt.cost += cost; dt.revenue += rev;
+    const ck = l.customer_name || 'לא ידוע';
+    if (!byCustomer.has(ck)) byCustomer.set(ck, { customer_name: ck, cost: 0, revenue: 0, lines: 0 });
+    const cu = byCustomer.get(ck); cu.cost += cost; cu.revenue += rev; cu.lines += 1;
+  }
+
+  const finItem = (x: any) => ({ ...x, qty: r2(x.qty), cost: r2(x.cost), revenue: r2(x.revenue), margin: r2(x.revenue - x.cost), margin_pct: marginPct(x.cost, x.revenue) });
+  const items = [...byItem.values()].map(finItem);
+  const by_item = [...items].sort((a, b) => b.margin - a.margin);
+  const losers = [...items].filter((i) => i.revenue > 0 && i.margin <= 0).sort((a, b) => a.margin - b.margin);
+  const by_department = [...byDept.values()].map((d) => ({ ...d, cost: r2(d.cost), revenue: r2(d.revenue), margin: r2(d.revenue - d.cost) })).sort((a, b) => b.revenue - a.revenue);
+  const by_customer = [...byCustomer.values()].map((c) => ({ ...c, cost: r2(c.cost), revenue: r2(c.revenue), margin: r2(c.revenue - c.cost) })).sort((a, b) => b.revenue - a.revenue);
+
+  // Pricing-health alerts from the current catalog.
+  const alerts: any[] = [];
+  for (const c of catalog) {
+    if (!c.active) continue;
+    if (!c.has_cost) { alerts.push({ name: c.name, department: c.department, issue: 'no_cost', cost_per_unit: c.cost_per_unit, internal_price: c.internal_price, margin_pct: null }); continue; }
+    if (c.internal_price <= c.cost_per_unit) { alerts.push({ name: c.name, department: c.department, issue: 'loss', cost_per_unit: c.cost_per_unit, internal_price: c.internal_price, margin_pct: c.margin_pct }); continue; }
+    if (c.margin_pct != null && c.margin_pct < 15) { alerts.push({ name: c.name, department: c.department, issue: 'thin', cost_per_unit: c.cost_per_unit, internal_price: c.internal_price, margin_pct: c.margin_pct }); }
+  }
+
+  return {
+    from, to,
+    totals: { cost: r2(tCost), revenue: r2(tRev), margin: r2(tRev - tCost), margin_pct: marginPct(tCost, tRev), item_count: items.length, customer_count: by_customer.length },
+    by_item, losers, by_department, by_customer, alerts,
+  };
+});
