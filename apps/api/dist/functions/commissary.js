@@ -749,11 +749,12 @@ registerFn('getChainCommissary', async ({ user, body }) => {
         it.per_branch.push({ branch: l.branch_name || l.branch_slug, qty });
         const bk = l.branch_slug || 'unknown';
         if (!byBranch.has(bk))
-            byBranch.set(bk, { branch_slug: bk, branch_name: l.branch_name || bk, total_ils: 0, cost_ils: 0, lines: 0 });
+            byBranch.set(bk, { branch_slug: bk, branch_name: l.branch_name || bk, total_ils: 0, cost_ils: 0, lines: 0, _items: new Set() });
         const bx = byBranch.get(bk);
         bx.total_ils += rev;
         bx.cost_ils += cost;
         bx.lines += 1;
+        bx._items.add(l.item_key);
     }
     // Live production status (which preps are already made) → the shared board.
     const prodStatus = await prisma.$queryRawUnsafe(`SELECT item_key, done, done_by, done_at FROM public."CommissaryProduction" WHERE chain_id=$1 AND order_date=$2`, chainId, date).catch(() => []);
@@ -765,7 +766,12 @@ registerFn('getChainCommissary', async ({ user, body }) => {
             done: !!st?.done, done_by: st?.done_by || null, done_at: st?.done_at || null,
         };
     }).sort((a, b) => (a.department || '').localeCompare(b.department || '') || b.total_price - a.total_price);
-    const invoices = [...byBranch.values()].map((bx) => ({ ...bx, total_ils: r2(bx.total_ils), cost_ils: r2(bx.cost_ils), margin_ils: r2(bx.total_ils - bx.cost_ils) })).sort((a, b) => b.total_ils - a.total_ils);
+    const invoices = [...byBranch.values()].map((bx) => {
+        const keys = [...bx._items];
+        const doneItems = keys.filter((k) => statusByKey.get(k)?.done).length;
+        const { _items, ...rest } = bx;
+        return { ...rest, total_ils: r2(bx.total_ils), cost_ils: r2(bx.cost_ils), margin_ils: r2(bx.total_ils - bx.cost_ils), total_items: keys.length, done_items: doneItems, is_ready: keys.length > 0 && doneItems === keys.length };
+    }).sort((a, b) => b.total_ils - a.total_ils);
     const doneCount = production.filter((p) => p.done).length;
     return {
         chain_id: chainId, chain_name: chainRow[0]?.name || '', commissary_slug: chainRow[0]?.commissary_slug || null,
@@ -998,5 +1004,30 @@ registerFn('notifyBranchOrderReady', async ({ user, body }) => {
     catch (e) {
         return { ok: false, error: String(e?.message || e).slice(0, 120) };
     }
+});
+// One branch's order for a date — the delivery note (תעודת משלוח) detail.
+registerFn('getChainBranchOrder', async ({ user, body }) => {
+    const b = (body || {});
+    const chainId = String(b.chain_id || '');
+    const branchSlug = String(b.branch_slug || '');
+    const date = String(b.order_date || '').slice(0, 10);
+    if (!chainId || !branchSlug)
+        throw new Error('chain_id + branch_slug required');
+    await assertChainOwner(user, chainId);
+    await ensureChainCommissaryTables();
+    const chainRow = await prisma.$queryRawUnsafe(`SELECT name FROM public."Chain" WHERE id=$1`, chainId).catch(() => []);
+    const orders = await prisma.$queryRawUnsafe(`SELECT id, branch_name, order_date, "createdAt" FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`, chainId, branchSlug, date).catch(() => []);
+    if (!orders.length)
+        return { found: false, chain_name: chainRow[0]?.name || '', branch_slug: branchSlug, order_date: date };
+    const o = orders[0];
+    const rows = await prisma.$queryRawUnsafe(`SELECT name, unit, department, qty, internal_price FROM public."CommissaryChainOrderLine" WHERE order_id=$1 ORDER BY department NULLS LAST, name`, o.id).catch(() => []);
+    let total = 0;
+    const lines = rows.map((l) => {
+        const lt = (Number(l.qty) || 0) * (Number(l.internal_price) || 0);
+        total += lt;
+        return { name: l.name, unit: l.unit, department: l.department || null, qty: Number(l.qty) || 0, unit_price: r2(l.internal_price), line_total: r2(lt) };
+    });
+    const doc = String(o.id).slice(-6).toUpperCase();
+    return { found: true, order_id: o.id, doc_number: doc, chain_name: chainRow[0]?.name || '', branch_name: o.branch_name || branchSlug, branch_slug: branchSlug, order_date: o.order_date, created_at: o.createdAt, lines, total: r2(total), line_count: lines.length };
 });
 //# sourceMappingURL=commissary.js.map

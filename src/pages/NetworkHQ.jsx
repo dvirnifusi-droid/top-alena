@@ -23,6 +23,21 @@ function ChainCommissary({ chainId }) {
   const [msg, setMsg] = useState(null);
   const [purchasing, setPurchasing] = useState(null);
   const [profitDraft, setProfitDraft] = useState('');
+  const [note, setNote] = useState(null); // delivery-note modal
+  const [noteSent, setNoteSent] = useState(null);
+
+  const openNote = async (branch_slug) => {
+    setNote({ loading: true }); setNoteSent(null);
+    try { const r = await base44.functions.getChainBranchOrder({ chain_id: chainId, branch_slug, order_date: date }); setNote(r?.data || r); }
+    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); setNote(null); }
+  };
+  const sendReadyFromNote = async () => {
+    if (!note?.branch_slug) return;
+    setBusy(true);
+    try { const r = await base44.functions.notifyBranchOrderReady({ chain_id: chainId, branch_slug: note.branch_slug, order_date: date }); const d = r?.data || r; setNoteSent(d?.ok ? { ok: true, text: `נשלח ל-${d.sent_to || 'סניף'}` } : { ok: false, text: d?.message || d?.error || 'לא נשלח — לסניף אין מספר טלפון' }); }
+    catch (e) { setNoteSent({ ok: false, text: e?.message || 'שגיאה' }); }
+    setBusy(false);
+  };
 
   const loadBuy = async () => {
     try {
@@ -139,13 +154,16 @@ function ChainCommissary({ chainId }) {
               )}
               {dist?.invoices?.length > 0 && (
                 <div className="border-t border-slate-800 pt-2">
-                  <div className="text-xs font-bold text-slate-400 mb-1">חשבונית פנימית לכל סניף</div>
+                  <div className="text-xs font-bold text-slate-400 mb-1">הזמנות מהסניפים</div>
                   {dist.invoices.map((inv) => (
                     <div key={inv.branch_slug} className="flex items-center justify-between text-xs py-1 gap-2">
-                      <span className="text-white">{inv.branch_name} <span className="text-slate-500">· {inv.lines} פריטים</span></span>
+                      <span className="text-white flex items-center gap-1.5">
+                        {inv.is_ready ? <span className="text-emerald-400 font-bold">✅ מוכן</span> : <span className="text-amber-400">⏳ {inv.done_items}/{inv.total_items}</span>}
+                        {inv.branch_name} <span className="text-slate-500">· {inv.lines} פריטים</span>
+                      </span>
                       <span className="flex items-center gap-2">
                         <span className="text-indigo-300 font-bold whitespace-nowrap">{ils2(inv.total_ils)} <span className="text-emerald-400/70 font-normal">(רווח {ils2(inv.margin_ils)})</span></span>
-                        <button onClick={() => notifyReady(inv.branch_slug, inv.branch_name)} disabled={busy} title="שלח לסניף: מוכן לאיסוף" className="bg-emerald-700/60 hover:bg-emerald-600 text-emerald-100 rounded px-2 py-0.5 text-[11px] whitespace-nowrap">✅ מוכן לאיסוף</button>
+                        <button onClick={() => openNote(inv.branch_slug)} disabled={busy} title="תעודת משלוח + מוכן לאיסוף" className="bg-indigo-700/60 hover:bg-indigo-600 text-indigo-100 rounded px-2 py-0.5 text-[11px] whitespace-nowrap">📄 תעודת משלוח</button>
                       </span>
                     </div>
                   ))}
@@ -201,6 +219,35 @@ function ChainCommissary({ chainId }) {
               <button onClick={submitOrder} disabled={busy || !orderBranch} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg px-3 py-1.5 text-sm disabled:opacity-50"><Send className="w-4 h-4 inline ml-1" /> שמור הזמנה לסניף</button>
             </>
           )}
+        </div>
+      )}
+      {note && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setNote(null)}>
+          <div className="bg-white text-slate-900 rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            {note.loading ? <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div> : !note.found ? (
+              <div className="text-center py-6"><p className="text-slate-500">אין הזמנה לסניף זה בתאריך.</p><button onClick={() => setNote(null)} className="mt-3 text-sm text-slate-500 underline">סגור</button></div>
+            ) : (
+              <>
+                <div className="flex items-start justify-between border-b border-slate-200 pb-3 mb-3">
+                  <div><div className="text-lg font-extrabold">🏭 בית הכנות · {note.chain_name}</div><div className="text-xs text-slate-500">תעודת משלוח #{note.doc_number}</div></div>
+                  <button onClick={() => setNote(null)} className="text-slate-400 hover:text-slate-700 text-xl leading-none">×</button>
+                </div>
+                <div className="flex justify-between text-sm mb-3"><div><b>לכבוד:</b> {note.branch_name}</div><div><b>תאריך:</b> {note.order_date}</div></div>
+                <table className="w-full text-sm mb-1">
+                  <thead><tr className="border-b border-slate-200 text-slate-500 text-right text-xs"><th className="py-1">פריט</th><th className="py-1 text-center">כמות</th><th className="py-1 text-left">מחיר יח'</th><th className="py-1 text-left">סה"כ</th></tr></thead>
+                  <tbody>{note.lines.map((l, i) => (
+                    <tr key={i} className="border-b border-slate-100"><td className="py-1.5">{l.name}</td><td className="py-1.5 text-center font-bold">{l.qty} {l.unit}</td><td className="py-1.5 text-left text-slate-500">{ils2(l.unit_price)}</td><td className="py-1.5 text-left font-semibold">{ils2(l.line_total)}</td></tr>
+                  ))}</tbody>
+                </table>
+                <div className="flex justify-between items-center border-t-2 border-slate-800 pt-2 mt-1 font-bold"><span>סה"כ</span><span className="text-lg text-indigo-700">{ils2(note.total)}</span></div>
+                {noteSent && <div className={`mt-3 text-sm rounded px-2 py-1.5 ${noteSent.ok ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{noteSent.ok ? '✅ ' : '⚠ '}{noteSent.text}</div>}
+                <div className="flex gap-2 mt-4">
+                  <button onClick={() => window.print()} className="flex-1 bg-slate-200 hover:bg-slate-300 rounded-lg py-2 text-sm font-semibold">🖨 הדפס</button>
+                  <button onClick={sendReadyFromNote} disabled={busy} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-bold disabled:opacity-50">✅ שלח "מוכן לאיסוף"</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>
