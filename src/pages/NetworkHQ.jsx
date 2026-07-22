@@ -3,9 +3,132 @@
 // Platform-owner only (rendered inside PlatformLayout). D.1 of Apollo-for-chains.
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Loader2, Plus, Trash2, Network, RefreshCw, Send, Pencil } from 'lucide-react';
+import { Loader2, Plus, Trash2, Network, RefreshCw, Send, Pencil, Factory, ChevronDown, Save } from 'lucide-react';
 
 const ils = (n) => `₪${(Number(n) || 0).toLocaleString('he-IL')}`;
+const ils2 = (n) => `₪${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('he-IL', { maximumFractionDigits: 2 })}`;
+
+// The commissary (בית הכנות) — a NETWORK-level operation inside the chain HQ.
+// The owner manages the catalog + sees every branch's order + production + cost.
+function ChainCommissary({ chainId }) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [date, setDate] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
+  const [tab, setTab] = useState('production'); // production | catalog | order
+  const [markups, setMarkups] = useState({}); // item_key -> markup draft
+  const [orderBranch, setOrderBranch] = useState('');
+  const [qtys, setQtys] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await base44.functions.getChainCommissary({ chain_id: chainId, order_date: date });
+      const d = r?.data || r; setData(d);
+      const m = {}; (d?.catalog || []).forEach((c) => { m[c.item_key] = c.markup_pct ?? ''; }); setMarkups(m);
+    } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    setLoading(false);
+  };
+  useEffect(() => { if (open) load(); /* eslint-disable-next-line */ }, [open, date]);
+
+  const saveMarkup = async (item_key) => {
+    setBusy(true);
+    try { await base44.functions.setChainCommissaryItemPricing({ chain_id: chainId, item_key, markup_pct: markups[item_key] === '' ? null : markups[item_key] }); await load(); }
+    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    setBusy(false);
+  };
+  const submitOrder = async () => {
+    if (!orderBranch) { setMsg({ ok: false, text: 'בחר סניף' }); return; }
+    const lines = (data?.catalog || []).filter((c) => Number(qtys[c.item_key]) > 0).map((c) => ({ item_key: c.item_key, qty: Number(qtys[c.item_key]) }));
+    if (!lines.length) { setMsg({ ok: false, text: 'הזן כמות לפחות לפריט אחד' }); return; }
+    setBusy(true); setMsg(null);
+    try { await base44.functions.saveChainCommissaryOrder({ chain_id: chainId, branch_slug: orderBranch, order_date: date, lines }); setMsg({ ok: true, text: '✅ ההזמנה נשמרה' }); setQtys({}); await load(); }
+    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    setBusy(false);
+  };
+
+  const dist = data?.distribution;
+  const cat = data?.catalog || [];
+  return (
+    <div className="mt-4 rounded-xl border border-indigo-800/50 bg-indigo-950/20">
+      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center justify-between p-3 text-right">
+        <span className="flex items-center gap-2 font-bold text-indigo-300"><Factory className="w-4 h-4" /> בית הכנות (רשת)</span>
+        <ChevronDown className={`w-4 h-4 text-indigo-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="p-3 pt-0 space-y-3">
+          {msg && <div className={`text-xs rounded px-2 py-1 ${msg.ok ? 'bg-emerald-900/40 text-emerald-300' : 'bg-red-900/40 text-red-300'}`}>{msg.text}</div>}
+          <div className="flex items-center gap-2 flex-wrap">
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white" dir="ltr" />
+            {[['production', '🏭 מה להכין + חשבוניות'], ['catalog', '📋 קטלוג ותמחור'], ['order', '➕ הזמנה לסניף']].map(([v, l]) => (
+              <button key={v} onClick={() => setTab(v)} className={`text-xs rounded px-2 py-1 ${tab === v ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>{l}</button>
+            ))}
+            <button onClick={load} disabled={loading} className="text-slate-400 hover:text-white mr-auto"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
+          </div>
+
+          {loading ? <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-slate-500" /></div> : !cat.length ? (
+            <p className="text-xs text-slate-500 text-center py-3">אין קטלוג. פרסם קטלוג מבית ההכנות (מסך "🏭 בית הכנות" → "פרסם לרשת").</p>
+          ) : tab === 'production' ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+                <div className="bg-slate-800 rounded p-2"><div className="text-[11px] text-slate-400">פריטים להכנה</div><div className="text-lg font-bold text-white">{dist?.totals?.item_count || 0}</div></div>
+                <div className="bg-slate-800 rounded p-2"><div className="text-[11px] text-slate-400">עלות ייצור</div><div className="text-lg font-bold text-amber-300">{ils2(dist?.totals?.cost)}</div></div>
+                <div className="bg-slate-800 rounded p-2"><div className="text-[11px] text-slate-400">מכירה פנימית</div><div className="text-lg font-bold text-indigo-300">{ils2(dist?.totals?.revenue)}</div></div>
+                <div className="bg-slate-800 rounded p-2"><div className="text-[11px] text-slate-400">רווח</div><div className="text-lg font-bold text-emerald-300">{ils2(dist?.totals?.margin)}</div></div>
+              </div>
+              {!dist?.production?.length ? <p className="text-xs text-slate-500 text-center py-3">אין הזמנות בתאריך זה. הזן ב"➕ הזמנה לסניף".</p> : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-slate-300"><thead><tr className="text-slate-500 text-right"><th className="p-1.5">פריט</th><th className="p-1.5">מחלקה</th><th className="p-1.5 text-center">כמות</th><th className="p-1.5 text-right">פירוט סניפים</th><th className="p-1.5 text-left">מכירה</th></tr></thead>
+                    <tbody>{dist.production.map((p) => (
+                      <tr key={p.item_key} className="border-t border-slate-800 align-top"><td className="p-1.5 font-medium text-white">{p.name}</td><td className="p-1.5 text-slate-400">{p.department || '—'}</td><td className="p-1.5 text-center font-bold text-indigo-300 whitespace-nowrap">{p.total_qty} {p.unit}</td><td className="p-1.5 text-slate-400">{p.per_branch.map((b) => `${b.branch}: ${b.qty}`).join(' · ')}</td><td className="p-1.5 text-left whitespace-nowrap">{ils2(p.total_price)}</td></tr>
+                    ))}</tbody></table>
+                </div>
+              )}
+              {dist?.invoices?.length > 0 && (
+                <div className="border-t border-slate-800 pt-2">
+                  <div className="text-xs font-bold text-slate-400 mb-1">חשבונית פנימית לכל סניף</div>
+                  {dist.invoices.map((inv) => (
+                    <div key={inv.branch_slug} className="flex items-center justify-between text-xs py-1"><span className="text-white">{inv.branch_name} <span className="text-slate-500">· {inv.lines} פריטים</span></span><span className="text-indigo-300 font-bold">{ils2(inv.total_ils)} <span className="text-emerald-400/70 font-normal">(רווח {ils2(inv.margin_ils)})</span></span></div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : tab === 'catalog' ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-slate-300"><thead><tr className="text-slate-500 text-right"><th className="p-1.5">פריט</th><th className="p-1.5">מחלקה</th><th className="p-1.5 text-left">קוסט</th><th className="p-1.5 text-center">רווח %</th><th className="p-1.5 text-left">מחיר פנימי</th><th className="p-1.5 text-left">מרווח</th><th></th></tr></thead>
+                <tbody>{cat.map((c) => (
+                  <tr key={c.item_key} className="border-t border-slate-800"><td className="p-1.5 font-medium text-white">{c.name}<span className="text-slate-500"> /{c.unit}</span></td><td className="p-1.5 text-slate-400">{c.department || '—'}</td><td className="p-1.5 text-left text-slate-400 whitespace-nowrap">{ils2(c.cost_per_unit)}</td>
+                    <td className="p-1.5"><input type="number" dir="ltr" value={markups[c.item_key] ?? ''} onChange={(e) => setMarkups((s) => ({ ...s, [c.item_key]: e.target.value }))} className="bg-slate-800 border border-slate-700 rounded w-14 px-1 py-0.5 text-center text-white" /></td>
+                    <td className="p-1.5 text-left font-bold text-indigo-300 whitespace-nowrap">{ils2(c.internal_price)}</td><td className={`p-1.5 text-left whitespace-nowrap ${c.margin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{ils2(c.margin)}</td>
+                    <td className="p-1.5"><button onClick={() => saveMarkup(c.item_key)} disabled={busy} className="text-indigo-400 hover:text-indigo-200"><Save className="w-3.5 h-3.5" /></button></td></tr>
+                ))}</tbody></table>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400">הזמנה עבור:</span>
+                <select value={orderBranch} onChange={(e) => setOrderBranch(e.target.value)} className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white">
+                  <option value="">בחר סניף…</option>
+                  {(data?.members || []).map((m) => <option key={m.slug} value={m.slug}>{m.name}</option>)}
+                </select>
+              </div>
+              <div className="overflow-x-auto max-h-64 overflow-y-auto border border-slate-800 rounded">
+                <table className="w-full text-xs text-slate-300"><thead className="sticky top-0 bg-slate-900"><tr className="text-slate-500 text-right"><th className="p-1.5">פריט</th><th className="p-1.5">מחלקה</th><th className="p-1.5 text-left">מחיר</th><th className="p-1.5 text-center">כמות</th></tr></thead>
+                  <tbody>{cat.filter((c) => c.active).map((c) => (
+                    <tr key={c.item_key} className="border-t border-slate-800"><td className="p-1.5 text-white">{c.name}</td><td className="p-1.5 text-slate-400">{c.department || '—'}</td><td className="p-1.5 text-left whitespace-nowrap">{ils2(c.internal_price)}</td>
+                      <td className="p-1.5"><input type="number" dir="ltr" placeholder="0" value={qtys[c.item_key] ?? ''} onChange={(e) => setQtys((s) => ({ ...s, [c.item_key]: e.target.value }))} className="bg-slate-800 border border-slate-700 rounded w-14 px-1 py-0.5 text-center text-white" /></td></tr>
+                  ))}</tbody></table>
+              </div>
+              <button onClick={submitOrder} disabled={busy || !orderBranch} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg px-3 py-1.5 text-sm disabled:opacity-50"><Send className="w-4 h-4 inline ml-1" /> שמור הזמנה לסניף</button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const TASK_ROLES = [
   ['', 'כל התפקידים'], ['owner', 'בעלים'], ['manager', 'מנהל'], ['chef', 'שף / מטבח'],
@@ -245,6 +368,7 @@ function ChainCard({ chain, available, onChanged, isSuper }) {
         </div>
       )}
 
+      <ChainCommissary chainId={chain.id} />
       <NetworkTasks chainId={chain.id} />
     </div>
   );

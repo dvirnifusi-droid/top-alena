@@ -495,6 +495,10 @@ async function ensureChainCommissaryTables(): Promise<void> {
     "name" TEXT, "unit" TEXT, "department" TEXT, "internal_price" DOUBLE PRECISION,
     "active" BOOLEAN NOT NULL DEFAULT true, "updatedAt" TIMESTAMPTZ DEFAULT NOW())`).catch(() => {});
   await sql(`CREATE UNIQUE INDEX IF NOT EXISTS "CommissaryCatalogItem_key" ON public."CommissaryCatalogItem"("chain_id","item_key")`).catch(() => {});
+  // Network owner sees cost + margin (branches never select these columns).
+  await sql(`ALTER TABLE public."CommissaryCatalogItem" ADD COLUMN IF NOT EXISTS "cost_per_unit" DOUBLE PRECISION`).catch(() => {});
+  await sql(`ALTER TABLE public."CommissaryCatalogItem" ADD COLUMN IF NOT EXISTS "markup_pct" DOUBLE PRECISION`).catch(() => {});
+  await sql(`ALTER TABLE public."CommissaryCatalogItem" ADD COLUMN IF NOT EXISTS "source" TEXT`).catch(() => {});
   await sql(`CREATE TABLE IF NOT EXISTS public."CommissaryChainOrder" (
     "id" TEXT PRIMARY KEY, "chain_id" TEXT NOT NULL, "branch_slug" TEXT NOT NULL, "branch_name" TEXT,
     "order_date" TEXT NOT NULL, "notes" TEXT, "status" TEXT DEFAULT 'submitted',
@@ -540,10 +544,10 @@ registerFn('publishCommissaryCatalog', async ({ user }) => {
     const key = `${c.source}:${c.ref_id}`;
     keys.push(key);
     await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO public."CommissaryCatalogItem"(id, chain_id, item_key, name, unit, department, internal_price, active, "updatedAt")
-       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, true, NOW())
-       ON CONFLICT (chain_id, item_key) DO UPDATE SET name=EXCLUDED.name, unit=EXCLUDED.unit, department=EXCLUDED.department, internal_price=EXCLUDED.internal_price, active=true, "updatedAt"=NOW()`,
-      chain.chain_id, key, c.name, c.unit, c.department, c.internal_price,
+      `INSERT INTO public."CommissaryCatalogItem"(id, chain_id, item_key, source, name, unit, department, cost_per_unit, markup_pct, internal_price, active, "updatedAt")
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, $9, true, NOW())
+       ON CONFLICT (chain_id, item_key) DO UPDATE SET source=EXCLUDED.source, name=EXCLUDED.name, unit=EXCLUDED.unit, department=EXCLUDED.department, cost_per_unit=EXCLUDED.cost_per_unit, markup_pct=EXCLUDED.markup_pct, internal_price=EXCLUDED.internal_price, active=true, "updatedAt"=NOW()`,
+      chain.chain_id, key, c.source, c.name, c.unit, c.department, c.cost_per_unit, c.markup_pct, c.internal_price,
     ).catch(() => {});
   }
   // Deactivate anything no longer in the active catalog.
@@ -725,4 +729,140 @@ registerFn('getCommissaryAnalytics', async ({ user, body }) => {
     totals: { cost: r2(tCost), revenue: r2(tRev), margin: r2(tRev - tCost), margin_pct: marginPct(tCost, tRev), item_count: items.length, customer_count: by_customer.length },
     by_item, losers, by_department, by_customer, alerts,
   };
+});
+
+// ── P6: NETWORK-LEVEL commissary (lives INSIDE the chain HQ, not a branch) ─────
+// The commissary belongs to the NETWORK. The network owner manages the catalog,
+// sees every branch's orders, and runs production/cost from the Machane-Yehuda
+// dashboard. Branches (incl. the flagship) only ORDER via BranchCommissary.
+// All data is public + chain-scoped; gated to the chain owner / platform owner.
+
+async function assertChainOwner(user: any, chainId: string): Promise<void> {
+  const email = String(user?.email || '').toLowerCase();
+  if (!email) throw new Error('unauthorized');
+  const plat = String(process.env.PLATFORM_OWNER_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (plat.includes(email)) return;
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT owner_email FROM public."Chain" WHERE id=$1`, chainId).catch(() => []);
+  if (rows[0]?.owner_email && String(rows[0].owner_email).toLowerCase() === email) return;
+  throw new Error('forbidden');
+}
+
+// The whole commissary view for a chain: catalog (with cost + margin), the
+// branches, and the distribution for a date (what to make + per-branch invoice).
+registerFn('getChainCommissary', async ({ user, body }) => {
+  const chainId = String((body as any)?.chain_id || '');
+  if (!chainId) throw new Error('chain_id required');
+  await assertChainOwner(user, chainId);
+  await ensureChainCommissaryTables();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String((body as any)?.order_date)) ? String((body as any).order_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
+
+  const chainRow: any[] = await (prisma as any).$queryRawUnsafe(`SELECT name, commissary_slug FROM public."Chain" WHERE id=$1`, chainId).catch(() => []);
+  const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name FROM public."ChainMember" WHERE chain_id=$1 ORDER BY name`, chainId).catch(() => []);
+  const catRows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT item_key, source, name, unit, department, cost_per_unit, markup_pct, internal_price, active
+     FROM public."CommissaryCatalogItem" WHERE chain_id=$1 ORDER BY department NULLS LAST, name`, chainId,
+  ).catch(() => []);
+  const catalog = catRows.map((c) => ({
+    ...c, cost_per_unit: r2(c.cost_per_unit), internal_price: r2(c.internal_price),
+    margin: r2((Number(c.internal_price) || 0) - (Number(c.cost_per_unit) || 0)),
+    margin_pct: marginPct(Number(c.cost_per_unit) || 0, Number(c.internal_price) || 0),
+  }));
+  const costByKey = new Map(catalog.map((c) => [c.item_key, c]));
+
+  // Distribution for the date, from public chain orders.
+  const lineRows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT l.item_key, l.name, l.unit, l.department, l.qty, l.internal_price, o.branch_slug, o.branch_name
+     FROM public."CommissaryChainOrderLine" l JOIN public."CommissaryChainOrder" o ON o.id=l.order_id
+     WHERE o.chain_id=$1 AND o.order_date=$2`, chainId, date,
+  ).catch(() => []);
+  const items = new Map<string, any>();
+  const byBranch = new Map<string, any>();
+  let gCost = 0, gRev = 0;
+  for (const l of lineRows) {
+    const qty = Number(l.qty) || 0;
+    const cat: any = costByKey.get(l.item_key);
+    const cost = qty * (cat ? Number(cat.cost_per_unit) || 0 : 0);
+    const rev = qty * (Number(l.internal_price) || 0);
+    gCost += cost; gRev += rev;
+    if (!items.has(l.item_key)) items.set(l.item_key, { item_key: l.item_key, name: l.name, unit: l.unit, department: l.department || null, total_qty: 0, total_cost: 0, total_price: 0, per_branch: [] });
+    const it = items.get(l.item_key); it.total_qty += qty; it.total_cost += cost; it.total_price += rev;
+    it.per_branch.push({ branch: l.branch_name || l.branch_slug, qty });
+    const bk = l.branch_slug || 'unknown';
+    if (!byBranch.has(bk)) byBranch.set(bk, { branch_slug: bk, branch_name: l.branch_name || bk, total_ils: 0, cost_ils: 0, lines: 0 });
+    const bx = byBranch.get(bk); bx.total_ils += rev; bx.cost_ils += cost; bx.lines += 1;
+  }
+  const production = [...items.values()].map((it) => ({ ...it, total_qty: r2(it.total_qty), total_cost: r2(it.total_cost), total_price: r2(it.total_price), margin: r2(it.total_price - it.total_cost) }))
+    .sort((a, b) => (a.department || '').localeCompare(b.department || '') || b.total_price - a.total_price);
+  const invoices = [...byBranch.values()].map((bx) => ({ ...bx, total_ils: r2(bx.total_ils), cost_ils: r2(bx.cost_ils), margin_ils: r2(bx.total_ils - bx.cost_ils) })).sort((a, b) => b.total_ils - a.total_ils);
+
+  return {
+    chain_id: chainId, chain_name: chainRow[0]?.name || '', commissary_slug: chainRow[0]?.commissary_slug || null,
+    order_date: date, members, catalog,
+    distribution: { production, invoices, totals: { cost: r2(gCost), revenue: r2(gRev), margin: r2(gRev - gCost), item_count: production.length, branch_count: invoices.length } },
+  };
+});
+
+// Network owner adjusts a catalog item's pricing / department / active.
+registerFn('setChainCommissaryItemPricing', async ({ user, body }) => {
+  const b = (body || {}) as any;
+  const chainId = String(b.chain_id || '');
+  const itemKey = String(b.item_key || '');
+  if (!chainId || !itemKey) throw new Error('chain_id + item_key required');
+  await assertChainOwner(user, chainId);
+  await ensureChainCommissaryTables();
+  const num = (v: any) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v));
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT cost_per_unit FROM public."CommissaryCatalogItem" WHERE chain_id=$1 AND item_key=$2`, chainId, itemKey).catch(() => []);
+  if (!rows.length) throw new Error('item_not_found');
+  const cost = Number(rows[0].cost_per_unit) || 0;
+  const override = num(b.price_override);
+  const markup = num(b.markup_pct);
+  const price = override != null && override > 0 ? override : r2(cost * (1 + (markup != null ? markup : 30) / 100));
+  const active = b.active === undefined ? true : !!b.active;
+  const dept = b.department !== undefined ? (b.department ? String(b.department).slice(0, 80) : null) : undefined;
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE public."CommissaryCatalogItem" SET markup_pct=$1, internal_price=$2, active=$3${dept !== undefined ? ', department=$5' : ''}, "updatedAt"=NOW() WHERE chain_id=$4 AND item_key=$6`,
+    ...(dept !== undefined ? [markup, price, active, chainId, dept, itemKey] : [markup, price, active, chainId, itemKey]),
+  ).catch(() => {});
+  return { ok: true, internal_price: price };
+});
+
+// Network owner creates/replaces a branch's order (on the branch's behalf).
+registerFn('saveChainCommissaryOrder', async ({ user, body }) => {
+  const b = (body || {}) as any;
+  const chainId = String(b.chain_id || '');
+  const branchSlug = String(b.branch_slug || '');
+  const date = String(b.order_date || '').slice(0, 10);
+  if (!chainId || !branchSlug) throw new Error('chain_id + branch_slug required');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('order_date (YYYY-MM-DD) required');
+  await assertChainOwner(user, chainId);
+  await ensureChainCommissaryTables();
+  const mem: any[] = await (prisma as any).$queryRawUnsafe(`SELECT name FROM public."ChainMember" WHERE chain_id=$1 AND slug=$2`, chainId, branchSlug).catch(() => []);
+  const branchName = mem[0]?.name || branchSlug;
+  const cat: any[] = await (prisma as any).$queryRawUnsafe(`SELECT item_key, name, unit, department, internal_price FROM public."CommissaryCatalogItem" WHERE chain_id=$1 AND active=true`, chainId).catch(() => []);
+  const byKey = new Map(cat.map((c) => [c.item_key, c]));
+  const linesIn: any[] = Array.isArray(b.lines) ? b.lines : [];
+
+  const existing: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`, chainId, branchSlug, date).catch(() => []);
+  let orderId: string;
+  if (existing.length) {
+    orderId = existing[0].id;
+    await (prisma as any).$executeRawUnsafe(`DELETE FROM public."CommissaryChainOrderLine" WHERE order_id=$1`, orderId).catch(() => {});
+    await (prisma as any).$executeRawUnsafe(`UPDATE public."CommissaryChainOrder" SET branch_name=$1, "updatedAt"=NOW() WHERE id=$2`, branchName, orderId).catch(() => {});
+  } else {
+    const ins: any[] = await (prisma as any).$queryRawUnsafe(
+      `INSERT INTO public."CommissaryChainOrder"(id, chain_id, branch_slug, branch_name, order_date) VALUES (gen_random_uuid()::text, $1, $2, $3, $4) RETURNING id`,
+      chainId, branchSlug, branchName, date);
+    orderId = ins[0].id;
+  }
+  let saved = 0;
+  for (const ln of linesIn) {
+    const key = String(ln.item_key || ''); const qty = Number(ln.qty);
+    if (!key || !Number.isFinite(qty) || qty <= 0) continue;
+    const c: any = byKey.get(key); if (!c) continue;
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO public."CommissaryChainOrderLine"(id, order_id, item_key, name, unit, department, qty, internal_price) VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7)`,
+      orderId, key, c.name, c.unit, c.department, qty, c.internal_price).catch(() => {});
+    saved++;
+  }
+  return { ok: true, order_id: orderId, lines_saved: saved };
 });
