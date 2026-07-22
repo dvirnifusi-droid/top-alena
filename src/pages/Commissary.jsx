@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, ChefHat, RefreshCw, Save, Plus, Factory, TrendingUp, Percent } from 'lucide-react';
+import { Loader2, ChefHat, RefreshCw, Save, Plus, Factory, TrendingUp, Percent, Share2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
@@ -24,6 +24,20 @@ function CommissaryInner() {
   const [addIng, setAddIng] = useState('');
   // Local edits keyed by ref_id → { markup_pct, price_override, active }
   const [edits, setEdits] = useState({});
+  const [publishing, setPublishing] = useState(false);
+
+  const publishToChain = async () => {
+    setPublishing(true); setMsg(null);
+    try {
+      const res = await base44.functions.publishCommissaryCatalog();
+      const r = res?.data || res;
+      setMsg({ ok: true, text: `📤 פורסמו ${r?.published ?? 0} פריטים לרשת "${r?.chain_name || ''}". המסעדות יכולות להזמין.` });
+    } catch (e) {
+      const m = e?.message || '';
+      setMsg({ ok: false, text: m.includes('not_in_chain') ? 'העסק הזה לא משויך לרשת — הגדר רשת ב"מטה הרשת".' : m.includes('not_commissary') ? 'עסק אחר כבר מוגדר כבית ההכנות של הרשת.' : (m || 'שגיאה בפרסום') });
+    }
+    setPublishing(false);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -136,9 +150,15 @@ function CommissaryInner() {
         subtitle="קטלוג ההכנות — כמה עולה לנו להכין, וכמה אנחנו מתמחרים למסעדות הרשת"
         icon={Factory}
         action={
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={publishToChain} disabled={publishing || loading} className="bg-emerald-600 hover:bg-emerald-700 gap-1"
+              title="פרסם את הקטלוג למסעדות הרשת כדי שיוכלו להזמין מהאפליקציה שלהן">
+              {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />} פרסם לרשת
+            </Button>
+            <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
         }
       />
       <div className="space-y-4" dir="rtl">

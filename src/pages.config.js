@@ -167,6 +167,7 @@ import ColorPreview from './pages/ColorPreview';
 import Recipes from './pages/Recipes';
 import Commissary from './pages/Commissary';
 import CommissaryOrders from './pages/CommissaryOrders';
+import BranchCommissary from './pages/BranchCommissary';
 import CashFlow from './pages/CashFlow';
 import MenuManagement from './pages/MenuManagement';
 import PrepSheet from './pages/PrepSheet';
@@ -308,6 +309,7 @@ export const PAGES = {
     "Recipes": Recipes,
     "Commissary": Commissary,
     "CommissaryOrders": CommissaryOrders,
+    "BranchCommissary": BranchCommissary,
     "CashFlow": CashFlow,
     "MenuManagement": MenuManagement,
     "PrepSheet": PrepSheet,

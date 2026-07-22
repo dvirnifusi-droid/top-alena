@@ -414,8 +414,9 @@ export default function Layout({ children, currentPageName }) {
     () => {
       const base = isPlatformOwner ? adminLinks : adminLinks.filter(l => !String(l.url || '').includes('PlatformAdmin'));
       const extra = [];
-      // A branch inside a chain gets its network-task inbox.
+      // A branch inside a chain gets its network-task inbox + commissary ordering.
       if (branchOfChain) extra.push({ title: "🔗 משימות רשת", url: createPageUrl("BranchNetworkTasks"), icon: ClipboardCheck, color: "espresso" });
+      if (branchOfChain) extra.push({ title: "🏭 הזמנה לבית הכנות", url: createPageUrl("BranchCommissary"), icon: Package, color: "espresso" });
       // A chain operator (owns a chain, not the platform owner) gets their own HQ.
       if (!isPlatformOwner && chainsOwned > 0) extra.push({ title: "🏢 מטה הרשת שלי", url: createPageUrl("NetworkHQ"), icon: Shield, color: "espresso" });
       return extra.length ? [...base, ...extra] : base;

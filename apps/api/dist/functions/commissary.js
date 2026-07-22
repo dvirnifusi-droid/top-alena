@@ -8,6 +8,7 @@
 import { registerFn } from './index.js';
 import { prisma } from '../db.js';
 import { requireBackOffice } from '../lib/pagePermissions.js';
+import { currentTenantSlug } from '../lib/whatsappRouter.js';
 import { prepCostPerUnit, rawCostPerUnit, internalPrice, marginPct, effectiveMarkup } from '../lib/commissary.js';
 // The commissary is divided into departments (מטבח מרכזי / מחסן משקאות / מרלו"ג /
 // קונדיטוריה מרכזית). Each catalog item belongs to one. Kept as data (config)
@@ -361,12 +362,40 @@ registerFn('getCommissaryDistribution', async ({ user, body }) => {
     const date = String(body?.order_date || '').slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
         throw new Error('order_date (YYYY-MM-DD) required');
-    const rows = await prisma.$queryRawUnsafe(`SELECT l.source, l.ref_id, l.name, l.unit, l.department, l.qty, l.cost_per_unit, l.internal_price,
+    // Local (manually-entered) orders.
+    const localRows = await prisma.$queryRawUnsafe(`SELECT l.source, l.ref_id, l.name, l.unit, l.department, l.qty, l.cost_per_unit, l.internal_price,
             o.customer_id, c.name AS customer_name
      FROM "CommissaryOrderLine" l
      JOIN "CommissaryOrder" o ON o.id = l.order_id
      LEFT JOIN "CommissaryCustomer" c ON c.id = o.customer_id
      WHERE o.order_date = $1`, date).catch(() => []);
+    // Chain (branch-app) orders from the shared public tables — merged in so the
+    // commissary sees branch orders and manual orders together. Branch lines carry
+    // no cost (branches never see it) → we look cost up from our live catalog.
+    const chainRows = [];
+    const chain = await myChain().catch(() => null);
+    if (chain?.chain_id) {
+        await ensureChainCommissaryTables();
+        const costByKey = new Map();
+        const { catalog } = await buildCatalog();
+        for (const c of catalog)
+            costByKey.set(`${c.source}:${c.ref_id}`, c);
+        const cr = await prisma.$queryRawUnsafe(`SELECT l.item_key, l.name, l.unit, l.department, l.qty, l.internal_price, o.branch_slug, o.branch_name
+       FROM public."CommissaryChainOrderLine" l
+       JOIN public."CommissaryChainOrder" o ON o.id = l.order_id
+       WHERE o.chain_id = $1 AND o.order_date = $2`, chain.chain_id, date).catch(() => []);
+        for (const l of cr) {
+            const [source, ...rest] = String(l.item_key || '').split(':');
+            const ref_id = rest.join(':');
+            const cat = costByKey.get(l.item_key);
+            chainRows.push({
+                source, ref_id, name: l.name, unit: l.unit, department: l.department || null,
+                qty: l.qty, cost_per_unit: cat ? cat.cost_per_unit : 0, internal_price: l.internal_price,
+                customer_id: `branch:${l.branch_slug}`, customer_name: l.branch_name || l.branch_slug,
+            });
+        }
+    }
+    const rows = [...localRows, ...chainRows];
     // (a) production per item, keyed by source:ref.
     const items = new Map();
     // (b) per-restaurant invoice.
@@ -409,5 +438,139 @@ registerFn('getCommissaryDistribution', async ({ user, body }) => {
         order_date: date, production, invoices,
         totals: { cost_ils: r2(grandCost), price_ils: r2(grandPrice), margin_ils: r2(grandPrice - grandCost), item_count: production.length, customer_count: invoices.length },
     };
+});
+// ── P4: chain cross-tenant ordering ───────────────────────────────────────────
+// The commissary (chain-HQ) PUBLISHES its catalog to the shared `public` schema;
+// member restaurants (branches) read it and place orders from THEIR own app,
+// scoped to their slug — exactly the NetworkTaskBranch pattern. No branch can
+// read another tenant's business schema.
+let _chainCommReady = false;
+async function ensureChainCommissaryTables() {
+    if (_chainCommReady)
+        return;
+    const sql = prisma.$executeRawUnsafe.bind(prisma);
+    await sql(`ALTER TABLE public."Chain" ADD COLUMN IF NOT EXISTS "commissary_slug" TEXT`).catch(() => { });
+    await sql(`CREATE TABLE IF NOT EXISTS public."CommissaryCatalogItem" (
+    "id" TEXT PRIMARY KEY, "chain_id" TEXT NOT NULL, "item_key" TEXT NOT NULL,
+    "name" TEXT, "unit" TEXT, "department" TEXT, "internal_price" DOUBLE PRECISION,
+    "active" BOOLEAN NOT NULL DEFAULT true, "updatedAt" TIMESTAMPTZ DEFAULT NOW())`).catch(() => { });
+    await sql(`CREATE UNIQUE INDEX IF NOT EXISTS "CommissaryCatalogItem_key" ON public."CommissaryCatalogItem"("chain_id","item_key")`).catch(() => { });
+    await sql(`CREATE TABLE IF NOT EXISTS public."CommissaryChainOrder" (
+    "id" TEXT PRIMARY KEY, "chain_id" TEXT NOT NULL, "branch_slug" TEXT NOT NULL, "branch_name" TEXT,
+    "order_date" TEXT NOT NULL, "notes" TEXT, "status" TEXT DEFAULT 'submitted',
+    "createdAt" TIMESTAMPTZ DEFAULT NOW(), "updatedAt" TIMESTAMPTZ DEFAULT NOW())`).catch(() => { });
+    await sql(`CREATE UNIQUE INDEX IF NOT EXISTS "CommissaryChainOrder_key" ON public."CommissaryChainOrder"("chain_id","branch_slug","order_date")`).catch(() => { });
+    await sql(`CREATE TABLE IF NOT EXISTS public."CommissaryChainOrderLine" (
+    "id" TEXT PRIMARY KEY, "order_id" TEXT NOT NULL, "item_key" TEXT NOT NULL,
+    "name" TEXT, "unit" TEXT, "department" TEXT, "qty" DOUBLE PRECISION NOT NULL, "internal_price" DOUBLE PRECISION)`).catch(() => { });
+    await sql(`CREATE INDEX IF NOT EXISTS "CommissaryChainOrderLine_order" ON public."CommissaryChainOrderLine"("order_id")`).catch(() => { });
+    _chainCommReady = true;
+}
+// The chain the CURRENT tenant belongs to (via its ChainMember row) + the
+// designated commissary slug. Null if this tenant isn't in a chain.
+async function myChain() {
+    await ensureChainCommissaryTables();
+    const slug = currentTenantSlug();
+    const rows = await prisma.$queryRawUnsafe(`SELECT m.chain_id, m.name AS branch_name, c.name AS chain_name, c.commissary_slug
+     FROM public."ChainMember" m JOIN public."Chain" c ON c.id = m.chain_id WHERE m.slug = $1 LIMIT 1`, slug).catch(() => []);
+    if (!rows.length)
+        return null;
+    return { chain_id: rows[0].chain_id, chain_name: rows[0].chain_name, branch_name: rows[0].branch_name || slug, commissary_slug: rows[0].commissary_slug || null };
+}
+// Commissary side: push the local active catalog to the shared chain catalog.
+// The first tenant to publish claims the commissary role for the chain.
+registerFn('publishCommissaryCatalog', async ({ user }) => {
+    await requireBackOffice(user, 'publishCommissaryCatalog');
+    await ensureCommissaryTables();
+    const slug = currentTenantSlug();
+    const chain = await myChain();
+    if (!chain)
+        throw new Error('not_in_chain');
+    if (!chain.commissary_slug) {
+        await prisma.$executeRawUnsafe(`UPDATE public."Chain" SET "commissary_slug"=$1 WHERE id=$2`, slug, chain.chain_id).catch(() => { });
+    }
+    else if (chain.commissary_slug !== slug) {
+        throw new Error('not_commissary'); // another member is the commissary
+    }
+    const { catalog } = await buildCatalog();
+    const active = catalog.filter((c) => c.active && c.has_cost);
+    const keys = [];
+    for (const c of active) {
+        const key = `${c.source}:${c.ref_id}`;
+        keys.push(key);
+        await prisma.$executeRawUnsafe(`INSERT INTO public."CommissaryCatalogItem"(id, chain_id, item_key, name, unit, department, internal_price, active, "updatedAt")
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, true, NOW())
+       ON CONFLICT (chain_id, item_key) DO UPDATE SET name=EXCLUDED.name, unit=EXCLUDED.unit, department=EXCLUDED.department, internal_price=EXCLUDED.internal_price, active=true, "updatedAt"=NOW()`, chain.chain_id, key, c.name, c.unit, c.department, c.internal_price).catch(() => { });
+    }
+    // Deactivate anything no longer in the active catalog.
+    await prisma.$executeRawUnsafe(`UPDATE public."CommissaryCatalogItem" SET active=false WHERE chain_id=$1 AND ($2::text[] = '{}' OR NOT (item_key = ANY($2::text[])))`, chain.chain_id, keys).catch(() => { });
+    return { ok: true, published: active.length, chain_name: chain.chain_name };
+});
+// Branch side: the published catalog for this branch's chain.
+registerFn('getBranchCommissaryInfo', async ({ user }) => {
+    await requireBackOffice(user, 'getBranchCommissaryInfo', 'BranchCommissary');
+    const slug = currentTenantSlug();
+    const chain = await myChain();
+    if (!chain)
+        return { in_chain: false };
+    const catalog = await prisma.$queryRawUnsafe(`SELECT item_key, name, unit, department, internal_price FROM public."CommissaryCatalogItem"
+     WHERE chain_id=$1 AND active=true ORDER BY department NULLS LAST, name`, chain.chain_id).catch(() => []);
+    return { in_chain: true, chain_name: chain.chain_name, is_commissary: chain.commissary_slug === slug, slug, catalog };
+});
+// Branch side: this branch's order for a date.
+registerFn('getMyBranchCommissaryOrder', async ({ user, body }) => {
+    await requireBackOffice(user, 'getMyBranchCommissaryOrder', 'BranchCommissary');
+    const slug = currentTenantSlug();
+    const chain = await myChain();
+    if (!chain)
+        return { lines: [] };
+    const date = String(body?.order_date || '').slice(0, 10);
+    const orders = await prisma.$queryRawUnsafe(`SELECT id, notes FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`, chain.chain_id, slug, date).catch(() => []);
+    if (!orders.length)
+        return { lines: [] };
+    const lines = await prisma.$queryRawUnsafe(`SELECT item_key, qty FROM public."CommissaryChainOrderLine" WHERE order_id=$1`, orders[0].id).catch(() => []);
+    return { order_id: orders[0].id, notes: orders[0].notes, lines };
+});
+// Branch side: submit/replace this branch's order (scoped to its own slug).
+registerFn('submitBranchCommissaryOrder', async ({ user, body }) => {
+    await requireBackOffice(user, 'submitBranchCommissaryOrder', 'BranchCommissary');
+    const slug = currentTenantSlug();
+    const chain = await myChain();
+    if (!chain)
+        throw new Error('not_in_chain');
+    const b = (body || {});
+    const date = String(b.order_date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+        throw new Error('order_date (YYYY-MM-DD) required');
+    const notes = b.notes ? String(b.notes).slice(0, 500) : null;
+    const linesIn = Array.isArray(b.lines) ? b.lines : [];
+    const cat = await prisma.$queryRawUnsafe(`SELECT item_key, name, unit, department, internal_price FROM public."CommissaryCatalogItem" WHERE chain_id=$1 AND active=true`, chain.chain_id).catch(() => []);
+    const byKey = new Map(cat.map((c) => [c.item_key, c]));
+    const existing = await prisma.$queryRawUnsafe(`SELECT id FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`, chain.chain_id, slug, date).catch(() => []);
+    let orderId;
+    if (existing.length) {
+        orderId = existing[0].id;
+        await prisma.$executeRawUnsafe(`UPDATE public."CommissaryChainOrder" SET notes=$1, branch_name=$2, "updatedAt"=NOW() WHERE id=$3`, notes, chain.branch_name, orderId).catch(() => { });
+        await prisma.$executeRawUnsafe(`DELETE FROM public."CommissaryChainOrderLine" WHERE order_id=$1`, orderId).catch(() => { });
+    }
+    else {
+        const ins = await prisma.$queryRawUnsafe(`INSERT INTO public."CommissaryChainOrder"(id, chain_id, branch_slug, branch_name, order_date, notes)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5) RETURNING id`, chain.chain_id, slug, chain.branch_name, date, notes);
+        orderId = ins[0].id;
+    }
+    let saved = 0;
+    for (const ln of linesIn) {
+        const key = String(ln.item_key || '');
+        const qty = Number(ln.qty);
+        if (!key || !Number.isFinite(qty) || qty <= 0)
+            continue;
+        const c = byKey.get(key);
+        if (!c)
+            continue;
+        await prisma.$executeRawUnsafe(`INSERT INTO public."CommissaryChainOrderLine"(id, order_id, item_key, name, unit, department, qty, internal_price)
+       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7)`, orderId, key, c.name, c.unit, c.department, qty, c.internal_price).catch(() => { });
+        saved++;
+    }
+    return { ok: true, order_id: orderId, lines_saved: saved };
 });
 //# sourceMappingURL=commissary.js.map
