@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import { format, startOfWeek, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { User } from '@/entities/User';
-import { ArrowLeftRight, CalendarPlus } from 'lucide-react';
+import { ArrowLeftRight, CalendarPlus, Send } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 import ShiftSwapRequestDialog from '../scheduling/ShiftSwapRequestDialog';
 
 // Build a Google Calendar "add event" link for a single shift (Israel time).
@@ -253,6 +255,12 @@ export default function WeeklyScheduleSummary({ userId, currentEmployee }) {
                 {activeTab === 'next' && (
                     <ShiftsList shifts={nextShifts} loading={loadingNext} currentEmployee={currentEmployee} allEmployees={allEmployees} managerPhone={managerPhone} />
                 )}
+                {/* Straight to the availability form — logged in, it auto-selects them. */}
+                <Link to={createPageUrl('AvailabilityForm')} className="block mt-3">
+                    <Button className="w-full" style={{ background: 'var(--brand-primary, #A04A2E)', color: '#fff' }}>
+                        <Send className="w-4 h-4 ml-2" /> הגש סידור עבודה
+                    </Button>
+                </Link>
             </CardContent>
         </Card>
     );
