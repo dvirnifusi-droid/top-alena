@@ -18,7 +18,8 @@ function CommissaryInner() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
-  const [tab, setTab] = useState('all'); // all | prep | raw
+  const [deptTab, setDeptTab] = useState('all'); // 'all' | '__none__' | <department name>
+  const [departments, setDepartments] = useState([]);
   const [ingredients, setIngredients] = useState([]);
   const [addIng, setAddIng] = useState('');
   // Local edits keyed by ref_id → { markup_pct, price_override, active }
@@ -30,6 +31,7 @@ function CommissaryInner() {
       const res = await base44.functions.getCommissaryCatalog();
       const data = res?.data || res;
       setCatalog(Array.isArray(data?.catalog) ? data.catalog : []);
+      setDepartments(Array.isArray(data?.departments) ? data.departments : []);
       const dm = Number(data?.default_markup_pct);
       setDefaultMarkup(Number.isFinite(dm) ? dm : 30);
       setMarkupDraft(String(Number.isFinite(dm) ? dm : 30));
@@ -56,6 +58,7 @@ function CommissaryInner() {
     if (key === 'markup_pct') return r.markup_pct ?? '';
     if (key === 'price_override') return r.price_override ?? '';
     if (key === 'active') return r.active;
+    if (key === 'department') return r.department ?? '';
     return '';
   };
   const patchRow = (refId, key, val) =>
@@ -86,6 +89,7 @@ function CommissaryInner() {
         payload.markup_pct = e.markup_pct === '' ? null : e.markup_pct;
         payload.price_override = e.price_override === '' ? null : e.price_override;
         payload.active = e.active === undefined ? row.active : e.active;
+        if (e.department !== undefined) payload.department = e.department;
         await base44.functions.setCommissaryItem(payload);
         saved++;
       }
@@ -117,7 +121,8 @@ function CommissaryInner() {
   };
 
   const dirty = Object.keys(edits).length > 0 || String(defaultMarkup) !== markupDraft;
-  const shown = catalog.filter((r) => tab === 'all' || r.source === tab);
+  const shown = catalog.filter((r) =>
+    deptTab === 'all' ? true : deptTab === '__none__' ? !r.department : r.department === deptTab);
   const activeCount = catalog.filter((r) => r.active).length;
   const noCost = catalog.filter((r) => !r.has_cost).length;
   const margins = catalog.filter((r) => r.has_cost && r.margin_pct != null).map((r) => r.margin_pct);
@@ -189,11 +194,18 @@ function CommissaryInner() {
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="text-base">קטלוג בית ההכנות</CardTitle>
-              <div className="flex gap-1">
-                {[['all', 'הכל'], ['prep', 'הכנות'], ['raw', 'נמכר כמו שהוא']].map(([v, l]) => (
-                  <Button key={v} size="sm" variant={tab === v ? 'default' : 'outline'} className="h-7 px-2 text-xs" onClick={() => setTab(v)}>{l}</Button>
-                ))}
+              <CardTitle className="text-base">קטלוג בית ההכנות — לפי מחלקה</CardTitle>
+              <div className="flex gap-1 flex-wrap">
+                <Button size="sm" variant={deptTab === 'all' ? 'default' : 'outline'} className="h-7 px-2 text-xs" onClick={() => setDeptTab('all')}>הכל ({catalog.length})</Button>
+                {departments.map((d) => {
+                  const n = catalog.filter((r) => r.department === d).length;
+                  return <Button key={d} size="sm" variant={deptTab === d ? 'default' : 'outline'} className="h-7 px-2 text-xs" onClick={() => setDeptTab(d)}>{d} ({n})</Button>;
+                })}
+                {catalog.some((r) => !r.department) && (
+                  <Button size="sm" variant={deptTab === '__none__' ? 'default' : 'outline'} className="h-7 px-2 text-xs" onClick={() => setDeptTab('__none__')}>
+                    לא משויך ({catalog.filter((r) => !r.department).length})
+                  </Button>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -209,6 +221,7 @@ function CommissaryInner() {
                     <tr>
                       <th className="p-2 text-right">פריט</th>
                       <th className="p-2 text-right">סוג</th>
+                      <th className="p-2 text-right">מחלקה</th>
                       <th className="p-2 text-left">קוסט ליח'</th>
                       <th className="p-2 text-center">מרווח %</th>
                       <th className="p-2 text-center">מחיר ידני</th>
@@ -229,6 +242,16 @@ function CommissaryInner() {
                             <Badge variant="outline" className={r.source === 'prep' ? 'text-emerald-700 border-emerald-200' : 'text-amber-700 border-amber-200'}>
                               {r.source === 'prep' ? 'הכנה' : 'גלם'}
                             </Badge>
+                          </td>
+                          <td className="p-2">
+                            <Select value={rowVal(r, 'department') || '__none__'}
+                              onValueChange={(v) => patchRow(r.ref_id, 'department', v === '__none__' ? '' : v)}>
+                              <SelectTrigger className="h-8 w-36"><SelectValue placeholder="מחלקה" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">— ללא —</SelectItem>
+                                {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
                           </td>
                           <td className="p-2 text-left whitespace-nowrap">
                             {r.has_cost ? cur(r.cost_per_unit) : <span className="text-red-500 text-xs">חסר</span>}
