@@ -637,7 +637,12 @@ export default function WorkScheduling() {
         window.addEventListener('storage', read);
         return () => window.removeEventListener('storage', read);
     }, []);
-    const canSeeCost = (currentUser?.role === 'admin' || currentUser?.role === 'owner') && !costForbidden && !previewingTier;
+    // Authorization for the cost strip is decided by the SERVER (getScheduleLaborCost
+    // reads the LIVE role + honours the owner's explicit pay-access grants). The
+    // frontend must not re-gate on the JWT role: a tenant owner with a stale token,
+    // or a manager the owner manually granted (role='user' + ALL_SCOPE), would be
+    // wrongly hidden. So: show the cost iff the server actually returned it.
+    const canSeeCost = !costForbidden && !previewingTier && !!laborCost;
 
     const handleCopyAvailabilityLink = () => {
         const url = `${window.location.origin}/AvailabilityForm`;
@@ -655,7 +660,11 @@ export default function WorkScheduling() {
 
     // Labor cost — recomputed server-side when the week or the assignments change.
     useEffect(() => {
-        if (!canSeeCost) return;
+        // Attempt the fetch for anyone viewing the scheduling page; the SERVER
+        // authorizes (owner / explicit pay grant) and 403s everyone else — which
+        // flips costForbidden and hides the strip. Don't re-attempt after a denial
+        // or while previewing a lower tier.
+        if (costForbidden || previewingTier) return;
         let cancelled = false;
         (async () => {
             try {
@@ -671,7 +680,7 @@ export default function WorkScheduling() {
             }
         })();
         return () => { cancelled = true; };
-    }, [weekStartStr, week, canSeeCost]);
+    }, [weekStartStr, week, costForbidden, previewingTier]);
 
     const saveBudget = async () => {
         setSavingBudget(true);
