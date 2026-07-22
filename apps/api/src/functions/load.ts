@@ -6709,6 +6709,111 @@ registerFn('setScheduleConfig', async ({ user, body }: any) => {
   return { ok: true };
 });
 
+// Rename a work position EVERYWHERE it's referenced by name. A position name is
+// stored as a string in ~7 places (shift assignments, coverage, tips, employee
+// role/positions, availability), so a plain WorkPosition rename orphaned all of
+// them and scheduled staff "disappeared" from the renamed column. The frontend
+// updates the WorkPosition row itself (with all its other fields); this fn
+// cascades the NAME change to every other store. Matches the old name OR its
+// canonical form (frontend passes both, since assignments store the canon).
+registerFn('renameWorkPosition', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'renameWorkPosition');
+  const b = (body || {}) as any;
+  const oldName = String(b.old_name || '').trim();
+  const oldCanon = String(b.old_canon || '').trim() || oldName;
+  const newName = String(b.new_name || '').trim();
+  if (!oldName || !newName) throw new Error('old_name and new_name required');
+  if (oldName === newName && oldCanon === newName) return { ok: true, unchanged: true };
+  const isOld = (v: any) => { const t = String(v || '').trim(); return t === oldName || t === oldCanon; };
+  const swapArr = (a: any) => Array.isArray(a) ? a.map((x: any) => (isOld(x) ? newName : x)) : a;
+  const swapPosList = (pos: any): { list: any; changed: boolean } => {
+    if (!Array.isArray(pos)) return { list: pos, changed: false };
+    let changed = false;
+    const list = pos.map((p: any) => {
+      if (typeof p === 'string' && isOld(p)) { changed = true; return newName; }
+      if (p && typeof p === 'object') {
+        if (isOld(p.position_name)) { changed = true; return { ...p, position_name: newName }; }
+        if (isOld(p.name)) { changed = true; return { ...p, name: newName }; }
+      }
+      return p;
+    });
+    return { list, changed };
+  };
+  const touched: any = { shifts: 0, employees: 0, availability: 0, events: 0, config: false };
+
+  // 1. WorkShift.assigned_staff[].position (the direct cause) + positions_needed key.
+  const shifts: any[] = await (db as any).workShift.findMany({ select: { id: true, assigned_staff: true, positions_needed: true } }).catch(() => []);
+  for (const s of shifts) {
+    let changed = false;
+    const staff = Array.isArray(s.assigned_staff) ? s.assigned_staff : [];
+    for (const a of staff) { if (a && isOld(a.position)) { a.position = newName; changed = true; } }
+    let needed: any = s.positions_needed;
+    if (needed && typeof needed === 'object' && !Array.isArray(needed)) {
+      const key = Object.keys(needed).find((k) => isOld(k));
+      if (key) { needed = { ...needed }; needed[newName] = needed[key]; if (key !== newName) delete needed[key]; changed = true; }
+    }
+    if (changed) { await (db as any).workShift.update({ where: { id: s.id }, data: { assigned_staff: staff, positions_needed: needed } }).catch(() => {}); touched.shifts++; }
+  }
+
+  // 2. Employee.role (job title) + Employee.positions.
+  const emps: any[] = await (db as any).employee.findMany({ select: { id: true, role: true, positions: true } }).catch(() => []);
+  for (const e of emps) {
+    const data: any = {};
+    if (isOld(e.role)) data.role = newName;
+    const sp = swapPosList(e.positions);
+    if (sp.changed) data.positions = sp.list;
+    if (Object.keys(data).length) { await (db as any).employee.update({ where: { id: e.id }, data }).catch(() => {}); touched.employees++; }
+  }
+
+  // 3. EmployeeAvailability.positions.
+  const avails: any[] = await (db as any).employeeAvailability.findMany({ select: { id: true, positions: true } }).catch(() => []);
+  for (const av of avails) {
+    const sp = swapPosList(av.positions);
+    if (sp.changed) { await (db as any).employeeAvailability.update({ where: { id: av.id }, data: { positions: sp.list } }).catch(() => {}); touched.availability++; }
+  }
+
+  // 4. ScheduleConfig — hidden_positions[], tip_positions[], coverage[shift][name], shifts[].positions[].
+  try {
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "ScheduleConfig" LIMIT 1`);
+    const cfg = rows[0];
+    if (cfg) {
+      const sets: string[] = []; const params: any[] = []; let i = 1;
+      const addJson = (col: string, val: any) => { sets.push(`"${col}"=$${i}::jsonb`); params.push(JSON.stringify(val)); i++; };
+      if (Array.isArray(cfg.hidden_positions)) addJson('hidden_positions', swapArr(cfg.hidden_positions));
+      if (Array.isArray(cfg.tip_positions)) addJson('tip_positions', swapArr(cfg.tip_positions));
+      if (cfg.coverage && typeof cfg.coverage === 'object' && !Array.isArray(cfg.coverage)) {
+        const cov: any = {};
+        for (const [sk, m] of Object.entries(cfg.coverage)) {
+          if (m && typeof m === 'object' && !Array.isArray(m)) {
+            const nm: any = {}; for (const [pk, cnt] of Object.entries(m as any)) nm[isOld(pk) ? newName : pk] = cnt; cov[sk] = nm;
+          } else cov[sk] = m;
+        }
+        addJson('coverage', cov);
+      }
+      if (Array.isArray(cfg.shifts)) addJson('shifts', cfg.shifts.map((s: any) => (s && Array.isArray(s.positions)) ? { ...s, positions: swapArr(s.positions) } : s));
+      if (sets.length) {
+        params.push(cfg.id);
+        await (prisma as any).$executeRawUnsafe(`UPDATE "ScheduleConfig" SET ${sets.join(', ')}, "updatedAt"=NOW() WHERE id=$${i}`, ...params);
+        touched.config = true;
+      }
+    }
+  } catch { /* config cascade best-effort */ }
+
+  // 5. Event.assigned_staff[].position (events domain).
+  try {
+    const evs: any[] = await (db as any).event.findMany({ select: { id: true, assigned_staff: true } }).catch(() => []);
+    for (const ev of evs) {
+      const staff = ev.assigned_staff;
+      if (!Array.isArray(staff)) continue;
+      let ch = false;
+      for (const a of staff) { if (a && isOld(a.position)) { a.position = newName; ch = true; } }
+      if (ch) { await (db as any).event.update({ where: { id: ev.id }, data: { assigned_staff: staff } }).catch(() => {}); touched.events++; }
+    }
+  } catch { /* optional */ }
+
+  return { ok: true, touched };
+});
+
 // ── Live labor-cost estimate for a scheduled week. Computed SERVER-SIDE (pay is
 // sensitive) and returned as AGGREGATES only (per day / per shift / total) — no
 // per-employee amounts. Admin/owner only. hours × hourly_rate × (1+employer%),

@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Edit, Trash2, Briefcase, Sparkles, Loader2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import { canonRole } from '@/lib/roles';
 import PageHeader from '@/components/shared/PageHeader';
 
 function PositionForm({ position, onSave, onCancel }) {
@@ -409,7 +410,19 @@ export default function PositionsManagementPage() {
     const handleSave = async (data) => {
         try {
             if (editingPosition) {
+                const oldName = String(editingPosition.position_name || '').trim();
+                const newName = String(data.position_name || '').trim();
                 await WorkPosition.update(editingPosition.id, data);
+                // A rename must follow the name into every place it's referenced
+                // (shift assignments, coverage, tips, employee role/positions,
+                // availability) — otherwise scheduled staff vanish from the column.
+                if (oldName && newName && oldName !== newName) {
+                    try {
+                        await base44.functions.renameWorkPosition({ old_name: oldName, old_canon: canonRole(oldName), new_name: newName });
+                    } catch (e) {
+                        alert('שם התפקיד עודכן, אך העדכון בסידור/עובדים נכשל — נסה שוב או פנה לתמיכה. (' + (e?.message || '') + ')');
+                    }
+                }
             } else {
                 await WorkPosition.create(data);
             }
