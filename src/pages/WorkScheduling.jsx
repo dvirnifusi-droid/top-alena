@@ -750,9 +750,13 @@ export default function WorkScheduling() {
     // Owner freeze: a locked week can't be edited by non-owners (managers). The
     // owner still edits (or unlocks first). Enforced in the assignment handlers.
     const lockedWeeks = Array.isArray(scheduleCfg?.locked_weeks) ? scheduleCfg.locked_weeks : [];
+    // The real owner (used for the lock TOGGLE — always visible to them, even in
+    // 'צפה כ' preview, so they can lock/unlock from anywhere).
+    const realOwner = currentUser?.role === 'owner' || !!myPerms?.is_owner;
     // Only the real OWNER overrides a lock (leadership managers can edit normally,
-    // but a locked week is the owner's freeze — they alone edit it).
-    const isOwnerRole = !_previewingTier && (currentUser?.role === 'owner' || !!myPerms?.is_owner);
+    // but a locked week is the owner's freeze — they alone edit it). Preview-aware
+    // so previewing a lower tier shows the locked (blocked) experience.
+    const isOwnerRole = !_previewingTier && realOwner;
     const weekLocked = lockedWeeks.includes(weekStartStr);
     const editBlockedByLock = weekLocked && !isOwnerRole;
     // A dept is published if its "week|dept" key exists, or a legacy bare "week".
@@ -1475,7 +1479,7 @@ export default function WorkScheduling() {
                                 </>
                             )}
                             {weekLocked && <span title="הסידור נעול לעריכה" className="text-sm font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">🔒 נעול</span>}
-                            {isOwnerRole && (
+                            {realOwner && (
                                 <button onClick={toggleWeekLock} disabled={lockBusy}
                                     title={weekLocked ? 'פתיחת הסידור לעריכה' : 'נעילת הסידור — מנהלים לא יוכלו לשנות'}
                                     className="text-xs font-semibold rounded-full px-2.5 py-1 border transition disabled:opacity-50"
