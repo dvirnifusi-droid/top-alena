@@ -160,6 +160,13 @@ function RecipesInner() {
     } finally { setLoading(false); }
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [filter]);
+  // A network/commissary tenant is about the PRODUCT TREE (raw → prep → product),
+  // not menu food-cost — open on the הכנות (preps) view.
+  useEffect(() => {
+    base44.functions.getMyPlatformInfo({})
+      .then((r) => { const d = r?.data || r; if (d?.is_chain_commissary) setFilter('PREP'); })
+      .catch(() => {});
+  }, []);
 
   // keep:true → refresh in place instead of blanking the table. Nulling detail
   // after every field edit made the ingredient list you're typing in disappear
