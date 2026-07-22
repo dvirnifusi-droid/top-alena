@@ -468,6 +468,13 @@ async function ensureChainCommissaryTables() {
     "id" TEXT PRIMARY KEY, "order_id" TEXT NOT NULL, "item_key" TEXT NOT NULL,
     "name" TEXT, "unit" TEXT, "department" TEXT, "qty" DOUBLE PRECISION NOT NULL, "internal_price" DOUBLE PRECISION)`).catch(() => { });
     await sql(`CREATE INDEX IF NOT EXISTS "CommissaryChainOrderLine_order" ON public."CommissaryChainOrderLine"("order_id")`).catch(() => { });
+    // Live production status — the commissary marks each prep DONE as it's made,
+    // like a prep sheet. Keyed by chain + date + item so the same day's board is shared.
+    await sql(`CREATE TABLE IF NOT EXISTS public."CommissaryProduction" (
+    "id" TEXT PRIMARY KEY, "chain_id" TEXT NOT NULL, "order_date" TEXT NOT NULL, "item_key" TEXT NOT NULL,
+    "done" BOOLEAN NOT NULL DEFAULT false, "done_by" TEXT, "done_at" TIMESTAMPTZ, "note" TEXT,
+    "updatedAt" TIMESTAMPTZ DEFAULT NOW())`).catch(() => { });
+    await sql(`CREATE UNIQUE INDEX IF NOT EXISTS "CommissaryProduction_key" ON public."CommissaryProduction"("chain_id","order_date","item_key")`).catch(() => { });
     _chainCommReady = true;
 }
 // The chain the CURRENT tenant belongs to (via its ChainMember row) + the
@@ -497,7 +504,9 @@ registerFn('publishCommissaryCatalog', async ({ user }) => {
         throw new Error('not_commissary'); // another member is the commissary
     }
     const { catalog } = await buildCatalog();
-    const active = catalog.filter((c) => c.active && c.has_cost);
+    // Publish all ACTIVE items — even ones without a cost yet (owner prices them
+    // later; they still appear on the prep list / are orderable).
+    const active = catalog.filter((c) => c.active);
     const keys = [];
     for (const c of active) {
         const key = `${c.source}:${c.ref_id}`;
@@ -744,14 +753,60 @@ registerFn('getChainCommissary', async ({ user, body }) => {
         bx.cost_ils += cost;
         bx.lines += 1;
     }
-    const production = [...items.values()].map((it) => ({ ...it, total_qty: r2(it.total_qty), total_cost: r2(it.total_cost), total_price: r2(it.total_price), margin: r2(it.total_price - it.total_cost) }))
-        .sort((a, b) => (a.department || '').localeCompare(b.department || '') || b.total_price - a.total_price);
+    // Live production status (which preps are already made) → the shared board.
+    const prodStatus = await prisma.$queryRawUnsafe(`SELECT item_key, done, done_by, done_at FROM public."CommissaryProduction" WHERE chain_id=$1 AND order_date=$2`, chainId, date).catch(() => []);
+    const statusByKey = new Map(prodStatus.map((s) => [s.item_key, s]));
+    const production = [...items.values()].map((it) => {
+        const st = statusByKey.get(it.item_key);
+        return {
+            ...it, total_qty: r2(it.total_qty), total_cost: r2(it.total_cost), total_price: r2(it.total_price), margin: r2(it.total_price - it.total_cost),
+            done: !!st?.done, done_by: st?.done_by || null, done_at: st?.done_at || null,
+        };
+    }).sort((a, b) => (a.department || '').localeCompare(b.department || '') || b.total_price - a.total_price);
     const invoices = [...byBranch.values()].map((bx) => ({ ...bx, total_ils: r2(bx.total_ils), cost_ils: r2(bx.cost_ils), margin_ils: r2(bx.total_ils - bx.cost_ils) })).sort((a, b) => b.total_ils - a.total_ils);
+    const doneCount = production.filter((p) => p.done).length;
     return {
         chain_id: chainId, chain_name: chainRow[0]?.name || '', commissary_slug: chainRow[0]?.commissary_slug || null,
         order_date: date, members, catalog,
-        distribution: { production, invoices, totals: { cost: r2(gCost), revenue: r2(gRev), margin: r2(gRev - gCost), item_count: production.length, branch_count: invoices.length } },
+        distribution: {
+            production, invoices,
+            totals: { cost: r2(gCost), revenue: r2(gRev), margin: r2(gRev - gCost), item_count: production.length, branch_count: invoices.length, done_count: doneCount },
+        },
     };
+});
+// Mark a prep DONE / not-done on the live commissary board (like a prep sheet).
+registerFn('markCommissaryProduction', async ({ user, body }) => {
+    const b = (body || {});
+    const chainId = String(b.chain_id || '');
+    const date = String(b.order_date || '').slice(0, 10);
+    const itemKey = String(b.item_key || '');
+    if (!chainId || !itemKey || !/^\d{4}-\d{2}-\d{2}$/.test(date))
+        throw new Error('chain_id + order_date + item_key required');
+    await assertChainOwner(user, chainId);
+    await ensureChainCommissaryTables();
+    const done = !!b.done;
+    const who = String(user?.full_name || user?.email || '').slice(0, 120) || null;
+    const note = b.note !== undefined ? (b.note ? String(b.note).slice(0, 300) : null) : undefined;
+    const ex = await prisma.$queryRawUnsafe(`SELECT id FROM public."CommissaryProduction" WHERE chain_id=$1 AND order_date=$2 AND item_key=$3`, chainId, date, itemKey).catch(() => []);
+    if (ex.length) {
+        await prisma.$executeRawUnsafe(`UPDATE public."CommissaryProduction" SET done=$1, done_by=CASE WHEN $1 THEN $2 ELSE NULL END, done_at=CASE WHEN $1 THEN NOW() ELSE NULL END${note !== undefined ? ', note=$5' : ''}, "updatedAt"=NOW() WHERE id=$4`, ...(note !== undefined ? [done, who, ex[0].id, note] : [done, who, ex[0].id])).catch(() => { });
+    }
+    else {
+        await prisma.$executeRawUnsafe(`INSERT INTO public."CommissaryProduction"(id, chain_id, order_date, item_key, done, done_by, done_at, note) VALUES (gen_random_uuid()::text, $1, $2, $3, $4, CASE WHEN $4 THEN $5 ELSE NULL END, CASE WHEN $4 THEN NOW() ELSE NULL END, $6)`, chainId, date, itemKey, done, who, note ?? null).catch(() => { });
+    }
+    return { ok: true };
+});
+// New production day — clear the done marks for a date.
+registerFn('resetCommissaryProduction', async ({ user, body }) => {
+    const b = (body || {});
+    const chainId = String(b.chain_id || '');
+    const date = String(b.order_date || '').slice(0, 10);
+    if (!chainId || !/^\d{4}-\d{2}-\d{2}$/.test(date))
+        throw new Error('chain_id + order_date required');
+    await assertChainOwner(user, chainId);
+    await ensureChainCommissaryTables();
+    await prisma.$executeRawUnsafe(`DELETE FROM public."CommissaryProduction" WHERE chain_id=$1 AND order_date=$2`, chainId, date).catch(() => { });
+    return { ok: true };
 });
 // Network owner adjusts a catalog item's pricing / department / active.
 registerFn('setChainCommissaryItemPricing', async ({ user, body }) => {

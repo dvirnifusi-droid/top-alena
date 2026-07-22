@@ -39,6 +39,19 @@ function ChainCommissary({ chainId }) {
     catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
     setBusy(false);
   };
+  const markDone = async (item_key, done) => {
+    // optimistic
+    setData((d) => d ? { ...d, distribution: { ...d.distribution, production: d.distribution.production.map((p) => p.item_key === item_key ? { ...p, done, done_by: done ? 'אתה' : null, done_at: done ? new Date().toISOString() : null } : p) } } : d);
+    try { await base44.functions.markCommissaryProduction({ chain_id: chainId, order_date: date, item_key, done }); }
+    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); load(); }
+  };
+  const resetProduction = async () => {
+    if (!window.confirm('לאפס את כל הסימונים ליום זה? (ייצור חדש)')) return;
+    setBusy(true);
+    try { await base44.functions.resetCommissaryProduction({ chain_id: chainId, order_date: date }); await load(); }
+    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    setBusy(false);
+  };
   const submitOrder = async () => {
     if (!orderBranch) { setMsg({ ok: false, text: 'בחר סניף' }); return; }
     const lines = (data?.catalog || []).filter((c) => Number(qtys[c.item_key]) > 0).map((c) => ({ item_key: c.item_key, qty: Number(qtys[c.item_key]) }));
@@ -79,12 +92,29 @@ function ChainCommissary({ chainId }) {
                 <div className="bg-slate-800 rounded p-2"><div className="text-[11px] text-slate-400">רווח</div><div className="text-lg font-bold text-emerald-300">{ils2(dist?.totals?.margin)}</div></div>
               </div>
               {!dist?.production?.length ? <p className="text-xs text-slate-500 text-center py-3">אין הזמנות בתאריך זה. הזן ב"➕ הזמנה לסניף".</p> : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-slate-300"><thead><tr className="text-slate-500 text-right"><th className="p-1.5">פריט</th><th className="p-1.5">מחלקה</th><th className="p-1.5 text-center">כמות</th><th className="p-1.5 text-right">פירוט סניפים</th><th className="p-1.5 text-left">מכירה</th></tr></thead>
-                    <tbody>{dist.production.map((p) => (
-                      <tr key={p.item_key} className="border-t border-slate-800 align-top"><td className="p-1.5 font-medium text-white">{p.name}</td><td className="p-1.5 text-slate-400">{p.department || '—'}</td><td className="p-1.5 text-center font-bold text-indigo-300 whitespace-nowrap">{p.total_qty} {p.unit}</td><td className="p-1.5 text-slate-400">{p.per_branch.map((b) => `${b.branch}: ${b.qty}`).join(' · ')}</td><td className="p-1.5 text-left whitespace-nowrap">{ils2(p.total_price)}</td></tr>
-                    ))}</tbody></table>
-                </div>
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-slate-400">רשימת הכנות · בוצע <b className="text-emerald-400">{dist.totals?.done_count || 0}</b>/{dist.production.length}</div>
+                    <button onClick={resetProduction} disabled={busy} className="text-[11px] text-slate-500 hover:text-red-400">אפס יום ↺</button>
+                  </div>
+                  <div className="h-1.5 bg-slate-800 rounded overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${dist.production.length ? Math.round(((dist.totals?.done_count || 0) / dist.production.length) * 100) : 0}%` }} /></div>
+                  {Object.entries(dist.production.reduce((g, p) => { const d = p.department || 'ללא מחלקה'; (g[d] = g[d] || []).push(p); return g; }, {})).map(([dept, rows]) => (
+                    <div key={dept} className="mt-2">
+                      <div className="text-[11px] font-bold text-indigo-300 mb-1">{dept}</div>
+                      <div className="space-y-1">
+                        {rows.map((p) => (
+                          <label key={p.item_key} className={`flex items-start gap-2 rounded p-1.5 cursor-pointer ${p.done ? 'bg-emerald-950/30' : 'bg-slate-800/50 hover:bg-slate-800'}`}>
+                            <input type="checkbox" checked={!!p.done} onChange={(e) => markDone(p.item_key, e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-500" />
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-sm ${p.done ? 'line-through text-slate-500' : 'text-white'}`}><span className="font-bold text-indigo-300">{p.total_qty} {p.unit}</span> · {p.name}</div>
+                              <div className="text-[11px] text-slate-500">{p.per_branch.map((b) => `${b.branch}: ${b.qty}`).join(' · ')}{p.done && p.done_by ? ` · ✓ ${p.done_by}` : ''}</div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </>
               )}
               {dist?.invoices?.length > 0 && (
                 <div className="border-t border-slate-800 pt-2">
