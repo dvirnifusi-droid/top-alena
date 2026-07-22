@@ -25,6 +25,8 @@ function ChainCommissary({ chainId }) {
   const [loading, setLoading] = useState(false);
   const [date, setDate] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
   const [tab, setTab] = useState('production'); // production | catalog | order
+  const [prodView, setProdView] = useState('branches'); // branches (per-branch) | all (everyone together)
+  const [selBranch, setSelBranch] = useState(''); // selected branch slug in the per-branch view
   const [markups, setMarkups] = useState({}); // item_key -> markup draft
   const [orderBranch, setOrderBranch] = useState('');
   const [qtys, setQtys] = useState({});
@@ -144,6 +146,31 @@ function ChainCommissary({ chainId }) {
     setBusy(false);
   };
 
+  // Render production items grouped by department as a live checklist.
+  // qtyOf(p) overrides the shown qty (used for a single-branch view); when null,
+  // shows the aggregate to-make qty + the per-branch split (the "everyone" view).
+  const renderPrepGroups = (items, qtyOf) => (
+    Object.entries(items.reduce((g, p) => { const d = p.department || 'ללא מחלקה'; (g[d] = g[d] || []).push(p); return g; }, {})).map(([dept, rows]) => (
+      <div key={dept} className="mt-2">
+        <div className="text-[11px] font-bold text-indigo-300 mb-1">{dept}</div>
+        <div className="space-y-1">
+          {rows.map((p) => {
+            const q = qtyOf ? qtyOf(p) : (p.stock_qty > 0 ? p.to_make : p.total_qty);
+            return (
+              <label key={p.item_key} className={`flex items-start gap-2 rounded p-1.5 cursor-pointer ${p.done ? 'bg-emerald-950/30' : 'bg-slate-800/50 hover:bg-slate-800'}`}>
+                <input type="checkbox" checked={!!p.done} onChange={(e) => markDone(p.item_key, e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-500" />
+                <div className="flex-1 min-w-0">
+                  <div className={`text-sm ${p.done ? 'line-through text-slate-500' : 'text-white'}`}><span className="font-bold text-indigo-300">{q} {p.unit}</span> · {p.name}{!qtyOf && p.stock_qty > 0 && <span className="text-[10px] text-emerald-400"> · במלאי {p.stock_qty} (הוזמן {p.total_qty})</span>}</div>
+                  <div className="text-[11px] text-slate-500">{qtyOf ? '' : (p.per_branch || []).map((b) => `${b.branch}: ${b.qty}`).join(' · ')}{p.done && p.done_by ? `${qtyOf ? '' : ' · '}✓ ${p.done_by}` : ''}</div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    ))
+  );
+
   const dist = data?.distribution;
   const cat = data?.catalog || [];
   return (
@@ -167,56 +194,70 @@ function ChainCommissary({ chainId }) {
             <p className="text-xs text-slate-500 text-center py-3">אין קטלוג. פרסם קטלוג מבית ההכנות (מסך "🏭 בית הכנות" → "פרסם לרשת").</p>
           ) : tab === 'production' ? (
             <>
+              {/* View switch: per-branch drill-down (default) vs everyone together */}
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setProdView('branches'); setSelBranch(''); }} className={`text-xs rounded px-2 py-1 ${prodView === 'branches' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>🏬 לפי סניף</button>
+                <button onClick={() => { setProdView('all'); setSelBranch(''); }} className={`text-xs rounded px-2 py-1 ${prodView === 'all' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>🍳 כולם יחד</button>
+                {(prodView === 'all' || selBranch) && dist?.production?.length > 0 && <button onClick={resetProduction} disabled={busy} className="mr-auto text-[11px] text-slate-500 hover:text-red-400">אפס יום ↺</button>}
+              </div>
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
                 <div className="bg-slate-800 rounded p-2"><div className="text-[11px] text-slate-400">פריטים להכנה</div><div className="text-lg font-bold text-white">{dist?.totals?.item_count || 0}</div></div>
                 <div className="bg-slate-800 rounded p-2"><div className="text-[11px] text-slate-400">עלות ייצור</div><div className="text-lg font-bold text-amber-300">{ils2(dist?.totals?.cost)}</div></div>
                 <div className="bg-slate-800 rounded p-2"><div className="text-[11px] text-slate-400">מכירה פנימית</div><div className="text-lg font-bold text-indigo-300">{ils2(dist?.totals?.revenue)}</div></div>
                 <div className="bg-slate-800 rounded p-2"><div className="text-[11px] text-slate-400">רווח</div><div className="text-lg font-bold text-emerald-300">{ils2(dist?.totals?.margin)}</div></div>
               </div>
-              {!dist?.production?.length ? <p className="text-xs text-slate-500 text-center py-3">אין הזמנות בתאריך זה. הזן ב"➕ הזמנה לסניף".</p> : (
-                <>
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs text-slate-400">רשימת הכנות · בוצע <b className="text-emerald-400">{dist.totals?.done_count || 0}</b>/{dist.production.length}</div>
-                    <button onClick={resetProduction} disabled={busy} className="text-[11px] text-slate-500 hover:text-red-400">אפס יום ↺</button>
-                  </div>
-                  <div className="h-1.5 bg-slate-800 rounded overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${dist.production.length ? Math.round(((dist.totals?.done_count || 0) / dist.production.length) * 100) : 0}%` }} /></div>
-                  {Object.entries(dist.production.reduce((g, p) => { const d = p.department || 'ללא מחלקה'; (g[d] = g[d] || []).push(p); return g; }, {})).map(([dept, rows]) => (
-                    <div key={dept} className="mt-2">
-                      <div className="text-[11px] font-bold text-indigo-300 mb-1">{dept}</div>
-                      <div className="space-y-1">
-                        {rows.map((p) => (
-                          <label key={p.item_key} className={`flex items-start gap-2 rounded p-1.5 cursor-pointer ${p.done ? 'bg-emerald-950/30' : 'bg-slate-800/50 hover:bg-slate-800'}`}>
-                            <input type="checkbox" checked={!!p.done} onChange={(e) => markDone(p.item_key, e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-500" />
-                            <div className="flex-1 min-w-0">
-                              <div className={`text-sm ${p.done ? 'line-through text-slate-500' : 'text-white'}`}><span className="font-bold text-indigo-300">{p.stock_qty > 0 ? p.to_make : p.total_qty} {p.unit}</span> · {p.name}{p.stock_qty > 0 && <span className="text-[10px] text-emerald-400"> · במלאי {p.stock_qty} (הוזמן {p.total_qty})</span>}</div>
-                              <div className="text-[11px] text-slate-500">{p.per_branch.map((b) => `${b.branch}: ${b.qty}`).join(' · ')}{p.done && p.done_by ? ` · ✓ ${p.done_by}` : ''}</div>
-                            </div>
-                          </label>
-                        ))}
+
+              {!dist?.production?.length ? <p className="text-xs text-slate-500 text-center py-3">אין הזמנות בתאריך זה. הזן ב"➕ הזמנה".</p>
+                : prodView === 'all' ? (
+                  <>
+                    <div className="text-xs text-slate-400">רשימת הכנות כללית (כל הסניפים יחד) · בוצע <b className="text-emerald-400">{dist.totals?.done_count || 0}</b>/{dist.production.length}</div>
+                    <div className="h-1.5 bg-slate-800 rounded overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${dist.production.length ? Math.round(((dist.totals?.done_count || 0) / dist.production.length) * 100) : 0}%` }} /></div>
+                    <div className="text-[10px] text-slate-500">פריטים חופפים מיוצרים פעם אחת — הפירוט מתחת לכל פריט מראה כמה לכל סניף.</div>
+                    {renderPrepGroups(dist.production, null)}
+                  </>
+                ) : selBranch ? (() => {
+                  const inv = (dist.invoices || []).find((i) => i.branch_slug === selBranch);
+                  const bname = inv?.branch_name || selBranch;
+                  const items = dist.production.filter((p) => (p.per_branch || []).some((b) => b.branch === bname));
+                  const doneN = items.filter((i) => i.done).length;
+                  const qtyOf = (p) => { const m = (p.per_branch || []).find((b) => b.branch === bname); return m ? m.qty : p.total_qty; };
+                  return (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <button onClick={() => setSelBranch('')} className="text-xs text-slate-400 hover:text-white">← חזרה לרשימת הסניפים</button>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${orderStatus(inv?.status)[1]}`}>{orderStatus(inv?.status)[0]}</span>
                       </div>
-                    </div>
-                  ))}
-                </>
-              )}
-              {dist?.invoices?.length > 0 && (
-                <div className="border-t border-slate-800 pt-2">
-                  <div className="text-xs font-bold text-slate-400 mb-1">הזמנות מהסניפים</div>
-                  {dist.invoices.map((inv) => (
-                    <div key={inv.branch_slug} className="flex items-center justify-between text-xs py-1 gap-2">
-                      <span className="text-white flex items-center gap-1.5 flex-wrap">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${orderStatus(inv.status)[1]}`}>{orderStatus(inv.status)[0]}</span>
-                        {inv.branch_name} <span className="text-slate-500">· {inv.lines} · הוכן {inv.done_items}/{inv.total_items}</span>
-                        {inv.rejected > 0 && <span className="text-red-400 font-bold">· {inv.rejected} נדחו</span>}
-                        {inv.eta && <span className="text-sky-400">· 🕐 {inv.eta}</span>}
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <span className="text-indigo-300 font-bold whitespace-nowrap">{ils2(inv.total_ils)} <span className="text-emerald-400/70 font-normal">(רווח {ils2(inv.margin_ils)})</span></span>
-                        <button onClick={() => openNote(inv.branch_slug)} disabled={busy} title="תעודת משלוח + מוכן לאיסוף" className="bg-indigo-700/60 hover:bg-indigo-600 text-indigo-100 rounded px-2 py-0.5 text-[11px] whitespace-nowrap">📄 תעודת משלוח</button>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="font-bold text-white text-sm">🏬 {bname} <span className="text-slate-500 font-normal">· {items.length} פריטים · הוכן {doneN}/{items.length}</span></div>
+                        <button onClick={() => openNote(selBranch)} disabled={busy} className="bg-indigo-700/60 hover:bg-indigo-600 text-indigo-100 rounded px-2 py-1 text-[11px] whitespace-nowrap">📄 תעודת משלוח / אישור</button>
+                      </div>
+                      {inv?.eta && <div className="text-[11px] text-sky-400">🕐 יעד: {inv.eta}</div>}
+                      {inv?.rejected > 0 && <div className="text-[11px] text-red-400">{inv.rejected} פריטים נדחו (ראה תעודת משלוח)</div>}
+                      <div className="h-1.5 bg-slate-800 rounded overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${items.length ? Math.round((doneN / items.length) * 100) : 0}%` }} /></div>
+                      {renderPrepGroups(items, qtyOf)}
+                    </>
+                  );
+                })() : (
+                  <div className="space-y-1.5">
+                    <div className="text-xs text-slate-400">בחר סניף כדי לראות מה הוא הזמין:</div>
+                    {(dist.invoices || []).map((inv) => (
+                      <button key={inv.branch_slug} onClick={() => setSelBranch(inv.branch_slug)} className="w-full text-right flex items-center justify-between bg-slate-800/60 hover:bg-slate-800 rounded-lg p-2.5 gap-2">
+                        <span className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${orderStatus(inv.status)[1]}`}>{orderStatus(inv.status)[0]}</span>
+                          <span className="font-bold text-white">🏬 {inv.branch_name}</span>
+                          <span className="text-[11px] text-slate-500">{inv.lines} פריטים · הוכן {inv.done_items}/{inv.total_items}</span>
+                          {inv.rejected > 0 && <span className="text-red-400 text-[11px]">· {inv.rejected} נדחו</span>}
+                          {inv.eta && <span className="text-sky-400 text-[11px]">· 🕐 {inv.eta}</span>}
+                        </span>
+                        <span className="flex items-center gap-2 shrink-0">
+                          <span className="text-indigo-300 font-bold text-xs">{ils2(inv.total_ils)}</span>
+                          <span className="text-slate-500 text-sm">‹</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
             </>
           ) : tab === 'buy' ? (
             !purchasing ? <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-slate-500" /></div> : (

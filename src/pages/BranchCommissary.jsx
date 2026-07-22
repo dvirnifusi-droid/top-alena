@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Factory, Send, RefreshCw } from 'lucide-react';
+import { Loader2, Factory, Send, RefreshCw, Plus, X } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
@@ -29,6 +29,10 @@ function BranchCommissaryInner() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
   const [myOrder, setMyOrder] = useState(null); // this branch's order for the date (status/eta/rejections)
+  const [customs, setCustoms] = useState([]); // special requests — preps NOT in the catalog/מרלו"ג
+  const addCustom = () => setCustoms((s) => [...s, { name: '', qty: '', unit: 'יח׳' }]);
+  const updateCustom = (i, k, v) => setCustoms((s) => s.map((c, idx) => (idx === i ? { ...c, [k]: v } : c)));
+  const removeCustom = (i) => setCustoms((s) => s.filter((_, idx) => idx !== i));
 
   const loadInfo = useCallback(async () => {
     setLoading(true);
@@ -44,10 +48,13 @@ function BranchCommissaryInner() {
       const res = await base44.functions.getMyBranchCommissaryOrder({ order_date: date });
       const data = res?.data || res;
       setMyOrder(data);
-      const q = {};
-      (data?.lines || []).forEach((l) => { q[l.item_key] = l.qty; });
-      setQtys(q);
-    } catch { setQtys({}); setMyOrder(null); }
+      const q = {}; const cs = [];
+      (data?.lines || []).forEach((l) => {
+        if (String(l.item_key || '').startsWith('custom:')) cs.push({ name: l.name || '', unit: l.unit || 'יח׳', qty: l.qty });
+        else q[l.item_key] = l.qty;
+      });
+      setQtys(q); setCustoms(cs);
+    } catch { setQtys({}); setCustoms([]); setMyOrder(null); }
   }, [date]);
 
   useEffect(() => { loadInfo(); }, [loadInfo]);
@@ -58,15 +65,18 @@ function BranchCommissaryInner() {
   const shown = catalog.filter((c) =>
     (deptFilter === 'all' || c.department === deptFilter) && (!search || c.name?.includes(search)));
   const total = catalog.reduce((s, c) => s + (Number(qtys[c.item_key]) || 0) * (Number(c.internal_price) || 0), 0);
-  const lineCount = catalog.filter((c) => Number(qtys[c.item_key]) > 0).length;
+  const customValid = customs.filter((c) => c.name?.trim() && Number(c.qty) > 0);
+  const lineCount = catalog.filter((c) => Number(qtys[c.item_key]) > 0).length + customValid.length;
 
   const submit = async () => {
     const lines = catalog.filter((c) => Number(qtys[c.item_key]) > 0).map((c) => ({ item_key: c.item_key, qty: Number(qtys[c.item_key]) }));
-    if (!lines.length) { setMsg({ ok: false, text: 'הזן כמות לפחות לפריט אחד' }); return; }
+    const customLines = customValid.map((c) => ({ custom: true, name: c.name.trim(), unit: (c.unit || 'יח׳').trim(), qty: Number(c.qty) }));
+    const all = [...lines, ...customLines];
+    if (!all.length) { setMsg({ ok: false, text: 'הזן כמות לפחות לפריט אחד' }); return; }
     setSaving(true); setMsg(null);
     try {
-      await base44.functions.submitBranchCommissaryOrder({ order_date: date, lines });
-      setMsg({ ok: true, text: '✅ ההזמנה נשלחה לבית ההכנות!' });
+      await base44.functions.submitBranchCommissaryOrder({ order_date: date, lines: all });
+      setMsg({ ok: true, text: `✅ ההזמנה נשלחה לבית ההכנות!${customLines.length ? ` (כולל ${customLines.length} בקשות מיוחדות)` : ''}` });
     } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה בשליחה' }); }
     setSaving(false);
   };
@@ -149,6 +159,19 @@ function BranchCommissaryInner() {
                     })}
                   </tbody>
                 </table>
+              </div>
+              <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+                <div className="text-sm font-semibold text-amber-800">➕ בקשה מיוחדת — פריט שלא בקטלוג</div>
+                <div className="text-xs text-slate-500 mb-2">הכנה שאתה רוצה אבל אין לה סל מוצרים במרלו"ג — בקש אותה, ובית ההכנות יראה אותה כ"בקשה מיוחדת".</div>
+                {customs.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2 mb-1.5">
+                    <Input className="h-8 flex-1" placeholder="שם ההכנה" value={c.name} onChange={(e) => updateCustom(i, 'name', e.target.value)} />
+                    <Input className="h-8 w-20 text-center" dir="ltr" type="number" placeholder="כמות" value={c.qty} onChange={(e) => updateCustom(i, 'qty', e.target.value)} />
+                    <Input className="h-8 w-16 text-center" placeholder="יח׳" value={c.unit} onChange={(e) => updateCustom(i, 'unit', e.target.value)} />
+                    <Button variant="ghost" size="sm" className="h-8 px-2 text-red-500 hover:text-red-600" onClick={() => removeCustom(i)}><X className="w-4 h-4" /></Button>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" className="gap-1 mt-1 border-amber-300 text-amber-800" onClick={addCustom}><Plus className="w-3.5 h-3.5" /> הוסף בקשה</Button>
               </div>
               <div className="flex items-center justify-between pt-1">
                 <span className="text-sm text-slate-500">{lineCount} פריטים · {cur(total)}</span>

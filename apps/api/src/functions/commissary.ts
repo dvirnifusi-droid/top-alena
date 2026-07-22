@@ -650,17 +650,30 @@ registerFn('submitBranchCommissaryOrder', async ({ user, body }) => {
   }
   let saved = 0;
   for (const ln of linesIn) {
-    const key = String(ln.item_key || '');
     const qty = Number(ln.qty);
-    if (!key || !Number.isFinite(qty) || qty <= 0) continue;
-    const c: any = byKey.get(key);
-    if (!c) continue;
-    await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO public."CommissaryChainOrderLine"(id, order_id, item_key, name, unit, department, qty, internal_price)
-       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7)`,
-      orderId, key, c.name, c.unit, c.department, qty, c.internal_price,
-    ).catch(() => {});
-    saved++;
+    if (!Number.isFinite(qty) || qty <= 0) continue;
+    const key = String(ln.item_key || '');
+    const c: any = key ? byKey.get(key) : null;
+    if (c) {
+      await (prisma as any).$executeRawUnsafe(
+        `INSERT INTO public."CommissaryChainOrderLine"(id, order_id, item_key, name, unit, department, qty, internal_price)
+         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7)`,
+        orderId, key, c.name, c.unit, c.department, qty, c.internal_price,
+      ).catch(() => {});
+      saved++;
+    } else if ((ln.custom || String(key).startsWith('custom:')) && ln.name) {
+      // Special request: a prep the branch wants that is NOT in the catalog / מרלו"ג
+      // (no product tree / price yet). Recorded as a 'בקשה מיוחדת' line at price 0.
+      const nm = String(ln.name).slice(0, 120);
+      const unit = ln.unit ? String(ln.unit).slice(0, 20) : 'יח׳';
+      const ckey = key.startsWith('custom:') ? key.slice(0, 140) : `custom:${nm}`;
+      await (prisma as any).$executeRawUnsafe(
+        `INSERT INTO public."CommissaryChainOrderLine"(id, order_id, item_key, name, unit, department, qty, internal_price)
+         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7)`,
+        orderId, ckey, nm, unit, 'בקשה מיוחדת', qty, 0,
+      ).catch(() => {});
+      saved++;
+    }
   }
   return { ok: true, order_id: orderId, lines_saved: saved };
 });
@@ -955,13 +968,24 @@ registerFn('saveChainCommissaryOrder', async ({ user, body }) => {
   }
   let saved = 0;
   for (const ln of linesIn) {
-    const key = String(ln.item_key || ''); const qty = Number(ln.qty);
-    if (!key || !Number.isFinite(qty) || qty <= 0) continue;
-    const c: any = byKey.get(key); if (!c) continue;
-    await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO public."CommissaryChainOrderLine"(id, order_id, item_key, name, unit, department, qty, internal_price) VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7)`,
-      orderId, key, c.name, c.unit, c.department, qty, c.internal_price).catch(() => {});
-    saved++;
+    const qty = Number(ln.qty);
+    if (!Number.isFinite(qty) || qty <= 0) continue;
+    const key = String(ln.item_key || '');
+    const c: any = key ? byKey.get(key) : null;
+    if (c) {
+      await (prisma as any).$executeRawUnsafe(
+        `INSERT INTO public."CommissaryChainOrderLine"(id, order_id, item_key, name, unit, department, qty, internal_price) VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7)`,
+        orderId, key, c.name, c.unit, c.department, qty, c.internal_price).catch(() => {});
+      saved++;
+    } else if ((ln.custom || String(key).startsWith('custom:')) && ln.name) {
+      const nm = String(ln.name).slice(0, 120);
+      const unit = ln.unit ? String(ln.unit).slice(0, 20) : 'יח׳';
+      const ckey = key.startsWith('custom:') ? key.slice(0, 140) : `custom:${nm}`;
+      await (prisma as any).$executeRawUnsafe(
+        `INSERT INTO public."CommissaryChainOrderLine"(id, order_id, item_key, name, unit, department, qty, internal_price) VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7)`,
+        orderId, ckey, nm, unit, 'בקשה מיוחדת', qty, 0).catch(() => {});
+      saved++;
+    }
   }
   return { ok: true, order_id: orderId, lines_saved: saved };
 });
