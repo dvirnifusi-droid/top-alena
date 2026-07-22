@@ -18801,18 +18801,57 @@ registerFn('addBranchToChain', async ({ user, body }: any) => {
   const slug = String(b.slug || '').trim();
   const name = String(b.name || slug).trim();
   if (!chainId || !slug) throw new Error('chain_id and slug required');
+  await ensureNetworkTaskTables();
   await (prisma as any).$executeRawUnsafe(
     `INSERT INTO "ChainMember" (id, chain_id, slug, name) VALUES ($1,$2,$3,$4)
      ON CONFLICT (chain_id, slug) DO UPDATE SET name = EXCLUDED.name`,
     `cm_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`, chainId, slug, name.slice(0, 120));
+  // Backfill: a branch joining a chain inherits the chain's existing open tasks,
+  // so it doesn't silently miss everything created before it was added.
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "NetworkTaskBranch" (id, task_id, slug, name)
+       SELECT 'ntb_' || t.id || '_' || $2, t.id, $2, $3 FROM "NetworkTask" t WHERE t.chain_id = $1
+     ON CONFLICT (task_id, slug) DO NOTHING`, chainId, slug, name.slice(0, 120)).catch(() => {});
   return { ok: true };
 });
 
 registerFn('removeBranchFromChain', async ({ user, body }: any) => {
   if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensureChainTables(); await ensureNetworkTaskTables();
+  const b = (body || {}) as any;
+  const chainId = String(b.chain_id || '');
+  const slug = String(b.slug || '');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "ChainMember" WHERE chain_id=$1 AND slug=$2`, chainId, slug).catch(() => {});
+  // Don't orphan this branch's task rows (which is also what makes its sidebar
+  // link disappear once it's no longer a member of any chain).
+  await (prisma as any).$executeRawUnsafe(
+    `DELETE FROM "NetworkTaskBranch" WHERE slug=$1 AND task_id IN (SELECT id FROM "NetworkTask" WHERE chain_id=$2)`,
+    slug, chainId).catch(() => {});
+  return { ok: true };
+});
+
+// Rename a chain (super-admin) — composing the network is a platform decision.
+registerFn('renameChain', async ({ user, body }: any) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensureChainTables();
   const b = (body || {}) as any;
-  await (prisma as any).$executeRawUnsafe(`DELETE FROM "ChainMember" WHERE chain_id=$1 AND slug=$2`, String(b.chain_id || ''), String(b.slug || '')).catch(() => {});
+  const chainId = String(b.chain_id || '').trim();
+  const name = String(b.name || '').trim();
+  if (!chainId || !name) throw new Error('chain_id and name required');
+  await (prisma as any).$executeRawUnsafe(`UPDATE "Chain" SET name=$1 WHERE id=$2`, name.slice(0, 120), chainId).catch(() => {});
+  return { ok: true };
+});
+
+// Delete a whole chain + all its members and tasks (super-admin). Idempotent.
+registerFn('deleteChain', async ({ user, body }: any) => {
+  if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensureChainTables(); await ensureNetworkTaskTables();
+  const chainId = String((body as any)?.chain_id || '').trim();
+  if (!chainId) throw new Error('chain_id required');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "NetworkTaskBranch" WHERE task_id IN (SELECT id FROM "NetworkTask" WHERE chain_id=$1)`, chainId).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "NetworkTask" WHERE chain_id=$1`, chainId).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "ChainMember" WHERE chain_id=$1`, chainId).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "Chain" WHERE id=$1`, chainId).catch(() => {});
   return { ok: true };
 });
 
@@ -18856,6 +18895,11 @@ async function ensureNetworkTaskTables(): Promise<void> {
   await dbx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "NetworkTask" (id TEXT PRIMARY KEY, chain_id TEXT, title TEXT, detail TEXT, "createdAt" TIMESTAMPTZ DEFAULT NOW())`).catch(() => {});
   await dbx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "NetworkTaskBranch" (id TEXT PRIMARY KEY, task_id TEXT, slug TEXT, name TEXT, done BOOLEAN DEFAULT false, done_at TIMESTAMPTZ)`).catch(() => {});
   await dbx.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "NetworkTaskBranch_task_slug" ON "NetworkTaskBranch"(task_id, slug)`).catch(() => {});
+  // A task now carries WHO it's for (role) and WHEN it's due; a branch can leave
+  // a note when it marks done — the feedback half of the loop.
+  await dbx.$executeRawUnsafe(`ALTER TABLE "NetworkTask" ADD COLUMN IF NOT EXISTS role TEXT`).catch(() => {});
+  await dbx.$executeRawUnsafe(`ALTER TABLE "NetworkTask" ADD COLUMN IF NOT EXISTS due_date DATE`).catch(() => {});
+  await dbx.$executeRawUnsafe(`ALTER TABLE "NetworkTaskBranch" ADD COLUMN IF NOT EXISTS note TEXT`).catch(() => {});
 }
 
 registerFn('createNetworkTask', async ({ user, body }: any) => {
@@ -18866,7 +18910,11 @@ registerFn('createNetworkTask', async ({ user, body }: any) => {
   if (!chainId || !title) throw new Error('chain_id and title required');
   await assertChainAccess(user, chainId);
   const id = `ntask_${Date.now().toString(36)}`;
-  await (prisma as any).$executeRawUnsafe(`INSERT INTO "NetworkTask" (id, chain_id, title, detail) VALUES ($1,$2,$3,$4)`, id, chainId, title.slice(0, 200), String(b.detail || '').slice(0, 2000));
+  const role = String(b.role || '').trim().slice(0, 40) || null;
+  const dueDate = String(b.due_date || '').trim().slice(0, 10) || null; // YYYY-MM-DD
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "NetworkTask" (id, chain_id, title, detail, role, due_date) VALUES ($1,$2,$3,$4,$5,$6::date)`,
+    id, chainId, title.slice(0, 200), String(b.detail || '').slice(0, 2000), role, dueDate);
   const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name FROM "ChainMember" WHERE chain_id=$1`, chainId).catch(() => []);
   for (const m of members) {
     await (prisma as any).$executeRawUnsafe(
@@ -18881,9 +18929,9 @@ registerFn('listNetworkTasks', async ({ user, body }: any) => {
   const chainId = String((body as any)?.chain_id || '').trim();
   if (!chainId) throw new Error('chain_id required');
   await assertChainAccess(user, chainId);
-  const tasks: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, title, detail, "createdAt" FROM "NetworkTask" WHERE chain_id=$1 ORDER BY "createdAt" DESC`, chainId).catch(() => []);
+  const tasks: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, title, detail, role, due_date, "createdAt" FROM "NetworkTask" WHERE chain_id=$1 ORDER BY "createdAt" DESC`, chainId).catch(() => []);
   const branches: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT b.task_id, b.slug, b.name, b.done FROM "NetworkTaskBranch" b JOIN "NetworkTask" t ON t.id=b.task_id WHERE t.chain_id=$1`, chainId).catch(() => []);
+    `SELECT b.task_id, b.slug, b.name, b.done, b.note FROM "NetworkTaskBranch" b JOIN "NetworkTask" t ON t.id=b.task_id WHERE t.chain_id=$1`, chainId).catch(() => []);
   return { tasks: tasks.map((t: any) => ({ ...t, branches: branches.filter((x: any) => x.task_id === t.id) })) };
 });
 
@@ -18928,12 +18976,12 @@ registerFn('getMyBranchTasks', async ({ user }: any) => {
   await ensureNetworkTaskTables();
   const slug = currentTenantSlug();
   const rows: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT b.task_id, b.done, b.done_at, t.title, t.detail, t."createdAt", t.chain_id,
+    `SELECT b.task_id, b.done, b.done_at, b.note, t.title, t.detail, t.role, t.due_date, t."createdAt", t.chain_id,
             (SELECT name FROM public."Chain" WHERE id = t.chain_id) AS chain_name
        FROM public."NetworkTaskBranch" b
        JOIN public."NetworkTask" t ON t.id = b.task_id
       WHERE b.slug = $1
-      ORDER BY t."createdAt" DESC`, slug).catch(() => []);
+      ORDER BY b.done ASC, t.due_date ASC NULLS LAST, t."createdAt" DESC`, slug).catch(() => []);
   return { slug, tasks: rows };
 });
 
@@ -18943,10 +18991,14 @@ registerFn('markMyBranchTask', async ({ user, body }: any) => {
   const slug = currentTenantSlug();
   const taskId = String((body as any)?.task_id || '').trim();
   const done = !!(body as any)?.done;
+  const hasNote = Object.prototype.hasOwnProperty.call((body as any) || {}, 'note');
+  const note = hasNote ? String((body as any).note || '').slice(0, 500) : null;
   if (!taskId) throw new Error('task_id required');
   await (prisma as any).$executeRawUnsafe(
-    `UPDATE public."NetworkTaskBranch" SET done=$1, done_at=CASE WHEN $1 THEN NOW() ELSE NULL END
-      WHERE task_id=$2 AND slug=$3`, done, taskId, slug).catch(() => {});
+    `UPDATE public."NetworkTaskBranch"
+        SET done=$1, done_at=CASE WHEN $1 THEN NOW() ELSE NULL END${hasNote ? ', note=$4' : ''}
+      WHERE task_id=$2 AND slug=$3`,
+    ...(hasNote ? [done, taskId, slug, note] : [done, taskId, slug])).catch(() => {});
   return { ok: true };
 });
 

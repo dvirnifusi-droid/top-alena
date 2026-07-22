@@ -3,15 +3,23 @@
 // Platform-owner only (rendered inside PlatformLayout). D.1 of Apollo-for-chains.
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Loader2, Plus, Trash2, Network, RefreshCw, Send } from 'lucide-react';
+import { Loader2, Plus, Trash2, Network, RefreshCw, Send, Pencil } from 'lucide-react';
 
 const ils = (n) => `₪${(Number(n) || 0).toLocaleString('he-IL')}`;
+
+const TASK_ROLES = [
+  ['', 'כל התפקידים'], ['owner', 'בעלים'], ['manager', 'מנהל'], ['chef', 'שף / מטבח'],
+  ['marketing', 'שיווק'], ['bar', 'בר'], ['service', 'שירות'],
+];
+const roleLabel = (r) => (TASK_ROLES.find(([v]) => v === r)?.[1]) || r;
 
 function NetworkTasks({ chainId }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
   const [detail, setDetail] = useState('');
+  const [role, setRole] = useState('');
+  const [dueDate, setDueDate] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
@@ -25,7 +33,7 @@ function NetworkTasks({ chainId }) {
   const create = async () => {
     if (!title.trim()) return;
     setBusy(true);
-    try { await base44.functions.createNetworkTask({ chain_id: chainId, title: title.trim(), detail: detail.trim() }); setTitle(''); setDetail(''); load(); }
+    try { await base44.functions.createNetworkTask({ chain_id: chainId, title: title.trim(), detail: detail.trim(), role, due_date: dueDate }); setTitle(''); setDetail(''); setRole(''); setDueDate(''); load(); }
     catch (e) { alert('שגיאה: ' + (e?.message || '')); }
     finally { setBusy(false); }
   };
@@ -47,20 +55,27 @@ function NetworkTasks({ chainId }) {
     } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
   };
 
+  const fmtDue = (d) => { if (!d) return ''; try { return new Date(d).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }); } catch { return ''; } };
+
   return (
     <div className="mt-4 pt-4 border-t border-slate-800">
       <div className="text-sm font-bold text-white mb-2">🎯 משימות רשתיות</div>
       <div className="flex flex-col gap-2 mb-3">
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="כותרת משימה (למשל: מבצע מונדיאל)" className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
+        <input value={detail} onChange={(e) => setDetail(e.target.value)} placeholder="פרטים (אופציונלי)" className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
         <div className="flex gap-2">
-          <input value={detail} onChange={(e) => setDetail(e.target.value)} placeholder="פרטים (אופציונלי)" className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
-          <button onClick={create} disabled={busy || !title.trim()} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-lg px-3 py-2 text-sm disabled:opacity-50">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שגר לסניפים'}</button>
+          <select value={role} onChange={(e) => setRole(e.target.value)} title="למי מיועדת" className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-sm text-white">
+            {TASK_ROLES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} title="תאריך יעד" className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-2 text-sm text-white" />
+          <button onClick={create} disabled={busy || !title.trim()} className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-lg px-3 py-2 text-sm disabled:opacity-50">{busy ? <Loader2 className="w-4 h-4 animate-spin inline" /> : 'שגר לסניפים'}</button>
         </div>
       </div>
       {loading ? <div className="flex justify-center py-2"><Loader2 className="w-4 h-4 animate-spin text-slate-500" /></div> : (
         <div className="space-y-2">
           {tasks.map((t) => {
             const done = (t.branches || []).filter((b) => b.done).length;
+            const overdue = t.due_date && done < (t.branches || []).length && new Date(t.due_date) < new Date(new Date().toDateString());
             return (
               <div key={t.id} className="bg-slate-800/60 rounded-lg p-3">
                 <div className="flex items-center justify-between">
@@ -70,16 +85,28 @@ function NetworkTasks({ chainId }) {
                     <button onClick={() => del(t.id)} className="text-red-400 hover:text-red-300"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
+                <div className="flex items-center gap-2 mt-1">
+                  {t.role && <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300">👤 {roleLabel(t.role)}</span>}
+                  {t.due_date && <span className={`text-[10px] px-1.5 py-0.5 rounded ${overdue ? 'bg-red-500/20 text-red-300' : 'bg-slate-700 text-slate-300'}`}>📅 {fmtDue(t.due_date)}{overdue ? ' · באיחור' : ''}</span>}
+                </div>
                 {t.detail && <div className="text-xs text-slate-400 mt-0.5">{t.detail}</div>}
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {(t.branches || []).map((b) => (
-                    <button key={b.slug} onClick={() => toggle(t.id, b.slug, !b.done)}
+                    <button key={b.slug} onClick={() => toggle(t.id, b.slug, !b.done)} title={b.note || ''}
                       className={`text-xs px-2 py-1 rounded-full border ${b.done ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>
-                      {b.done ? '✓ ' : ''}{b.name}
+                      {b.done ? '✓ ' : ''}{b.name}{b.note ? ' 💬' : ''}
                     </button>
                   ))}
                   {(t.branches || []).length === 0 && <span className="text-xs text-slate-500">אין סניפים ברשת</span>}
                 </div>
+                {/* Notes the branches left */}
+                {(t.branches || []).some((b) => b.note) && (
+                  <div className="mt-2 space-y-0.5">
+                    {(t.branches || []).filter((b) => b.note).map((b) => (
+                      <div key={b.slug} className="text-[11px] text-slate-400">💬 <b className="text-slate-300">{b.name}:</b> {b.note}</div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -151,7 +178,23 @@ function ChainCard({ chain, available, onChanged, isSuper }) {
     <div className="rounded-2xl border border-slate-700 bg-slate-900/60 p-5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-lg font-bold text-white flex items-center gap-2"><Network className="w-5 h-5 text-amber-400" /> {chain.name}</h3>
-        <span className="text-xs text-slate-400">{(chain.members || []).length} סניפים</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-slate-400">{(chain.members || []).length} סניפים</span>
+          {isSuper && (
+            <>
+              <button title="שנה שם" onClick={async () => {
+                const name = window.prompt('שם חדש לרשת:', chain.name); if (!name || !name.trim()) return;
+                try { await base44.functions.renameChain({ chain_id: chain.id, name: name.trim() }); onChanged && onChanged(); }
+                catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+              }} className="text-slate-400 hover:text-white"><Pencil className="w-4 h-4" /></button>
+              <button title="מחק רשת" onClick={async () => {
+                if (!window.confirm(`למחוק את הרשת "${chain.name}" על כל הסניפים והמשימות שלה? פעולה בלתי הפיכה.`)) return;
+                try { await base44.functions.deleteChain({ chain_id: chain.id }); onChanged && onChanged(); }
+                catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+              }} className="text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4" /></button>
+            </>
+          )}
+        </div>
       </div>
       {isSuper && <OwnerAssign chain={chain} onChanged={onChanged} />}
 

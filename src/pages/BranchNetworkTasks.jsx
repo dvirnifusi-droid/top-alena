@@ -6,14 +6,23 @@ import { base44 } from '@/api/base44Client';
 import { Card } from '@/components/ui/card';
 import { Loader2, Network, CheckCircle2, Circle, RefreshCw } from 'lucide-react';
 
+const ROLE_LABELS = { owner: 'בעלים', manager: 'מנהל', chef: 'שף / מטבח', marketing: 'שיווק', bar: 'בר', service: 'שירות' };
+const fmtDue = (d) => { if (!d) return ''; try { return new Date(d).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }); } catch { return ''; } };
+
 export default function BranchNetworkTasks() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
+  const [noteDraft, setNoteDraft] = useState({}); // task_id -> text being edited
 
   const load = async () => {
     setLoading(true);
-    try { const r = await base44.functions.getMyBranchTasks(); setTasks((r?.data || r)?.tasks || []); }
+    try {
+      const r = await base44.functions.getMyBranchTasks();
+      const list = (r?.data || r)?.tasks || [];
+      setTasks(list);
+      setNoteDraft(Object.fromEntries(list.map((t) => [t.task_id, t.note || ''])));
+    }
     catch { setTasks([]); }
     finally { setLoading(false); }
   };
@@ -21,11 +30,16 @@ export default function BranchNetworkTasks() {
 
   const toggle = async (task_id, done) => {
     setBusy(task_id);
-    // optimistic
-    setTasks((p) => p.map((t) => (t.task_id === task_id ? { ...t, done } : t)));
+    setTasks((p) => p.map((t) => (t.task_id === task_id ? { ...t, done } : t))); // optimistic
     try { await base44.functions.markMyBranchTask({ task_id, done }); }
     catch { load(); }
     finally { setBusy(''); }
+  };
+
+  const saveNote = async (task_id, done) => {
+    const note = noteDraft[task_id] ?? '';
+    try { await base44.functions.markMyBranchTask({ task_id, done, note }); setTasks((p) => p.map((t) => (t.task_id === task_id ? { ...t, note } : t))); }
+    catch { /* keep draft */ }
   };
 
   const doneCount = tasks.filter((t) => t.done).length;
@@ -61,8 +75,20 @@ export default function BranchNetworkTasks() {
                 </button>
                 <div className="flex-1 min-w-0">
                   <div className={`font-semibold ${t.done ? 'text-emerald-800 line-through' : 'text-slate-800'}`}>{t.title}</div>
-                  {t.detail && <div className="text-sm text-slate-600 mt-0.5 whitespace-pre-wrap">{t.detail}</div>}
-                  {t.chain_name && <div className="text-[11px] text-slate-400 mt-1">רשת: {t.chain_name}</div>}
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {t.role && <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">👤 {ROLE_LABELS[t.role] || t.role}</span>}
+                    {t.due_date && <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">📅 עד {fmtDue(t.due_date)}</span>}
+                    {t.chain_name && <span className="text-[10px] text-slate-400">רשת: {t.chain_name}</span>}
+                  </div>
+                  {t.detail && <div className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{t.detail}</div>}
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      value={noteDraft[t.task_id] ?? ''}
+                      onChange={(e) => setNoteDraft((p) => ({ ...p, [t.task_id]: e.target.value }))}
+                      onBlur={() => { if ((noteDraft[t.task_id] ?? '') !== (t.note || '')) saveNote(t.task_id, t.done); }}
+                      placeholder="הערה לרשת (אופציונלי)…"
+                      className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white" />
+                  </div>
                 </div>
               </Card>
             ))}
