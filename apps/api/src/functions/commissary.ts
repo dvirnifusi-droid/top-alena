@@ -796,7 +796,10 @@ registerFn('getChainCommissary', async ({ user, body }) => {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String((body as any)?.order_date)) ? String((body as any).order_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
 
   const chainRow: any[] = await (prisma as any).$queryRawUnsafe(`SELECT name, commissary_slug FROM public."Chain" WHERE id=$1`, chainId).catch(() => []);
-  const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name, phone FROM public."ChainMember" WHERE chain_id=$1 ORDER BY name`, chainId).catch(() => []);
+  const commSlug = chainRow[0]?.commissary_slug || null;
+  // Members = the branches that ORDER from the commissary; the commissary tenant
+  // itself is excluded (it doesn't order from itself).
+  const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name, phone FROM public."ChainMember" WHERE chain_id=$1 AND slug IS DISTINCT FROM $2 ORDER BY name`, chainId, commSlug).catch(() => []);
   const catRows: any[] = await (prisma as any).$queryRawUnsafe(
     `SELECT item_key, source, name, unit, department, cost_per_unit, markup_pct, internal_price, active, stock_qty, due_date
      FROM public."CommissaryCatalogItem" WHERE chain_id=$1 ORDER BY department NULLS LAST, name`, chainId,
