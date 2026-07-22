@@ -577,7 +577,7 @@ function OwnerAssign({ chain, onChanged }) {
   );
 }
 
-function ChainCard({ chain, available, onChanged, isSuper }) {
+export function ChainCard({ chain, available, onChanged, isSuper }) {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [addSlug, setAddSlug] = useState('');

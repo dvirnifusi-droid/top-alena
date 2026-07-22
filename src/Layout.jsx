@@ -420,7 +420,7 @@ export default function Layout({ children, currentPageName }) {
       // The commissary tenant IS the network home → it gets the Network HQ, not the
       // branch-ordering links (it doesn't order from itself).
       if (isChainCommissary) {
-        extra.push({ title: "🏢 מטה הרשת", url: createPageUrl("NetworkHQ"), icon: Shield, color: "espresso" });
+        extra.push({ title: "🏢 מטה הרשת", url: createPageUrl("NetworkDashboard"), icon: Shield, color: "espresso" });
       } else {
         // A branch inside a chain gets its network-task inbox + commissary ordering.
         if (branchOfChain) extra.push({ title: "🔗 משימות רשת", url: createPageUrl("BranchNetworkTasks"), icon: ClipboardCheck, color: "espresso" });

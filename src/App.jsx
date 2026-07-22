@@ -70,13 +70,20 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   : <ErrorBoundary key={currentPageName} label={currentPageName}>{children}</ErrorBoundary>;
 
 const RoleBasedHome = () => {
-  const [role, setRole] = React.useState(null);
+  const [dest, setDest] = React.useState(null);
   React.useEffect(() => {
-    base44.auth.me().then(u => setRole(u?.role || 'user')).catch(() => setRole('user'));
+    (async () => {
+      let role = 'user', isNetwork = false;
+      try { const u = await base44.auth.me(); role = u?.role || 'user'; } catch { /* default */ }
+      // A network-type tenant (its own commissary) lands on the Network HQ.
+      try { const r = await base44.functions.getMyPlatformInfo({}); const d = r?.data || r; isNetwork = !!d?.is_chain_commissary; } catch { /* ignore */ }
+      if (isNetwork && (role === 'admin' || role === 'owner' || role === 'manager')) setDest('/NetworkDashboard');
+      else if (role === 'admin' || role === 'owner') setDest('/Dashboard');
+      else setDest('/EmployeeHome');
+    })();
   }, []);
-  if (role === null) return null;
-  if (role === 'admin' || role === 'owner') return <Navigate to="/Dashboard" replace />;
-  return <Navigate to="/EmployeeHome" replace />;
+  if (dest === null) return null;
+  return <Navigate to={dest} replace />;
 };
 
 const AuthenticatedApp = () => {

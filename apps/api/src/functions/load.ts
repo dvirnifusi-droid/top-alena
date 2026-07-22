@@ -18459,6 +18459,30 @@ registerFn('getMyPlatformInfo', async ({ user }) => {
   };
 });
 
+// The chain THIS tenant is the home of — for a network-type tenant (its own
+// commissary, e.g. nifusigroup) the whole Network HQ lives inside the tenant.
+// Resolves the chain by commissary_slug first, else membership.
+registerFn('getMyNetworkHome', async ({ user }: any) => {
+  await requireBackOffice(user, 'getMyNetworkHome', 'NetworkDashboard');
+  await ensureChainTables();
+  const slug = currentTenantSlug();
+  let rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, name, commissary_slug, owner_email FROM public."Chain" WHERE commissary_slug=$1 LIMIT 1`, slug).catch(() => []);
+  const isCommissary = rows.length > 0;
+  if (!rows.length) {
+    rows = await (prisma as any).$queryRawUnsafe(
+      `SELECT c.id, c.name, c.commissary_slug, c.owner_email FROM public."Chain" c JOIN public."ChainMember" m ON m.chain_id=c.id WHERE m.slug=$1 LIMIT 1`, slug).catch(() => []);
+  }
+  if (!rows.length) return { in_network: false };
+  const chain = rows[0];
+  const members: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, chain_id, slug, name FROM public."ChainMember" WHERE chain_id=$1 ORDER BY name`, chain.id).catch(() => []);
+  return {
+    in_network: true, is_commissary: isCommissary, is_super: isSuperAdmin(user),
+    chain: { id: chain.id, name: chain.name, commissary_slug: chain.commissary_slug || null, members },
+  };
+});
+
 // PUBLIC — anyone can post a signup. Creates Tenant in pending_approval +
 // WhatsApp notifies super-admin with one-tap approve link.
 // B — public real-time slug availability check for the signup form.

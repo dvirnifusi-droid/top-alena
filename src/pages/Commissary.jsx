@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, ChefHat, RefreshCw, Save, Plus, Factory, TrendingUp, Percent, Share2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
+import { useNavigate } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 
 const cur = (n) => `₪${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -25,6 +27,17 @@ function CommissaryInner() {
   // Local edits keyed by ref_id → { markup_pct, price_override, active }
   const [edits, setEdits] = useState({});
   const [publishing, setPublishing] = useState(false);
+  // A network-type tenant (its own commissary) shows the network dashboard here,
+  // not the per-restaurant catalog builder. Redirect it to מטה הרשת.
+  const navigate = useNavigate();
+  const [routing, setRouting] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    base44.functions.getMyPlatformInfo({})
+      .then((r) => { const d = r?.data || r; if (!alive) return; if (d?.is_chain_commissary) navigate(createPageUrl('NetworkDashboard'), { replace: true }); else setRouting(false); })
+      .catch(() => { if (alive) setRouting(false); });
+    return () => { alive = false; };
+  }, [navigate]);
 
   const publishToChain = async () => {
     setPublishing(true); setMsg(null);
@@ -142,6 +155,8 @@ function CommissaryInner() {
   const margins = catalog.filter((r) => r.has_cost && r.margin_pct != null).map((r) => r.margin_pct);
   const avgMargin = margins.length ? Math.round((margins.reduce((a, b) => a + b, 0) / margins.length) * 10) / 10 : null;
   const ingInCatalog = new Set(catalog.filter((r) => r.source === 'raw').map((r) => r.ref_id));
+
+  if (routing) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>;
 
   return (
     <PageShell>
