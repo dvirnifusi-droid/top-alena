@@ -262,12 +262,16 @@ async function geminiInvoke(args: InvokeArgs) {
       tokens_out: Number(um.candidatesTokenCount || 0),
     });
   }
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  const cand = data?.candidates?.[0];
+  const text = cand?.content?.parts?.[0]?.text ?? '';
   if (responseSchema) {
     try {
       return JSON.parse(text);
     } catch {
-      return { raw: text };
+      // Carry WHY it failed so callers can tell an empty answer (thinking model
+      // ate the whole token budget → finishReason MAX_TOKENS) from a blocked one
+      // (SAFETY / a promptFeedback.blockReason) and message the user usefully.
+      return { raw: text, finishReason: cand?.finishReason, blockReason: data?.promptFeedback?.blockReason };
     }
   }
   return text;

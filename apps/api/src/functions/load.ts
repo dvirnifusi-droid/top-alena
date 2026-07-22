@@ -4380,7 +4380,9 @@ registerFn('reviewSocialContent', async ({ body, user }: any) => {
   const text = String(b.text || '').trim();
   const platform = String(b.platform || 'instagram').trim();
   const imageUrl = String(b.image_url || '').trim();
-  if (!text && !imageUrl) throw new Error('הדבק טקסט או העלה תמונה לבדיקה');
+  const link = String(b.link || '').trim().slice(0, 500);
+  const isVideo = /\.(mp4|mov|webm|m4v|avi|mkv)$/i.test(imageUrl) || /video/i.test(String(b.media_type || ''));
+  if (!text && !imageUrl && !link) throw new Error('הדבק טקסט, קישור, או העלה תמונה/סרטון לבדיקה');
   let profileBlock = '';
   try {
     const p: any = await db.businessProfile.findFirst();
@@ -4393,9 +4395,12 @@ registerFn('reviewSocialContent', async ({ body, user }: any) => {
     profileBlock,
     `הפלטפורמה: ${platform}.`,
   ];
-  if (imageUrl) promptLines.push('מצורפת התמונה/העיצוב של הפוסט — בחן גם את החזות: עיצוב, איכות, התאמה למותג, קריאוּת וקריאה-לפעולה ויזואלית.');
+  if (imageUrl) promptLines.push(isVideo
+    ? 'מצורף סרטון של הפוסט — בחן את הווידאו: 3 השניות הראשונות (ה-hook), הקצב, בהירות המסר, איכות ההפקה, התאמה למותג, וקריאה-לפעולה בסוף.'
+    : 'מצורפת התמונה/העיצוב של הפוסט — בחן גם את החזות: עיצוב, איכות, התאמה למותג, קריאוּת וקריאה-לפעולה ויזואלית.');
+  if (link) promptLines.push(`קישור שסופק על ידי הבעלים: ${link}\nאם לא צורפה מדיה, אינך יכול לצפות ישירות בתוכן שמאחורי הקישור — בחן לפי הכיתוב וההקשר, וציין בבירור אם צריך לראות את המדיה עצמה כדי לתת ביקורת מלאה.`);
   if (text) promptLines.push(`--- הכיתוב שהוגש ---\n${text}\n--- סוף הכיתוב ---`);
-  else promptLines.push('(לא הוגש כיתוב — בחן את התמונה בלבד, והצע כיתוב מתאים.)');
+  else if (imageUrl) promptLines.push('(לא הוגש כיתוב — בחן את המדיה בלבד, והצע כיתוב מתאים.)');
   promptLines.push('החזר ניתוח מפורט וספציפי בעברית: ציון 1-10; משפט שורה-תחתונה; לפחות 2-3 נקודות חוזק; לפחות 2-3 בעיות/סיכונים קונקרטיים — הסבר בדיוק מה לא טוב ולמה; וגרסה משופרת מלאה שאתה היית מפרסם.');
 
   const res: any = await invokeLLM({
@@ -4414,11 +4419,16 @@ registerFn('reviewSocialContent', async ({ body, user }: any) => {
       },
       required: ['score', 'verdict', 'strengths', 'issues', 'rewrite'],
     },
-    maxOutputTokens: 2500,
+    // Higher for video (more to analyse) and to leave 2.5-pro's thinking room.
+    maxOutputTokens: isVideo ? 6000 : 4096,
   });
   // invokeLLM returns { raw } when the JSON didn't parse (truncated/malformed).
-  // Don't silently degrade to a bogus score — tell the owner to retry.
-  if (!res || res.raw || res.score == null) throw new Error('הניתוח לא הושלם — נסה שוב (אולי התמונה גדולה מדי או הטקסט ארוך).');
+  // Don't silently degrade to a bogus score — tell the owner exactly why.
+  if (!res || res.raw != null || res.score == null) {
+    const blocked = res?.blockReason || res?.finishReason === 'SAFETY' || res?.finishReason === 'PROHIBITED_CONTENT' || res?.finishReason === 'RECITATION';
+    if (blocked) throw new Error('המדיה נחסמה על ידי מסנני הבטיחות של ה-AI (למשל אלכוהול או אדם בתמונה). נסה מדיה אחרת או בחן את הטקסט בלבד.');
+    throw new Error('הניתוח לא הושלם — נסה שוב. אם צירפת סרטון, קצר אותו (עד ~20 שניות); אם תמונה, נסה קטנה יותר.');
+  }
   return {
     score: Math.max(1, Math.min(10, Math.round(Number(res.score) || 0))),
     verdict: String(res.verdict || ''),
@@ -4462,9 +4472,18 @@ registerFn('generateStoryContent', async ({ body, user }: any) => {
       },
       required: ['overlay_text', 'caption'],
     },
-    maxOutputTokens: 1500,
+    // gemini-2.5-pro is a THINKING model — reasoning tokens count against this
+    // budget before any answer is produced. 1500 could be consumed entirely by
+    // thinking, returning an empty candidate. Give it room for both.
+    maxOutputTokens: 4096,
   });
-  if (!res || res.raw || !res.overlay_text) throw new Error('היצירה לא הושלמה — נסה שוב (אולי תמונה גדולה מדי).');
+  if (!res || res.raw != null || !res.overlay_text) {
+    const blocked = res?.blockReason || res?.finishReason === 'SAFETY' || res?.finishReason === 'PROHIBITED_CONTENT' || res?.finishReason === 'RECITATION';
+    if (blocked) {
+      throw new Error('התמונה נחסמה על ידי מסנני הבטיחות של ה-AI (למשל אלכוהול או אדם בתמונה). נסה תמונה של המנה עצמה — בלי אנשים ובלי משקאות אלכוהוליים.');
+    }
+    throw new Error('היצירה לא הושלמה — נסה שוב, ואם זה חוזר נסה תמונה קטנה יותר או תיאור קצר יותר.');
+  }
   return {
     overlay_text: String(res.overlay_text || ''),
     caption: String(res.caption || ''),

@@ -7,7 +7,8 @@ import { UploadFile } from '@/integrations/Core';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Copy, Check, Upload, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Loader2, Copy, Check, Upload, X, Link2 } from 'lucide-react';
 
 const PLATFORMS = [['instagram', 'אינסטגרם'], ['facebook', 'פייסבוק'], ['tiktok', 'טיקטוק'], ['story', 'סטורי']];
 const withHash = (tags) => (tags || []).map((h) => (String(h).startsWith('#') ? h : '#' + h)).join(' ');
@@ -16,6 +17,8 @@ export default function SocialReviewer() {
   const [text, setText] = useState('');
   const [platform, setPlatform] = useState('instagram');
   const [imageUrl, setImageUrl] = useState('');
+  const [isVideo, setIsVideo] = useState(false);
+  const [link, setLink] = useState('');
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [res, setRes] = useState(null);
@@ -25,19 +28,23 @@ export default function SocialReviewer() {
   const onFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const video = (file.type || '').startsWith('video/');
     setUploading(true); setErr('');
     try {
       const { file_url } = await UploadFile({ file });
-      setImageUrl(file_url);
-    } catch (er) { setErr('העלאת התמונה נכשלה: ' + (er?.message || '')); }
+      setImageUrl(file_url); setIsVideo(video);
+    } catch (er) { setErr('העלאת הקובץ נכשלה: ' + (er?.message || '')); }
     finally { setUploading(false); }
   };
+  const clearMedia = () => { setImageUrl(''); setIsVideo(false); };
 
   const review = async () => {
-    if (!text.trim() && !imageUrl) { setErr('הדבק טקסט או העלה תמונה'); return; }
+    if (!text.trim() && !imageUrl && !link.trim()) { setErr('הדבק טקסט, קישור, או העלה תמונה/סרטון'); return; }
     setLoading(true); setErr(''); setRes(null);
     try {
-      const r = await base44.functions.reviewSocialContent({ text, platform, image_url: imageUrl });
+      const r = await base44.functions.reviewSocialContent({
+        text, platform, image_url: imageUrl, link: link.trim(), media_type: isVideo ? 'video' : 'image',
+      });
       setRes(r?.data || r || {});
     } catch (e) { setErr(e?.message || 'הבדיקה נכשלה'); }
     finally { setLoading(false); }
@@ -48,7 +55,7 @@ export default function SocialReviewer() {
   return (
     <div dir="rtl" className="space-y-4 max-w-2xl">
       <Card className="p-4 space-y-3">
-        <div className="text-sm text-slate-600">העלה את התמונה של הפוסט ו/או הדבק את הכיתוב — מנהל השיווק ה-AI יבחן אותם מול המותג שלך ויסביר בדיוק מה לשפר.</div>
+        <div className="text-sm text-slate-600">העלה תמונה או סרטון של הפוסט, הדבק קישור ו/או את הכיתוב — מנהל השיווק ה-AI יבחן אותם מול המותג שלך ויסביר בדיוק מה לשפר.</div>
         <div className="flex gap-2 flex-wrap">
           {PLATFORMS.map(([v, l]) => (
             <button key={v} type="button" onClick={() => setPlatform(v)}
@@ -58,19 +65,28 @@ export default function SocialReviewer() {
 
         {imageUrl ? (
           <div className="relative inline-block">
-            <img src={imageUrl} alt="preview" className="max-h-52 rounded-lg border" />
-            <button onClick={() => setImageUrl('')} className="absolute top-1 left-1 bg-black/60 text-white rounded-full p-1" aria-label="הסר תמונה"><X className="w-4 h-4" /></button>
+            {isVideo
+              ? <video src={imageUrl} controls className="max-h-52 rounded-lg border" />
+              : <img src={imageUrl} alt="preview" className="max-h-52 rounded-lg border" />}
+            <button onClick={clearMedia} className="absolute top-1 left-1 bg-black/60 text-white rounded-full p-1" aria-label="הסר מדיה"><X className="w-4 h-4" /></button>
           </div>
         ) : (
           <label className="inline-flex items-center gap-2 cursor-pointer border border-dashed border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
             {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {uploading ? 'מעלה…' : 'העלה תמונה/עיצוב של הפוסט'}
-            <input type="file" accept="image/*" onChange={onFile} disabled={uploading} className="hidden" />
+            {uploading ? 'מעלה…' : 'העלה תמונה או סרטון של הפוסט'}
+            <input type="file" accept="image/*,video/*" onChange={onFile} disabled={uploading} className="hidden" />
           </label>
         )}
 
-        <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} placeholder="הדבק כאן את הכיתוב (אופציונלי אם העלית תמונה)…" />
-        <Button onClick={review} disabled={loading || uploading || (!text.trim() && !imageUrl)} className="bg-[#A04A2E] hover:bg-[#7A3722]">
+        <div className="flex items-center gap-2">
+          <Link2 className="w-4 h-4 text-slate-400 shrink-0" />
+          <Input value={link} onChange={(e) => setLink(e.target.value)} dir="ltr"
+            placeholder="קישור לפוסט/סרטון (אופציונלי)" className="text-sm" />
+        </div>
+        <p className="text-[11px] text-slate-400 -mt-1">טיפ: כדי שה-AI ינתח סרטון בפועל — העלה את קובץ הווידאו (עד ~20 שניות). קישור לבד משמש כהקשר בלבד, כי ה-AI לא יכול לצפות בו ישירות.</p>
+
+        <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} placeholder="הדבק כאן את הכיתוב (אופציונלי אם העלית מדיה)…" />
+        <Button onClick={review} disabled={loading || uploading || (!text.trim() && !imageUrl && !link.trim())} className="bg-[#A04A2E] hover:bg-[#7A3722]">
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'בחן את התוכן'}
         </Button>
         {err && <p className="text-sm text-red-600">{err}</p>}
