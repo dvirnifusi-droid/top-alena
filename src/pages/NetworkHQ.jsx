@@ -90,7 +90,29 @@ function NetworkTasks({ chainId }) {
   );
 }
 
-function ChainCard({ chain, available, onChanged }) {
+function OwnerAssign({ chain, onChanged }) {
+  const [email, setEmail] = useState(chain.owner_email || '');
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    setSaving(true);
+    try { await base44.functions.setChainOwner({ chain_id: chain.id, owner_email: email.trim() }); onChanged && onChanged(); }
+    catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setSaving(false); }
+  };
+  return (
+    <div className="flex items-center gap-2 mb-3 text-xs">
+      <span className="text-slate-500 whitespace-nowrap">בעל הרשת (אימייל כניסה):</span>
+      <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="owner@example.com"
+        className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-white" dir="ltr" />
+      <button onClick={save} disabled={saving || email.trim() === (chain.owner_email || '')}
+        className="bg-slate-700 hover:bg-slate-600 text-white rounded-lg px-2.5 py-1 disabled:opacity-40">
+        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'שמור'}
+      </button>
+    </div>
+  );
+}
+
+function ChainCard({ chain, available, onChanged, isSuper }) {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [addSlug, setAddSlug] = useState('');
@@ -131,6 +153,7 @@ function ChainCard({ chain, available, onChanged }) {
         <h3 className="text-lg font-bold text-white flex items-center gap-2"><Network className="w-5 h-5 text-amber-400" /> {chain.name}</h3>
         <span className="text-xs text-slate-400">{(chain.members || []).length} סניפים</span>
       </div>
+      {isSuper && <OwnerAssign chain={chain} onChanged={onChanged} />}
 
       {t && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
@@ -155,7 +178,7 @@ function ChainCard({ chain, available, onChanged }) {
                   <td className="p-2">{b.active_shifts}</td>
                   <td className="p-2">{ils(b.contract_revenue)}</td>
                   <td className="p-2">{b.unpaid_invoices}</td>
-                  <td className="p-2"><button onClick={() => removeBranch(b.slug)} disabled={busy} className="text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4" /></button></td>
+                  <td className="p-2">{isSuper && <button onClick={() => removeBranch(b.slug)} disabled={busy} className="text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4" /></button>}</td>
                 </tr>
               ))}
               {(metrics?.per_branch || []).length === 0 && <tr><td colSpan={6} className="p-3 text-center text-slate-500 text-xs">אין סניפים ברשת עדיין — הוסף למטה.</td></tr>}
@@ -164,13 +187,15 @@ function ChainCard({ chain, available, onChanged }) {
         </div>
       )}
 
-      <div className="flex items-center gap-2 mt-3">
-        <select value={addSlug} onChange={(e) => setAddSlug(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white">
-          <option value="">הוסף סניף…</option>
-          {addable.map((a) => <option key={a.slug} value={a.slug}>{a.name}</option>)}
-        </select>
-        <button onClick={addBranch} disabled={busy || !addSlug} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-lg px-3 py-1.5 text-sm disabled:opacity-50"><Plus className="w-4 h-4 inline" /> הוסף</button>
-      </div>
+      {isSuper && (
+        <div className="flex items-center gap-2 mt-3">
+          <select value={addSlug} onChange={(e) => setAddSlug(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white">
+            <option value="">הוסף סניף…</option>
+            {addable.map((a) => <option key={a.slug} value={a.slug}>{a.name}</option>)}
+          </select>
+          <button onClick={addBranch} disabled={busy || !addSlug} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-lg px-3 py-1.5 text-sm disabled:opacity-50"><Plus className="w-4 h-4 inline" /> הוסף</button>
+        </div>
+      )}
 
       <NetworkTasks chainId={chain.id} />
     </div>
@@ -199,25 +224,37 @@ export default function NetworkHQ() {
     finally { setCreating(false); }
   };
 
+  const isSuper = data?.is_super !== false; // undefined (loading) treated as super; backend still enforces
+
   return (
     <div dir="rtl" className="max-w-4xl mx-auto p-4 md:p-6 space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-black text-white flex items-center gap-2"><Network className="w-6 h-6 text-amber-400" /> מטה רשתות</h1>
         <button onClick={load} className="text-slate-400 hover:text-white"><RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} /></button>
       </div>
-      <p className="text-sm text-slate-400">קבץ סניפים לרשת אחת וראה תמונת-על של כל הסניפים במקום אחד.</p>
+      <p className="text-sm text-slate-400">
+        {isSuper
+          ? 'קבץ סניפים לרשת אחת וראה תמונת-על של כל הסניפים במקום אחד.'
+          : 'הרשת שלך — תמונת-על של כל הסניפים, ומשימות רשתיות שאתה מנהל.'}
+      </p>
 
-      <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-xl p-3">
-        <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="שם רשת חדשה" className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
-        <button onClick={createChain} disabled={creating || !newName.trim()} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-lg px-4 py-2 text-sm disabled:opacity-50">{creating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'צור רשת'}</button>
-      </div>
+      {isSuper && (
+        <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-xl p-3">
+          <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="שם רשת חדשה" className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" />
+          <button onClick={createChain} disabled={creating || !newName.trim()} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-lg px-4 py-2 text-sm disabled:opacity-50">{creating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'צור רשת'}</button>
+        </div>
+      )}
 
       {loading && !data ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-slate-500" /></div>
       ) : (
         <div className="space-y-4">
-          {(data?.chains || []).map((c) => <ChainCard key={c.id} chain={c} available={data.available} onChanged={load} />)}
-          {(data?.chains || []).length === 0 && <div className="text-center text-slate-500 py-10">אין רשתות עדיין. צור אחת למעלה.</div>}
+          {(data?.chains || []).map((c) => <ChainCard key={c.id} chain={c} available={data.available} onChanged={load} isSuper={isSuper} />)}
+          {(data?.chains || []).length === 0 && (
+            <div className="text-center text-slate-500 py-10">
+              {isSuper ? 'אין רשתות עדיין. צור אחת למעלה.' : 'עדיין לא שויכה אליך רשת. פנה למנהל הפלטפורמה.'}
+            </div>
+          )}
         </div>
       )}
     </div>

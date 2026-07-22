@@ -47,7 +47,7 @@ function AccessDenied() {
 export default function PlatformLayout({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [gate, setGate] = useState({ loading: true, allowed: false, name: '' });
+  const [gate, setGate] = useState({ loading: true, isOwner: false, isChainOperator: false, name: '' });
 
   useEffect(() => {
     (async () => {
@@ -57,16 +57,24 @@ export default function PlatformLayout({ children, currentPageName }) {
           base44.auth.me().catch(() => null),
         ]);
         const info = infoRes?.data || infoRes;
+        const isOwner = !!info?.is_platform_owner;
+        // chains_owned: -1 = super-admin (all), >0 = operates that many chains.
+        const chainsOwned = Number(info?.chains_owned || 0);
         setGate({
           loading: false,
-          allowed: !!info?.is_platform_owner,
+          isOwner,
+          isChainOperator: !isOwner && chainsOwned > 0,
           name: meRes?.full_name || meRes?.name || (info?.email || '').split('@')[0] || '',
         });
       } catch {
-        setGate({ loading: false, allowed: false, name: '' });
+        setGate({ loading: false, isOwner: false, isChainOperator: false, name: '' });
       }
     })();
   }, []);
+
+  const activeKey = currentPageName
+    || NAV.find(n => location.pathname.toLowerCase().includes(n.key.toLowerCase()))?.key
+    || 'PlatformAdmin';
 
   if (gate.loading) {
     return (
@@ -75,11 +83,15 @@ export default function PlatformLayout({ children, currentPageName }) {
       </div>
     );
   }
-  if (!gate.allowed) return <AccessDenied />;
+  // A platform owner sees every platform page. A chain operator (not a platform
+  // owner) may reach ONLY Network HQ — every other platform page stays locked.
+  // The backend fns enforce chain scoping independently; this is just the shell.
+  const onNetworkPage = activeKey === 'NetworkHQ';
+  const allowed = gate.isOwner || (gate.isChainOperator && onNetworkPage);
+  if (!allowed) return <AccessDenied />;
 
-  const activeKey = currentPageName
-    || NAV.find(n => location.pathname.toLowerCase().includes(n.key.toLowerCase()))?.key
-    || 'PlatformAdmin';
+  // Chain operators get a one-item nav — just their Network HQ.
+  const nav = gate.isOwner ? NAV : NAV.filter(n => n.key === 'NetworkHQ');
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100" dir="rtl">
@@ -111,7 +123,7 @@ export default function PlatformLayout({ children, currentPageName }) {
         </div>
         {/* Nav tabs */}
         <nav className="max-w-7xl mx-auto px-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
-          {NAV.map(n => {
+          {nav.map(n => {
             const active = n.key === activeKey;
             return (
               <button

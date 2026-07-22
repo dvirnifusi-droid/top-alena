@@ -218,6 +218,10 @@ export default function Layout({ children, currentPageName }) {
   const [user, setUser] = React.useState(null);
   const [originalUserRole, setOriginalUserRole] = React.useState(null);
   const [isPlatformOwner, setIsPlatformOwner] = React.useState(false);
+  // How many chains this user operates (Chain.owner_email === their email). A
+  // chain operator who is NOT the platform owner still gets a "My Network HQ"
+  // link; the page + its fns enforce chain scoping.
+  const [chainsOwned, setChainsOwned] = React.useState(0);
   const [hasUnreadChat, setHasUnreadChat] = React.useState(false);
   const [appTheme, setAppTheme] = React.useState(() => localStorage.getItem('gc_theme') || 'light');
   const branding = useTenantBranding();
@@ -291,8 +295,10 @@ export default function Layout({ children, currentPageName }) {
           const platformInfo = await base44.functions.getMyPlatformInfo({});
           const data = platformInfo?.data || platformInfo;
           setIsPlatformOwner(!!data?.is_platform_owner);
+          setChainsOwned(Number(data?.chains_owned) > 0 ? Number(data.chains_owned) : 0);
         } catch (e) {
           setIsPlatformOwner(false);
+          setChainsOwned(0);
         }
 
         // Pull Employee record by email so we can read both full_name AND
@@ -399,8 +405,17 @@ export default function Layout({ children, currentPageName }) {
   // on (and — more importantly — doesn't discover the god-mode dashboard
   // exists at all).
   const adminLinksFiltered = React.useMemo(
-    () => isPlatformOwner ? adminLinks : adminLinks.filter(l => !String(l.url || '').includes('PlatformAdmin')),
-    [isPlatformOwner],
+    () => {
+      if (isPlatformOwner) return adminLinks;
+      const stripped = adminLinks.filter(l => !String(l.url || '').includes('PlatformAdmin'));
+      // A chain operator (owns a chain but isn't the platform owner) gets a
+      // single cross-branch entry point — their own Network HQ, scoped server-side.
+      if (chainsOwned > 0) {
+        return [...stripped, { title: "🏢 מטה הרשת שלי", url: createPageUrl("NetworkHQ"), icon: Shield, color: "espresso" }];
+      }
+      return stripped;
+    },
+    [isPlatformOwner, chainsOwned],
   );
   // Per-tenant permission levels. A "manager" sees everything except owner-only
   // settings/platform; a "shift lead" sees only day-to-day operations. Empty

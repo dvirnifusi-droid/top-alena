@@ -18136,9 +18136,23 @@ function isSuperAdmin(user: any): boolean {
 // PUBLIC-authenticated fn — frontend calls to know whether to show the
 // Platform Admin nav item. Zero body, uses the JWT user directly.
 registerFn('getMyPlatformInfo', async ({ user }) => {
+  // How many chains this user OPERATES (Chain.owner_email === their email). Lets
+  // the frontend open Network HQ for a chain owner who is not a platform owner,
+  // without exposing any other platform page. Best-effort; 0 on any error.
+  let chainsOwned = 0;
+  const email = String((user as any)?.email || '').trim().toLowerCase();
+  if (email && !isSuperAdmin(user)) {
+    try {
+      await ensureChainTables();
+      const rows: any[] = await (prisma as any).$queryRawUnsafe(
+        `SELECT COUNT(*)::int AS n FROM "Chain" WHERE LOWER(owner_email)=$1`, email);
+      chainsOwned = rows?.[0]?.n || 0;
+    } catch { chainsOwned = 0; }
+  }
   return {
     is_platform_owner: isSuperAdmin(user),
     email: (user as any)?.email || null,
+    chains_owned: isSuperAdmin(user) ? -1 : chainsOwned, // -1 = "all" for super-admin
   };
 });
 
@@ -18582,6 +18596,44 @@ async function ensureChainTables(): Promise<void> {
   chainTablesReady = true;
 }
 
+// ── Chain-scoped access ─────────────────────────────────────────────────────
+// A chain OPERATOR (Chain.owner_email === their email) may view and run their
+// OWN chain — metrics + network tasks — so a network can be sold to a chain
+// owner without handing them the whole platform. Composing the network (which
+// tenants belong, who owns it) stays platform-owner only. The security boundary
+// lives HERE, in the fns: every chain read is either filtered to chainsForUser()
+// or gated by assertChainAccess(), and BOTH default-deny — so a chain owner can
+// never reach another chain's data regardless of what the UI allows.
+async function chainOwnerEmail(chainId: string): Promise<string | null> {
+  const rows: any[] = await (prisma as any)
+    .$queryRawUnsafe(`SELECT owner_email FROM "Chain" WHERE id=$1 LIMIT 1`, chainId)
+    .catch(() => []);
+  const e = rows?.[0]?.owner_email;
+  return e ? String(e).trim().toLowerCase() : null;
+}
+
+async function assertChainAccess(user: any, chainId: string): Promise<void> {
+  if (isSuperAdmin(user)) return;
+  const email = String((user as any)?.email || '').trim().toLowerCase();
+  const id = String(chainId || '').trim();
+  if (!email || !id) throw new Error('chain access denied');
+  const owner = await chainOwnerEmail(id);
+  if (!owner || owner !== email) throw new Error('chain access denied');
+}
+
+// The chains this caller may operate: all for a super-admin, otherwise only the
+// ones they own by email. Empty for everyone else.
+async function chainsForUser(user: any): Promise<any[]> {
+  await ensureChainTables();
+  const dbx = prisma as any;
+  if (isSuperAdmin(user)) {
+    return await dbx.$queryRawUnsafe(`SELECT id, name, owner_email, "createdAt" FROM "Chain" ORDER BY "createdAt"`).catch(() => []);
+  }
+  const email = String((user as any)?.email || '').trim().toLowerCase();
+  if (!email) return [];
+  return await dbx.$queryRawUnsafe(`SELECT id, name, owner_email, "createdAt" FROM "Chain" WHERE LOWER(owner_email)=$1 ORDER BY "createdAt"`, email).catch(() => []);
+}
+
 const branchSchema = (slug: string) => (slug === 'alena' || slug === 'public' ? 'public' : `tenant_${slug}`);
 
 async function branchKpis(slug: string): Promise<any> {
@@ -18601,14 +18653,23 @@ async function branchKpis(slug: string): Promise<any> {
 }
 
 registerFn('listChains', async ({ user }: any) => {
-  if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensurePlatformTables(); await ensureChainTables();
   const dbx = prisma as any;
-  const chains: any[] = await dbx.$queryRawUnsafe(`SELECT id, name, owner_email, "createdAt" FROM "Chain" ORDER BY "createdAt"`).catch(() => []);
+  const superAdmin = isSuperAdmin(user);
+  // Scoped to what this caller owns — a chain operator sees only their chains.
+  const chains: any[] = await chainsForUser(user);
+  if (!chains.length && !superAdmin) return { chains: [], available: [], is_super: false };
   const members: any[] = await dbx.$queryRawUnsafe(`SELECT id, chain_id, slug, name FROM "ChainMember" ORDER BY name`).catch(() => []);
-  const live: any[] = await dbx.$queryRawUnsafe(`SELECT slug, restaurant_name FROM "Tenant" WHERE status='live' ORDER BY restaurant_name`).catch(() => []);
-  const available = [{ slug: 'alena', name: 'עלינא (הבסיסית)' }, ...live.map((t: any) => ({ slug: t.slug, name: t.restaurant_name || t.slug }))];
-  return { chains: chains.map((c: any) => ({ ...c, members: members.filter((m: any) => m.chain_id === c.id) })), available };
+  // Composing the network (adding branches to it) is a platform decision — only
+  // a super-admin gets the tenant picker.
+  let available: any[] = [];
+  if (superAdmin) {
+    const live: any[] = await dbx.$queryRawUnsafe(`SELECT slug, restaurant_name FROM "Tenant" WHERE status='live' ORDER BY restaurant_name`).catch(() => []);
+    available = [{ slug: 'alena', name: 'עלינא (הבסיסית)' }, ...live.map((t: any) => ({ slug: t.slug, name: t.restaurant_name || t.slug }))];
+  }
+  // members is filtered per-chain against `chains`, which is already owner-scoped,
+  // so a chain operator only ever receives their own chains' branches.
+  return { chains: chains.map((c: any) => ({ ...c, members: members.filter((m: any) => m.chain_id === c.id) })), available, is_super: superAdmin };
 });
 
 registerFn('createChain', async ({ user, body }: any) => {
@@ -18644,11 +18705,25 @@ registerFn('removeBranchFromChain', async ({ user, body }: any) => {
   return { ok: true };
 });
 
-registerFn('getChainMetrics', async ({ user, body }: any) => {
+// Assign (or clear) the operator of a chain by email — platform-owner only, since
+// deciding WHO runs a network is a platform decision. Once set, that email can
+// open Network HQ scoped to this chain (see assertChainAccess / chainsForUser).
+registerFn('setChainOwner', async ({ user, body }: any) => {
   if (!isSuperAdmin(user)) throw new Error('super-admin only');
+  await ensureChainTables();
+  const b = (body || {}) as any;
+  const chainId = String(b.chain_id || '').trim();
+  const email = String(b.owner_email || '').trim().toLowerCase();
+  if (!chainId) throw new Error('chain_id required');
+  await (prisma as any).$executeRawUnsafe(`UPDATE "Chain" SET owner_email=$1 WHERE id=$2`, email || null, chainId).catch(() => {});
+  return { ok: true, owner_email: email || null };
+});
+
+registerFn('getChainMetrics', async ({ user, body }: any) => {
   await ensureChainTables();
   const chainId = String((body as any)?.chain_id || '').trim();
   if (!chainId) throw new Error('chain_id required');
+  await assertChainAccess(user, chainId);
   const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name FROM "ChainMember" WHERE chain_id=$1 ORDER BY name`, chainId).catch(() => []);
   const perBranch: any[] = [];
   const totals = { users: 0, employees: 0, active_shifts: 0, contract_revenue: 0, unpaid_invoices: 0 };
@@ -18671,12 +18746,12 @@ async function ensureNetworkTaskTables(): Promise<void> {
 }
 
 registerFn('createNetworkTask', async ({ user, body }: any) => {
-  if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensureChainTables(); await ensureNetworkTaskTables();
   const b = (body || {}) as any;
   const chainId = String(b.chain_id || '').trim();
   const title = String(b.title || '').trim();
   if (!chainId || !title) throw new Error('chain_id and title required');
+  await assertChainAccess(user, chainId);
   const id = `ntask_${Date.now().toString(36)}`;
   await (prisma as any).$executeRawUnsafe(`INSERT INTO "NetworkTask" (id, chain_id, title, detail) VALUES ($1,$2,$3,$4)`, id, chainId, title.slice(0, 200), String(b.detail || '').slice(0, 2000));
   const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name FROM "ChainMember" WHERE chain_id=$1`, chainId).catch(() => []);
@@ -18689,20 +18764,30 @@ registerFn('createNetworkTask', async ({ user, body }: any) => {
 });
 
 registerFn('listNetworkTasks', async ({ user, body }: any) => {
-  if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensureNetworkTaskTables();
   const chainId = String((body as any)?.chain_id || '').trim();
   if (!chainId) throw new Error('chain_id required');
+  await assertChainAccess(user, chainId);
   const tasks: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, title, detail, "createdAt" FROM "NetworkTask" WHERE chain_id=$1 ORDER BY "createdAt" DESC`, chainId).catch(() => []);
   const branches: any[] = await (prisma as any).$queryRawUnsafe(
     `SELECT b.task_id, b.slug, b.name, b.done FROM "NetworkTaskBranch" b JOIN "NetworkTask" t ON t.id=b.task_id WHERE t.chain_id=$1`, chainId).catch(() => []);
   return { tasks: tasks.map((t: any) => ({ ...t, branches: branches.filter((x: any) => x.task_id === t.id) })) };
 });
 
+// The chain a task belongs to — used to gate the task-level writes below.
+async function networkTaskChainId(taskId: string): Promise<string | null> {
+  const rows: any[] = await (prisma as any)
+    .$queryRawUnsafe(`SELECT chain_id FROM "NetworkTask" WHERE id=$1 LIMIT 1`, String(taskId || ''))
+    .catch(() => []);
+  return rows?.[0]?.chain_id ? String(rows[0].chain_id) : null;
+}
+
 registerFn('setNetworkTaskBranch', async ({ user, body }: any) => {
-  if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensureNetworkTaskTables();
   const b = (body || {}) as any;
+  const chainId = await networkTaskChainId(String(b.task_id || ''));
+  if (!chainId) throw new Error('task not found');
+  await assertChainAccess(user, chainId);
   const done = !!b.done;
   await (prisma as any).$executeRawUnsafe(
     `UPDATE "NetworkTaskBranch" SET done=$1, done_at=CASE WHEN $1 THEN NOW() ELSE NULL END WHERE task_id=$2 AND slug=$3`,
@@ -18711,9 +18796,11 @@ registerFn('setNetworkTaskBranch', async ({ user, body }: any) => {
 });
 
 registerFn('deleteNetworkTask', async ({ user, body }: any) => {
-  if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensureNetworkTaskTables();
   const id = String((body as any)?.id || '');
+  const chainId = await networkTaskChainId(id);
+  if (!chainId) throw new Error('task not found');
+  await assertChainAccess(user, chainId);
   await (prisma as any).$executeRawUnsafe(`DELETE FROM "NetworkTaskBranch" WHERE task_id=$1`, id).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`DELETE FROM "NetworkTask" WHERE id=$1`, id).catch(() => {});
   return { ok: true };
@@ -18723,13 +18810,13 @@ registerFn('deleteNetworkTask', async ({ user, body }: any) => {
 // read from public.Tenant.owner_phone in the main container — no cross-schema
 // access into tenant DBs. This is how the task actually reaches the branches.
 registerFn('notifyBranchesOfTask', async ({ user, body }: any) => {
-  if (!isSuperAdmin(user)) throw new Error('super-admin only');
   await ensureNetworkTaskTables();
   const taskId = String((body as any)?.task_id || '').trim();
   if (!taskId) throw new Error('task_id required');
   const task: any[] = await (prisma as any).$queryRawUnsafe(`SELECT title, detail, chain_id FROM "NetworkTask" WHERE id=$1`, taskId).catch(() => []);
   if (!task.length) throw new Error('task not found');
   const t = task[0];
+  await assertChainAccess(user, String(t.chain_id || ''));
   const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name FROM "ChainMember" WHERE chain_id=$1`, t.chain_id).catch(() => []);
   let sent = 0; let skipped = 0;
   for (const m of members) {
