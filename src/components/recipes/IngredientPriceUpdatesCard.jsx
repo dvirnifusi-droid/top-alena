@@ -46,6 +46,16 @@ export default function IngredientPriceUpdatesCard({ onApplied }) {
     finally { setBusyId(null); }
   };
 
+  // Approve a brand-new product → create it as a new raw material (חומר גלם).
+  const createNew = async (it) => {
+    setBusyId(it.product_name);
+    try {
+      await base44.functions.applyIngredientPriceUpdate({ product_name: it.product_name, unit: it.unit, price_per_unit: it.unit_price });
+      await load(); onApplied && onApplied();
+    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    finally { setBusyId(null); }
+  };
+
   if (loading) return null;
   const updates = data?.updates || [];
   const unmatched = data?.unmatched || [];
@@ -94,30 +104,30 @@ export default function IngredientPriceUpdatesCard({ onApplied }) {
         )}
 
         {unmatched.length > 0 && (
-          <div>
-            <button onClick={() => setShowUnmatched((v) => !v)} className="text-xs text-slate-500 underline">
-              {showUnmatched ? 'הסתר' : 'הצג'} {unmatched.length} מוצרים לא מזוהים
-            </button>
-            {showUnmatched && (
-              <div className="space-y-1.5 mt-2">
-                {unmatched.map((it) => (
-                  <div key={it.product_name} className="flex items-center gap-2 bg-white rounded-lg border p-2 text-sm">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{it.product_name}</div>
-                      <div className="text-xs text-slate-500">₪{it.unit_price}{it.supplier ? ` · ${it.supplier}` : ''}</div>
-                    </div>
+          <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-2.5 space-y-2">
+            <div className="text-sm font-bold text-indigo-900">🆕 מוצרים חדשים מחשבונית — אישור נדרש ({unmatched.length})</div>
+            <div className="text-[11px] text-slate-500">מוצר חדש שלא זוהה: <b>צור מוצר</b> חדש (עם המחיר מהחשבונית) — <b>או</b> שייך למוצר קיים (אותו מוצר בשם אחר, וכך יזוהה אוטומטית בפעם הבאה).</div>
+            <div className="space-y-1.5">
+              {unmatched.map((it) => (
+                <div key={it.product_name} className="flex items-center gap-2 bg-white rounded-lg border p-2 text-sm flex-wrap">
+                  <div className="flex-1 min-w-[120px]">
+                    <div className="font-medium truncate">{it.product_name}</div>
+                    <div className="text-xs text-slate-500">₪{it.unit_price}{it.unit ? ` / ${it.unit}` : ''}{it.supplier ? ` · ${it.supplier}` : ''}</div>
+                  </div>
+                  <Button size="sm" onClick={() => createNew(it)} disabled={busyId === it.product_name} className="bg-emerald-600 hover:bg-emerald-700 flex-shrink-0">
+                    {busyId === it.product_name ? <Loader2 className="w-4 h-4 animate-spin" /> : '➕ צור מוצר'}
+                  </Button>
+                  <div className="flex items-center gap-1">
                     <select value={map[it.product_name] || ''} onChange={(e) => setMap((m) => ({ ...m, [it.product_name]: e.target.value }))}
-                      className="h-9 rounded-md border border-input bg-background px-2 text-xs max-w-[160px]">
-                      <option value="">מפה לרכיב…</option>
+                      className="h-9 rounded-md border border-input bg-background px-2 text-xs max-w-[130px]">
+                      <option value="">שייך לקיים…</option>
                       {ingredients.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
                     </select>
-                    <Button size="sm" variant="outline" disabled={!map[it.product_name] || busyId === it.product_name} onClick={() => applyUnmatched(it)} className="flex-shrink-0">
-                      {busyId === it.product_name ? <Loader2 className="w-4 h-4 animate-spin" /> : 'החל'}
-                    </Button>
+                    <Button size="sm" variant="outline" disabled={!map[it.product_name] || busyId === it.product_name} onClick={() => applyUnmatched(it)} className="flex-shrink-0">שייך</Button>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </CardContent>

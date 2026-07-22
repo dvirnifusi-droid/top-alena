@@ -14065,11 +14065,23 @@ registerFn('applyIngredientPriceUpdate', async ({ body, user }: any) => {
   if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
   await ensureInventoryTables();
   const b = (body || {}) as any;
-  const id = String(b.ingredient_id || '').trim();
+  let id = String(b.ingredient_id || '').trim();
   const price = Number(b.price_per_unit);
-  if (!id || !Number.isFinite(price) || price < 0) throw new Error('ingredient_id and price_per_unit required');
-  await (prisma as any).$executeRawUnsafe(
-    `UPDATE "Ingredient" SET price_per_unit = $1, "updatedAt" = NOW() WHERE id = $2`, price, id);
+  if (!Number.isFinite(price) || price < 0) throw new Error('price_per_unit required');
+  if (!id) {
+    // No existing match → CREATE a new raw material (חומר גלם) from the invoice
+    // product, after the owner approved it. Learns the alias below.
+    const name = String(b.product_name || '').trim();
+    if (!name) throw new Error('ingredient_id or product_name required');
+    id = randomUUID();
+    const unit = String(b.unit || 'kg').slice(0, 20);
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "Ingredient" ("id","name","unit","waste_percent","price_per_unit","createdAt","updatedAt") VALUES ($1,$2,$3,0,$4,NOW(),NOW())`,
+      id, name.slice(0, 200), unit, price);
+  } else {
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "Ingredient" SET price_per_unit = $1, "updatedAt" = NOW() WHERE id = $2`, price, id);
+  }
   const pn = String(b.product_name || '').trim().toLowerCase().replace(/\s+/g, ' ');
   if (pn) {
     await (prisma as any).$executeRawUnsafe(
