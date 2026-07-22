@@ -28,7 +28,8 @@ function BranchCommissaryInner() {
   const [deptFilter, setDeptFilter] = useState('all');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
-  const [myOrder, setMyOrder] = useState(null); // this branch's order for the date (status/eta/rejections)
+  const [orders, setOrders] = useState([]); // this branch's order ARCHIVE (multi-order)
+  const [detail, setDetail] = useState(null); // one order's live detail (modal)
   const [customs, setCustoms] = useState([]); // special requests — preps NOT in the catalog/מרלו"ג
   const addCustom = () => setCustoms((s) => [...s, { name: '', qty: '', unit: 'ק״ג' }]);
   const updateCustom = (i, k, v) => setCustoms((s) => s.map((c, idx) => (idx === i ? { ...c, [k]: v } : c)));
@@ -43,22 +44,24 @@ function BranchCommissaryInner() {
     setLoading(false);
   }, []);
 
-  const loadMyOrder = useCallback(async () => {
-    try {
-      const res = await base44.functions.getMyBranchCommissaryOrder({ order_date: date });
-      const data = res?.data || res;
-      setMyOrder(data);
-      const q = {}; const cs = [];
-      (data?.lines || []).forEach((l) => {
-        if (String(l.item_key || '').startsWith('custom:')) cs.push({ name: l.name || '', unit: l.unit || 'יח׳', qty: l.qty });
-        else q[l.item_key] = l.qty;
-      });
-      setQtys(q); setCustoms(cs);
-    } catch { setQtys({}); setCustoms([]); setMyOrder(null); }
-  }, [date]);
+  // The branch's order ARCHIVE — every order it placed (each separate).
+  const loadOrders = useCallback(async () => {
+    try { const res = await base44.functions.listMyBranchCommissaryOrders({ days: 45 }); setOrders((res?.data || res)?.orders || []); }
+    catch { setOrders([]); }
+  }, []);
+  // Open ONE order's live detail (prep status synced from the commissary).
+  const openDetail = useCallback(async (order_id) => {
+    setDetail({ loading: true });
+    try { const res = await base44.functions.getMyBranchCommissaryOrder({ order_id }); setDetail(res?.data || res); }
+    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); setDetail(null); }
+  }, []);
+  const duplicateOrder = useCallback(async (order_id) => {
+    try { await base44.functions.duplicateBranchCommissaryOrder({ order_id }); setMsg({ ok: true, text: '✅ ההזמנה שוכפלה כהזמנה חדשה' }); await loadOrders(); }
+    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+  }, [loadOrders]);
 
   useEffect(() => { loadInfo(); }, [loadInfo]);
-  useEffect(() => { if (info?.in_chain) loadMyOrder(); }, [date, info, loadMyOrder]);
+  useEffect(() => { if (info?.in_chain) loadOrders(); }, [info, loadOrders]);
 
   const catalog = info?.catalog || [];
   const departments = [...new Set(catalog.map((c) => c.department).filter(Boolean))];
@@ -77,6 +80,7 @@ function BranchCommissaryInner() {
     try {
       await base44.functions.submitBranchCommissaryOrder({ order_date: date, lines: all });
       setMsg({ ok: true, text: `✅ ההזמנה נשלחה לבית ההכנות!${customLines.length ? ` (כולל ${customLines.length} בקשות מיוחדות)` : ''}` });
+      setQtys({}); setCustoms([]); await loadOrders(); // fresh form; the order joins the archive
     } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה בשליחה' }); }
     setSaving(false);
   };
@@ -90,25 +94,33 @@ function BranchCommissaryInner() {
         action={
           <div className="flex items-center gap-2">
             <Input type="date" dir="ltr" className="h-8 w-40" value={date} onChange={(e) => setDate(e.target.value)} />
-            <Button variant="outline" size="sm" onClick={() => { loadInfo(); loadMyOrder(); }} disabled={loading}><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></Button>
+            <Button variant="outline" size="sm" onClick={() => { loadInfo(); loadOrders(); }} disabled={loading}><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></Button>
           </div>
         }
       />
       <div className="space-y-4" dir="rtl">
         {msg && <div className={`text-sm rounded-lg px-3 py-2 ${msg.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg.text}</div>}
 
-        {info?.in_chain && myOrder?.status && (myOrder.lines?.length > 0) && (
-          <div className={`rounded-lg border px-3 py-2 ${(ORDER_STATUS[myOrder.status] || ORDER_STATUS.submitted)[1]}`}>
-            <div className="font-bold text-sm">{(ORDER_STATUS[myOrder.status] || ORDER_STATUS.submitted)[0]}{myOrder.eta ? ` · 🕐 מוכן בערך: ${myOrder.eta}` : ''}</div>
-            {myOrder.rejected_count > 0 && (
-              <div className="mt-1 text-xs">
-                פריטים שלא נכנסו להזמנה:
-                <ul className="list-disc pr-4 mt-0.5">
-                  {myOrder.rejected.map((r, i) => <li key={i}>{r.name}{r.qty ? ` (${r.qty} ${r.unit || ''})` : ''}{r.reason ? ` — ${r.reason}` : ''}</li>)}
-                </ul>
-              </div>
-            )}
-          </div>
+        {info?.in_chain && orders.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">📦 ההזמנות שלי ({orders.length})</CardTitle></CardHeader>
+            <CardContent className="space-y-1.5">
+              {orders.map((o) => {
+                const t = o.created_at ? new Date(o.created_at).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : o.order_date;
+                const st = ORDER_STATUS[o.status] || ORDER_STATUS.submitted;
+                return (
+                  <div key={o.id} className="flex items-center justify-between gap-2 rounded-lg border p-2 text-sm">
+                    <button onClick={() => openDetail(o.id)} className="flex-1 text-right min-w-0">
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${st[1]}`}>{st[0]}</span>
+                      <span className="text-slate-500 text-xs"> · {t} · {o.line_count} פריטים · הוכן {o.done_items}/{o.total_items}{o.eta ? ` · יעד ${o.eta}` : ''}</span>
+                    </button>
+                    <span className="text-slate-600 text-xs font-semibold whitespace-nowrap">{cur(o.total_ils)}</span>
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-indigo-600" onClick={() => duplicateOrder(o.id)}>שכפל</Button>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
         )}
 
         {loading ? (
@@ -190,6 +202,35 @@ function BranchCommissaryInner() {
           </Card>
         )}
       </div>
+
+      {detail && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setDetail(null)}>
+          <div className="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-5" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            {detail.loading ? <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div> : (
+              <>
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <div className="text-lg font-extrabold">📦 הזמנה · {detail.order_date}</div>
+                    <div className="text-xs"><span className={`inline-block px-1.5 py-0.5 rounded font-bold ${(ORDER_STATUS[detail.status] || ORDER_STATUS.submitted)[1]}`}>{(ORDER_STATUS[detail.status] || ORDER_STATUS.submitted)[0]}</span>{detail.eta ? ` · 🕐 מוכן בערך: ${detail.eta}` : ''}</div>
+                  </div>
+                  <button onClick={() => setDetail(null)} className="text-slate-400 hover:text-slate-700 text-xl leading-none">×</button>
+                </div>
+                <div className="text-xs text-slate-500 mb-2">מתעדכן חי לפי מה שסומן בבית ההכנות · הוכן {detail.done_count}/{detail.active_count}</div>
+                <div className="space-y-1">
+                  {(detail.lines || []).map((l, i) => (
+                    <div key={i} className={`flex items-center gap-2 rounded-lg border p-2 text-sm ${l.rejected ? 'bg-red-50 border-red-200' : l.done ? 'bg-emerald-50 border-emerald-200' : ''}`}>
+                      <span className="w-5 text-center">{l.rejected ? '✖' : l.done ? '✅' : '⏳'}</span>
+                      <span className={`flex-1 ${l.rejected ? 'line-through text-red-500' : l.done ? 'text-emerald-700' : ''}`}>{l.name}{l.rejected && l.reject_reason ? <span className="text-[10px] text-red-500 no-underline"> · {l.reject_reason}</span> : ''}</span>
+                      <span className="text-xs font-bold text-slate-600">{l.qty} {l.unit}</span>
+                    </div>
+                  ))}
+                </div>
+                <Button className="w-full mt-4 gap-1" variant="outline" onClick={() => { const id = detail.order_id; setDetail(null); duplicateOrder(id); }}>שכפל הזמנה זו</Button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </PageShell>
   );
 }

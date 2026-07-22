@@ -505,7 +505,11 @@ async function ensureChainCommissaryTables(): Promise<void> {
     "id" TEXT PRIMARY KEY, "chain_id" TEXT NOT NULL, "branch_slug" TEXT NOT NULL, "branch_name" TEXT,
     "order_date" TEXT NOT NULL, "notes" TEXT, "status" TEXT DEFAULT 'submitted',
     "createdAt" TIMESTAMPTZ DEFAULT NOW(), "updatedAt" TIMESTAMPTZ DEFAULT NOW())`).catch(() => {});
-  await sql(`CREATE UNIQUE INDEX IF NOT EXISTS "CommissaryChainOrder_key" ON public."CommissaryChainOrder"("chain_id","branch_slug","order_date")`).catch(() => {});
+  // Multi-order: a branch can place MANY orders per day, each a separate row with
+  // its own createdAt — so a 2nd order never overwrites the 1st. Drop the old
+  // (chain,branch,date) unique index; keep a plain lookup index.
+  await sql(`DROP INDEX IF EXISTS public."CommissaryChainOrder_key"`).catch(() => {});
+  await sql(`CREATE INDEX IF NOT EXISTS "CommissaryChainOrder_lookup" ON public."CommissaryChainOrder"("chain_id","order_date")`).catch(() => {});
   await sql(`CREATE TABLE IF NOT EXISTS public."CommissaryChainOrderLine" (
     "id" TEXT PRIMARY KEY, "order_id" TEXT NOT NULL, "item_key" TEXT NOT NULL,
     "name" TEXT, "unit" TEXT, "department" TEXT, "qty" DOUBLE PRECISION NOT NULL, "internal_price" DOUBLE PRECISION)`).catch(() => {});
@@ -593,26 +597,86 @@ registerFn('getBranchCommissaryInfo', async ({ user }) => {
 });
 
 // Branch side: this branch's order for a date.
+// Branch side: ONE order's detail — with LIVE prep status synced from the
+// commissary's done-marks. By order_id, else the latest order for the date.
 registerFn('getMyBranchCommissaryOrder', async ({ user, body }) => {
   await requireStaff(user, 'getMyBranchCommissaryOrder', 'BranchCommissary');
   const slug = currentTenantSlug();
   const chain = await myChain();
   if (!chain) return { lines: [] };
+  const orderId = String((body as any)?.order_id || '');
   const date = String((body as any)?.order_date || '').slice(0, 10);
-  const orders: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT id, notes, status, eta, approved_at FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`,
-    chain.chain_id, slug, date,
-  ).catch(() => []);
+  const orders: any[] = orderId
+    ? await (prisma as any).$queryRawUnsafe(`SELECT id, order_date, notes, status, eta, approved_at, "createdAt" FROM public."CommissaryChainOrder" WHERE id=$1 AND chain_id=$2 AND branch_slug=$3`, orderId, chain.chain_id, slug).catch(() => [])
+    : await (prisma as any).$queryRawUnsafe(`SELECT id, order_date, notes, status, eta, approved_at, "createdAt" FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3 ORDER BY "createdAt" DESC LIMIT 1`, chain.chain_id, slug, date).catch(() => []);
   if (!orders.length) return { lines: [], status: null };
+  const o = orders[0];
   const lines: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT item_key, name, qty, unit, rejected, reject_reason FROM public."CommissaryChainOrderLine" WHERE order_id=$1`, orders[0].id,
+    `SELECT item_key, name, qty, unit, rejected, reject_reason FROM public."CommissaryChainOrderLine" WHERE order_id=$1 ORDER BY department NULLS LAST, name`, o.id,
   ).catch(() => []);
+  // Live prep status from the commissary's board (chain+date+item_key).
+  const prod: any[] = await (prisma as any).$queryRawUnsafe(`SELECT item_key, done, done_at FROM public."CommissaryProduction" WHERE chain_id=$1 AND order_date=$2`, chain.chain_id, o.order_date).catch(() => []);
+  const doneByKey = new Map(prod.map((p) => [p.item_key, p]));
+  const withStatus = lines.map((l) => ({ ...l, qty: Number(l.qty) || 0, done: !!doneByKey.get(l.item_key)?.done }));
   const rejected = lines.filter((l) => l.rejected).map((l) => ({ item_key: l.item_key, name: l.name, qty: Number(l.qty) || 0, unit: l.unit, reason: l.reject_reason || null }));
+  const active = withStatus.filter((l) => !l.rejected);
+  const doneCount = active.filter((l) => l.done).length;
   return {
-    order_id: orders[0].id, notes: orders[0].notes, lines,
-    status: orders[0].status || 'submitted', eta: orders[0].eta || null, approved_at: orders[0].approved_at || null,
-    rejected, rejected_count: rejected.length,
+    order_id: o.id, order_date: o.order_date, created_at: o.createdAt, notes: o.notes, lines: withStatus,
+    status: o.status || 'submitted', eta: o.eta || null, approved_at: o.approved_at || null,
+    rejected, rejected_count: rejected.length, done_count: doneCount, active_count: active.length,
   };
+});
+
+// Branch side: the branch's order ARCHIVE — every order it placed (recent), each
+// separate with its own time + status + prep progress.
+registerFn('listMyBranchCommissaryOrders', async ({ user, body }) => {
+  await requireStaff(user, 'listMyBranchCommissaryOrders', 'BranchCommissary');
+  const slug = currentTenantSlug();
+  const chain = await myChain();
+  if (!chain) return { orders: [] };
+  const days = Math.min(120, Math.max(1, Number((body as any)?.days) || 45));
+  const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const orders: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT o.id, o.order_date, o.status, o.eta, o."createdAt",
+            COUNT(l.id) FILTER (WHERE l.rejected IS NOT TRUE) AS line_count,
+            COALESCE(SUM(l.qty * l.internal_price) FILTER (WHERE l.rejected IS NOT TRUE),0) AS total
+     FROM public."CommissaryChainOrder" o LEFT JOIN public."CommissaryChainOrderLine" l ON l.order_id=o.id
+     WHERE o.chain_id=$1 AND o.branch_slug=$2 AND o.order_date >= $3
+     GROUP BY o.id ORDER BY o."createdAt" DESC`, chain.chain_id, slug, since,
+  ).catch(() => []);
+  // Attach live prep progress per order.
+  const prod: any[] = await (prisma as any).$queryRawUnsafe(`SELECT order_date, item_key FROM public."CommissaryProduction" WHERE chain_id=$1 AND done=true`, chain.chain_id).catch(() => []);
+  const doneSet = new Set(prod.map((p) => `${p.order_date}|${p.item_key}`));
+  const out = [];
+  for (const o of orders) {
+    const items: any[] = await (prisma as any).$queryRawUnsafe(`SELECT item_key FROM public."CommissaryChainOrderLine" WHERE order_id=$1 AND rejected IS NOT TRUE`, o.id).catch(() => []);
+    const total = items.length; const done = items.filter((it) => doneSet.has(`${o.order_date}|${it.item_key}`)).length;
+    out.push({ id: o.id, order_date: o.order_date, created_at: o.createdAt, status: o.status || 'submitted', eta: o.eta || null, line_count: Number(o.line_count) || 0, total_ils: r2(o.total), done_items: done, total_items: total, is_ready: total > 0 && done === total });
+  }
+  return { orders: out };
+});
+
+// Branch side: DUPLICATE an existing order into a fresh new order (today).
+registerFn('duplicateBranchCommissaryOrder', async ({ user, body }) => {
+  await requireStaff(user, 'duplicateBranchCommissaryOrder', 'BranchCommissary');
+  const slug = currentTenantSlug();
+  const chain = await myChain();
+  if (!chain) throw new Error('not_in_chain');
+  const srcId = String((body as any)?.order_id || '');
+  if (!srcId) throw new Error('order_id required');
+  const src: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM public."CommissaryChainOrder" WHERE id=$1 AND chain_id=$2 AND branch_slug=$3`, srcId, chain.chain_id, slug).catch(() => []);
+  if (!src.length) throw new Error('order_not_found');
+  const date = new Date().toISOString().slice(0, 10);
+  const ins: any[] = await (prisma as any).$queryRawUnsafe(
+    `INSERT INTO public."CommissaryChainOrder"(id, chain_id, branch_slug, branch_name, order_date) VALUES (gen_random_uuid()::text, $1, $2, $3, $4) RETURNING id`,
+    chain.chain_id, slug, chain.branch_name, date).catch(() => []);
+  const newId = ins[0].id;
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO public."CommissaryChainOrderLine"(id, order_id, item_key, name, unit, department, qty, internal_price)
+     SELECT gen_random_uuid()::text, $1, item_key, name, unit, department, qty, internal_price FROM public."CommissaryChainOrderLine" WHERE order_id=$2 AND rejected IS NOT TRUE`,
+    newId, srcId).catch(() => {});
+  return { ok: true, order_id: newId, order_date: date };
 });
 
 // Branch side: submit/replace this branch's order (scoped to its own slug).
@@ -632,22 +696,13 @@ registerFn('submitBranchCommissaryOrder', async ({ user, body }) => {
   ).catch(() => []);
   const byKey = new Map(cat.map((c) => [c.item_key, c]));
 
-  const existing: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT id FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`, chain.chain_id, slug, date,
-  ).catch(() => []);
-  let orderId: string;
-  if (existing.length) {
-    orderId = existing[0].id;
-    await (prisma as any).$executeRawUnsafe(`UPDATE public."CommissaryChainOrder" SET notes=$1, branch_name=$2, "updatedAt"=NOW() WHERE id=$3`, notes, chain.branch_name, orderId).catch(() => {});
-    await (prisma as any).$executeRawUnsafe(`DELETE FROM public."CommissaryChainOrderLine" WHERE order_id=$1`, orderId).catch(() => {});
-  } else {
-    const ins: any[] = await (prisma as any).$queryRawUnsafe(
-      `INSERT INTO public."CommissaryChainOrder"(id, chain_id, branch_slug, branch_name, order_date, notes)
-       VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5) RETURNING id`,
-      chain.chain_id, slug, chain.branch_name, date, notes,
-    );
-    orderId = ins[0].id;
-  }
+  // Each submit = a NEW, separate order (timestamped) — never overwrite a prior one.
+  const ins: any[] = await (prisma as any).$queryRawUnsafe(
+    `INSERT INTO public."CommissaryChainOrder"(id, chain_id, branch_slug, branch_name, order_date, notes)
+     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5) RETURNING id`,
+    chain.chain_id, slug, chain.branch_name, date, notes,
+  );
+  const orderId: string = ins[0].id;
   let saved = 0;
   for (const ln of linesIn) {
     const qty = Number(ln.qty);
@@ -814,17 +869,18 @@ registerFn('getChainCommissary', async ({ user, body }) => {
 
   // Distribution for the date, from public chain orders.
   const lineRows: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT l.item_key, l.name, l.unit, l.department, l.qty, l.internal_price, l.rejected, o.branch_slug, o.branch_name, o.status, o.eta
+    `SELECT l.item_key, l.name, l.unit, l.department, l.qty, l.internal_price, l.rejected,
+            o.id AS order_id, o.branch_slug, o.branch_name, o.status, o.eta, o."createdAt" AS order_created
      FROM public."CommissaryChainOrderLine" l JOIN public."CommissaryChainOrder" o ON o.id=l.order_id
      WHERE o.chain_id=$1 AND o.order_date=$2`, chainId, date,
   ).catch(() => []);
   const items = new Map<string, any>();
-  const byBranch = new Map<string, any>();
+  const byOrder = new Map<string, any>(); // each order is separate (multi-order per day)
   let gCost = 0, gRev = 0;
   for (const l of lineRows) {
-    const bk = l.branch_slug || 'unknown';
-    if (!byBranch.has(bk)) byBranch.set(bk, { branch_slug: bk, branch_name: l.branch_name || bk, total_ils: 0, cost_ils: 0, lines: 0, rejected: 0, status: l.status || 'submitted', eta: l.eta || null, _items: new Set() });
-    const bx = byBranch.get(bk);
+    const ok = String(l.order_id || 'unknown');
+    if (!byOrder.has(ok)) byOrder.set(ok, { order_id: ok, branch_slug: l.branch_slug || 'unknown', branch_name: l.branch_name || l.branch_slug || 'unknown', created_at: l.order_created || null, total_ils: 0, cost_ils: 0, lines: 0, rejected: 0, status: l.status || 'submitted', eta: l.eta || null, _items: new Set() });
+    const bx = byOrder.get(ok);
     if (l.rejected) { bx.rejected += 1; continue; } // rejected items aren't made or charged
     const qty = Number(l.qty) || 0;
     const cat: any = costByKey.get(l.item_key);
@@ -851,12 +907,12 @@ registerFn('getChainCommissary', async ({ user, body }) => {
       done: !!st?.done, done_by: st?.done_by || null, done_at: st?.done_at || null,
     };
   }).sort((a, b) => (a.department || '').localeCompare(b.department || '') || b.total_price - a.total_price);
-  const invoices = [...byBranch.values()].map((bx) => {
+  const invoices = [...byOrder.values()].map((bx) => {
     const keys = [...bx._items];
     const doneItems = keys.filter((k) => statusByKey.get(k)?.done).length;
     const { _items, ...rest } = bx;
     return { ...rest, total_ils: r2(bx.total_ils), cost_ils: r2(bx.cost_ils), margin_ils: r2(bx.total_ils - bx.cost_ils), total_items: keys.length, done_items: doneItems, is_ready: keys.length > 0 && doneItems === keys.length };
-  }).sort((a, b) => b.total_ils - a.total_ils);
+  }).sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
   const doneCount = production.filter((p) => p.done).length;
 
   return {
@@ -1149,17 +1205,29 @@ registerFn('setBranchPhone', async ({ user, body }) => {
 
 // Commissary APPROVES a branch's order (with an ETA the branch will see), and/or
 // REJECTS specific items with a per-item reason. Then notifies the branch.
+// Resolve ONE chain order: by explicit order_id (preferred, for multi-order),
+// else the latest order for (branch_slug, order_date). Returns {id, branch_slug, order_date}.
+async function resolveChainOrder(chainId: string, b: any): Promise<any> {
+  const oid = String(b?.order_id || '');
+  if (oid) {
+    const r: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, branch_slug, order_date FROM public."CommissaryChainOrder" WHERE id=$1 AND chain_id=$2 LIMIT 1`, oid, chainId).catch(() => []);
+    return r[0] || null;
+  }
+  const bs = String(b?.branch_slug || ''); const dt = String(b?.order_date || '').slice(0, 10);
+  if (!bs || !dt) return null;
+  const r: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, branch_slug, order_date FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3 ORDER BY "createdAt" DESC LIMIT 1`, chainId, bs, dt).catch(() => []);
+  return r[0] || null;
+}
+
 registerFn('approveChainOrder', async ({ user, body }) => {
   const b = (body || {}) as any;
   const chainId = String(b.chain_id || '');
-  const branchSlug = String(b.branch_slug || '');
-  const date = String(b.order_date || '').slice(0, 10);
-  if (!chainId || !branchSlug) throw new Error('chain_id + branch_slug required');
+  if (!chainId) throw new Error('chain_id required');
   await assertChainOwner(user, chainId);
   await ensureChainCommissaryTables();
-  const orders: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`, chainId, branchSlug, date).catch(() => []);
-  if (!orders.length) throw new Error('order_not_found');
-  const orderId = orders[0].id;
+  const orow = await resolveChainOrder(chainId, b);
+  if (!orow) throw new Error('order_not_found');
+  const orderId = orow.id; const branchSlug = orow.branch_slug; const date = orow.order_date;
   const eta = b.eta ? String(b.eta).slice(0, 40) : null;
   const who = String((user as any)?.full_name || user?.email || '').slice(0, 120) || null;
   const rejections: any[] = Array.isArray(b.rejections) ? b.rejections : [];
@@ -1197,13 +1265,14 @@ registerFn('approveChainOrder', async ({ user, body }) => {
 registerFn('notifyBranchOrderReady', async ({ user, body }) => {
   const b = (body || {}) as any;
   const chainId = String(b.chain_id || '');
-  const branchSlug = String(b.branch_slug || '');
-  if (!chainId || !branchSlug) throw new Error('chain_id + branch_slug required');
+  if (!chainId) throw new Error('chain_id required');
   await assertChainOwner(user, chainId);
   await ensureChainCommissaryTables();
-  const date = String(b.order_date || '').slice(0, 10);
-  // Mark the order READY (the branch sees this in-app even if WhatsApp fails).
-  await (prisma as any).$executeRawUnsafe(`UPDATE public."CommissaryChainOrder" SET status='ready', "updatedAt"=NOW() WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`, chainId, branchSlug, date).catch(() => {});
+  const orow = await resolveChainOrder(chainId, b);
+  if (!orow) return { ok: false, error: 'order_not_found' };
+  const branchSlug = orow.branch_slug; const date = orow.order_date;
+  // Mark THIS order READY (the branch sees this in-app even if WhatsApp fails).
+  await (prisma as any).$executeRawUnsafe(`UPDATE public."CommissaryChainOrder" SET status='ready', "updatedAt"=NOW() WHERE id=$1`, orow.id).catch(() => {});
   const phone = await resolveBranchPhone(chainId, branchSlug);
   if (!phone) return { ok: true, status: 'ready', sent: false, error: 'no_phone', message: 'סומן מוכן. לסניף אין טלפון — הגדר טלפון כדי לשלוח הודעה.' };
   const chainRow: any[] = await (prisma as any).$queryRawUnsafe(`SELECT name FROM public."Chain" WHERE id=$1`, chainId).catch(() => []);
@@ -1216,18 +1285,17 @@ registerFn('notifyBranchOrderReady', async ({ user, body }) => {
 registerFn('getChainBranchOrder', async ({ user, body }) => {
   const b = (body || {}) as any;
   const chainId = String(b.chain_id || '');
-  const branchSlug = String(b.branch_slug || '');
-  const date = String(b.order_date || '').slice(0, 10);
-  if (!chainId || !branchSlug) throw new Error('chain_id + branch_slug required');
+  if (!chainId) throw new Error('chain_id required');
   await assertChainOwner(user, chainId);
   await ensureChainCommissaryTables();
   const chainRow: any[] = await (prisma as any).$queryRawUnsafe(`SELECT name FROM public."Chain" WHERE id=$1`, chainId).catch(() => []);
-  const orders: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT id, branch_name, order_date, status, eta, approved_at, "createdAt" FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`,
-    chainId, branchSlug, date,
-  ).catch(() => []);
+  const orow = await resolveChainOrder(chainId, b);
+  const branchSlug = orow?.branch_slug || String(b.branch_slug || '');
   const phone = await resolveBranchPhone(chainId, branchSlug);
-  if (!orders.length) return { found: false, chain_name: chainRow[0]?.name || '', branch_slug: branchSlug, order_date: date, phone };
+  if (!orow) return { found: false, chain_name: chainRow[0]?.name || '', branch_slug: branchSlug, order_date: String(b.order_date || ''), phone };
+  const orders: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, branch_name, order_date, status, eta, approved_at, "createdAt" FROM public."CommissaryChainOrder" WHERE id=$1`, orow.id,
+  ).catch(() => []);
   const o = orders[0];
   const rows: any[] = await (prisma as any).$queryRawUnsafe(
     `SELECT item_key, name, unit, department, qty, internal_price, rejected, reject_reason FROM public."CommissaryChainOrderLine" WHERE order_id=$1 ORDER BY department NULLS LAST, name`, o.id,

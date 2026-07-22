@@ -76,32 +76,32 @@ export function ChainCommissary({ chainId, defaultOpen }) {
   const [stockDraft, setStockDraft] = useState({}); // item_key -> base-stock draft
   const [dueDraft, setDueDraft] = useState({}); // item_key -> due-date draft
 
-  const openNote = async (branch_slug) => {
+  const openNote = async (order_id) => {
     setNote({ loading: true }); setNoteSent(null); setReject({}); setEtaDraft(''); setPhoneDraft('');
     try {
-      const r = await base44.functions.getChainBranchOrder({ chain_id: chainId, branch_slug, order_date: date });
+      const r = await base44.functions.getChainBranchOrder({ chain_id: chainId, order_id, order_date: date });
       const d = r?.data || r; setNote(d);
       setEtaDraft(d?.eta || ''); setPhoneDraft(d?.phone || '');
       const rj = {}; (d?.lines || []).forEach((l) => { if (l.rejected) rj[l.item_key] = l.reject_reason || ''; }); setReject(rj);
     } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); setNote(null); }
   };
   const sendReadyFromNote = async () => {
-    if (!note?.branch_slug) return;
+    if (!note?.order_id) return;
     setBusy(true);
-    try { const r = await base44.functions.notifyBranchOrderReady({ chain_id: chainId, branch_slug: note.branch_slug, order_date: date }); const d = r?.data || r; setNoteSent(d?.sent ? { ok: true, text: `נשלח ל-${d.sent_to || 'סניף'}` } : { ok: !!d?.ok, text: d?.message || d?.error || 'סומן מוכן (לא נשלח — חסר טלפון)' }); await load(); }
+    try { const r = await base44.functions.notifyBranchOrderReady({ chain_id: chainId, order_id: note.order_id }); const d = r?.data || r; setNoteSent(d?.sent ? { ok: true, text: `נשלח ל-${d.sent_to || 'סניף'}` } : { ok: !!d?.ok, text: d?.message || d?.error || 'סומן מוכן (לא נשלח — חסר טלפון)' }); await load(); }
     catch (e) { setNoteSent({ ok: false, text: e?.message || 'שגיאה' }); }
     setBusy(false);
   };
   const approveOrder = async () => {
-    if (!note?.branch_slug) return;
+    if (!note?.order_id) return;
     setBusy(true);
     const rejections = Object.entries(reject).map(([item_key, reason]) => ({ item_key, reason }));
     try {
-      const r = await base44.functions.approveChainOrder({ chain_id: chainId, branch_slug: note.branch_slug, order_date: date, eta: etaDraft || null, rejections });
+      const r = await base44.functions.approveChainOrder({ chain_id: chainId, order_id: note.order_id, eta: etaDraft || null, rejections });
       const d = r?.data || r;
       const sent = d?.notify?.sent;
       setNoteSent({ ok: true, text: `אושר ✅${etaDraft ? ' · יעד ' + etaDraft : ''}${sent ? ' · נשלח לסניף' : d?.notify?.error === 'no_phone' ? ' · לא נשלח (חסר טלפון)' : ''}` });
-      await openNote(note.branch_slug); await load();
+      await openNote(note.order_id); await load();
     } catch (e) { setNoteSent({ ok: false, text: e?.message || 'שגיאה' }); }
     setBusy(false);
   };
@@ -237,7 +237,7 @@ export function ChainCommissary({ chainId, defaultOpen }) {
             <>
               {/* View switch: per-branch drill-down (default) vs everyone together */}
               <div className="flex items-center gap-2">
-                <button onClick={() => { setProdView('branches'); setSelBranch(''); }} className={`text-xs rounded px-2 py-1 ${prodView === 'branches' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>🏬 לפי סניף</button>
+                <button onClick={() => { setProdView('branches'); setSelBranch(''); }} className={`text-xs rounded px-2 py-1 ${prodView === 'branches' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>🧾 הזמנות</button>
                 <button onClick={() => { setProdView('all'); setSelBranch(''); }} className={`text-xs rounded px-2 py-1 ${prodView === 'all' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>🍳 כולם יחד</button>
                 {(prodView === 'all' || selBranch) && dist?.production?.length > 0 && <button onClick={resetProduction} disabled={busy} className="mr-auto text-[11px] text-slate-500 hover:text-red-400">אפס יום ↺</button>}
               </div>
@@ -257,46 +257,29 @@ export function ChainCommissary({ chainId, defaultOpen }) {
                     <div className="text-[10px] text-slate-500">פריטים חופפים מיוצרים פעם אחת — הפירוט מתחת לכל פריט מראה כמה לכל סניף.</div>
                     {renderPrepGroups(dist.production, null)}
                   </>
-                ) : selBranch ? (() => {
-                  const inv = (dist.invoices || []).find((i) => i.branch_slug === selBranch);
-                  const bname = inv?.branch_name || selBranch;
-                  const items = dist.production.filter((p) => (p.per_branch || []).some((b) => b.branch === bname));
-                  const doneN = items.filter((i) => i.done).length;
-                  const qtyOf = (p) => { const m = (p.per_branch || []).find((b) => b.branch === bname); return m ? m.qty : p.total_qty; };
-                  return (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <button onClick={() => setSelBranch('')} className="text-xs text-slate-400 hover:text-white">← חזרה לרשימת הסניפים</button>
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${orderStatus(inv?.status)[1]}`}>{orderStatus(inv?.status)[0]}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="font-bold text-white text-sm">🏬 {bname} <span className="text-slate-500 font-normal">· {items.length} פריטים · הוכן {doneN}/{items.length}</span></div>
-                        <button onClick={() => openNote(selBranch)} disabled={busy} className="bg-indigo-700/60 hover:bg-indigo-600 text-indigo-100 rounded px-2 py-1 text-[11px] whitespace-nowrap">📄 תעודת משלוח / אישור</button>
-                      </div>
-                      {inv?.eta && <div className="text-[11px] text-sky-400">🕐 יעד: {inv.eta}</div>}
-                      {inv?.rejected > 0 && <div className="text-[11px] text-red-400">{inv.rejected} פריטים נדחו (ראה תעודת משלוח)</div>}
-                      <div className="h-1.5 bg-slate-800 rounded overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${items.length ? Math.round((doneN / items.length) * 100) : 0}%` }} /></div>
-                      {renderPrepGroups(items, qtyOf)}
-                    </>
-                  );
-                })() : (
+                ) : (
                   <div className="space-y-1.5">
-                    <div className="text-xs text-slate-400">בחר סניף כדי לראות מה הוא הזמין:</div>
-                    {(dist.invoices || []).map((inv) => (
-                      <button key={inv.branch_slug} onClick={() => setSelBranch(inv.branch_slug)} className="w-full text-right flex items-center justify-between bg-slate-800/60 hover:bg-slate-800 rounded-lg p-2.5 gap-2">
-                        <span className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${orderStatus(inv.status)[1]}`}>{orderStatus(inv.status)[0]}</span>
-                          <span className="font-bold text-white">🏬 {inv.branch_name}</span>
-                          <span className="text-[11px] text-slate-500">{inv.lines} פריטים · הוכן {inv.done_items}/{inv.total_items}</span>
-                          {inv.rejected > 0 && <span className="text-red-400 text-[11px]">· {inv.rejected} נדחו</span>}
-                          {inv.eta && <span className="text-sky-400 text-[11px]">· 🕐 {inv.eta}</span>}
-                        </span>
-                        <span className="flex items-center gap-2 shrink-0">
-                          <span className="text-indigo-300 font-bold text-xs">{ils2(inv.total_ils)}</span>
-                          <span className="text-slate-500 text-sm">‹</span>
-                        </span>
-                      </button>
-                    ))}
+                    <div className="text-xs text-slate-400">כל ההזמנות שהתקבלו ({(dist.invoices || []).length}) — לחץ הזמנה לתעודת משלוח + אישור:</div>
+                    {(dist.invoices || []).length === 0 && <p className="text-xs text-slate-500 text-center py-2">אין הזמנות בתאריך זה.</p>}
+                    {(dist.invoices || []).map((inv) => {
+                      const t = inv.created_at ? new Date(inv.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '';
+                      return (
+                        <button key={inv.order_id} onClick={() => openNote(inv.order_id)} className="w-full text-right flex items-center justify-between bg-slate-800/60 hover:bg-slate-800 rounded-lg p-2.5 gap-2">
+                          <span className="flex items-center gap-2 flex-wrap">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${orderStatus(inv.status)[1]}`}>{orderStatus(inv.status)[0]}</span>
+                            <span className="font-bold text-white">🏬 {inv.branch_name}</span>
+                            {t && <span className="text-[10px] text-slate-500">🕐 {t}</span>}
+                            <span className="text-[11px] text-slate-500">{inv.lines} פריטים · הוכן {inv.done_items}/{inv.total_items}</span>
+                            {inv.rejected > 0 && <span className="text-red-400 text-[11px]">· {inv.rejected} נדחו</span>}
+                            {inv.eta && <span className="text-sky-400 text-[11px]">· יעד {inv.eta}</span>}
+                          </span>
+                          <span className="flex items-center gap-2 shrink-0">
+                            <span className="text-indigo-300 font-bold text-xs">{ils2(inv.total_ils)}</span>
+                            <span className="text-slate-500 text-sm">📄</span>
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
             </>
