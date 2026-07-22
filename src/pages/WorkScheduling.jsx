@@ -18,6 +18,7 @@ import ShiftEditDialog from '../components/scheduling/ShiftEditDialog';
 import AssignmentEditDialog from '../components/scheduling/AssignmentEditDialog';
 import BulkAssignDialog from '../components/scheduling/BulkAssignDialog';
 import { canonRole as canon } from '@/lib/roles';
+import { useMyPermissions } from '@/hooks/useMyPermissions';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
 import SendScheduleWhatsAppDialog from '../components/scheduling/SendScheduleWhatsAppDialog';
@@ -577,7 +578,18 @@ export default function WorkScheduling() {
     // Department managers (e.g. kitchen manager) get admin-equivalent powers
     // here, but the page UI auto-scopes them to their department further below.
     const managedDept = currentUser?.managed_department || null;
-    const isAdminLike = currentUser?.role === 'admin' || currentUser?.role === 'owner' || !!managedDept;
+    const { perms: myPerms } = useMyPermissions();
+    // Who may EDIT the schedule: leadership only — the owner, a department manager,
+    // and anyone whose PERMISSION TIER is a leadership level (אחראי משמרת=shift_lead,
+    // מנהל/מנהל מטבח/מנהל פלור=manager, admin). A plain "עובד" (base_level 'employee')
+    // cannot. The old check only looked at the coarse User.role, so a manager set up
+    // as role='user' with a manager tier was wrongly blocked. When PREVIEWING a tier
+    // ("צפה כ:") we skip the real-tier grant so the preview reflects the previewed
+    // level (Layout already remaps currentUser.role for that case).
+    const _previewingTier = (() => { try { return !!localStorage.getItem('view_tier_id'); } catch { return false; } })();
+    const LEADERSHIP_LEVELS = ['admin', 'manager', 'shift_lead'];
+    const isAdminLike = currentUser?.role === 'admin' || currentUser?.role === 'owner' || !!managedDept
+        || (!_previewingTier && (!!myPerms?.is_owner || LEADERSHIP_LEVELS.includes(String(myPerms?.base_level))));
 
     // Once we know this user manages a department, force the department filter
     // to it and don't let them switch (the Select is also disabled below).
@@ -738,7 +750,9 @@ export default function WorkScheduling() {
     // Owner freeze: a locked week can't be edited by non-owners (managers). The
     // owner still edits (or unlocks first). Enforced in the assignment handlers.
     const lockedWeeks = Array.isArray(scheduleCfg?.locked_weeks) ? scheduleCfg.locked_weeks : [];
-    const isOwnerRole = currentUser?.role === 'owner';
+    // Only the real OWNER overrides a lock (leadership managers can edit normally,
+    // but a locked week is the owner's freeze — they alone edit it).
+    const isOwnerRole = !_previewingTier && (currentUser?.role === 'owner' || !!myPerms?.is_owner);
     const weekLocked = lockedWeeks.includes(weekStartStr);
     const editBlockedByLock = weekLocked && !isOwnerRole;
     // A dept is published if its "week|dept" key exists, or a legacy bare "week".
