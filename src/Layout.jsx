@@ -226,6 +226,7 @@ export default function Layout({ children, currentPageName }) {
   const [chainsOwned, setChainsOwned] = React.useState(0);
   // Whether THIS tenant is a branch inside a chain — gates the "network tasks" link.
   const [branchOfChain, setBranchOfChain] = React.useState(false);
+  const [isChainCommissary, setIsChainCommissary] = React.useState(false);
   const [hasUnreadChat, setHasUnreadChat] = React.useState(false);
   const [appTheme, setAppTheme] = React.useState(() => localStorage.getItem('gc_theme') || 'light');
   const branding = useTenantBranding();
@@ -301,10 +302,12 @@ export default function Layout({ children, currentPageName }) {
           setIsPlatformOwner(!!data?.is_platform_owner);
           setChainsOwned(Number(data?.chains_owned) > 0 ? Number(data.chains_owned) : 0);
           setBranchOfChain(!!data?.branch_of_chain);
+          setIsChainCommissary(!!data?.is_chain_commissary);
         } catch (e) {
           setIsPlatformOwner(false);
           setChainsOwned(0);
           setBranchOfChain(false);
+          setIsChainCommissary(false);
         }
 
         // Pull Employee record by email so we can read both full_name AND
@@ -414,14 +417,20 @@ export default function Layout({ children, currentPageName }) {
     () => {
       const base = isPlatformOwner ? adminLinks : adminLinks.filter(l => !String(l.url || '').includes('PlatformAdmin'));
       const extra = [];
-      // A branch inside a chain gets its network-task inbox + commissary ordering.
-      if (branchOfChain) extra.push({ title: "🔗 משימות רשת", url: createPageUrl("BranchNetworkTasks"), icon: ClipboardCheck, color: "espresso" });
-      if (branchOfChain) extra.push({ title: "🏭 הזמנה לבית הכנות", url: createPageUrl("BranchCommissary"), icon: Package, color: "espresso" });
-      // A chain operator (owns a chain, not the platform owner) gets their own HQ.
-      if (!isPlatformOwner && chainsOwned > 0) extra.push({ title: "🏢 מטה הרשת שלי", url: createPageUrl("NetworkHQ"), icon: Shield, color: "espresso" });
+      // The commissary tenant IS the network home → it gets the Network HQ, not the
+      // branch-ordering links (it doesn't order from itself).
+      if (isChainCommissary) {
+        extra.push({ title: "🏢 מטה הרשת", url: createPageUrl("NetworkHQ"), icon: Shield, color: "espresso" });
+      } else {
+        // A branch inside a chain gets its network-task inbox + commissary ordering.
+        if (branchOfChain) extra.push({ title: "🔗 משימות רשת", url: createPageUrl("BranchNetworkTasks"), icon: ClipboardCheck, color: "espresso" });
+        if (branchOfChain) extra.push({ title: "🏭 הזמנה לבית הכנות", url: createPageUrl("BranchCommissary"), icon: Package, color: "espresso" });
+        // A chain operator (owns a chain, not the platform owner) gets their own HQ.
+        if (!isPlatformOwner && chainsOwned > 0) extra.push({ title: "🏢 מטה הרשת שלי", url: createPageUrl("NetworkHQ"), icon: Shield, color: "espresso" });
+      }
       return extra.length ? [...base, ...extra] : base;
     },
-    [isPlatformOwner, chainsOwned, branchOfChain],
+    [isPlatformOwner, chainsOwned, branchOfChain, isChainCommissary],
   );
   // Per-tenant permission levels. A "manager" sees everything except owner-only
   // settings/platform; a "shift lead" sees only day-to-day operations. Empty

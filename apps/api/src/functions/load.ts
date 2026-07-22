@@ -18427,7 +18427,7 @@ registerFn('getMyPlatformInfo', async ({ user }) => {
     try {
       await ensureChainTables();
       const rows: any[] = await (prisma as any).$queryRawUnsafe(
-        `SELECT COUNT(*)::int AS n FROM "Chain" WHERE LOWER(owner_email)=$1`, email);
+        `SELECT COUNT(*)::int AS n FROM public."Chain" WHERE LOWER(owner_email)=$1`, email);
       chainsOwned = rows?.[0]?.n || 0;
     } catch { chainsOwned = 0; }
   }
@@ -18438,14 +18438,24 @@ registerFn('getMyPlatformInfo', async ({ user }) => {
     await ensureChainTables();
     const slug = currentTenantSlug();
     const cm: any[] = await (prisma as any).$queryRawUnsafe(
-      `SELECT 1 FROM "ChainMember" WHERE slug=$1 LIMIT 1`, slug);
+      `SELECT 1 FROM public."ChainMember" WHERE slug=$1 LIMIT 1`, slug);
     branchOfChain = cm.length > 0;
   } catch { branchOfChain = false; }
+  // Is THIS tenant the commissary (בית הכנות) of some chain? If so it is the
+  // network's HOME — it gets the Network HQ, not the branch-ordering links.
+  let isChainCommissary = false;
+  try {
+    const slug = currentTenantSlug();
+    const cc: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT 1 FROM public."Chain" WHERE commissary_slug=$1 LIMIT 1`, slug);
+    isChainCommissary = cc.length > 0;
+  } catch { isChainCommissary = false; }
   return {
     is_platform_owner: isSuperAdmin(user),
     email: (user as any)?.email || null,
     chains_owned: isSuperAdmin(user) ? -1 : chainsOwned, // -1 = "all" for super-admin
     branch_of_chain: branchOfChain,
+    is_chain_commissary: isChainCommissary,
   };
 });
 
@@ -18899,7 +18909,7 @@ async function ensureChainTables(): Promise<void> {
 // never reach another chain's data regardless of what the UI allows.
 async function chainOwnerEmail(chainId: string): Promise<string | null> {
   const rows: any[] = await (prisma as any)
-    .$queryRawUnsafe(`SELECT owner_email FROM "Chain" WHERE id=$1 LIMIT 1`, chainId)
+    .$queryRawUnsafe(`SELECT owner_email FROM public."Chain" WHERE id=$1 LIMIT 1`, chainId)
     .catch(() => []);
   const e = rows?.[0]?.owner_email;
   return e ? String(e).trim().toLowerCase() : null;
@@ -18920,11 +18930,11 @@ async function chainsForUser(user: any): Promise<any[]> {
   await ensureChainTables();
   const dbx = prisma as any;
   if (isSuperAdmin(user)) {
-    return await dbx.$queryRawUnsafe(`SELECT id, name, owner_email, "createdAt" FROM "Chain" ORDER BY "createdAt"`).catch(() => []);
+    return await dbx.$queryRawUnsafe(`SELECT id, name, owner_email, "createdAt" FROM public."Chain" ORDER BY "createdAt"`).catch(() => []);
   }
   const email = String((user as any)?.email || '').trim().toLowerCase();
   if (!email) return [];
-  return await dbx.$queryRawUnsafe(`SELECT id, name, owner_email, "createdAt" FROM "Chain" WHERE LOWER(owner_email)=$1 ORDER BY "createdAt"`, email).catch(() => []);
+  return await dbx.$queryRawUnsafe(`SELECT id, name, owner_email, "createdAt" FROM public."Chain" WHERE LOWER(owner_email)=$1 ORDER BY "createdAt"`, email).catch(() => []);
 }
 
 const branchSchema = (slug: string) => (slug === 'alena' || slug === 'public' ? 'public' : `tenant_${slug}`);
@@ -18964,12 +18974,12 @@ registerFn('listChains', async ({ user }: any) => {
   // Scoped to what this caller owns — a chain operator sees only their chains.
   const chains: any[] = await chainsForUser(user);
   if (!chains.length && !superAdmin) return { chains: [], available: [], is_super: false };
-  const members: any[] = await dbx.$queryRawUnsafe(`SELECT id, chain_id, slug, name FROM "ChainMember" ORDER BY name`).catch(() => []);
+  const members: any[] = await dbx.$queryRawUnsafe(`SELECT id, chain_id, slug, name FROM public."ChainMember" ORDER BY name`).catch(() => []);
   // Composing the network (adding branches to it) is a platform decision — only
   // a super-admin gets the tenant picker.
   let available: any[] = [];
   if (superAdmin) {
-    const live: any[] = await dbx.$queryRawUnsafe(`SELECT slug, restaurant_name FROM "Tenant" WHERE status='live' ORDER BY restaurant_name`).catch(() => []);
+    const live: any[] = await dbx.$queryRawUnsafe(`SELECT slug, restaurant_name FROM public."Tenant" WHERE status='live' ORDER BY restaurant_name`).catch(() => []);
     available = [{ slug: 'alena', name: 'עלינא (הבסיסית)' }, ...live.map((t: any) => ({ slug: t.slug, name: t.restaurant_name || t.slug }))];
   }
   // members is filtered per-chain against `chains`, which is already owner-scoped,
@@ -19068,7 +19078,7 @@ registerFn('getChainMetrics', async ({ user, body }: any) => {
   const chainId = String((body as any)?.chain_id || '').trim();
   if (!chainId) throw new Error('chain_id required');
   await assertChainAccess(user, chainId);
-  const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name FROM "ChainMember" WHERE chain_id=$1 ORDER BY name`, chainId).catch(() => []);
+  const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name FROM public."ChainMember" WHERE chain_id=$1 ORDER BY name`, chainId).catch(() => []);
   const perBranch: any[] = [];
   const totals = { users: 0, employees: 0, active_shifts: 0, contract_revenue: 0, unpaid_invoices: 0, reservations_today: 0, revenue_today: 0, open_incidents: 0 };
   for (const m of members) {
@@ -19107,12 +19117,12 @@ registerFn('createNetworkTask', async ({ user, body }: any) => {
   const role = String(b.role || '').trim().slice(0, 40) || null;
   const dueDate = String(b.due_date || '').trim().slice(0, 10) || null; // YYYY-MM-DD
   await (prisma as any).$executeRawUnsafe(
-    `INSERT INTO "NetworkTask" (id, chain_id, title, detail, role, due_date) VALUES ($1,$2,$3,$4,$5,$6::date)`,
+    `INSERT INTO public."NetworkTask" (id, chain_id, title, detail, role, due_date) VALUES ($1,$2,$3,$4,$5,$6::date)`,
     id, chainId, title.slice(0, 200), String(b.detail || '').slice(0, 2000), role, dueDate);
-  const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name FROM "ChainMember" WHERE chain_id=$1`, chainId).catch(() => []);
+  const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name FROM public."ChainMember" WHERE chain_id=$1`, chainId).catch(() => []);
   for (const m of members) {
     await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO "NetworkTaskBranch" (id, task_id, slug, name) VALUES ($1,$2,$3,$4) ON CONFLICT (task_id, slug) DO NOTHING`,
+      `INSERT INTO public."NetworkTaskBranch" (id, task_id, slug, name) VALUES ($1,$2,$3,$4) ON CONFLICT (task_id, slug) DO NOTHING`,
       `ntb_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`, id, m.slug, m.name).catch(() => {});
   }
   return { ok: true, id };
@@ -19123,16 +19133,16 @@ registerFn('listNetworkTasks', async ({ user, body }: any) => {
   const chainId = String((body as any)?.chain_id || '').trim();
   if (!chainId) throw new Error('chain_id required');
   await assertChainAccess(user, chainId);
-  const tasks: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, title, detail, role, due_date, "createdAt" FROM "NetworkTask" WHERE chain_id=$1 ORDER BY "createdAt" DESC`, chainId).catch(() => []);
+  const tasks: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, title, detail, role, due_date, "createdAt" FROM public."NetworkTask" WHERE chain_id=$1 ORDER BY "createdAt" DESC`, chainId).catch(() => []);
   const branches: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT b.task_id, b.slug, b.name, b.done, b.note FROM "NetworkTaskBranch" b JOIN "NetworkTask" t ON t.id=b.task_id WHERE t.chain_id=$1`, chainId).catch(() => []);
+    `SELECT b.task_id, b.slug, b.name, b.done, b.note FROM public."NetworkTaskBranch" b JOIN public."NetworkTask" t ON t.id=b.task_id WHERE t.chain_id=$1`, chainId).catch(() => []);
   return { tasks: tasks.map((t: any) => ({ ...t, branches: branches.filter((x: any) => x.task_id === t.id) })) };
 });
 
 // The chain a task belongs to — used to gate the task-level writes below.
 async function networkTaskChainId(taskId: string): Promise<string | null> {
   const rows: any[] = await (prisma as any)
-    .$queryRawUnsafe(`SELECT chain_id FROM "NetworkTask" WHERE id=$1 LIMIT 1`, String(taskId || ''))
+    .$queryRawUnsafe(`SELECT chain_id FROM public."NetworkTask" WHERE id=$1 LIMIT 1`, String(taskId || ''))
     .catch(() => []);
   return rows?.[0]?.chain_id ? String(rows[0].chain_id) : null;
 }
@@ -19145,7 +19155,7 @@ registerFn('setNetworkTaskBranch', async ({ user, body }: any) => {
   await assertChainAccess(user, chainId);
   const done = !!b.done;
   await (prisma as any).$executeRawUnsafe(
-    `UPDATE "NetworkTaskBranch" SET done=$1, done_at=CASE WHEN $1 THEN NOW() ELSE NULL END WHERE task_id=$2 AND slug=$3`,
+    `UPDATE public."NetworkTaskBranch" SET done=$1, done_at=CASE WHEN $1 THEN NOW() ELSE NULL END WHERE task_id=$2 AND slug=$3`,
     done, String(b.task_id || ''), String(b.slug || '')).catch(() => {});
   return { ok: true };
 });
@@ -19156,8 +19166,8 @@ registerFn('deleteNetworkTask', async ({ user, body }: any) => {
   const chainId = await networkTaskChainId(id);
   if (!chainId) throw new Error('task not found');
   await assertChainAccess(user, chainId);
-  await (prisma as any).$executeRawUnsafe(`DELETE FROM "NetworkTaskBranch" WHERE task_id=$1`, id).catch(() => {});
-  await (prisma as any).$executeRawUnsafe(`DELETE FROM "NetworkTask" WHERE id=$1`, id).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM public."NetworkTaskBranch" WHERE task_id=$1`, id).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM public."NetworkTask" WHERE id=$1`, id).catch(() => {});
   return { ok: true };
 });
 
