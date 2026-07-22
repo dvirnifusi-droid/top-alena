@@ -5,7 +5,13 @@ import { registerFn } from './index.js';
 import { prisma } from '../db.js';
 import { canViewPay, ALL_SCOPE } from '../lib/payAccess.js';
 import { buildPayViewer } from '../lib/payViewer.js';
-import { parseShiftHours, aggregateLabor, laborDeviation } from '../lib/laborCost.js';
+import { parseShiftHours, aggregateLabor, laborDeviation, sanitizeShiftHours } from '../lib/laborCost.js';
+const dstr = (d) => { try {
+    return new Date(d).toISOString().slice(0, 10);
+}
+catch {
+    return '';
+} };
 const DAY_MS = 86400 * 1000;
 function parseRange(body) {
     const b = body || {};
@@ -59,32 +65,44 @@ registerFn('getLaborCost', async ({ body, user }) => {
     const viewer = await buildPayViewer(user);
     const { from, to } = parseRange(body);
     const { visibleIds, payById, nameById, estimatedCount } = await visiblePay(viewer);
-    // Planned — from WorkShift assignments.
+    // Planned — from WorkShift assignments. Also indexed by (employee|date) so a
+    // stale actual clock can fall back to that shift's planned hours.
     const shifts = await prisma.workShift.findMany({
         where: { date: { gte: from, lte: to } },
-        select: { start_time: true, end_time: true, assigned_staff: true },
+        select: { date: true, start_time: true, end_time: true, assigned_staff: true },
     }).catch(() => []);
     const plannedEntries = [];
+    const plannedByKey = new Map(); // `${empId}|${YYYY-MM-DD}` → planned hours
     for (const s of shifts) {
         const hours = parseShiftHours(s.start_time, s.end_time);
+        const ds = dstr(s.date);
         const staff = Array.isArray(s.assigned_staff) ? s.assigned_staff : [];
         for (const a of staff) {
             const id = a?.employee_id;
             // Planned assignments carry the role, so a multi-role employee is costed at
             // the rate for the role they're scheduled in. (Actual/clock hours have no
             // role → base rate; ShiftTracking doesn't record which job was worked.)
-            if (id && visibleIds.has(id))
-                plannedEntries.push({ employee_id: id, hours, role: a?.position || null });
+            if (id && visibleIds.has(id)) {
+                // A per-assignment start/end wins over the shift-level times when present.
+                const h = parseShiftHours(a?.start_time, a?.end_time) || hours;
+                plannedEntries.push({ employee_id: id, hours: h, role: a?.position || null });
+                if (ds)
+                    plannedByKey.set(`${id}|${ds}`, (plannedByKey.get(`${id}|${ds}`) || 0) + h);
+            }
         }
     }
-    // Actual — from ShiftTracking worked hours.
+    // Actual — from ShiftTracking. Skip OPEN shifts (not clocked out → not finished)
+    // and sanitize forgotten clock-outs (a 138h "shift" → that day's planned hours).
     const tracks = await prisma.shiftTracking.findMany({
         where: { date: { gte: from, lte: to } },
-        select: { employee_id: true, total_hours: true, effective_hours: true },
+        select: { employee_id: true, date: true, shift_end: true, total_hours: true, effective_hours: true },
     }).catch(() => []);
     const actualEntries = tracks
-        .filter(t => t.employee_id && visibleIds.has(t.employee_id))
-        .map(t => ({ employee_id: t.employee_id, hours: Number(t.total_hours ?? t.effective_hours) || 0 }));
+        .filter(t => t.employee_id && visibleIds.has(t.employee_id) && t.shift_end)
+        .map(t => ({
+        employee_id: t.employee_id,
+        hours: sanitizeShiftHours(Number(t.total_hours ?? t.effective_hours) || 0, plannedByKey.get(`${t.employee_id}|${dstr(t.date)}`)),
+    }));
     const planned = aggregateLabor(plannedEntries, payById);
     const actual = aggregateLabor(actualEntries, payById);
     const dev = laborDeviation(planned, actual);
@@ -110,11 +128,12 @@ registerFn('getLaborCostRatio', async ({ body, user }) => {
     const { visibleIds, payById, estimatedCount } = await visiblePay(viewer);
     const tracks = await prisma.shiftTracking.findMany({
         where: { date: { gte: from, lte: to } },
-        select: { employee_id: true, total_hours: true, effective_hours: true },
+        select: { employee_id: true, shift_end: true, total_hours: true, effective_hours: true },
     }).catch(() => []);
+    // Finished shifts only, forgotten clock-outs capped (no schedule read here).
     const actualEntries = tracks
-        .filter(t => t.employee_id && visibleIds.has(t.employee_id))
-        .map(t => ({ employee_id: t.employee_id, hours: Number(t.total_hours ?? t.effective_hours) || 0 }));
+        .filter(t => t.employee_id && visibleIds.has(t.employee_id) && t.shift_end)
+        .map(t => ({ employee_id: t.employee_id, hours: sanitizeShiftHours(Number(t.total_hours ?? t.effective_hours) || 0) }));
     const labor = aggregateLabor(actualEntries, payById).total;
     const rev = await prisma.shiftEndReport.aggregate({
         _sum: { total_revenue: true },

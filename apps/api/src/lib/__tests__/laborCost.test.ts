@@ -1,5 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { parseShiftHours, laborCostForHours, aggregateLabor, laborDeviation } from '../laborCost.js';
+import { parseShiftHours, laborCostForHours, aggregateLabor, laborDeviation, sanitizeShiftHours, MAX_SHIFT_HOURS } from '../laborCost.js';
+
+describe('sanitizeShiftHours (forgotten clock-out guard)', () => {
+  it('passes plausible shift hours through', () => {
+    expect(sanitizeShiftHours(8)).toBe(8);
+    expect(sanitizeShiftHours(MAX_SHIFT_HOURS)).toBe(MAX_SHIFT_HOURS);
+  });
+  it('returns 0 for non-positive / invalid', () => {
+    expect(sanitizeShiftHours(0)).toBe(0);
+    expect(sanitizeShiftHours(-5)).toBe(0);
+    expect(sanitizeShiftHours(NaN)).toBe(0);
+  });
+  it('a stale 138h record falls back to the planned hours', () => {
+    expect(sanitizeShiftHours(138.77, 8)).toBe(8); // <- the אסתר bug
+  });
+  it('caps a stale record at MAX when no planned hours are known', () => {
+    expect(sanitizeShiftHours(138.77)).toBe(MAX_SHIFT_HOURS);
+    expect(sanitizeShiftHours(200, 0)).toBe(MAX_SHIFT_HOURS);
+    expect(sanitizeShiftHours(200, 40)).toBe(MAX_SHIFT_HOURS); // implausible planned ignored
+  });
+});
 
 describe('parseShiftHours', () => {
   it('computes hours between HH:mm', () => {

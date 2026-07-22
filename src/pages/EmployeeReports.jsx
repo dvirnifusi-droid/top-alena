@@ -59,6 +59,11 @@ function calcHours(startTime, endTime) {
 // Normalized name for matching (strips repeated/edge whitespace, case-fold).
 const normEmpName = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
+// A single clock shift can't realistically exceed this. Anything longer is a
+// forgotten clock-out (e.g. clocked in Sun, auto-closed 6 days later = 138h) —
+// treated as a mistake and shown at the scheduled hours instead.
+const MAX_SHIFT_HOURS = 16;
+
 // Actual worked hours from a ShiftTracking (clock) record — the source of truth
 // when the schedule assignment is missing an end_time. Returns {gross, net}.
 function trackHours(t) {
@@ -357,10 +362,10 @@ function EmployeeReportsInner() {
             if (s.shift_type) clockByKey.set(`${s.date}|${s.shift_type}`, s);
             if (!clockByDate.has(s.date)) clockByDate.set(s.date, s);
         });
-        const clockedDays = new Set(empClock.map(s => s.date));
         const hourlyShiftEntries = [];
         workShifts.forEach(ws => {
             if (!inPeriod(ws.date)) return;
+            if (ws.date > todayStr) return; // future shift — not worked yet, never counts
             (ws.assigned_staff || []).forEach(a => {
                 // Match by id OR normalized name (id can diverge for Google-auth
                 // users; name is the stable link the manager sees).
@@ -368,27 +373,31 @@ function EmployeeReportsInner() {
                 const nameMatch = a.employee_name && selName && normEmpName(a.employee_name) === selName;
                 if (!idMatch && !nameMatch) return;
                 if (TIP_POSITIONS.includes(a.position)) return; // טיפ-based - לא כאן
-                let hours = calcHours(a.start_time, a.end_time);
-                let breakMin = a.total_break_minutes || 0;
-                let netHours = hours - breakMin / 60;
-                let fromClock = false;
-                let clockEnd = a.end_time;
-                if (hours <= 0) {
-                    // Schedule has no end_time → use the actual clock hours.
-                    const t = clockByKey.get(`${ws.date}|${ws.shift_type}`) || clockByDate.get(ws.date);
+
+                // Worked hours = a COMPLETED clock (in AND out) or a manual entry.
+                // Planned-only / in-progress (clocked in, not out) / no-show shifts
+                // are NOT worked hours — they never enter the report (owner rule).
+                const t = clockByKey.get(`${ws.date}|${ws.shift_type}`) || clockByDate.get(ws.date);
+                const completedClock = !!(t && t.shift_end);
+                const sched = calcHours(a.start_time, a.end_time);
+                let hours, netHours, fromClock = false, clockEnd = a.end_time, stale = false;
+                if (completedClock) {
                     const th = trackHours(t);
-                    if (th.gross > 0) {
-                        hours = th.gross; netHours = th.net; fromClock = true;
-                        breakMin = Number(t?.total_break_minutes) || 0;
-                        try { if (t?.shift_end) clockEnd = format(new Date(t.shift_end), 'HH:mm'); } catch { /* noop */ }
+                    let gross = th.gross, net = th.net;
+                    if (gross > MAX_SHIFT_HOURS) {
+                        // forgotten clock-out → fall back to the scheduled hours
+                        stale = true;
+                        gross = sched > 0 ? sched : MAX_SHIFT_HOURS;
+                        net = Math.max(0, gross - (Number(t?.total_break_minutes) || 0) / 60);
                     }
+                    hours = gross; netHours = net; fromClock = true;
+                    try { if (t?.shift_end && !stale) clockEnd = format(new Date(t.shift_end), 'HH:mm'); } catch { /* noop */ }
+                } else if (a.manual_entry && sched > 0) {
+                    hours = sched; netHours = sched - (Number(a.total_break_minutes) || 0) / 60;
+                } else {
+                    return; // not clocked-and-finished, not manual → not worked
                 }
                 if (hours <= 0) return;
-                // משמרת בעבר בלי החתמת שעון (ולא הוזנה ידנית) = "ללא שעון".
-                // נספרת כברירת מחדל ומסומנת בדגל; מוסתרת רק אם hideNoShow דולק.
-                const isPast = ws.date < todayStr;
-                const noShow = isPast && !clockedDays.has(ws.date) && !a.manual_entry;
-                if (noShow && hideNoShow) return;
                 hourlyShiftEntries.push({
                     date: ws.date,
                     shift_type: ws.shift_type,
@@ -397,10 +406,11 @@ function EmployeeReportsInner() {
                     end_time: clockEnd,
                     hours,
                     fromClock,
-                    break_minutes: breakMin,
+                    break_minutes: fromClock ? (Number(t?.total_break_minutes) || 0) : (Number(a.total_break_minutes) || 0),
                     net_hours: netHours,
                     workShiftId: ws.id,
-                    noShow,
+                    noShow: false,
+                    stale,
                 });
             });
         });

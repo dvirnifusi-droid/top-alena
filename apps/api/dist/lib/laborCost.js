@@ -26,6 +26,25 @@ export function resolveHourlyRate(pay, role) {
     const base = Number(pay?.hourly_rate);
     return Number.isFinite(base) && base > 0 ? base : 0;
 }
+// A single clock shift can't realistically exceed this. A forgotten clock-out
+// leaves a ShiftTracking "open" for days (e.g. 138h), and its stored total_hours
+// becomes garbage. Any record above this is treated as a mistake, not worked time.
+export const MAX_SHIFT_HOURS = 16;
+// Actual worked hours for ONE shift's clock record, made safe against forgotten
+// clock-outs. <=0 → 0. Plausible (<=MAX) → as-is. Implausible (>MAX) → the
+// planned hours for that shift if we have them (the owner's intended hours),
+// else capped at MAX. So a stale 138h record never inflates labor cost again.
+export function sanitizeShiftHours(rawHours, plannedHours) {
+    const h = Number(rawHours);
+    if (!Number.isFinite(h) || h <= 0)
+        return 0;
+    if (h <= MAX_SHIFT_HOURS)
+        return h;
+    const p = Number(plannedHours);
+    if (Number.isFinite(p) && p > 0 && p <= MAX_SHIFT_HOURS)
+        return p;
+    return MAX_SHIFT_HOURS;
+}
 // Hours between two HH:mm strings; an end earlier than start means an overnight
 // shift (+24h). Clamped to [0, 24]. Invalid input → 0.
 export function parseShiftHours(start, end) {
