@@ -69,6 +69,23 @@ const TYPE_CONFIG = {
       { key: 'supplier', label: 'ספק', flex: 2 },
     ],
   },
+  recipe: {
+    rowsKey: 'ingredients',
+    label: 'מתכון',
+    addLabel: 'הוסף רכיב',
+    meta: [
+      { key: 'name', label: 'שם המתכון' },
+      { key: 'kind', label: 'סוג (PREP=הכנה / DISH=מנה)' },
+      { key: 'yield_qty', label: 'תפוקה' },
+      { key: 'yield_unit', label: 'יחידת תפוקה' },
+    ],
+    blank: { name: '', qty: 0, unit: '' },
+    columns: [
+      { key: 'name', label: 'רכיב', flex: 3 },
+      { key: 'qty', label: 'כמות', type: 'number', flex: 1 },
+      { key: 'unit', label: 'יחידה', flex: 1 },
+    ],
+  },
 };
 
 /**

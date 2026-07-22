@@ -9,6 +9,7 @@ import PageGuard from '../components/shared/PageGuard';
 import PageHeader from '@/components/shared/PageHeader';
 import IngredientPriceUpdatesCard from '@/components/recipes/IngredientPriceUpdatesCard';
 import DishProfitCard from '@/components/recipes/DishProfitCard';
+import AiScannerButton from '@/components/scanner/AiScannerButton';
 import { isMainAlena } from '@/lib/tenant';
 
 function RecipesInner() {
@@ -232,6 +233,8 @@ function RecipesInner() {
             {aiPrepsBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 ml-1" />}
             הצע הכנות לפי הפרופיל
           </Button>
+          <AiScannerButton target="recipe" label="סרוק מתכון" onImported={load}
+            className="border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-900" />
           <Button variant="outline" onClick={load} disabled={loading}>
             <RefreshCw className={`w-4 h-4 ml-1 ${loading ? 'animate-spin' : ''}`} /> רענן
           </Button>

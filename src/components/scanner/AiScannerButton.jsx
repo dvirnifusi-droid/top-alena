@@ -12,6 +12,7 @@ const TITLES = {
   employees: 'סריקת רשימת עובדים',
   suppliers: 'סריקת רשימת ספקים',
   order_list: 'סריקת רשימת הזמנות',
+  recipe: 'סריקת מתכון',
 };
 
 export default function AiScannerButton({ target, onImported, label, variant = 'outline', size = 'sm', className = '' }) {

@@ -11,9 +11,8 @@
 import { invokeLLM } from './llm.js';
 import { prisma } from '../db.js';
 const db = prisma;
-// The domains the scanner can parse-and-import. invoice/recipe are detected by
-// the classifier but routed to their existing dedicated flows, so they have no
-// parse spec here.
+// The domains the scanner can parse-and-import. invoice is detected by the
+// classifier but routed to the dedicated invoice OCR flow, so it has no spec here.
 export const SCAN_PARSE_SPECS = {
     menu: {
         label: 'תפריט',
@@ -107,11 +106,39 @@ export const SCAN_PARSE_SPECS = {
             },
         },
     },
+    recipe: {
+        label: 'מתכון',
+        rowsKey: 'ingredients',
+        prompt: `זהו מתכון מטבח. חלץ בצורה מובנית:\n` +
+            `- name: שם המתכון / ההכנה.\n` +
+            `- kind: "PREP" אם זו הכנת בסיס (רכיב שנכנס למנות אחרות — טחינה גולמית / רוטב / מיץ / בצק), או "DISH" אם זו מנה מוגמרת שמוגשת ללקוח.\n` +
+            `- yield_qty + yield_unit: כמה יוצא מהמתכון (למשל 5 ק״ג, 20 מנות). אם לא מצוין — yield_qty=1.\n` +
+            `- ingredients: לכל רכיב name (שם חומר גלם בעברית), qty (כמות מספרית), unit (ק״ג/גרם/ליטר/מ״ל/יח׳).\n` +
+            `שמור שמות חומרי גלם פשוטים וכלליים ("עגבניה", "שמן זית", "מלח"). אל תמציא כמויות שלא כתובות — אם חסר, השאר qty ריק.`,
+        schema: {
+            type: 'object',
+            properties: {
+                name: { type: 'string' },
+                kind: { type: 'string' },
+                yield_qty: { type: 'number' },
+                yield_unit: { type: 'string' },
+                ingredients: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: { name: { type: 'string' }, qty: { type: 'number' }, unit: { type: 'string' } },
+                        required: ['name'],
+                    },
+                },
+            },
+            required: ['name'],
+        },
+    },
 };
 const KNOWN_TYPES = Object.keys(SCAN_PARSE_SPECS);
-// Classify unknown input into one of the known domains (or invoice/recipe/unknown).
+// Classify unknown input into one of the known domains (or invoice/unknown).
 export async function classifyScanContent(fileUrls, text) {
-    const options = [...KNOWN_TYPES, 'invoice', 'recipe'];
+    const options = [...KNOWN_TYPES, 'invoice']; // recipe is already in KNOWN_TYPES
     const res = await invokeLLM({
         prompt: `אתה מסווג מסמכים במערכת ניהול מסעדה. סווג את התוכן לאחת מהקטגוריות:\n` +
             `${options.join(', ')} — או unknown אם לא ברור.\n` +
@@ -206,6 +233,7 @@ export async function importScanned(classification, parsed) {
         case 'employees': return importEmployees(parsed);
         case 'suppliers': return importSuppliers(parsed);
         case 'order_list': return importOrderList(parsed);
+        case 'recipe': return importRecipe(parsed);
         default:
             throw new Error(`ייבוא לא נתמך עבור סוג "${classification}"`);
     }
@@ -360,5 +388,110 @@ async function importOrderList(parsed) {
        VALUES ($1,$2,$3,$4,$5,'',false,false,$6,$7,NOW())`, randomUUID(), String(it?.name).trim().slice(0, 200), it?.supplier ? String(it.supplier).slice(0, 80) : null, it?.unit ? String(it.unit).slice(0, 40) : null, it?.qty != null ? String(it.qty).slice(0, 40) : '', listId, sort++);
     }
     return { created: items.length, skipped: rows.length - items.length, label: 'רשימת הזמנות', message: `נוצרה רשימת הזמנות "${listName}" עם ${items.length} פריטים.`, list_id: listId };
+}
+// ── Recipe ingestion (P3 of the commissary): a scanned/typed recipe becomes a
+// costed Recipe (PREP/DISH) in the BOM engine. Each ingredient is matched to an
+// existing Ingredient (alias → exact → fuzzy token overlap ≥0.6) or created new
+// with an unknown price. A PREP recipe then auto-appears in the commissary
+// catalog. Reuses the same tables/formula as importRecipesFromJson (load.ts).
+let _recipeTablesEnsured = false;
+async function ensureRecipeTables() {
+    if (_recipeTablesEnsured)
+        return;
+    await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Ingredient" (
+    "id" TEXT PRIMARY KEY, "name" TEXT NOT NULL, "supplier_name" TEXT, "unit" TEXT NOT NULL DEFAULT 'kg',
+    "price_per_unit" DOUBLE PRECISION, "waste_percent" DOUBLE PRECISION DEFAULT 0, "category" TEXT, "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+    await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "IngredientAlias" (
+    "id" TEXT PRIMARY KEY, "alias" TEXT NOT NULL, "ingredient_id" TEXT NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`).catch(() => { });
+    await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Recipe" (
+    "id" TEXT PRIMARY KEY, "kind" TEXT NOT NULL DEFAULT 'DISH', "name" TEXT NOT NULL, "total_cost" DOUBLE PRECISION,
+    "sale_price" DOUBLE PRECISION, "food_cost_percent" DOUBLE PRECISION, "yield_qty" DOUBLE PRECISION DEFAULT 1,
+    "yield_unit" TEXT DEFAULT 'unit', "category" TEXT, "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+    await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "RecipeIngredient" (
+    "id" TEXT PRIMARY KEY, "recipe_id" TEXT NOT NULL, "ingredient_id" TEXT, "prep_recipe_id" TEXT,
+    "qty" DOUBLE PRECISION NOT NULL, "unit" TEXT NOT NULL DEFAULT 'kg', "cost_at_import" DOUBLE PRECISION, "notes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+    _recipeTablesEnsured = true;
+}
+const normIng = (s) => String(s || '').toLowerCase().trim().replace(/["'׳״.,\-+()/\\]/g, '').replace(/\s+/g, ' ');
+async function importRecipe(parsed) {
+    const name = String(parsed?.name || '').trim();
+    if (!name)
+        return { created: 0, skipped: 0, label: 'מתכון', message: 'לא זוהה שם מתכון.' };
+    await ensureRecipeTables();
+    const kind = String(parsed?.kind || '').toUpperCase() === 'DISH' ? 'DISH' : 'PREP';
+    const yieldQty = Number(parsed?.yield_qty) > 0 ? Number(parsed.yield_qty) : 1;
+    const yieldUnit = parsed?.yield_unit ? String(parsed.yield_unit).slice(0, 20) : 'unit';
+    const ingredients = Array.isArray(parsed?.ingredients) ? parsed.ingredients : [];
+    const recipeId = rid('rec');
+    await db.$executeRawUnsafe(`INSERT INTO "Recipe" ("id","kind","name","yield_qty","yield_unit","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,NOW(),NOW())`, recipeId, kind, name.slice(0, 200), yieldQty, yieldUnit);
+    // Preload the ingredient book once; append to it as we create new ones so two
+    // lines naming the same new ingredient share a row.
+    const aliases = await db.$queryRawUnsafe(`SELECT a.alias, i.id, i.price_per_unit, i.waste_percent FROM "IngredientAlias" a JOIN "Ingredient" i ON i.id=a.ingredient_id`).catch(() => []);
+    const ings = await db.$queryRawUnsafe(`SELECT id, name, price_per_unit, waste_percent FROM "Ingredient"`).catch(() => []);
+    const matchIngredient = async (iname, unit) => {
+        const n = normIng(iname);
+        for (const a of aliases)
+            if (normIng(a.alias) === n)
+                return a;
+        for (const i of ings)
+            if (normIng(i.name) === n)
+                return i;
+        // fuzzy — token overlap
+        const toks = new Set(n.split(' ').filter(Boolean));
+        let best = null, score = 0;
+        for (const i of ings) {
+            const it = new Set(normIng(i.name).split(' ').filter(Boolean));
+            const inter = [...toks].filter((t) => it.has(t)).length;
+            const s = inter / Math.max(toks.size, it.size, 1);
+            if (s > score) {
+                score = s;
+                best = i;
+            }
+        }
+        if (best && score >= 0.6)
+            return best;
+        // create new (price unknown → owner fills later)
+        const id = rid('ing');
+        await db.$executeRawUnsafe(`INSERT INTO "Ingredient" ("id","name","unit","waste_percent","createdAt","updatedAt") VALUES ($1,$2,$3,0,NOW(),NOW())`, id, iname.slice(0, 160), unit);
+        const row = { id, name: iname, price_per_unit: null, waste_percent: 0, _new: true };
+        ings.push(row);
+        return row;
+    };
+    let total = 0, lineCount = 0, newIng = 0;
+    for (const ing of ingredients) {
+        const iname = String(ing?.name || '').trim();
+        if (!iname)
+            continue;
+        const qty = Number(ing?.qty) > 0 ? Number(ing.qty) : 0;
+        const unit = ing?.unit ? String(ing.unit).slice(0, 20) : 'kg';
+        const m = await matchIngredient(iname, unit);
+        if (m._new)
+            newIng++;
+        const price = m.price_per_unit != null ? Number(m.price_per_unit) : null;
+        const waste = Number(m.waste_percent) || 0;
+        const cost = price != null && qty > 0 ? (qty * price) / (1 - (waste < 1 ? waste : 0)) : null;
+        if (cost)
+            total += cost;
+        await db.$executeRawUnsafe(`INSERT INTO "RecipeIngredient" ("id","recipe_id","ingredient_id","qty","unit","cost_at_import","createdAt") VALUES ($1,$2,$3,$4,$5,$6,NOW())`, rid('ri'), recipeId, m.id, qty, unit, cost);
+        lineCount++;
+    }
+    await db.$executeRawUnsafe(`UPDATE "Recipe" SET total_cost=$1 WHERE id=$2`, total > 0 ? total : null, recipeId);
+    // Best-effort reconcile (nested preps + food-cost %) via the load.ts engine.
+    try {
+        const load = await import('../functions/load.js');
+        if (typeof load.recomputeAllRecipeCosts === 'function')
+            await load.recomputeAllRecipeCosts();
+    }
+    catch { /* inline total_cost already set */ }
+    const kindLabel = kind === 'PREP' ? 'הכנה' : 'מנה';
+    const costMsg = total > 0 ? `עלות משוערת ₪${Math.round(total)}` : 'עלות תחושב אחרי הזנת מחירי חומרי גלם';
+    return {
+        created: lineCount, skipped: ingredients.length - lineCount, label: 'מתכון',
+        message: `נוצרה ${kindLabel} "${name}" עם ${lineCount} רכיבים${newIng ? ` (${newIng} חומרי גלם חדשים — עדכן להם מחיר במתכונים)` : ''}. ${costMsg}.`,
+        details: { recipe_id: recipeId, kind, total_cost: total > 0 ? Math.round(total * 100) / 100 : null, new_ingredients: newIng },
+    };
 }
 //# sourceMappingURL=aiScanner.js.map

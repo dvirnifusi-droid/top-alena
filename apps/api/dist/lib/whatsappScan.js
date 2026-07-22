@@ -10,7 +10,7 @@ import { Readable } from 'node:stream';
 import { uploadStreamToS3 } from './storage.js';
 import { prisma } from '../db.js';
 import { scanContent, importScanned } from './aiScanner.js';
-const IMPORTABLE = new Set(['menu', 'checklist', 'employees', 'suppliers', 'order_list']);
+const IMPORTABLE = new Set(['menu', 'checklist', 'employees', 'suppliers', 'order_list', 'recipe']);
 // Same manual-redirect Twilio media fetch as whatsappInvoice.ts (module-private
 // there). Twilio 302-redirects to a signed S3 URL; node fetch strips auth
 // across hosts, so we follow the redirect by hand.
@@ -63,10 +63,12 @@ function buildScanPreview(scan) {
         employees: { rowsKey: 'employees', render: (r) => `• ${r.full_name}${r.role ? ` (${r.role})` : ''}` },
         suppliers: { rowsKey: 'suppliers', render: (r) => `• ${r.company_name}` },
         order_list: { rowsKey: 'items', render: (r) => `• ${r.name}${r.qty ? ` ×${r.qty}` : ''}` },
+        recipe: { rowsKey: 'ingredients', render: (r) => `• ${r.name}${r.qty ? ` ${r.qty}${r.unit ? ' ' + r.unit : ''}` : ''}` },
     };
     const c = cfg[scan.classification];
     const rows = Array.isArray(scan.parsed?.[c.rowsKey]) ? scan.parsed[c.rowsKey] : [];
-    const head = `🔍 זיהיתי *${scan.label}* — ${rows.length} פריטים:`;
+    const named = scan.parsed?.name ? ` "${scan.parsed.name}"` : '';
+    const head = `🔍 זיהיתי *${scan.label}*${named} — ${rows.length} פריטים:`;
     const sample = rows.slice(0, 8).map(c.render).join('\n');
     const more = rows.length > 8 ? `\n…ועוד ${rows.length - 8}` : '';
     return `${head}\n${sample}${more}\n\n✅ ענה *כן* לייבוא · *לא* לביטול`;
