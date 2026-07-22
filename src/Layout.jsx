@@ -492,7 +492,16 @@ export default function Layout({ children, currentPageName }) {
     const kept = moduleFilteredLinks.filter((l) => l.isCategory || permCan(urlKey(l.url)));
     return dropEmptyCategories(kept);
   }, [moduleFilteredLinks, permPages, permCan, previewPages]);
-  const navigationItems = filterNav(permFilteredLinks, navFilter);
+  // A network-type tenant (its own commissary) gets a FOCUSED network sidebar —
+  // the network HQ, invoices + suppliers, and the product tree (recipes/preps) —
+  // not the full restaurant nav. Bypasses module/tier filtering (owner-driven).
+  const networkNav = React.useMemo(() => ([
+    { title: "🏢 מטה הרשת", url: createPageUrl("NetworkDashboard"), icon: Shield, color: "espresso" },
+    { title: "🧾 חשבוניות", url: createPageUrl("Invoices"), icon: Package, color: "espresso" },
+    { title: "🚚 ספקים", url: createPageUrl("Suppliers"), icon: Package, color: "espresso" },
+    { title: "🌳 עץ מוצר / מתכונים", url: createPageUrl("Recipes"), icon: ClipboardCheck, color: "espresso" },
+  ]), []);
+  const navigationItems = isChainCommissary ? filterNav(networkNav, navFilter) : filterNav(permFilteredLinks, navFilter);
   const userName = user?.full_name || user?.email?.split('@')[0] || 'משתמש';
 
   const commonSidebarProps = {
