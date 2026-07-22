@@ -158,6 +158,7 @@ import OperationsHub from './pages/OperationsHub';
 import NetworkHQ from './pages/NetworkHQ';
 import NetworkDashboard from './pages/NetworkDashboard';
 import NetworkCommissary from './pages/NetworkCommissary';
+import NetworkTasksPage from './pages/NetworkTasksPage';
 import BranchNetworkTasks from './pages/BranchNetworkTasks';
 import StoriesHub from './pages/StoriesHub';
 import EmployeesHub from './pages/EmployeesHub';
@@ -302,6 +303,7 @@ export const PAGES = {
     "NetworkHQ": NetworkHQ,
     "NetworkDashboard": NetworkDashboard,
     "NetworkCommissary": NetworkCommissary,
+    "NetworkTasksPage": NetworkTasksPage,
     "BranchNetworkTasks": BranchNetworkTasks,
     "StoriesHub": StoriesHub,
     "EmployeesHub": EmployeesHub,

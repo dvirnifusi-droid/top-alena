@@ -30,7 +30,7 @@ function BranchCommissaryInner() {
   const [msg, setMsg] = useState(null);
   const [myOrder, setMyOrder] = useState(null); // this branch's order for the date (status/eta/rejections)
   const [customs, setCustoms] = useState([]); // special requests — preps NOT in the catalog/מרלו"ג
-  const addCustom = () => setCustoms((s) => [...s, { name: '', qty: '', unit: 'יח׳' }]);
+  const addCustom = () => setCustoms((s) => [...s, { name: '', qty: '', unit: 'ק״ג' }]);
   const updateCustom = (i, k, v) => setCustoms((s) => s.map((c, idx) => (idx === i ? { ...c, [k]: v } : c)));
   const removeCustom = (i) => setCustoms((s) => s.filter((_, idx) => idx !== i));
 
@@ -167,7 +167,14 @@ function BranchCommissaryInner() {
                   <div key={i} className="flex items-center gap-2 mb-1.5">
                     <Input className="h-8 flex-1" placeholder="שם ההכנה" value={c.name} onChange={(e) => updateCustom(i, 'name', e.target.value)} />
                     <Input className="h-8 w-20 text-center" dir="ltr" type="number" placeholder="כמות" value={c.qty} onChange={(e) => updateCustom(i, 'qty', e.target.value)} />
-                    <Input className="h-8 w-16 text-center" placeholder="יח׳" value={c.unit} onChange={(e) => updateCustom(i, 'unit', e.target.value)} />
+                    <Select value={c.unit || 'ק״ג'} onValueChange={(v) => updateCustom(i, 'unit', v)}>
+                      <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ק״ג">ק"ג</SelectItem>
+                        <SelectItem value="יח׳">יחידות</SelectItem>
+                        <SelectItem value="ליטר">ליטר</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <Button variant="ghost" size="sm" className="h-8 px-2 text-red-500 hover:text-red-600" onClick={() => removeCustom(i)}><X className="w-4 h-4" /></Button>
                   </div>
                 ))}

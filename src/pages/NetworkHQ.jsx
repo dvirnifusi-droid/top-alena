@@ -451,7 +451,7 @@ const TASK_ROLES = [
 ];
 const roleLabel = (r) => (TASK_ROLES.find(([v]) => v === r)?.[1]) || r;
 
-function NetworkTasks({ chainId }) {
+export function NetworkTasks({ chainId }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
@@ -577,7 +577,7 @@ function OwnerAssign({ chain, onChanged }) {
   );
 }
 
-export function ChainCard({ chain, available, onChanged, isSuper, hideCommissary }) {
+export function ChainCard({ chain, available, onChanged, isSuper, hideCommissary, hideTasks }) {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [addSlug, setAddSlug] = useState('');
@@ -684,7 +684,7 @@ export function ChainCard({ chain, available, onChanged, isSuper, hideCommissary
       )}
 
       {!hideCommissary && <ChainCommissary chainId={chain.id} />}
-      <NetworkTasks chainId={chain.id} />
+      {!hideTasks && <NetworkTasks chainId={chain.id} />}
     </div>
   );
 }

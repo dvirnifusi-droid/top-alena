@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
-import { Network, FileText, Truck, GitBranch, Factory, LogOut, Loader2 } from 'lucide-react';
+import { Network, FileText, Truck, GitBranch, Factory, Target, LogOut, Loader2 } from 'lucide-react';
 
 // The standalone shell for a NETWORK-type tenant (its own commissary, e.g.
 // nifusigroup). Like the Platform Admin console: a top toolbar, no sidebar —
@@ -10,6 +10,7 @@ import { Network, FileText, Truck, GitBranch, Factory, LogOut, Loader2 } from 'l
 const NAV = [
   { key: 'NetworkDashboard', label: 'מטה הרשת', icon: Network },
   { key: 'NetworkCommissary', label: 'בית הכנות', icon: Factory },
+  { key: 'NetworkTasksPage', label: 'משימות רשת', icon: Target },
   { key: 'Invoices', label: 'חשבוניות', icon: FileText },
   { key: 'Suppliers', label: 'ספקים', icon: Truck },
   { key: 'Recipes', label: 'עץ מוצר / מתכונים', icon: GitBranch },
