@@ -157,8 +157,11 @@ function ChainCard({ chain, available, onChanged, isSuper }) {
 
       {t && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+          <div className="bg-slate-800 rounded-lg p-2"><div className="text-[11px] text-slate-400">הכנסת היום (רשת)</div><div className="text-xl font-bold text-emerald-400">{ils(t.revenue_today)}</div></div>
+          <div className="bg-slate-800 rounded-lg p-2"><div className="text-[11px] text-slate-400">הזמנות היום</div><div className="text-xl font-bold text-white">{t.reservations_today}</div></div>
+          <div className="bg-slate-800 rounded-lg p-2"><div className="text-[11px] text-slate-400">במשמרת עכשיו</div><div className="text-xl font-bold text-white">{t.active_shifts}</div></div>
+          <div className="bg-slate-800 rounded-lg p-2"><div className="text-[11px] text-slate-400">תקלות פתוחות</div><div className={`text-xl font-bold ${t.open_incidents > 0 ? 'text-red-400' : 'text-white'}`}>{t.open_incidents}</div></div>
           <div className="bg-slate-800 rounded-lg p-2"><div className="text-[11px] text-slate-400">עובדים פעילים</div><div className="text-xl font-bold text-white">{t.employees}</div></div>
-          <div className="bg-slate-800 rounded-lg p-2"><div className="text-[11px] text-slate-400">במשמרת עכשיו</div><div className="text-xl font-bold text-emerald-400">{t.active_shifts}</div></div>
           <div className="bg-slate-800 rounded-lg p-2"><div className="text-[11px] text-slate-400">חוזי אירועים</div><div className="text-xl font-bold text-white">{ils(t.contract_revenue)}</div></div>
           <div className="bg-slate-800 rounded-lg p-2"><div className="text-[11px] text-slate-400">חשבוניות לא שולמו</div><div className="text-xl font-bold text-amber-400">{t.unpaid_invoices}</div></div>
         </div>
@@ -169,19 +172,21 @@ function ChainCard({ chain, available, onChanged, isSuper }) {
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-slate-300 whitespace-nowrap">
-            <thead><tr className="text-slate-500 text-right text-xs"><th className="p-2">סניף</th><th className="p-2">עובדים</th><th className="p-2">במשמרת</th><th className="p-2">חוזים</th><th className="p-2">חוב חשבוניות</th><th></th></tr></thead>
+            <thead><tr className="text-slate-500 text-right text-xs"><th className="p-2">סניף</th><th className="p-2">הכנסת היום</th><th className="p-2">הזמנות היום</th><th className="p-2">במשמרת</th><th className="p-2">תקלות</th><th className="p-2">עובדים</th><th className="p-2">חוב חשבוניות</th><th></th></tr></thead>
             <tbody>
               {(metrics?.per_branch || []).map((b) => (
                 <tr key={b.slug} className="border-t border-slate-800">
                   <td className="p-2 font-medium text-white">{b.name}{b.error && <span className="text-[10px] text-red-400"> · לא זמין</span>}</td>
-                  <td className="p-2">{b.employees}</td>
+                  <td className="p-2 text-emerald-400">{ils(b.revenue_today)}</td>
+                  <td className="p-2">{b.reservations_today}</td>
                   <td className="p-2">{b.active_shifts}</td>
-                  <td className="p-2">{ils(b.contract_revenue)}</td>
+                  <td className={`p-2 ${b.open_incidents > 0 ? 'text-red-400' : ''}`}>{b.open_incidents}</td>
+                  <td className="p-2">{b.employees}</td>
                   <td className="p-2">{b.unpaid_invoices}</td>
                   <td className="p-2">{isSuper && <button onClick={() => removeBranch(b.slug)} disabled={busy} className="text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4" /></button>}</td>
                 </tr>
               ))}
-              {(metrics?.per_branch || []).length === 0 && <tr><td colSpan={6} className="p-3 text-center text-slate-500 text-xs">אין סניפים ברשת עדיין — הוסף למטה.</td></tr>}
+              {(metrics?.per_branch || []).length === 0 && <tr><td colSpan={8} className="p-3 text-center text-slate-500 text-xs">אין סניפים ברשת עדיין — הוסף למטה.</td></tr>}
             </tbody>
           </table>
         </div>

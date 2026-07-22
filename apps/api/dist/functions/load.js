@@ -40,6 +40,7 @@ import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdri
 import { uploadStreamToS3 } from '../lib/storage.js';
 import { MODULE_CATALOG, SUB_FEATURE_CATALOG } from '../lib/modules.js';
 import { getMyMonthlyUsage, writeAiUsage } from '../lib/aiUsage.js';
+import { currentTenantSlug } from '../lib/whatsappRouter.js';
 import { getBrandName, renderBrand } from '../lib/brandName.js';
 import { businessContextBlock, invalidateBusinessContextCache } from '../lib/businessContext.js';
 import { Readable } from 'node:stream';
@@ -18421,10 +18422,23 @@ registerFn('getMyPlatformInfo', async ({ user }) => {
             chainsOwned = 0;
         }
     }
+    // Is THIS tenant a branch inside some chain? Gates the branch-tasks sidebar
+    // link so a solo restaurant never sees a network feature that isn't theirs.
+    let branchOfChain = false;
+    try {
+        await ensureChainTables();
+        const slug = currentTenantSlug();
+        const cm = await prisma.$queryRawUnsafe(`SELECT 1 FROM "ChainMember" WHERE slug=$1 LIMIT 1`, slug);
+        branchOfChain = cm.length > 0;
+    }
+    catch {
+        branchOfChain = false;
+    }
     return {
         is_platform_owner: isSuperAdmin(user),
         email: user?.email || null,
         chains_owned: isSuperAdmin(user) ? -1 : chainsOwned, // -1 = "all" for super-admin
+        branch_of_chain: branchOfChain,
     };
 });
 // PUBLIC — anyone can post a signup. Creates Tenant in pending_approval +
@@ -18901,16 +18915,28 @@ const branchSchema = (slug) => (slug === 'alena' || slug === 'public' ? 'public'
 async function branchKpis(slug) {
     const schema = branchSchema(slug);
     try {
+        // All tenants share one Prisma schema, so these tables/columns are the same
+        // everywhere — a per-branch performance snapshot (today's revenue + bookings,
+        // open incidents) alongside the headcount/finance figures.
         const r = await prisma.$queryRawUnsafe(`SELECT
          (SELECT COUNT(*)::int FROM "${schema}"."User") AS users,
          (SELECT COUNT(*)::int FROM "${schema}"."Employee" WHERE status='active') AS employees,
          (SELECT COUNT(*)::int FROM "${schema}"."ShiftTracking" WHERE status IN ('active','on_break')) AS active_shifts,
          (SELECT COALESCE(SUM(subtotal_ils),0)::int FROM "${schema}"."EventContract" WHERE status='signed') AS contract_revenue,
-         (SELECT COUNT(*)::int FROM "${schema}"."Invoice" WHERE payment_status='unpaid') AS unpaid_invoices`);
-        return { users: r[0]?.users || 0, employees: r[0]?.employees || 0, active_shifts: r[0]?.active_shifts || 0, contract_revenue: r[0]?.contract_revenue || 0, unpaid_invoices: r[0]?.unpaid_invoices || 0 };
+         (SELECT COUNT(*)::int FROM "${schema}"."Invoice" WHERE payment_status='unpaid') AS unpaid_invoices,
+         (SELECT COUNT(*)::int FROM "${schema}"."Reservation" WHERE date >= CURRENT_DATE AND date < CURRENT_DATE + INTERVAL '1 day') AS reservations_today,
+         (SELECT COALESCE(SUM(total_revenue),0)::int FROM "${schema}"."ShiftEndReport" WHERE shift_date >= CURRENT_DATE AND shift_date < CURRENT_DATE + INTERVAL '1 day') AS revenue_today,
+         (SELECT COUNT(*)::int FROM "${schema}"."Incident" WHERE status IS DISTINCT FROM 'resolved' AND status IS DISTINCT FROM 'closed') AS open_incidents`);
+        const x = r[0] || {};
+        return {
+            users: x.users || 0, employees: x.employees || 0, active_shifts: x.active_shifts || 0,
+            contract_revenue: x.contract_revenue || 0, unpaid_invoices: x.unpaid_invoices || 0,
+            reservations_today: x.reservations_today || 0, revenue_today: x.revenue_today || 0,
+            open_incidents: x.open_incidents || 0,
+        };
     }
     catch (e) {
-        return { users: 0, employees: 0, active_shifts: 0, contract_revenue: 0, unpaid_invoices: 0, error: String(e?.message || 'schema query failed').slice(0, 120) };
+        return { users: 0, employees: 0, active_shifts: 0, contract_revenue: 0, unpaid_invoices: 0, reservations_today: 0, revenue_today: 0, open_incidents: 0, error: String(e?.message || 'schema query failed').slice(0, 120) };
     }
 }
 registerFn('listChains', async ({ user }) => {
@@ -18990,7 +19016,7 @@ registerFn('getChainMetrics', async ({ user, body }) => {
     await assertChainAccess(user, chainId);
     const members = await prisma.$queryRawUnsafe(`SELECT slug, name FROM "ChainMember" WHERE chain_id=$1 ORDER BY name`, chainId).catch(() => []);
     const perBranch = [];
-    const totals = { users: 0, employees: 0, active_shifts: 0, contract_revenue: 0, unpaid_invoices: 0 };
+    const totals = { users: 0, employees: 0, active_shifts: 0, contract_revenue: 0, unpaid_invoices: 0, reservations_today: 0, revenue_today: 0, open_incidents: 0 };
     for (const m of members) {
         const k = await branchKpis(m.slug);
         perBranch.push({ slug: m.slug, name: m.name, ...k });
@@ -18999,6 +19025,9 @@ registerFn('getChainMetrics', async ({ user, body }) => {
         totals.active_shifts += k.active_shifts;
         totals.contract_revenue += k.contract_revenue;
         totals.unpaid_invoices += k.unpaid_invoices;
+        totals.reservations_today += k.reservations_today || 0;
+        totals.revenue_today += k.revenue_today || 0;
+        totals.open_incidents += k.open_incidents || 0;
     }
     return { chain_id: chainId, branch_count: members.length, per_branch: perBranch, totals };
 });
@@ -19064,6 +19093,34 @@ registerFn('deleteNetworkTask', async ({ user, body }) => {
     await assertChainAccess(user, chainId);
     await prisma.$executeRawUnsafe(`DELETE FROM "NetworkTaskBranch" WHERE task_id=$1`, id).catch(() => { });
     await prisma.$executeRawUnsafe(`DELETE FROM "NetworkTask" WHERE id=$1`, id).catch(() => { });
+    return { ok: true };
+});
+// D.3 (full): the branch-side inbox. Each branch reads + marks its OWN network
+// tasks from inside its own app. NetworkTask/NetworkTaskBranch live in `public`,
+// which a tenant container can read/write when schema-qualified (verified live),
+// so a branch only ever touches rows for its own slug — no cross-tenant leak.
+registerFn('getMyBranchTasks', async ({ user }) => {
+    await requireBackOffice(user, 'getMyBranchTasks', 'BranchTasks');
+    await ensureNetworkTaskTables();
+    const slug = currentTenantSlug();
+    const rows = await prisma.$queryRawUnsafe(`SELECT b.task_id, b.done, b.done_at, t.title, t.detail, t."createdAt", t.chain_id,
+            (SELECT name FROM public."Chain" WHERE id = t.chain_id) AS chain_name
+       FROM public."NetworkTaskBranch" b
+       JOIN public."NetworkTask" t ON t.id = b.task_id
+      WHERE b.slug = $1
+      ORDER BY t."createdAt" DESC`, slug).catch(() => []);
+    return { slug, tasks: rows };
+});
+registerFn('markMyBranchTask', async ({ user, body }) => {
+    await requireBackOffice(user, 'markMyBranchTask', 'BranchTasks');
+    await ensureNetworkTaskTables();
+    const slug = currentTenantSlug();
+    const taskId = String(body?.task_id || '').trim();
+    const done = !!body?.done;
+    if (!taskId)
+        throw new Error('task_id required');
+    await prisma.$executeRawUnsafe(`UPDATE public."NetworkTaskBranch" SET done=$1, done_at=CASE WHEN $1 THEN NOW() ELSE NULL END
+      WHERE task_id=$2 AND slug=$3`, done, taskId, slug).catch(() => { });
     return { ok: true };
 });
 // D.3 (safe fan-out): send a network task to each branch's OWNER on WhatsApp,

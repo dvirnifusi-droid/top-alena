@@ -222,6 +222,8 @@ export default function Layout({ children, currentPageName }) {
   // chain operator who is NOT the platform owner still gets a "My Network HQ"
   // link; the page + its fns enforce chain scoping.
   const [chainsOwned, setChainsOwned] = React.useState(0);
+  // Whether THIS tenant is a branch inside a chain — gates the "network tasks" link.
+  const [branchOfChain, setBranchOfChain] = React.useState(false);
   const [hasUnreadChat, setHasUnreadChat] = React.useState(false);
   const [appTheme, setAppTheme] = React.useState(() => localStorage.getItem('gc_theme') || 'light');
   const branding = useTenantBranding();
@@ -296,9 +298,11 @@ export default function Layout({ children, currentPageName }) {
           const data = platformInfo?.data || platformInfo;
           setIsPlatformOwner(!!data?.is_platform_owner);
           setChainsOwned(Number(data?.chains_owned) > 0 ? Number(data.chains_owned) : 0);
+          setBranchOfChain(!!data?.branch_of_chain);
         } catch (e) {
           setIsPlatformOwner(false);
           setChainsOwned(0);
+          setBranchOfChain(false);
         }
 
         // Pull Employee record by email so we can read both full_name AND
@@ -406,16 +410,15 @@ export default function Layout({ children, currentPageName }) {
   // exists at all).
   const adminLinksFiltered = React.useMemo(
     () => {
-      if (isPlatformOwner) return adminLinks;
-      const stripped = adminLinks.filter(l => !String(l.url || '').includes('PlatformAdmin'));
-      // A chain operator (owns a chain but isn't the platform owner) gets a
-      // single cross-branch entry point — their own Network HQ, scoped server-side.
-      if (chainsOwned > 0) {
-        return [...stripped, { title: "🏢 מטה הרשת שלי", url: createPageUrl("NetworkHQ"), icon: Shield, color: "espresso" }];
-      }
-      return stripped;
+      const base = isPlatformOwner ? adminLinks : adminLinks.filter(l => !String(l.url || '').includes('PlatformAdmin'));
+      const extra = [];
+      // A branch inside a chain gets its network-task inbox.
+      if (branchOfChain) extra.push({ title: "🔗 משימות רשת", url: createPageUrl("BranchNetworkTasks"), icon: ClipboardCheck, color: "espresso" });
+      // A chain operator (owns a chain, not the platform owner) gets their own HQ.
+      if (!isPlatformOwner && chainsOwned > 0) extra.push({ title: "🏢 מטה הרשת שלי", url: createPageUrl("NetworkHQ"), icon: Shield, color: "espresso" });
+      return extra.length ? [...base, ...extra] : base;
     },
-    [isPlatformOwner, chainsOwned],
+    [isPlatformOwner, chainsOwned, branchOfChain],
   );
   // Per-tenant permission levels. A "manager" sees everything except owner-only
   // settings/platform; a "shift lead" sees only day-to-day operations. Empty
