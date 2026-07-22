@@ -349,6 +349,7 @@ function PendingCallbackCard() {
   const [showAdd, setShowAdd] = React.useState(false);
   const [editLead, setEditLead] = React.useState(null);
   const [depositLead, setDepositLead] = React.useState(null);
+  const [closeLead, setCloseLead] = React.useState(null); // won → close-event dialog
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -395,6 +396,7 @@ function PendingCallbackCard() {
     <>
     <AddEventLeadDialog open={showAdd || !!editLead} lead={editLead} onOpenChange={(v) => { if (!v) { setShowAdd(false); setEditLead(null); } }} onCreated={load} />
     <EventDepositDialog open={!!depositLead} lead={depositLead} onOpenChange={(v) => { if (!v) setDepositLead(null); }} onDone={load} />
+    <CloseEventDialog lead={closeLead} onClose={() => setCloseLead(null)} onSaved={() => { setCloseLead(null); load(); }} />
     <ThanksPageSettings />
     <Card>
       <CardHeader>
@@ -546,13 +548,13 @@ function PendingCallbackCard() {
                       {l.status === 'contacted' && (
                         <>
                           <Button size="sm" disabled={busy === l.id} onClick={() => setStage(l, 'quoted')} className="bg-purple-600 hover:bg-purple-700 flex-1">💰 שלחתי הצעת מחיר</Button>
-                          <Button size="sm" disabled={busy === l.id} onClick={() => setStage(l, 'won')} className="bg-emerald-600 hover:bg-emerald-700">✅ נסגר</Button>
+                          <Button size="sm" disabled={busy === l.id} onClick={() => setCloseLead(l)} className="bg-emerald-600 hover:bg-emerald-700">✅ נסגר</Button>
                           <Button size="sm" disabled={busy === l.id} variant="outline" onClick={() => setStage(l, 'lost')} className="text-red-600 border-red-300">❌ לא רלוונטי</Button>
                         </>
                       )}
                       {l.status === 'quoted' && (
                         <>
-                          <Button size="sm" disabled={busy === l.id} onClick={() => setStage(l, 'won')} className="bg-emerald-600 hover:bg-emerald-700 flex-1">✅ נסגר וחתם</Button>
+                          <Button size="sm" disabled={busy === l.id} onClick={() => setCloseLead(l)} className="bg-emerald-600 hover:bg-emerald-700 flex-1">✅ נסגר וחתם</Button>
                           <Button size="sm" disabled={busy === l.id} variant="outline" onClick={() => setStage(l, 'contacted')}>↩ חזור ל"דיברנו"</Button>
                           <Button size="sm" disabled={busy === l.id} variant="outline" onClick={() => setStage(l, 'lost')} className="text-red-600 border-red-300">❌ לא רלוונטי</Button>
                         </>
@@ -905,6 +907,132 @@ function UpcomingEventsTimeline() {
   );
 }
 
+// Close-event form: from a won lead (lead has an id) OR a manual add (lead={}).
+// Prefills from the lead; the owner completes date + free-text menu + payment terms.
+function CloseEventDialog({ lead, onClose, onSaved }) {
+  const open = lead !== null && lead !== undefined;
+  const [f, setF] = React.useState({});
+  const [saving, setSaving] = React.useState(false);
+  React.useEffect(() => {
+    if (!open) return;
+    setF({
+      lead_id: lead.id || '',
+      contact_name: lead.contact_name || '',
+      contact_phone: lead.contact_phone || '',
+      event_date: lead.event_date || '',
+      event_time: lead.event_time || '',
+      guest_count: lead.guest_count || '',
+      event_type: lead.event_type || '',
+      menu_text: '',
+      payment_terms: '',
+      total_ils: '',
+      deposit_amount_ils: lead?.deposit?.amount || '',
+      notes: lead.notes || '',
+    });
+  }, [open, lead]);
+  const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const save = async () => {
+    if (!f.event_date) { alert('בחר תאריך אירוע'); return; }
+    setSaving(true);
+    try { await base44.functions.saveEventBooking(f); onSaved && onSaved(); }
+    catch (e) { alert('שמירה נכשלה: ' + (e?.message || '')); }
+    finally { setSaving(false); }
+  };
+  if (!open) return null;
+  const isManual = !lead.id;
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent dir="rtl" className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{isManual ? '➕ הוספת אירוע ידני' : '✅ סגירת אירוע — נסגר ונחתם'}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label className="text-xs">איש קשר</Label><Input value={f.contact_name || ''} onChange={(e) => set('contact_name', e.target.value)} /></div>
+            <div><Label className="text-xs">טלפון</Label><Input value={f.contact_phone || ''} onChange={(e) => set('contact_phone', e.target.value)} dir="ltr" /></div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div><Label className="text-xs">תאריך *</Label><Input type="date" value={f.event_date || ''} onChange={(e) => set('event_date', e.target.value)} /></div>
+            <div><Label className="text-xs">שעה</Label><Input type="time" value={f.event_time || ''} onChange={(e) => set('event_time', e.target.value)} /></div>
+            <div><Label className="text-xs">אורחים</Label><Input type="number" value={f.guest_count || ''} onChange={(e) => set('guest_count', e.target.value)} /></div>
+          </div>
+          <div><Label className="text-xs">סוג אירוע</Label><Input value={f.event_type || ''} onChange={(e) => set('event_type', e.target.value)} placeholder="יום הולדת / ערב חברה / ברית…" /></div>
+          <div><Label className="text-xs">תפריט</Label><Textarea rows={3} value={f.menu_text || ''} onChange={(e) => set('menu_text', e.target.value)} placeholder="מה סוכם — מנות / חבילה…" /></div>
+          <div><Label className="text-xs">תנאי תשלום</Label><Textarea rows={2} value={f.payment_terms || ''} onChange={(e) => set('payment_terms', e.target.value)} placeholder="מקדמה, יתרה, מועדי תשלום…" /></div>
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label className="text-xs">סכום כולל (₪)</Label><Input type="number" value={f.total_ils || ''} onChange={(e) => set('total_ils', e.target.value)} /></div>
+            <div><Label className="text-xs">מקדמה ששולמה (₪)</Label><Input type="number" value={f.deposit_amount_ils || ''} onChange={(e) => set('deposit_amount_ils', e.target.value)} /></div>
+          </div>
+          <div><Label className="text-xs">הערות</Label><Textarea rows={2} value={f.notes || ''} onChange={(e) => set('notes', e.target.value)} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>ביטול</Button>
+          <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (isManual ? 'שמור אירוע' : 'סגור וצור אירוע')}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// The events table: every closed event by date, with menu + payment terms + a
+// manual-add button. Polls so a lead closed elsewhere shows up.
+function EventsTable() {
+  const [bookings, setBookings] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [manual, setManual] = React.useState(null);
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    try { const r = await base44.functions.listEventBookings({}); setBookings(r?.data?.bookings || r?.bookings || []); }
+    catch { setBookings([]); }
+    finally { setLoading(false); }
+  }, []);
+  React.useEffect(() => { load(); const id = setInterval(load, 90000); return () => clearInterval(id); }, [load]);
+  const del = async (id) => {
+    if (!window.confirm('למחוק את האירוע?')) return;
+    try { await base44.functions.deleteEventBooking({ id }); load(); }
+    catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+  };
+  const menuOf = (b) => (b.selected_menu && typeof b.selected_menu === 'object') ? (b.selected_menu.text || '') : '';
+  const typeOf = (b) => (b.selected_menu && typeof b.selected_menu === 'object') ? (b.selected_menu.event_type || '') : '';
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base flex items-center gap-2"><CalendarDays className="w-4 h-4 text-[#44512C]" /> טבלת אירועים סגורים</CardTitle>
+          <CardDescription>כל האירועים שנסגרו — לפי תאריך, עם התפריט ותנאי התשלום.</CardDescription>
+        </div>
+        <Button size="sm" onClick={() => setManual({})} className="bg-[#44512C] hover:bg-[#7A3722] shrink-0"><Plus className="w-4 h-4 ml-1" />אירוע ידני</Button>
+      </CardHeader>
+      <CardContent>
+        {loading ? <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
+          : bookings.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">אין אירועים סגורים עדיין. סגור ליד או הוסף אירוע ידני.</p>
+            : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader><TableRow><TableHead>תאריך</TableHead><TableHead>שעה</TableHead><TableHead>אורחים</TableHead><TableHead>סוג</TableHead><TableHead>איש קשר</TableHead><TableHead>תפריט</TableHead><TableHead>תנאי תשלום</TableHead><TableHead>סכום</TableHead><TableHead>מקדמה</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {bookings.map((b) => (
+                      <TableRow key={b.id}>
+                        <TableCell className="font-medium whitespace-nowrap">{b.event_date}</TableCell>
+                        <TableCell>{b.event_time || '—'}</TableCell>
+                        <TableCell>{b.guest_count}</TableCell>
+                        <TableCell>{typeOf(b) || '—'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{b.customer_name || '—'}{b.customer_phone ? <a href={`tel:${b.customer_phone}`} className="block text-xs text-blue-600" dir="ltr">{b.customer_phone}</a> : null}</TableCell>
+                        <TableCell className="max-w-[200px] text-xs whitespace-pre-wrap">{menuOf(b) || '—'}</TableCell>
+                        <TableCell className="max-w-[160px] text-xs whitespace-pre-wrap">{b.approval_notes || '—'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{b.total_ils != null ? `₪${Number(b.total_ils).toLocaleString()}` : '—'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{b.deposit_amount_ils != null ? `₪${Number(b.deposit_amount_ils).toLocaleString()}` : '—'}</TableCell>
+                        <TableCell><button onClick={() => del(b.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+      </CardContent>
+      <CloseEventDialog lead={manual} onClose={() => setManual(null)} onSaved={() => { setManual(null); load(); }} />
+    </Card>
+  );
+}
+
 export default function EventsPrivatePage() {
   const _branding = useTenantBranding();
   const brandName = _branding?.name || 'המסעדה';
@@ -1159,6 +1287,7 @@ export default function EventsPrivatePage() {
 
       <PendingCallbackCard />
       <UpcomingEventsTimeline />
+      <EventsTable />
     </div>
   );
 }

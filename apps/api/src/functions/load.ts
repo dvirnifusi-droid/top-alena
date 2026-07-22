@@ -14665,6 +14665,62 @@ registerFn('getEventBooking', async ({ body }) => {
   return { booking };
 }, { public: true });
 
+// Close an event — from a won lead OR a manual add. Creates/updates an approved
+// EventBooking with the final details (date/time/guests + free-text menu + payment
+// terms) and, when it came from a lead, marks that lead 'won'. Free-text menu +
+// event type ride in selected_menu; payment terms in approval_notes.
+registerFn('saveEventBooking', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'saveEventBooking', 'EventsPrivate');
+  const b = (body || {}) as any;
+  const eventDate = String(b.event_date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) throw new Error('תאריך אירוע חובה (YYYY-MM-DD)');
+  const guestCount = Math.max(1, Math.round(Number(b.guest_count) || 0));
+  const num = (v: any) => (v != null && v !== '' && Number.isFinite(Number(v))) ? Math.round(Number(v)) : null;
+  const menuText = String(b.menu_text || '').slice(0, 4000);
+  const eventType = String(b.event_type || '').slice(0, 80);
+  const data: any = {
+    lead_id: b.lead_id ? String(b.lead_id) : null,
+    customer_name: String(b.contact_name || '').slice(0, 120) || null,
+    customer_phone: String(b.contact_phone || '').slice(0, 40) || null,
+    event_date: eventDate,
+    event_time: b.event_time ? String(b.event_time).slice(0, 10) : null,
+    guest_count: guestCount,
+    hours_window: b.hours_window ? String(b.hours_window).slice(0, 60) : null,
+    selected_menu: (menuText || eventType) ? { text: menuText || null, event_type: eventType || null } : null,
+    total_ils: num(b.total_ils),
+    deposit_amount_ils: num(b.deposit_amount_ils),
+    approval_notes: b.payment_terms ? String(b.payment_terms).slice(0, 2000) : null,
+    notes: b.notes ? String(b.notes).slice(0, 2000) : null,
+    status: 'confirmed',
+    approval_status: 'approved',
+    source: b.lead_id ? 'lead_closed' : 'manual',
+  };
+  let booking;
+  if (b.id) booking = await db.eventBooking.update({ where: { id: String(b.id) }, data });
+  else booking = await db.eventBooking.create({ data: { ...data, created_by: (user as any)?.email || null } });
+  if (b.lead_id) { await db.eventLead.update({ where: { id: String(b.lead_id) }, data: { status: 'won', event_date: eventDate } }).catch(() => {}); }
+  return { ok: true, booking };
+});
+
+// All confirmed events for the events table — newest first, past + future.
+registerFn('listEventBookings', async ({ user }: any) => {
+  await requireBackOffice(user, 'listEventBookings', 'EventsPrivate');
+  const bookings = await db.eventBooking.findMany({
+    where: { approval_status: 'approved' },
+    orderBy: [{ event_date: 'desc' }, { event_time: 'desc' }],
+    take: 300,
+  }).catch(() => []);
+  return { bookings };
+});
+
+registerFn('deleteEventBooking', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'deleteEventBooking', 'EventsPrivate');
+  const id = String((body as any)?.id || '');
+  if (!id) throw new Error('id required');
+  await db.eventBooking.delete({ where: { id } }).catch(() => {});
+  return { ok: true };
+});
+
 // PUBLIC — stub "I paid" button on the EventsPayment page calls this.
 // Real Stripe webhook will replace this when payment_mode flips to 'stripe'.
 registerFn('confirmEventPayment', async ({ body }) => {
