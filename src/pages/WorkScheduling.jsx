@@ -566,6 +566,7 @@ export default function WorkScheduling() {
     // module-level `shiftTypesConfig` within this component so both render loops
     // and MobileScheduleView use the tenant's shifts.
     const [scheduleCfg, setScheduleCfg] = useState(null);
+    const [lockBusy, setLockBusy] = useState(false);
     const [showScheduleSettings, setShowScheduleSettings] = useState(false);
     const shiftTypesConfig = useMemo(() => buildShiftConfig(scheduleCfg?.shifts), [scheduleCfg]);
     const hiddenPositions = useMemo(
@@ -734,6 +735,12 @@ export default function WorkScheduling() {
     const thisWeekStr = format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd');
     const isFutureWeek = weekStartStr > thisWeekStr;
     const publishedWeeks = Array.isArray(scheduleCfg?.published_weeks) ? scheduleCfg.published_weeks : [];
+    // Owner freeze: a locked week can't be edited by non-owners (managers). The
+    // owner still edits (or unlocks first). Enforced in the assignment handlers.
+    const lockedWeeks = Array.isArray(scheduleCfg?.locked_weeks) ? scheduleCfg.locked_weeks : [];
+    const isOwnerRole = currentUser?.role === 'owner';
+    const weekLocked = lockedWeeks.includes(weekStartStr);
+    const editBlockedByLock = weekLocked && !isOwnerRole;
     // A dept is published if its "week|dept" key exists, or a legacy bare "week".
     const isDeptPublished = (dept) => publishedWeeks.includes(`${weekStartStr}|${dept}`) || publishedWeeks.includes(weekStartStr);
     // Infer which department an employee belongs to (for the visibility gate).
@@ -910,18 +917,38 @@ export default function WorkScheduling() {
         return out;
     };
 
+    const lockGuard = () => {
+        if (editBlockedByLock) { alert('🔒 הסידור של השבוע נעול על ידי הבעלים. פנה לבעלים לפתיחה.'); return true; }
+        return false;
+    };
+
+    // Owner-only: freeze / unfreeze this week so managers can't add or remove
+    // shifts in it. The server re-checks that the caller is the owner.
+    const toggleWeekLock = async () => {
+        setLockBusy(true);
+        try {
+            await base44.functions.setScheduleWeekLock({ week_start: weekStartStr, locked: !weekLocked });
+            const r = await base44.functions.getScheduleConfig({}).then(x => x?.data || x || {}).catch(() => ({}));
+            setScheduleCfg(r);
+        } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+        setLockBusy(false);
+    };
+
     const handleQuickAssign = (day, shiftType, positionName) => {
+        if (lockGuard()) return;
         setDialogContext({ date: day, shiftType, positionName });
         setIsQuickAssignOpen(true);
     };
 
     const handleEditAssignment = (day, shiftType, positionName, assignment) => {
+        if (lockGuard()) return;
         setSelectedAssignment({ ...assignment, date: day, shift_type: shiftType, position: positionName });
         setIsAssignmentEditorOpen(true);
     };
 
     // Remove a single assignment straight from its card (no edit dialog).
     const quickDeleteAssignment = (day, shiftType, positionName, assignment) => {
+        if (lockGuard()) return;
         if (!window.confirm(`להסיר את ${assignment.employee_name} מהשיבוץ?`)) return;
         handleAssignmentDelete({ ...assignment, date: day, shift_type: shiftType, position: positionName });
     };
@@ -1432,6 +1459,15 @@ export default function WorkScheduling() {
                                         <span className="text-lg">💬</span>
                                     </button>
                                 </>
+                            )}
+                            {weekLocked && <span title="הסידור נעול לעריכה" className="text-sm font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">🔒 נעול</span>}
+                            {isOwnerRole && (
+                                <button onClick={toggleWeekLock} disabled={lockBusy}
+                                    title={weekLocked ? 'פתיחת הסידור לעריכה' : 'נעילת הסידור — מנהלים לא יוכלו לשנות'}
+                                    className="text-xs font-semibold rounded-full px-2.5 py-1 border transition disabled:opacity-50"
+                                    style={weekLocked ? { color: '#166534', borderColor: '#86efac', background: '#f0fdf4' } : { color: '#92400e', borderColor: '#fde68a', background: '#fffbeb' }}>
+                                    {lockBusy ? '…' : (weekLocked ? '🔓 פתח סידור' : '🔒 נעל סידור')}
+                                </button>
                             )}
                         </CardTitle>
                         <div className="flex items-center gap-3 flex-wrap">

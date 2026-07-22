@@ -6659,6 +6659,7 @@ async function ensureScheduleConfig(): Promise<void> {
   // The same waiter assigned to קופה/מארח that day DOES count. Position in the
   // schedule decides, not the employee record.
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "ScheduleConfig" ADD COLUMN IF NOT EXISTS "tip_positions" JSONB`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "ScheduleConfig" ADD COLUMN IF NOT EXISTS "locked_weeks" JSONB`).catch(() => {});
   _schedCfgEnsured = true;
 }
 
@@ -6707,6 +6708,30 @@ registerFn('setScheduleConfig', async ({ user, body }: any) => {
     );
   }
   return { ok: true };
+});
+
+// Lock / unlock a schedule WEEK — OWNER only. When a week is locked, non-owner
+// editors (managers) can't add or remove assignments in it — the owner freezes a
+// finalised roster so it isn't changed underneath him. Stored as an array of
+// week_start (YYYY-MM-DD) strings on the single ScheduleConfig row.
+registerFn('setScheduleWeekLock', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const { buildPayViewer } = await import('../lib/payViewer.js');
+  const viewer = await buildPayViewer(user);
+  if (!viewer.isOwner) throw new Error('owner only');
+  await ensureScheduleConfig();
+  const b = (body || {}) as any;
+  const week = String(b.week_start || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) throw new Error('week_start required');
+  const locked = !!b.locked;
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, locked_weeks FROM "ScheduleConfig" LIMIT 1`).catch(() => []);
+  let id = rows[0]?.id;
+  if (!id) { const { randomUUID } = await import('node:crypto'); id = randomUUID(); await (prisma as any).$executeRawUnsafe(`INSERT INTO "ScheduleConfig" ("id","updatedAt") VALUES ($1,NOW())`, id); }
+  const cur = Array.isArray(rows[0]?.locked_weeks) ? rows[0].locked_weeks.map((x: any) => String(x)) : [];
+  const set = new Set<string>(cur);
+  if (locked) set.add(week); else set.delete(week);
+  await (prisma as any).$executeRawUnsafe(`UPDATE "ScheduleConfig" SET "locked_weeks"=$1::jsonb, "updatedAt"=NOW() WHERE id=$2`, JSON.stringify([...set]), id);
+  return { ok: true, locked, week };
 });
 
 // Rename a work position EVERYWHERE it's referenced by name. A position name is
