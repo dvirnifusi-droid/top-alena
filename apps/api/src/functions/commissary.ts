@@ -1314,3 +1314,79 @@ registerFn('getChainBranchOrder', async ({ user, body }) => {
     lines, total: r2(total), line_count: lines.length,
   };
 });
+
+// ── R6: Goods-receiving control — rate/note/report a supplier's goods per invoice
+// or per product, track credits (זיכויים), and thank suppliers. Per-tenant table
+// (the commissary's own suppliers), isolated + additive.
+let _goodsReady = false;
+async function ensureGoodsTables(): Promise<void> {
+  if (_goodsReady) return;
+  const ex = (q: string) => (prisma as any).$executeRawUnsafe(q).catch(() => {});
+  await ex(`CREATE TABLE IF NOT EXISTS "SupplierGoodsFeedback" (
+    "id" TEXT PRIMARY KEY, "supplier_name" TEXT, "product_name" TEXT, "invoice_id" TEXT,
+    "kind" TEXT NOT NULL DEFAULT 'note', "rating" INTEGER, "note" TEXT, "photo_url" TEXT,
+    "credit_status" TEXT NOT NULL DEFAULT 'none', "credit_amount" DOUBLE PRECISION,
+    "received_date" TEXT, "created_by" TEXT, "createdAt" TIMESTAMPTZ DEFAULT NOW())`);
+  await ex(`CREATE INDEX IF NOT EXISTS "SupplierGoodsFeedback_sup" ON "SupplierGoodsFeedback"("supplier_name")`);
+  _goodsReady = true;
+}
+
+// Save a goods-receiving entry: 👍 rating / 📝 note / ⚠️ issue (with credit) / 🙏 thanks.
+registerFn('saveGoodsFeedback', async ({ user, body }) => {
+  await requireBackOffice(user, 'saveGoodsFeedback', 'GoodsControl');
+  await ensureGoodsTables();
+  const b = (body || {}) as any;
+  const kind = ['rating', 'note', 'issue', 'thanks'].includes(String(b.kind)) ? String(b.kind) : 'note';
+  const supplier = String(b.supplier_name || '').slice(0, 160);
+  if (!supplier) throw new Error('supplier_name required');
+  const product = b.product_name ? String(b.product_name).slice(0, 160) : null;
+  const rating = b.rating != null && Number.isFinite(Number(b.rating)) ? Math.max(1, Math.min(5, Math.round(Number(b.rating)))) : null;
+  const note = b.note ? String(b.note).slice(0, 1000) : null;
+  const photo = b.photo_url ? String(b.photo_url).slice(0, 500) : null;
+  const creditStatus = kind === 'issue' && b.credit_expected ? 'pending' : 'none';
+  const creditAmt = b.credit_amount != null && Number.isFinite(Number(b.credit_amount)) ? Number(b.credit_amount) : null;
+  const rdate = /^\d{4}-\d{2}-\d{2}$/.test(String(b.received_date)) ? String(b.received_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const who = String((user as any)?.full_name || user?.email || '').slice(0, 120) || null;
+  const ins: any[] = await (prisma as any).$queryRawUnsafe(
+    `INSERT INTO "SupplierGoodsFeedback"(id, supplier_name, product_name, invoice_id, kind, rating, note, photo_url, credit_status, credit_amount, received_date, created_by)
+     VALUES (gen_random_uuid()::text,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+    supplier, product, b.invoice_id ? String(b.invoice_id).slice(0, 60) : null, kind, rating, note, photo, creditStatus, creditAmt, rdate, who).catch(() => []);
+  return { ok: true, id: ins[0]?.id };
+});
+
+// The supplier-quality log + suppliers for the picker + open-credit count.
+registerFn('listGoodsFeedback', async ({ user, body }) => {
+  await requireBackOffice(user, 'listGoodsFeedback', 'GoodsControl');
+  await ensureGoodsTables();
+  const days = Math.min(365, Math.max(1, Number((body as any)?.days) || 90));
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, supplier_name, product_name, invoice_id, kind, rating, note, photo_url, credit_status, credit_amount, received_date, created_by, "createdAt"
+     FROM "SupplierGoodsFeedback" WHERE "createdAt" >= $1::timestamptz ORDER BY "createdAt" DESC LIMIT 300`, since).catch(() => []);
+  const suppliers: any[] = await (prisma as any).$queryRawUnsafe(`SELECT company_name FROM "Supplier" ORDER BY company_name`).catch(() => []);
+  const openCredits = rows.filter((r) => r.credit_status === 'pending');
+  return { feedback: rows, suppliers: suppliers.map((s) => s.company_name).filter(Boolean), open_credits: openCredits.length, open_credit_amount: r2(openCredits.reduce((s, r) => s + (Number(r.credit_amount) || 0), 0)) };
+});
+
+// Update a credit's status (pending → credited / none).
+registerFn('setGoodsFeedbackCredit', async ({ user, body }) => {
+  await requireBackOffice(user, 'setGoodsFeedbackCredit', 'GoodsControl');
+  await ensureGoodsTables();
+  const b = (body || {}) as any;
+  const id = String(b.id || ''); if (!id) throw new Error('id required');
+  const status = ['none', 'pending', 'credited'].includes(String(b.credit_status)) ? String(b.credit_status) : 'credited';
+  await (prisma as any).$executeRawUnsafe(`UPDATE "SupplierGoodsFeedback" SET credit_status=$1 WHERE id=$2`, status, id).catch(() => {});
+  return { ok: true, credit_status: status };
+});
+
+// Send the supplier a message (issue report or thank-you) — owner-triggered, to a
+// phone the owner provides. Best-effort WhatsApp.
+registerFn('sendSupplierMessage', async ({ user, body }) => {
+  await requireBackOffice(user, 'sendSupplierMessage', 'GoodsControl');
+  const b = (body || {}) as any;
+  const phone = String(b.phone || '').replace(/[^\d+]/g, '');
+  const message = String(b.message || '').slice(0, 1000);
+  if (!phone || !message) throw new Error('phone + message required');
+  try { await sendWhatsApp(phone, message); return { ok: true, sent_to: phone }; }
+  catch (e: any) { return { ok: false, error: String(e?.message || e).slice(0, 160) }; }
+});
