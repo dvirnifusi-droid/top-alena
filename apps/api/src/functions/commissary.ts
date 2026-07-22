@@ -9,6 +9,7 @@ import { registerFn } from './index.js';
 import { prisma } from '../db.js';
 import { requireBackOffice } from '../lib/pagePermissions.js';
 import { currentTenantSlug } from '../lib/whatsappRouter.js';
+import { sendWhatsApp } from '../lib/twilio.js';
 import { prepCostPerUnit, rawCostPerUnit, internalPrice, marginPct, effectiveMarkup } from '../lib/commissary.js';
 
 // The commissary is divided into departments (מטבח מרכזי / מחסן משקאות / מרלו"ג /
@@ -490,6 +491,7 @@ async function ensureChainCommissaryTables(): Promise<void> {
   if (_chainCommReady) return;
   const sql = (prisma as any).$executeRawUnsafe.bind(prisma);
   await sql(`ALTER TABLE public."Chain" ADD COLUMN IF NOT EXISTS "commissary_slug" TEXT`).catch(() => {});
+  await sql(`ALTER TABLE public."Chain" ADD COLUMN IF NOT EXISTS "commissary_profit_pct" DOUBLE PRECISION`).catch(() => {});
   await sql(`CREATE TABLE IF NOT EXISTS public."CommissaryCatalogItem" (
     "id" TEXT PRIMARY KEY, "chain_id" TEXT NOT NULL, "item_key" TEXT NOT NULL,
     "name" TEXT, "unit" TEXT, "department" TEXT, "internal_price" DOUBLE PRECISION,
@@ -927,4 +929,120 @@ registerFn('saveChainCommissaryOrder', async ({ user, body }) => {
     saved++;
   }
   return { ok: true, order_id: orderId, lines_saved: saved };
+});
+
+// ── Deeper flow: what to BUY from suppliers + raw cost + profit%, and "ready" ──
+
+// Explode a PREP recipe into raw ingredient quantities (recursively; nested preps
+// scale by yield). Reads the commissary tenant's own Recipe/Ingredient tables.
+function explodeRecipe(recipeId: string, units: number, recipeById: Map<string, any>, riByRecipe: Map<string, any[]>, acc: Map<string, number>, depth = 0): void {
+  if (depth > 8) return;
+  const recipe = recipeById.get(recipeId);
+  if (!recipe) return;
+  const y = Number(recipe.yield_qty) > 0 ? Number(recipe.yield_qty) : 1;
+  const batches = units / y;
+  for (const ri of (riByRecipe.get(recipeId) || [])) {
+    const need = batches * (Number(ri.qty) || 0);
+    if (ri.ingredient_id) acc.set(ri.ingredient_id, (acc.get(ri.ingredient_id) || 0) + need);
+    else if (ri.prep_recipe_id) explodeRecipe(ri.prep_recipe_id, need, recipeById, riByRecipe, acc, depth + 1);
+  }
+}
+
+// What the commissary must BUY to fulfil a date's orders: raw materials derived
+// from the product tree of every ordered prep, grouped by supplier, + the raw
+// cost and a profit-% suggestion (covers labor / fixed / variable).
+registerFn('getChainCommissaryPurchasing', async ({ user, body }) => {
+  const chainId = String((body as any)?.chain_id || '');
+  if (!chainId) throw new Error('chain_id required');
+  await assertChainOwner(user, chainId);
+  await ensureChainCommissaryTables();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String((body as any)?.order_date)) ? String((body as any).order_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
+
+  // The date's ordered preps (from public chain orders).
+  const lines: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT l.item_key, SUM(l.qty) AS qty FROM public."CommissaryChainOrderLine" l JOIN public."CommissaryChainOrder" o ON o.id=l.order_id
+     WHERE o.chain_id=$1 AND o.order_date=$2 GROUP BY l.item_key`, chainId, date,
+  ).catch(() => []);
+
+  // The commissary's recipe tree (its own schema).
+  const recipes: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, yield_qty FROM "Recipe"`).catch(() => []);
+  const ris: any[] = await (prisma as any).$queryRawUnsafe(`SELECT recipe_id, ingredient_id, prep_recipe_id, qty FROM "RecipeIngredient"`).catch(() => []);
+  const ings: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, price_per_unit, waste_percent, supplier_name FROM "Ingredient"`).catch(() => []);
+  const recipeById = new Map(recipes.map((r) => [r.id, r]));
+  const riByRecipe = new Map<string, any[]>();
+  for (const ri of ris) { const a = riByRecipe.get(ri.recipe_id) || []; a.push(ri); riByRecipe.set(ri.recipe_id, a); }
+  const ingById = new Map(ings.map((i) => [i.id, i]));
+
+  const acc = new Map<string, number>();
+  let unpricedPreps = 0;
+  for (const ln of lines) {
+    const [src, ...rest] = String(ln.item_key || '').split(':');
+    const refId = rest.join(':');
+    const qty = Number(ln.qty) || 0;
+    if (src === 'prep') {
+      if (recipeById.has(refId)) explodeRecipe(refId, qty, recipeById, riByRecipe, acc, 0);
+      else unpricedPreps++;
+    } else if (src === 'raw') {
+      acc.set(refId, (acc.get(refId) || 0) + qty); // sold as-is → buy directly
+    }
+  }
+
+  // Group raw needs by supplier.
+  const bySupplier = new Map<string, any>();
+  let rawCost = 0;
+  for (const [ingId, qty] of acc) {
+    const ing: any = ingById.get(ingId);
+    if (!ing) continue;
+    const waste = Number(ing.waste_percent) > 0 && Number(ing.waste_percent) < 1 ? Number(ing.waste_percent) : 0;
+    const buyQty = qty / (1 - waste); // account for waste
+    const price = Number(ing.price_per_unit);
+    const cost = Number.isFinite(price) && price > 0 ? buyQty * price : 0;
+    rawCost += cost;
+    const sup = ing.supplier_name || 'ללא ספק';
+    if (!bySupplier.has(sup)) bySupplier.set(sup, { supplier: sup, items: [], subtotal: 0 });
+    const s = bySupplier.get(sup);
+    s.items.push({ name: ing.name, qty: r2(buyQty), unit: ing.unit || 'kg', price: Number.isFinite(price) ? r2(price) : null, cost: r2(cost), no_price: !(Number.isFinite(price) && price > 0) });
+    s.subtotal += cost;
+  }
+  const suppliers = [...bySupplier.values()].map((s) => ({ ...s, subtotal: r2(s.subtotal), items: s.items.sort((a: any, b: any) => b.cost - a.cost) })).sort((a, b) => b.subtotal - a.subtotal);
+
+  const chainRow: any[] = await (prisma as any).$queryRawUnsafe(`SELECT commissary_profit_pct FROM public."Chain" WHERE id=$1`, chainId).catch(() => []);
+  const profitPct = chainRow[0]?.commissary_profit_pct != null ? Number(chainRow[0].commissary_profit_pct) : 30;
+
+  return {
+    chain_id: chainId, order_date: date, suppliers,
+    raw_cost_total: r2(rawCost), profit_pct: profitPct,
+    suggested_total: r2(rawCost * (1 + profitPct / 100)),
+    ingredient_count: acc.size, unpriced_preps: unpricedPreps,
+  };
+});
+
+// Owner sets the network profit % (labor / fixed / variable coverage).
+registerFn('setChainCommissaryProfit', async ({ user, body }) => {
+  const chainId = String((body as any)?.chain_id || '');
+  if (!chainId) throw new Error('chain_id required');
+  await assertChainOwner(user, chainId);
+  await ensureChainCommissaryTables();
+  const m = Number((body as any)?.profit_pct);
+  const pct = Number.isFinite(m) && m >= 0 ? m : 30;
+  await (prisma as any).$executeRawUnsafe(`UPDATE public."Chain" SET commissary_profit_pct=$1 WHERE id=$2`, pct, chainId).catch(() => {});
+  return { ok: true, profit_pct: pct };
+});
+
+// "Order ready for pickup" — WhatsApp the branch owner. Manual (owner clicks it).
+registerFn('notifyBranchOrderReady', async ({ user, body }) => {
+  const b = (body || {}) as any;
+  const chainId = String(b.chain_id || '');
+  const branchSlug = String(b.branch_slug || '');
+  if (!chainId || !branchSlug) throw new Error('chain_id + branch_slug required');
+  await assertChainOwner(user, chainId);
+  await ensureChainCommissaryTables();
+  const date = String(b.order_date || '').slice(0, 10);
+  const tr: any[] = await (prisma as any).$queryRawUnsafe(`SELECT owner_phone, restaurant_name FROM public."Tenant" WHERE slug=$1 LIMIT 1`, branchSlug).catch(() => []);
+  const phone = tr[0]?.owner_phone;
+  if (!phone) return { ok: false, error: 'no_phone', message: 'לסניף אין מספר טלפון מוגדר.' };
+  const chainRow: any[] = await (prisma as any).$queryRawUnsafe(`SELECT name FROM public."Chain" WHERE id=$1`, chainId).catch(() => []);
+  const msg = `🏭 *בית הכנות ${chainRow[0]?.name || ''}*\nההזמנה שלכם${date ? ` ל-${date}` : ''} *מוכנה לאיסוף* ✅`;
+  try { await sendWhatsApp(phone, msg); return { ok: true, sent_to: phone }; }
+  catch (e: any) { return { ok: false, error: String(e?.message || e).slice(0, 120) }; }
 });

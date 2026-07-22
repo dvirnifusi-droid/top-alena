@@ -21,6 +21,27 @@ function ChainCommissary({ chainId }) {
   const [qtys, setQtys] = useState({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [purchasing, setPurchasing] = useState(null);
+  const [profitDraft, setProfitDraft] = useState('');
+
+  const loadBuy = async () => {
+    try {
+      const r = await base44.functions.getChainCommissaryPurchasing({ chain_id: chainId, order_date: date });
+      const d = r?.data || r; setPurchasing(d); setProfitDraft(String(d?.profit_pct ?? 30));
+    } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+  };
+  const saveProfit = async () => {
+    setBusy(true);
+    try { await base44.functions.setChainCommissaryProfit({ chain_id: chainId, profit_pct: profitDraft === '' ? 30 : profitDraft }); await loadBuy(); }
+    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    setBusy(false);
+  };
+  const notifyReady = async (branch_slug, branch_name) => {
+    setBusy(true);
+    try { const r = await base44.functions.notifyBranchOrderReady({ chain_id: chainId, branch_slug, order_date: date }); const d = r?.data || r; setMsg(d?.ok ? { ok: true, text: `📤 נשלח ל-${branch_name}: מוכן לאיסוף` } : { ok: false, text: d?.message || 'לא נשלח (חסר טלפון)' }); }
+    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    setBusy(false);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -75,8 +96,8 @@ function ChainCommissary({ chainId }) {
           {msg && <div className={`text-xs rounded px-2 py-1 ${msg.ok ? 'bg-emerald-900/40 text-emerald-300' : 'bg-red-900/40 text-red-300'}`}>{msg.text}</div>}
           <div className="flex items-center gap-2 flex-wrap">
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-white" dir="ltr" />
-            {[['production', '🏭 מה להכין + חשבוניות'], ['catalog', '📋 קטלוג ותמחור'], ['order', '➕ הזמנה לסניף']].map(([v, l]) => (
-              <button key={v} onClick={() => setTab(v)} className={`text-xs rounded px-2 py-1 ${tab === v ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>{l}</button>
+            {[['production', '🏭 מה להכין'], ['buy', '🛒 קניות + עלות'], ['catalog', '📋 קטלוג'], ['order', '➕ הזמנה']].map(([v, l]) => (
+              <button key={v} onClick={() => { setTab(v); if (v === 'buy') loadBuy(); }} className={`text-xs rounded px-2 py-1 ${tab === v ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}`}>{l}</button>
             ))}
             <button onClick={load} disabled={loading} className="text-slate-400 hover:text-white mr-auto"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
           </div>
@@ -120,11 +141,37 @@ function ChainCommissary({ chainId }) {
                 <div className="border-t border-slate-800 pt-2">
                   <div className="text-xs font-bold text-slate-400 mb-1">חשבונית פנימית לכל סניף</div>
                   {dist.invoices.map((inv) => (
-                    <div key={inv.branch_slug} className="flex items-center justify-between text-xs py-1"><span className="text-white">{inv.branch_name} <span className="text-slate-500">· {inv.lines} פריטים</span></span><span className="text-indigo-300 font-bold">{ils2(inv.total_ils)} <span className="text-emerald-400/70 font-normal">(רווח {ils2(inv.margin_ils)})</span></span></div>
+                    <div key={inv.branch_slug} className="flex items-center justify-between text-xs py-1 gap-2">
+                      <span className="text-white">{inv.branch_name} <span className="text-slate-500">· {inv.lines} פריטים</span></span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-indigo-300 font-bold whitespace-nowrap">{ils2(inv.total_ils)} <span className="text-emerald-400/70 font-normal">(רווח {ils2(inv.margin_ils)})</span></span>
+                        <button onClick={() => notifyReady(inv.branch_slug, inv.branch_name)} disabled={busy} title="שלח לסניף: מוכן לאיסוף" className="bg-emerald-700/60 hover:bg-emerald-600 text-emerald-100 rounded px-2 py-0.5 text-[11px] whitespace-nowrap">✅ מוכן לאיסוף</button>
+                      </span>
+                    </div>
                   ))}
                 </div>
               )}
             </>
+          ) : tab === 'buy' ? (
+            !purchasing ? <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-slate-500" /></div> : (
+              <>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-slate-800 rounded p-2"><div className="text-[11px] text-slate-400">עלות חומרי גלם</div><div className="text-lg font-bold text-amber-300">{ils2(purchasing.raw_cost_total)}</div></div>
+                  <div className="bg-slate-800 rounded p-2"><div className="text-[11px] text-slate-400">% רווח</div><div className="flex items-center justify-center gap-1 mt-0.5"><input type="number" dir="ltr" value={profitDraft} onChange={(e) => setProfitDraft(e.target.value)} className="bg-slate-900 border border-slate-700 rounded w-12 px-1 py-0.5 text-center text-white" /><button onClick={saveProfit} disabled={busy} className="text-indigo-400"><Save className="w-3.5 h-3.5" /></button></div></div>
+                  <div className="bg-emerald-950/40 rounded p-2 border border-emerald-800/40"><div className="text-[11px] text-slate-400">מחיר מוצע (כולל רווח)</div><div className="text-lg font-bold text-emerald-300">{ils2(purchasing.suggested_total)}</div></div>
+                </div>
+                {purchasing.unpriced_preps > 0 && <div className="text-[11px] text-amber-400">⚠ {purchasing.unpriced_preps} הכנות בלי עץ מוצר — לא נכללות בקנייה.</div>}
+                <div className="text-[11px] text-slate-400">מה לקנות מהספקים (נגזר מעץ המוצר של ההזמנות):</div>
+                {!purchasing.suppliers?.length ? <p className="text-xs text-slate-500 text-center py-3">אין חומרי גלם לקנות.</p> : purchasing.suppliers.map((s) => (
+                  <div key={s.supplier} className="mt-1">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-indigo-300 mb-1"><span>🏪 {s.supplier}</span><span className="text-amber-300">{ils2(s.subtotal)}</span></div>
+                    <div className="space-y-0.5">{s.items.map((it, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs bg-slate-800/50 rounded px-2 py-1"><span className="text-white">{it.name}</span><span className="text-slate-400"><b className="text-indigo-300">{it.qty} {it.unit}</b>{it.no_price ? ' · חסר מחיר' : ` · ${ils2(it.cost)}`}</span></div>
+                    ))}</div>
+                  </div>
+                ))}
+              </>
+            )
           ) : tab === 'catalog' ? (
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-slate-300"><thead><tr className="text-slate-500 text-right"><th className="p-1.5">פריט</th><th className="p-1.5">מחלקה</th><th className="p-1.5 text-left">קוסט</th><th className="p-1.5 text-center">רווח %</th><th className="p-1.5 text-left">מחיר פנימי</th><th className="p-1.5 text-left">מרווח</th><th></th></tr></thead>
