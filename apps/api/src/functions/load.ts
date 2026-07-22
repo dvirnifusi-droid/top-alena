@@ -35,6 +35,7 @@ import {
   tournamentStandings, myStanding, closeTournamentRound, sendJoinMessage,
   tonightBoard,
 } from '../lib/clubCore.js';
+import { TIER_THRESHOLDS } from '../lib/clubTier.js';
 import { marketingStats } from '../lib/marketingStats.js';
 import {
   walletAvailability, applyCertExpiry, normalizePrivateKey, emailFromServiceAccountJson,
@@ -3230,6 +3231,16 @@ function buildSegmentWhere(segment: string, customFilter?: any): any {
     }
     case 'vip': return { ...baseGate, loyalty_tier: 'vip' };
     case 'almost_vip': return { ...baseGate, loyalty_tier: 'regular', visit_count: { gte: 5 } };
+    // Engagement tiers — the SAME cutoffs computeTier() uses for the member card,
+    // so "target gold members" reaches exactly whom the card labels gold. Derived
+    // from visits+coins, independent of the manual loyalty_tier status.
+    case 'gold': return { ...baseGate, OR: [{ visit_count: { gte: TIER_THRESHOLDS.gold.visits } }, { coin_balance: { gte: TIER_THRESHOLDS.gold.coins } }] };
+    case 'silver': return {
+      ...baseGate,
+      OR: [{ visit_count: { gte: TIER_THRESHOLDS.silver.visits } }, { coin_balance: { gte: TIER_THRESHOLDS.silver.coins } }],
+      // exclude the gold band so silver means "silver, not gold"
+      NOT: { OR: [{ visit_count: { gte: TIER_THRESHOLDS.gold.visits } }, { coin_balance: { gte: TIER_THRESHOLDS.gold.coins } }] },
+    };
     case 'high_spenders': return { ...baseGate, visit_count: { gte: 10 } };
     case 'with_coins': return { ...baseGate, coin_balance: { gt: 0 } };
     case 'all_consented': return baseGate;
@@ -4579,6 +4590,21 @@ registerFn('getClubSettings', async () => ({ settings: await getClubConfig() }))
 registerFn('saveClubSettings', async ({ body }) => ({
   settings: await saveClubConfig((body as any)?.settings || (body as any) || {}),
 }));
+
+// One-time corrective repair for the loyalty_tier collision (see routes/club.ts):
+// past club orders wrote the ENGAGEMENT tier ('silver'/'gold') into loyalty_tier,
+// which is meant to hold the MANUAL marketing status ('vip'/'regular'/'blacklist')
+// the campaign segments key off. This normalises ONLY those invalid engagement
+// values back to 'regular' — it never touches a real 'vip' or 'blacklist'.
+// Idempotent and owner-triggered, so it runs when the owner can confirm the result.
+registerFn('repairLoyaltyTierCollision', async ({ user }) => {
+  await requireBackOffice(user, 'repairLoyaltyTierCollision');
+  const res: any = await db.customer.updateMany({
+    where: { loyalty_tier: { in: ['silver', 'gold'] } },
+    data: { loyalty_tier: 'regular' },
+  }).catch(() => ({ count: 0 }));
+  return { ok: true, fixed: res?.count || 0 };
+});
 
 /** Owner-side: hand a benefit to one customer, and get back the code to tell them. */
 registerFn('clubGrantBenefit', async ({ body }) => {

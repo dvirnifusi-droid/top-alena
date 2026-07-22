@@ -119,6 +119,36 @@ function TournamentCloser() {
   );
 }
 
+// One-time maintenance: past club orders overwrote the manual VIP status with an
+// engagement tier (silver/gold). The bug is fixed going forward; this button
+// normalises the rows already affected — resetting only silver/gold back to
+// regular, never touching a real VIP. Owner-triggered so the count is visible.
+function TierRepair() {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const run = async () => {
+    if (!window.confirm('לאפס דרגות שנדרסו (silver/gold) חזרה ל"רגיל"? לא נוגע בלקוחות שסומנו VIP ידנית.')) return;
+    setBusy(true); setResult(null);
+    try {
+      const r = await base44.functions.repairLoyaltyTierCollision();
+      const d = (r?.data ?? r) || {};
+      setResult(`תוקנו ${d.fixed ?? 0} לקוחות`);
+    } catch (e) { setResult(e?.message || 'שגיאה'); }
+    setBusy(false);
+  };
+  return (
+    <div className="mt-4 pt-4 border-t text-xs text-slate-500">
+      <div className="mb-1">תחזוקה: איפוס דרגות שנדרסו בעבר (חד־פעמי)</div>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={run} disabled={busy} className="shrink-0">
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'תקן דרגות VIP שנדרסו'}
+        </Button>
+        {result && <span className="text-slate-600">{result}</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function ClubSettingsCard() {
   const [s, setS] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -323,6 +353,8 @@ export default function ClubSettingsCard() {
         </div>
 
         {s.tournament_enabled && <TournamentCloser />}
+
+        <TierRepair />
 
         <Button onClick={save} disabled={saving} className="w-full">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" />

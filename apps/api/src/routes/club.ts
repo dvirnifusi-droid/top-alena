@@ -185,6 +185,12 @@ export async function clubRoutes(app: FastifyInstance) {
     const coinsEarned = coinsForOrder(parsed.data.order_total);
     const newBalance = (customer.coin_balance ?? 0) + coinsEarned;
     const newVisitCount = (customer.visit_count ?? 0) + 1;
+    // The ENGAGEMENT tier (regular/silver/gold) is derived from visits+coins and
+    // returned for display — it is NOT written back. `loyalty_tier` holds the
+    // MANUAL marketing status (vip/regular/blacklist) that the campaign segments
+    // key off; persisting the engagement value here used to silently wipe a
+    // hand-assigned VIP the moment they placed an order. Two meanings, one column
+    // — so we keep them apart: engagement stays computed, status stays stored.
     const newTier = computeTier(newVisitCount, newBalance);
 
     await prisma.customer.update({
@@ -192,7 +198,6 @@ export async function clubRoutes(app: FastifyInstance) {
       data: {
         coin_balance: newBalance,
         visit_count: newVisitCount,
-        loyalty_tier: newTier,
         last_visit: new Date(),
       },
     });

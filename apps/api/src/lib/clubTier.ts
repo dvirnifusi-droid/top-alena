@@ -1,8 +1,17 @@
 export type ClubTier = 'regular' | 'silver' | 'gold';
 
+// The single source of truth for engagement-tier cutoffs. Shared so the marketing
+// segments ('silver'/'gold') target EXACTLY the customers the member card labels
+// as such — one definition, no drift between what a member sees and who a campaign
+// reaches.
+export const TIER_THRESHOLDS = {
+  gold: { visits: 25, coins: 300 },
+  silver: { visits: 10, coins: 100 },
+} as const;
+
 export function computeTier(visitCount: number, coinBalance: number): ClubTier {
-  if (visitCount >= 25 || coinBalance >= 300) return 'gold';
-  if (visitCount >= 10 || coinBalance >= 100) return 'silver';
+  if (visitCount >= TIER_THRESHOLDS.gold.visits || coinBalance >= TIER_THRESHOLDS.gold.coins) return 'gold';
+  if (visitCount >= TIER_THRESHOLDS.silver.visits || coinBalance >= TIER_THRESHOLDS.silver.coins) return 'silver';
   return 'regular';
 }
 
