@@ -627,12 +627,20 @@ export default function WorkScheduling() {
     // all-department pay access). A 403 flips costForbidden and every cost
     // element disappears — including the "enter rates" hint, which would
     // otherwise tell a manager that cost data exists.
-    // Previewing a tier ("צפה כ:") must hide labor cost too, otherwise the preview
-    // lies: the server answers for the REAL user (the owner), so the cost stayed
-    // on screen while "viewing as" a floor manager who could never see it.
-    const [previewingTier, setPreviewingTier] = useState(false);
+    // Previewing a tier ("צפה כ:") normally hides labor cost — the server answers
+    // for the REAL user (the owner), so without this the cost would stay on screen
+    // while "viewing as" a floor manager who could never see it. EXCEPTION: the top
+    // management tier (base_level 'admin' — the "מנהל / בעלים" row) legitimately sees
+    // cost, so previewing IT keeps the strip. Restricted tiers still hide it.
+    const [previewHidesCost, setPreviewHidesCost] = useState(false);
     useEffect(() => {
-        const read = () => { try { setPreviewingTier(!!localStorage.getItem('view_tier_id')); } catch { /* ignore */ } };
+        const read = () => {
+            try {
+                const previewing = !!localStorage.getItem('view_tier_id');
+                const level = localStorage.getItem('view_tier_level') || '';
+                setPreviewHidesCost(previewing && level !== 'admin');
+            } catch { /* ignore */ }
+        };
         read();
         window.addEventListener('storage', read);
         return () => window.removeEventListener('storage', read);
@@ -642,7 +650,7 @@ export default function WorkScheduling() {
     // frontend must not re-gate on the JWT role: a tenant owner with a stale token,
     // or a manager the owner manually granted (role='user' + ALL_SCOPE), would be
     // wrongly hidden. So: show the cost iff the server actually returned it.
-    const canSeeCost = !costForbidden && !previewingTier && !!laborCost;
+    const canSeeCost = !costForbidden && !previewHidesCost && !!laborCost;
 
     const handleCopyAvailabilityLink = () => {
         const url = `${window.location.origin}/AvailabilityForm`;
@@ -664,7 +672,7 @@ export default function WorkScheduling() {
         // authorizes (owner / explicit pay grant) and 403s everyone else — which
         // flips costForbidden and hides the strip. Don't re-attempt after a denial
         // or while previewing a lower tier.
-        if (costForbidden || previewingTier) return;
+        if (costForbidden || previewHidesCost) return;
         let cancelled = false;
         (async () => {
             try {
@@ -680,7 +688,7 @@ export default function WorkScheduling() {
             }
         })();
         return () => { cancelled = true; };
-    }, [weekStartStr, week, costForbidden, previewingTier]);
+    }, [weekStartStr, week, costForbidden, previewHidesCost]);
 
     const saveBudget = async () => {
         setSavingBudget(true);

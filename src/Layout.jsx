@@ -617,8 +617,8 @@ const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
     // or you'd simply stopped previewing. Also lets other pages know a preview
     // is active (see WorkScheduling's cost strip).
     try {
-      if (t) localStorage.setItem('view_tier_id', String(t.id));
-      else localStorage.removeItem('view_tier_id');
+      if (t) { localStorage.setItem('view_tier_id', String(t.id)); localStorage.setItem('view_tier_level', String(t.base_level || '')); }
+      else { localStorage.removeItem('view_tier_id'); localStorage.removeItem('view_tier_level'); }
     } catch { /* private mode */ }
     setUser((prev) => ({
       ...prev,
