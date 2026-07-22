@@ -10,12 +10,16 @@ import { ChainCard } from './NetworkHQ';
 function NetworkDashboardInner() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reviewCount, setReviewCount] = useState(0); // invoice products awaiting approval
 
   const load = async () => {
     setLoading(true);
     try { const r = await base44.functions.getMyNetworkHome({}); setData(r?.data || r); }
     catch { setData(null); }
     finally { setLoading(false); }
+    // Homepage alert: unsure invoice products that need approval → treat here.
+    try { const pr = await base44.functions.getIngredientPriceUpdates({}); setReviewCount(((pr?.data || pr)?.unmatched || []).length); }
+    catch { setReviewCount(0); }
   };
   useEffect(() => { load(); }, []);
 
@@ -29,6 +33,13 @@ function NetworkDashboardInner() {
           <button onClick={load} className="text-slate-400 hover:text-white"><RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} /></button>
         </div>
         <p className="text-sm text-slate-400">תמונת-על של כל הסניפים ובית ההכנות המרכזי — הכל במקום אחד, בתוך הרשת.</p>
+
+        {reviewCount > 0 && (
+          <a href="/Recipes" className="block rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 hover:bg-amber-500/20 transition">
+            <div className="font-bold text-amber-300">🆕 {reviewCount} מוצרים מחשבונית ממתינים לאישור</div>
+            <div className="text-xs text-amber-200/80">מוצרים חדשים/לא-מזוהים שדורשים אישור או שיוך למוצר קיים — לחץ לטיפול בעץ המוצר ←</div>
+          </a>
+        )}
 
         {loading && !data ? (
           <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-slate-500" /></div>
