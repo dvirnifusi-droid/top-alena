@@ -6853,7 +6853,10 @@ registerFn('getScheduleLaborCost', async ({ user, body }: any) => {
       `SELECT labor_budget, shift_targets, tip_positions FROM "ScheduleConfig" LIMIT 1`).catch(() => []);
     // Positions that live on tips are excluded from labor cost by POSITION, not
     // by employee: the same waiter assigned to קופה/מארח that day DOES count.
-    const tipPosRaw = Array.isArray(cfgRow[0]?.tip_positions) ? cfgRow[0].tip_positions : ['מלצר', 'ברמן', 'ראנר'];
+    // NO hardcoded default — the system must NOT decide on its own that a role
+    // lives on tips (a juice bar's barman is hourly). Tips apply ONLY to roles the
+    // owner explicitly marked in the schedule settings' "תפקידי טיפים".
+    const tipPosRaw = Array.isArray(cfgRow[0]?.tip_positions) ? cfgRow[0].tip_positions : [];
     const normPos = (x: any) => String(x || '').replace(/[\s"'׳״־\-/\|,.]+/g, '').toLowerCase();
     const tipSet = new Set<string>(tipPosRaw.map((x: any) => normPos(x)));
     const isTipPosition = (pos: any) => {
