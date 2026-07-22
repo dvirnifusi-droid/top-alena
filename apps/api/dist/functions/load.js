@@ -39,7 +39,7 @@ import { scanContent, importScanned } from '../lib/aiScanner.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
 import { uploadStreamToS3 } from '../lib/storage.js';
 import { MODULE_CATALOG, SUB_FEATURE_CATALOG } from '../lib/modules.js';
-import { getMyMonthlyUsage } from '../lib/aiUsage.js';
+import { getMyMonthlyUsage, writeAiUsage } from '../lib/aiUsage.js';
 import { getBrandName, renderBrand } from '../lib/brandName.js';
 import { businessContextBlock, invalidateBusinessContextCache } from '../lib/businessContext.js';
 import { Readable } from 'node:stream';
@@ -4581,7 +4581,21 @@ registerFn('enhanceStoryPhoto', async ({ body, user }) => {
             throw new Error('שדרוג ה-AI לא זמין על החשבון כרגע. אפשר להשתמש בשיפור הרגיל.');
         throw new Error('שדרוג ה-AI לא הצליח — נסה שוב, ואם חוזר השתמש בשיפור הרגיל.');
     }
+    // Meter it so the owner can watch the cost (one row per retouch). The image
+    // model is per-image not per-token, so we log a flat ~₪0.15 estimate directly.
+    void writeAiUsage({ fn_name: 'enhanceStoryPhoto', model: out.model, tokens_in: 0, tokens_out: 0 }).catch(() => { });
     return { image_data_url: `data:${out.mime};base64,${out.image_base64}`, model: out.model };
+});
+/** Small usage read for the Story Studio counter: how many AI retouches this
+ *  calendar month, with a flat per-image cost estimate (the image model bills
+ *  per image, ~₪0.15, not per token). */
+registerFn('getStoryStudioUsage', async ({ user }) => {
+    await requireBackOffice(user, 'getStoryStudioUsage', 'MarketingHub');
+    const usage = await getMyMonthlyUsage().catch(() => ({ by_fn: [] }));
+    const row = (usage.by_fn || []).find((f) => f.fn_name === 'enhanceStoryPhoto');
+    const count = row ? Number(row.calls || 0) : 0;
+    const PER_IMAGE_ILS = 0.15;
+    return { enhanced_this_month: count, est_cost_ils: Math.round(count * PER_IMAGE_ILS * 100) / 100, per_image_ils: PER_IMAGE_ILS };
 });
 /** Wallet setup state: what is configured, and when the Apple cert lapses. */
 registerFn('getWalletSetup', async ({ user }) => {

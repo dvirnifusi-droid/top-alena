@@ -1,5 +1,6 @@
-// Story Studio — upload a product photo, the AI writes a punchy overlay + caption,
-// and the app composes a ready-to-post Instagram-story image (client-side canvas).
+// Content Studio — upload a product photo, the AI writes a punchy overlay +
+// caption, and the app composes a ready-to-post image (story OR feed sizes),
+// client-side canvas. Optional AI retouch polishes the real dish.
 import React, { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { UploadFile } from '@/integrations/Core';
@@ -9,6 +10,13 @@ import { Input } from '@/components/ui/input';
 import { Loader2, Upload, X, Copy, Check, Download, Sparkles, Wand2, RotateCcw } from 'lucide-react';
 
 const withHash = (tags) => (tags || []).map((h) => (String(h).startsWith('#') ? h : '#' + h)).join(' ');
+
+// Output formats — the owner wanted "not just story". Instagram-friendly sizes.
+const FORMATS = [
+  { key: 'story', label: 'סטורי', sub: '9:16', w: 1080, h: 1920 },
+  { key: 'portrait', label: 'פוסט לאורך', sub: '4:5', w: 1080, h: 1350 },
+  { key: 'square', label: 'פוסט מרובע', sub: '1:1', w: 1080, h: 1080 },
+];
 
 // Wrap RTL text to a max width, returning the lines.
 function wrapLines(ctx, text, maxWidth) {
@@ -29,6 +37,8 @@ export default function StoryStudio() {
   const [enhancedUrl, setEnhancedUrl] = useState(''); // AI-retouched version (data URL)
   const [enhancing, setEnhancing] = useState(false);
   const [note, setNote] = useState('');
+  const [formatKey, setFormatKey] = useState('story');
+  const [usage, setUsage] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [res, setRes] = useState(null);
@@ -37,9 +47,15 @@ export default function StoryStudio() {
   const [rendered, setRendered] = useState(false);
   const canvasRef = useRef(null);
 
-  // What the story is actually built on: the AI-retouched photo if the owner
-  // asked for it, otherwise the original upload.
+  const fmt = FORMATS.find((f) => f.key === formatKey) || FORMATS[0];
+  // What the design is built on: the AI-retouched photo if asked for, else the upload.
   const sourceUrl = enhancedUrl || imageUrl;
+
+  const loadUsage = async () => {
+    try { const r = await base44.functions.getStoryStudioUsage(); setUsage(r?.data || r || null); }
+    catch { setUsage(null); }
+  };
+  useEffect(() => { loadUsage(); }, []);
 
   const onFile = async (e) => {
     const file = e.target.files?.[0];
@@ -62,6 +78,7 @@ export default function StoryStudio() {
       const d = r?.data || r || {};
       if (!d.image_data_url) throw new Error('שדרוג ה-AI לא הוחזר — נסה שוב');
       setEnhancedUrl(d.image_data_url);
+      loadUsage();
     } catch (e) { setErr(e?.message || 'שדרוג ה-AI נכשל'); }
     finally { setEnhancing(false); }
   };
@@ -76,14 +93,14 @@ export default function StoryStudio() {
     finally { setLoading(false); }
   };
 
-  // Compose the story image whenever a result + image are ready. Uses the app's
-  // display serif (Frank Ruhl Libre) for a designed look, a legibility panel so
-  // text sits well on any photo, and a subtle photographic lift on the image.
+  // Compose the image whenever a result + photo are ready. Format-aware: the
+  // text and accents are positioned relative to the chosen canvas height.
   useEffect(() => {
     if (!res || !sourceUrl || !canvasRef.current) return;
+    const { w: W, h: H } = fmt;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    canvas.width = 1080; canvas.height = 1920;
+    canvas.width = W; canvas.height = H;
 
     const paint = () => {
       const img = new Image();
@@ -91,42 +108,45 @@ export default function StoryStudio() {
       img.onload = () => {
         try {
           // Cover-fit with a gentle authentic lift (colour/contrast/brightness).
-          const scale = Math.max(1080 / img.width, 1920 / img.height);
+          const scale = Math.max(W / img.width, H / img.height);
           const w = img.width * scale, h = img.height * scale;
-          ctx.fillStyle = '#160f0b'; ctx.fillRect(0, 0, 1080, 1920);
+          ctx.fillStyle = '#160f0b'; ctx.fillRect(0, 0, W, H);
           ctx.save();
           ctx.filter = 'saturate(1.14) contrast(1.07) brightness(1.03)';
-          ctx.drawImage(img, (1080 - w) / 2, (1920 - h) / 2, w, h);
+          ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
           ctx.restore();
 
           // Bottom gradient scrim for legibility.
-          const grad = ctx.createLinearGradient(0, 1000, 0, 1920);
+          const gTop = Math.round(H * 0.48);
+          const grad = ctx.createLinearGradient(0, gTop, 0, H);
           grad.addColorStop(0, 'rgba(18,10,6,0)');
           grad.addColorStop(0.55, 'rgba(30,15,9,0.72)');
           grad.addColorStop(1, 'rgba(40,18,10,0.97)');
-          ctx.fillStyle = grad; ctx.fillRect(0, 1000, 1080, 920);
+          ctx.fillStyle = grad; ctx.fillRect(0, gTop, W, H - gTop);
 
           ctx.textAlign = 'center';
+          const cx = W / 2;
           // Overlay headline — display serif, wrapped, with a soft shadow.
           ctx.font = '900 96px "Frank Ruhl Libre", Georgia, serif';
-          const lines = wrapLines(ctx, res.overlay_text, 920);
+          const lines = wrapLines(ctx, res.overlay_text, W - 160);
           const lineH = 112;
-          let y = 1600 - (lines.length - 1) * lineH;
+          const brandY = H - Math.round(H * 0.052);
+          let y = brandY - Math.round(H * 0.055) - (lines.length - 1) * lineH;
 
           // Brand accent bar above the headline.
           ctx.fillStyle = '#E4A24E';
-          ctx.fillRect(540 - 64, y - 118, 128, 9);
+          ctx.fillRect(cx - 64, y - 118, 128, 9);
 
           ctx.save();
           ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 22; ctx.shadowOffsetY = 4;
           ctx.fillStyle = '#ffffff';
-          for (const ln of lines) { ctx.fillText(ln, 540, y); y += lineH; }
+          for (const ln of lines) { ctx.fillText(ln, cx, y); y += lineH; }
           ctx.restore();
 
           // Brand name — the app's sans.
           ctx.font = '700 46px "Assistant", system-ui, sans-serif';
           ctx.fillStyle = '#F0D9A0';
-          ctx.fillText(res.brand || '', 540, 1812);
+          ctx.fillText(res.brand || '', cx, brandY);
           setRendered(true);
         } catch { setRendered(false); }
       };
@@ -143,13 +163,13 @@ export default function StoryStudio() {
         fonts.load('700 46px "Assistant"'),
       ]).then(paint).catch(paint);
     } else { paint(); }
-  }, [res, sourceUrl, enhancedUrl]);
+  }, [res, sourceUrl, enhancedUrl, formatKey]);
 
   const download = () => {
     try {
       const url = canvasRef.current.toDataURL('image/jpeg', 0.92);
       const a = document.createElement('a');
-      a.href = url; a.download = 'story.jpg'; a.click();
+      a.href = url; a.download = `${fmt.key}.jpg`; a.click();
     } catch { setErr('ההורדה נכשלה — נסה שוב'); }
   };
 
@@ -157,7 +177,21 @@ export default function StoryStudio() {
     <div dir="rtl" className="space-y-4 max-w-3xl">
       <div className="grid md:grid-cols-2 gap-4">
         <Card className="p-4 space-y-3">
-          <div className="text-sm text-slate-600 flex items-center gap-1"><Sparkles className="w-4 h-4 text-orange-600" /> העלה תמונת מוצר/מנה — ה-AI יכתוב טקסט ויעצב סטורי מוכן לפרסום.</div>
+          <div className="text-sm text-slate-600 flex items-center gap-1"><Sparkles className="w-4 h-4 text-orange-600" /> העלה תמונת מוצר/מנה — ה-AI יכתוב טקסט ויעצב לך תוכן מוכן לפרסום.</div>
+
+          {/* Output format */}
+          <div>
+            <label className="text-xs text-slate-500">פורמט</label>
+            <div className="flex gap-2 mt-1 flex-wrap">
+              {FORMATS.map((f) => (
+                <button key={f.key} type="button" onClick={() => { setFormatKey(f.key); setRendered(false); }}
+                  className={`px-3 py-1.5 rounded-lg border text-sm ${formatKey === f.key ? 'border-[#A04A2E] bg-orange-50 text-[#A04A2E] font-semibold' : 'border-slate-200 text-slate-600'}`}>
+                  {f.label} <span className="text-[10px] text-slate-400">{f.sub}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {imageUrl ? (
             <div className="space-y-2">
               <div className="relative inline-block">
@@ -174,7 +208,7 @@ export default function StoryStudio() {
                   <button onClick={() => { setEnhancedUrl(''); setRendered(false); }} className="text-xs text-slate-500 hover:text-slate-700 inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> חזור לתמונה המקורית</button>
                 )}
               </div>
-              {!enhancedUrl && <p className="text-[11px] text-slate-400">משפר תאורה, צבע ורקע — המנה נשארת בדיוק כמו שצילמת. אופציונלי.</p>}
+              {!enhancedUrl && <p className="text-[11px] text-slate-400">משפר תאורה, צבע ורקע — המנה נשארת בדיוק כמו שצילמת. אופציונלי, ~15 אג׳ לתמונה.</p>}
             </div>
           ) : (
             <label className="inline-flex items-center gap-2 cursor-pointer border border-dashed border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
@@ -183,22 +217,30 @@ export default function StoryStudio() {
               <input type="file" accept="image/*" onChange={onFile} disabled={uploading} className="hidden" />
             </label>
           )}
+
+          {/* AI usage counter */}
+          {usage && usage.enhanced_this_month > 0 && (
+            <div className="text-[11px] text-slate-500 bg-slate-50 border rounded-lg px-2.5 py-1.5">
+              ✨ החודש שודרגו <b>{usage.enhanced_this_month}</b> תמונות עם AI · עלות משוערת ≈ ₪{usage.est_cost_ils}
+            </div>
+          )}
+
           <div>
             <label className="text-xs text-slate-500">הקשר (אופציונלי) — מנה חדשה / מבצע / חג</label>
             <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="למשל: מבצע חמישי, קוקטייל חדש…" className="mt-1" />
           </div>
           <Button onClick={generate} disabled={loading || uploading || enhancing || !imageUrl} className="bg-[#A04A2E] hover:bg-[#7A3722] w-full">
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : '✨ צור סטורי'}
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : '✨ צור עיצוב'}
           </Button>
           {err && <p className="text-sm text-red-600">{err}</p>}
         </Card>
 
         <Card className="p-4 flex flex-col items-center justify-center gap-3">
-          <div className="text-xs text-slate-500 self-start">תצוגה מקדימה (סטורי 1080×1920)</div>
-          <canvas ref={canvasRef} className={`w-[200px] rounded-lg border ${rendered ? '' : 'hidden'}`} style={{ aspectRatio: '9/16' }} />
-          {!rendered && <div className="w-[200px] aspect-[9/16] rounded-lg border border-dashed flex items-center justify-center text-xs text-slate-400 text-center p-4">כאן יופיע הסטורי המעוצב אחרי היצירה</div>}
+          <div className="text-xs text-slate-500 self-start">תצוגה מקדימה ({fmt.label} {fmt.w}×{fmt.h})</div>
+          <canvas ref={canvasRef} className={`w-[200px] rounded-lg border ${rendered ? '' : 'hidden'}`} style={{ aspectRatio: `${fmt.w}/${fmt.h}` }} />
+          {!rendered && <div className="w-[200px] rounded-lg border border-dashed flex items-center justify-center text-xs text-slate-400 text-center p-4" style={{ aspectRatio: `${fmt.w}/${fmt.h}` }}>כאן יופיע העיצוב המוכן אחרי היצירה</div>}
           {rendered && (
-            <Button onClick={download} variant="outline" className="w-full"><Download className="w-4 h-4 ml-1" /> הורד לסטורי</Button>
+            <Button onClick={download} variant="outline" className="w-full"><Download className="w-4 h-4 ml-1" /> הורד ({fmt.label})</Button>
           )}
         </Card>
       </div>
