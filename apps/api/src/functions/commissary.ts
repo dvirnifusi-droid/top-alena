@@ -510,6 +510,16 @@ async function ensureChainCommissaryTables(): Promise<void> {
     "id" TEXT PRIMARY KEY, "order_id" TEXT NOT NULL, "item_key" TEXT NOT NULL,
     "name" TEXT, "unit" TEXT, "department" TEXT, "qty" DOUBLE PRECISION NOT NULL, "internal_price" DOUBLE PRECISION)`).catch(() => {});
   await sql(`CREATE INDEX IF NOT EXISTS "CommissaryChainOrderLine_order" ON public."CommissaryChainOrderLine"("order_id")`).catch(() => {});
+  // Branch commissary-contact phone (separate from the tenant's owner_phone) +
+  // order lifecycle (approve/reject + ETA) + prep availability.
+  await sql(`ALTER TABLE public."ChainMember" ADD COLUMN IF NOT EXISTS "phone" TEXT`).catch(() => {});
+  await sql(`ALTER TABLE public."CommissaryChainOrder" ADD COLUMN IF NOT EXISTS "eta" TEXT`).catch(() => {});
+  await sql(`ALTER TABLE public."CommissaryChainOrder" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ`).catch(() => {});
+  await sql(`ALTER TABLE public."CommissaryChainOrder" ADD COLUMN IF NOT EXISTS "approved_by" TEXT`).catch(() => {});
+  await sql(`ALTER TABLE public."CommissaryChainOrderLine" ADD COLUMN IF NOT EXISTS "rejected" BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
+  await sql(`ALTER TABLE public."CommissaryChainOrderLine" ADD COLUMN IF NOT EXISTS "reject_reason" TEXT`).catch(() => {});
+  await sql(`ALTER TABLE public."CommissaryCatalogItem" ADD COLUMN IF NOT EXISTS "stock_qty" DOUBLE PRECISION`).catch(() => {});
+  await sql(`ALTER TABLE public."CommissaryCatalogItem" ADD COLUMN IF NOT EXISTS "due_date" TEXT`).catch(() => {});
   // Live production status — the commissary marks each prep DONE as it's made,
   // like a prep sheet. Keyed by chain + date + item so the same day's board is shared.
   await sql(`CREATE TABLE IF NOT EXISTS public."CommissaryProduction" (
@@ -590,14 +600,19 @@ registerFn('getMyBranchCommissaryOrder', async ({ user, body }) => {
   if (!chain) return { lines: [] };
   const date = String((body as any)?.order_date || '').slice(0, 10);
   const orders: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT id, notes FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`,
+    `SELECT id, notes, status, eta, approved_at FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`,
     chain.chain_id, slug, date,
   ).catch(() => []);
-  if (!orders.length) return { lines: [] };
+  if (!orders.length) return { lines: [], status: null };
   const lines: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT item_key, qty FROM public."CommissaryChainOrderLine" WHERE order_id=$1`, orders[0].id,
+    `SELECT item_key, name, qty, unit, rejected, reject_reason FROM public."CommissaryChainOrderLine" WHERE order_id=$1`, orders[0].id,
   ).catch(() => []);
-  return { order_id: orders[0].id, notes: orders[0].notes, lines };
+  const rejected = lines.filter((l) => l.rejected).map((l) => ({ item_key: l.item_key, name: l.name, qty: Number(l.qty) || 0, unit: l.unit, reason: l.reject_reason || null }));
+  return {
+    order_id: orders[0].id, notes: orders[0].notes, lines,
+    status: orders[0].status || 'submitted', eta: orders[0].eta || null, approved_at: orders[0].approved_at || null,
+    rejected, rejected_count: rejected.length,
+  };
 });
 
 // Branch side: submit/replace this branch's order (scoped to its own slug).
@@ -768,13 +783,14 @@ registerFn('getChainCommissary', async ({ user, body }) => {
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String((body as any)?.order_date)) ? String((body as any).order_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
 
   const chainRow: any[] = await (prisma as any).$queryRawUnsafe(`SELECT name, commissary_slug FROM public."Chain" WHERE id=$1`, chainId).catch(() => []);
-  const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name FROM public."ChainMember" WHERE chain_id=$1 ORDER BY name`, chainId).catch(() => []);
+  const members: any[] = await (prisma as any).$queryRawUnsafe(`SELECT slug, name, phone FROM public."ChainMember" WHERE chain_id=$1 ORDER BY name`, chainId).catch(() => []);
   const catRows: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT item_key, source, name, unit, department, cost_per_unit, markup_pct, internal_price, active
+    `SELECT item_key, source, name, unit, department, cost_per_unit, markup_pct, internal_price, active, stock_qty, due_date
      FROM public."CommissaryCatalogItem" WHERE chain_id=$1 ORDER BY department NULLS LAST, name`, chainId,
   ).catch(() => []);
   const catalog = catRows.map((c) => ({
     ...c, cost_per_unit: r2(c.cost_per_unit), internal_price: r2(c.internal_price),
+    stock_qty: c.stock_qty != null ? Number(c.stock_qty) : null, due_date: c.due_date || null,
     margin: r2((Number(c.internal_price) || 0) - (Number(c.cost_per_unit) || 0)),
     margin_pct: marginPct(Number(c.cost_per_unit) || 0, Number(c.internal_price) || 0),
   }));
@@ -782,7 +798,7 @@ registerFn('getChainCommissary', async ({ user, body }) => {
 
   // Distribution for the date, from public chain orders.
   const lineRows: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT l.item_key, l.name, l.unit, l.department, l.qty, l.internal_price, o.branch_slug, o.branch_name
+    `SELECT l.item_key, l.name, l.unit, l.department, l.qty, l.internal_price, l.rejected, o.branch_slug, o.branch_name, o.status, o.eta
      FROM public."CommissaryChainOrderLine" l JOIN public."CommissaryChainOrder" o ON o.id=l.order_id
      WHERE o.chain_id=$1 AND o.order_date=$2`, chainId, date,
   ).catch(() => []);
@@ -790,6 +806,10 @@ registerFn('getChainCommissary', async ({ user, body }) => {
   const byBranch = new Map<string, any>();
   let gCost = 0, gRev = 0;
   for (const l of lineRows) {
+    const bk = l.branch_slug || 'unknown';
+    if (!byBranch.has(bk)) byBranch.set(bk, { branch_slug: bk, branch_name: l.branch_name || bk, total_ils: 0, cost_ils: 0, lines: 0, rejected: 0, status: l.status || 'submitted', eta: l.eta || null, _items: new Set() });
+    const bx = byBranch.get(bk);
+    if (l.rejected) { bx.rejected += 1; continue; } // rejected items aren't made or charged
     const qty = Number(l.qty) || 0;
     const cat: any = costByKey.get(l.item_key);
     const cost = qty * (cat ? Number(cat.cost_per_unit) || 0 : 0);
@@ -798,9 +818,7 @@ registerFn('getChainCommissary', async ({ user, body }) => {
     if (!items.has(l.item_key)) items.set(l.item_key, { item_key: l.item_key, name: l.name, unit: l.unit, department: l.department || null, total_qty: 0, total_cost: 0, total_price: 0, per_branch: [] });
     const it = items.get(l.item_key); it.total_qty += qty; it.total_cost += cost; it.total_price += rev;
     it.per_branch.push({ branch: l.branch_name || l.branch_slug, qty });
-    const bk = l.branch_slug || 'unknown';
-    if (!byBranch.has(bk)) byBranch.set(bk, { branch_slug: bk, branch_name: l.branch_name || bk, total_ils: 0, cost_ils: 0, lines: 0, _items: new Set() });
-    const bx = byBranch.get(bk); bx.total_ils += rev; bx.cost_ils += cost; bx.lines += 1; bx._items.add(l.item_key);
+    bx.total_ils += rev; bx.cost_ils += cost; bx.lines += 1; bx._items.add(l.item_key);
   }
   // Live production status (which preps are already made) → the shared board.
   const prodStatus: any[] = await (prisma as any).$queryRawUnsafe(
@@ -809,8 +827,11 @@ registerFn('getChainCommissary', async ({ user, body }) => {
   const statusByKey = new Map(prodStatus.map((s) => [s.item_key, s]));
   const production = [...items.values()].map((it) => {
     const st: any = statusByKey.get(it.item_key);
+    const cat: any = costByKey.get(it.item_key);
+    const stock = cat?.stock_qty != null ? Number(cat.stock_qty) || 0 : 0; // ready-to-take base stock
     return {
       ...it, total_qty: r2(it.total_qty), total_cost: r2(it.total_cost), total_price: r2(it.total_price), margin: r2(it.total_price - it.total_cost),
+      stock_qty: stock, to_make: r2(Math.max(0, it.total_qty - stock)),
       done: !!st?.done, done_by: st?.done_by || null, done_at: st?.done_at || null,
     };
   }).sort((a, b) => (a.department || '').localeCompare(b.department || '') || b.total_price - a.total_price);
@@ -892,6 +913,15 @@ registerFn('setChainCommissaryItemPricing', async ({ user, body }) => {
     `UPDATE public."CommissaryCatalogItem" SET markup_pct=$1, internal_price=$2, active=$3${dept !== undefined ? ', department=$5' : ''}, "updatedAt"=NOW() WHERE chain_id=$4 AND item_key=$6`,
     ...(dept !== undefined ? [markup, price, active, chainId, dept, itemKey] : [markup, price, active, chainId, itemKey]),
   ).catch(() => {});
+  // Prep metadata (optional): base stock available to take immediately + a target/due date.
+  if (b.stock_qty !== undefined) {
+    const s = num(b.stock_qty);
+    await (prisma as any).$executeRawUnsafe(`UPDATE public."CommissaryCatalogItem" SET stock_qty=$1, "updatedAt"=NOW() WHERE chain_id=$2 AND item_key=$3`, s, chainId, itemKey).catch(() => {});
+  }
+  if (b.due_date !== undefined) {
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(String(b.due_date)) ? String(b.due_date).slice(0, 10) : null;
+    await (prisma as any).$executeRawUnsafe(`UPDATE public."CommissaryCatalogItem" SET due_date=$1, "updatedAt"=NOW() WHERE chain_id=$2 AND item_key=$3`, d, chainId, itemKey).catch(() => {});
+  }
   return { ok: true, internal_price: price };
 });
 
@@ -1034,7 +1064,75 @@ registerFn('setChainCommissaryProfit', async ({ user, body }) => {
   return { ok: true, profit_pct: pct };
 });
 
-// "Order ready for pickup" — WhatsApp the branch owner. Manual (owner clicks it).
+// Branch commissary-contact phone: the ChainMember override first, else the
+// tenant's own owner_phone. Digits/plus only.
+async function resolveBranchPhone(chainId: string, branchSlug: string): Promise<string | null> {
+  const m: any[] = await (prisma as any).$queryRawUnsafe(`SELECT phone FROM public."ChainMember" WHERE chain_id=$1 AND slug=$2 LIMIT 1`, chainId, branchSlug).catch(() => []);
+  if (m[0]?.phone) return String(m[0].phone);
+  const t: any[] = await (prisma as any).$queryRawUnsafe(`SELECT owner_phone FROM public."Tenant" WHERE slug=$1 LIMIT 1`, branchSlug).catch(() => []);
+  return t[0]?.owner_phone ? String(t[0].owner_phone) : null;
+}
+
+// Owner sets a branch's commissary-contact phone (where "ready" alerts go).
+registerFn('setBranchPhone', async ({ user, body }) => {
+  const b = (body || {}) as any;
+  const chainId = String(b.chain_id || '');
+  const slug = String(b.slug || b.branch_slug || '');
+  if (!chainId || !slug) throw new Error('chain_id + slug required');
+  await assertChainOwner(user, chainId);
+  await ensureChainCommissaryTables();
+  const phone = b.phone != null ? String(b.phone).replace(/[^\d+]/g, '').slice(0, 20) : '';
+  await (prisma as any).$executeRawUnsafe(`UPDATE public."ChainMember" SET phone=$1 WHERE chain_id=$2 AND slug=$3`, phone || null, chainId, slug).catch(() => {});
+  return { ok: true, phone: phone || null };
+});
+
+// Commissary APPROVES a branch's order (with an ETA the branch will see), and/or
+// REJECTS specific items with a per-item reason. Then notifies the branch.
+registerFn('approveChainOrder', async ({ user, body }) => {
+  const b = (body || {}) as any;
+  const chainId = String(b.chain_id || '');
+  const branchSlug = String(b.branch_slug || '');
+  const date = String(b.order_date || '').slice(0, 10);
+  if (!chainId || !branchSlug) throw new Error('chain_id + branch_slug required');
+  await assertChainOwner(user, chainId);
+  await ensureChainCommissaryTables();
+  const orders: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`, chainId, branchSlug, date).catch(() => []);
+  if (!orders.length) throw new Error('order_not_found');
+  const orderId = orders[0].id;
+  const eta = b.eta ? String(b.eta).slice(0, 40) : null;
+  const who = String((user as any)?.full_name || user?.email || '').slice(0, 120) || null;
+  const rejections: any[] = Array.isArray(b.rejections) ? b.rejections : [];
+  // Reset then re-apply rejections (idempotent — owner can re-approve).
+  await (prisma as any).$executeRawUnsafe(`UPDATE public."CommissaryChainOrderLine" SET rejected=false, reject_reason=NULL WHERE order_id=$1`, orderId).catch(() => {});
+  const rejectedNames: string[] = [];
+  for (const rj of rejections) {
+    const key = String(rj.item_key || ''); if (!key) continue;
+    const reason = rj.reason ? String(rj.reason).slice(0, 300) : null;
+    await (prisma as any).$executeRawUnsafe(`UPDATE public."CommissaryChainOrderLine" SET rejected=true, reject_reason=$3 WHERE order_id=$1 AND item_key=$2`, orderId, key, reason).catch(() => {});
+    const nm: any[] = await (prisma as any).$queryRawUnsafe(`SELECT name FROM public."CommissaryChainOrderLine" WHERE order_id=$1 AND item_key=$2 LIMIT 1`, orderId, key).catch(() => []);
+    rejectedNames.push(`${nm[0]?.name || key}${reason ? ` (${reason})` : ''}`);
+  }
+  const status = rejections.length ? 'approved_partial' : 'approved';
+  await (prisma as any).$executeRawUnsafe(`UPDATE public."CommissaryChainOrder" SET status=$1, eta=$2, approved_at=NOW(), approved_by=$3, "updatedAt"=NOW() WHERE id=$4`, status, eta, who, orderId).catch(() => {});
+
+  // Notify the branch (WhatsApp) — the in-app status is updated regardless.
+  let notify: any = { sent: false };
+  if (b.notify !== false) {
+    const phone = await resolveBranchPhone(chainId, branchSlug);
+    if (!phone) notify = { sent: false, error: 'no_phone' };
+    else {
+      const chainRow: any[] = await (prisma as any).$queryRawUnsafe(`SELECT name FROM public."Chain" WHERE id=$1`, chainId).catch(() => []);
+      let msg = `🏭 *בית הכנות ${chainRow[0]?.name || ''}*\nההזמנה שלכם${date ? ` ל-${date}` : ''} *אושרה* ✅`;
+      if (eta) msg += `\n🕐 מוכן בערך: *${eta}*`;
+      if (rejectedNames.length) msg += `\n⚠️ פריטים שלא נכנסו:\n• ${rejectedNames.join('\n• ')}`;
+      try { await sendWhatsApp(phone, msg); notify = { sent: true, to: phone }; }
+      catch (e: any) { notify = { sent: false, error: String(e?.message || e).slice(0, 120) }; }
+    }
+  }
+  return { ok: true, status, eta, rejected: rejections.length, notify };
+});
+
+// "Order ready for pickup" — mark READY + WhatsApp the branch. Manual (owner clicks it).
 registerFn('notifyBranchOrderReady', async ({ user, body }) => {
   const b = (body || {}) as any;
   const chainId = String(b.chain_id || '');
@@ -1043,13 +1141,14 @@ registerFn('notifyBranchOrderReady', async ({ user, body }) => {
   await assertChainOwner(user, chainId);
   await ensureChainCommissaryTables();
   const date = String(b.order_date || '').slice(0, 10);
-  const tr: any[] = await (prisma as any).$queryRawUnsafe(`SELECT owner_phone, restaurant_name FROM public."Tenant" WHERE slug=$1 LIMIT 1`, branchSlug).catch(() => []);
-  const phone = tr[0]?.owner_phone;
-  if (!phone) return { ok: false, error: 'no_phone', message: 'לסניף אין מספר טלפון מוגדר.' };
+  // Mark the order READY (the branch sees this in-app even if WhatsApp fails).
+  await (prisma as any).$executeRawUnsafe(`UPDATE public."CommissaryChainOrder" SET status='ready', "updatedAt"=NOW() WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`, chainId, branchSlug, date).catch(() => {});
+  const phone = await resolveBranchPhone(chainId, branchSlug);
+  if (!phone) return { ok: true, status: 'ready', sent: false, error: 'no_phone', message: 'סומן מוכן. לסניף אין טלפון — הגדר טלפון כדי לשלוח הודעה.' };
   const chainRow: any[] = await (prisma as any).$queryRawUnsafe(`SELECT name FROM public."Chain" WHERE id=$1`, chainId).catch(() => []);
   const msg = `🏭 *בית הכנות ${chainRow[0]?.name || ''}*\nההזמנה שלכם${date ? ` ל-${date}` : ''} *מוכנה לאיסוף* ✅`;
-  try { await sendWhatsApp(phone, msg); return { ok: true, sent_to: phone }; }
-  catch (e: any) { return { ok: false, error: String(e?.message || e).slice(0, 120) }; }
+  try { await sendWhatsApp(phone, msg); return { ok: true, status: 'ready', sent: true, sent_to: phone }; }
+  catch (e: any) { return { ok: true, status: 'ready', sent: false, error: String(e?.message || e).slice(0, 120) }; }
 });
 
 // One branch's order for a date — the delivery note (תעודת משלוח) detail.
@@ -1063,20 +1162,26 @@ registerFn('getChainBranchOrder', async ({ user, body }) => {
   await ensureChainCommissaryTables();
   const chainRow: any[] = await (prisma as any).$queryRawUnsafe(`SELECT name FROM public."Chain" WHERE id=$1`, chainId).catch(() => []);
   const orders: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT id, branch_name, order_date, "createdAt" FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`,
+    `SELECT id, branch_name, order_date, status, eta, approved_at, "createdAt" FROM public."CommissaryChainOrder" WHERE chain_id=$1 AND branch_slug=$2 AND order_date=$3`,
     chainId, branchSlug, date,
   ).catch(() => []);
-  if (!orders.length) return { found: false, chain_name: chainRow[0]?.name || '', branch_slug: branchSlug, order_date: date };
+  const phone = await resolveBranchPhone(chainId, branchSlug);
+  if (!orders.length) return { found: false, chain_name: chainRow[0]?.name || '', branch_slug: branchSlug, order_date: date, phone };
   const o = orders[0];
   const rows: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT name, unit, department, qty, internal_price FROM public."CommissaryChainOrderLine" WHERE order_id=$1 ORDER BY department NULLS LAST, name`, o.id,
+    `SELECT item_key, name, unit, department, qty, internal_price, rejected, reject_reason FROM public."CommissaryChainOrderLine" WHERE order_id=$1 ORDER BY department NULLS LAST, name`, o.id,
   ).catch(() => []);
   let total = 0;
   const lines = rows.map((l) => {
-    const lt = (Number(l.qty) || 0) * (Number(l.internal_price) || 0);
+    const rejected = !!l.rejected;
+    const lt = rejected ? 0 : (Number(l.qty) || 0) * (Number(l.internal_price) || 0);
     total += lt;
-    return { name: l.name, unit: l.unit, department: l.department || null, qty: Number(l.qty) || 0, unit_price: r2(l.internal_price), line_total: r2(lt) };
+    return { item_key: l.item_key, name: l.name, unit: l.unit, department: l.department || null, qty: Number(l.qty) || 0, unit_price: r2(l.internal_price), line_total: r2(lt), rejected, reject_reason: l.reject_reason || null };
   });
   const doc = String(o.id).slice(-6).toUpperCase();
-  return { found: true, order_id: o.id, doc_number: doc, chain_name: chainRow[0]?.name || '', branch_name: o.branch_name || branchSlug, branch_slug: branchSlug, order_date: o.order_date, created_at: o.createdAt, lines, total: r2(total), line_count: lines.length };
+  return {
+    found: true, order_id: o.id, doc_number: doc, chain_name: chainRow[0]?.name || '', branch_name: o.branch_name || branchSlug, branch_slug: branchSlug,
+    order_date: o.order_date, created_at: o.createdAt, status: o.status || 'submitted', eta: o.eta || null, approved_at: o.approved_at || null, phone,
+    lines, total: r2(total), line_count: lines.length,
+  };
 });

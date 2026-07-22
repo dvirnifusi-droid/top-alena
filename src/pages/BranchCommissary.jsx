@@ -11,6 +11,14 @@ import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 const cur = (n) => `₪${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
+// Order lifecycle status as the branch sees it → [label, banner classes].
+const ORDER_STATUS = {
+  submitted: ['⏳ ממתין לאישור בית ההכנות', 'bg-amber-50 text-amber-700 border-amber-200'],
+  approved: ['✅ ההזמנה אושרה', 'bg-sky-50 text-sky-700 border-sky-200'],
+  approved_partial: ['✅ ההזמנה אושרה (חלקית)', 'bg-sky-50 text-sky-700 border-sky-200'],
+  ready: ['📦 ההזמנה מוכנה לאיסוף!', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
+};
+
 function BranchCommissaryInner() {
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,6 +28,7 @@ function BranchCommissaryInner() {
   const [deptFilter, setDeptFilter] = useState('all');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [myOrder, setMyOrder] = useState(null); // this branch's order for the date (status/eta/rejections)
 
   const loadInfo = useCallback(async () => {
     setLoading(true);
@@ -34,10 +43,11 @@ function BranchCommissaryInner() {
     try {
       const res = await base44.functions.getMyBranchCommissaryOrder({ order_date: date });
       const data = res?.data || res;
+      setMyOrder(data);
       const q = {};
       (data?.lines || []).forEach((l) => { q[l.item_key] = l.qty; });
       setQtys(q);
-    } catch { setQtys({}); }
+    } catch { setQtys({}); setMyOrder(null); }
   }, [date]);
 
   useEffect(() => { loadInfo(); }, [loadInfo]);
@@ -76,6 +86,20 @@ function BranchCommissaryInner() {
       />
       <div className="space-y-4" dir="rtl">
         {msg && <div className={`text-sm rounded-lg px-3 py-2 ${msg.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{msg.text}</div>}
+
+        {info?.in_chain && myOrder?.status && (myOrder.lines?.length > 0) && (
+          <div className={`rounded-lg border px-3 py-2 ${(ORDER_STATUS[myOrder.status] || ORDER_STATUS.submitted)[1]}`}>
+            <div className="font-bold text-sm">{(ORDER_STATUS[myOrder.status] || ORDER_STATUS.submitted)[0]}{myOrder.eta ? ` · 🕐 מוכן בערך: ${myOrder.eta}` : ''}</div>
+            {myOrder.rejected_count > 0 && (
+              <div className="mt-1 text-xs">
+                פריטים שלא נכנסו להזמנה:
+                <ul className="list-disc pr-4 mt-0.5">
+                  {myOrder.rejected.map((r, i) => <li key={i}>{r.name}{r.qty ? ` (${r.qty} ${r.unit || ''})` : ''}{r.reason ? ` — ${r.reason}` : ''}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>

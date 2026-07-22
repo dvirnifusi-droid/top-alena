@@ -8,6 +8,15 @@ import { Loader2, Plus, Trash2, Network, RefreshCw, Send, Pencil, Factory, Chevr
 const ils = (n) => `₪${(Number(n) || 0).toLocaleString('he-IL')}`;
 const ils2 = (n) => `₪${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('he-IL', { maximumFractionDigits: 2 })}`;
 
+// Order lifecycle status → [label, pill classes].
+const ORDER_STATUS = {
+  submitted: ['⏳ ממתין לאישור', 'bg-amber-100 text-amber-700'],
+  approved: ['✅ אושר', 'bg-sky-100 text-sky-700'],
+  approved_partial: ['✅ אושר (חלקי)', 'bg-sky-100 text-sky-700'],
+  ready: ['📦 מוכן לאיסוף', 'bg-emerald-100 text-emerald-700'],
+};
+const orderStatus = (s) => ORDER_STATUS[s] || ORDER_STATUS.submitted;
+
 // The commissary (בית הכנות) — a NETWORK-level operation inside the chain HQ.
 // The owner manages the catalog + sees every branch's order + production + cost.
 function ChainCommissary({ chainId }) {
@@ -25,16 +34,45 @@ function ChainCommissary({ chainId }) {
   const [profitDraft, setProfitDraft] = useState('');
   const [note, setNote] = useState(null); // delivery-note modal
   const [noteSent, setNoteSent] = useState(null);
+  const [reject, setReject] = useState({}); // item_key -> reason (presence = rejected)
+  const [etaDraft, setEtaDraft] = useState('');
+  const [phoneDraft, setPhoneDraft] = useState('');
+  const [stockDraft, setStockDraft] = useState({}); // item_key -> base-stock draft
+  const [dueDraft, setDueDraft] = useState({}); // item_key -> due-date draft
 
   const openNote = async (branch_slug) => {
-    setNote({ loading: true }); setNoteSent(null);
-    try { const r = await base44.functions.getChainBranchOrder({ chain_id: chainId, branch_slug, order_date: date }); setNote(r?.data || r); }
-    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); setNote(null); }
+    setNote({ loading: true }); setNoteSent(null); setReject({}); setEtaDraft(''); setPhoneDraft('');
+    try {
+      const r = await base44.functions.getChainBranchOrder({ chain_id: chainId, branch_slug, order_date: date });
+      const d = r?.data || r; setNote(d);
+      setEtaDraft(d?.eta || ''); setPhoneDraft(d?.phone || '');
+      const rj = {}; (d?.lines || []).forEach((l) => { if (l.rejected) rj[l.item_key] = l.reject_reason || ''; }); setReject(rj);
+    } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); setNote(null); }
   };
   const sendReadyFromNote = async () => {
     if (!note?.branch_slug) return;
     setBusy(true);
-    try { const r = await base44.functions.notifyBranchOrderReady({ chain_id: chainId, branch_slug: note.branch_slug, order_date: date }); const d = r?.data || r; setNoteSent(d?.ok ? { ok: true, text: `נשלח ל-${d.sent_to || 'סניף'}` } : { ok: false, text: d?.message || d?.error || 'לא נשלח — לסניף אין מספר טלפון' }); }
+    try { const r = await base44.functions.notifyBranchOrderReady({ chain_id: chainId, branch_slug: note.branch_slug, order_date: date }); const d = r?.data || r; setNoteSent(d?.sent ? { ok: true, text: `נשלח ל-${d.sent_to || 'סניף'}` } : { ok: !!d?.ok, text: d?.message || d?.error || 'סומן מוכן (לא נשלח — חסר טלפון)' }); await load(); }
+    catch (e) { setNoteSent({ ok: false, text: e?.message || 'שגיאה' }); }
+    setBusy(false);
+  };
+  const approveOrder = async () => {
+    if (!note?.branch_slug) return;
+    setBusy(true);
+    const rejections = Object.entries(reject).map(([item_key, reason]) => ({ item_key, reason }));
+    try {
+      const r = await base44.functions.approveChainOrder({ chain_id: chainId, branch_slug: note.branch_slug, order_date: date, eta: etaDraft || null, rejections });
+      const d = r?.data || r;
+      const sent = d?.notify?.sent;
+      setNoteSent({ ok: true, text: `אושר ✅${etaDraft ? ' · יעד ' + etaDraft : ''}${sent ? ' · נשלח לסניף' : d?.notify?.error === 'no_phone' ? ' · לא נשלח (חסר טלפון)' : ''}` });
+      await openNote(note.branch_slug); await load();
+    } catch (e) { setNoteSent({ ok: false, text: e?.message || 'שגיאה' }); }
+    setBusy(false);
+  };
+  const saveBranchPhone = async () => {
+    if (!note?.branch_slug) return;
+    setBusy(true);
+    try { await base44.functions.setBranchPhone({ chain_id: chainId, slug: note.branch_slug, phone: phoneDraft }); setNote((n) => n ? { ...n, phone: String(phoneDraft).replace(/[^\d+]/g, '') } : n); setNoteSent({ ok: true, text: '📞 טלפון נשמר' }); }
     catch (e) { setNoteSent({ ok: false, text: e?.message || 'שגיאה' }); }
     setBusy(false);
   };
@@ -63,7 +101,8 @@ function ChainCommissary({ chainId }) {
     try {
       const r = await base44.functions.getChainCommissary({ chain_id: chainId, order_date: date });
       const d = r?.data || r; setData(d);
-      const m = {}; (d?.catalog || []).forEach((c) => { m[c.item_key] = c.markup_pct ?? ''; }); setMarkups(m);
+      const m = {}, st = {}, du = {}; (d?.catalog || []).forEach((c) => { m[c.item_key] = c.markup_pct ?? ''; st[c.item_key] = c.stock_qty ?? ''; du[c.item_key] = c.due_date || ''; });
+      setMarkups(m); setStockDraft(st); setDueDraft(du);
     } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
     setLoading(false);
   };
@@ -71,8 +110,15 @@ function ChainCommissary({ chainId }) {
 
   const saveMarkup = async (item_key) => {
     setBusy(true);
-    try { await base44.functions.setChainCommissaryItemPricing({ chain_id: chainId, item_key, markup_pct: markups[item_key] === '' ? null : markups[item_key] }); await load(); }
-    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    try {
+      await base44.functions.setChainCommissaryItemPricing({
+        chain_id: chainId, item_key,
+        markup_pct: markups[item_key] === '' ? null : markups[item_key],
+        stock_qty: stockDraft[item_key] === '' || stockDraft[item_key] == null ? null : stockDraft[item_key],
+        due_date: dueDraft[item_key] || null,
+      });
+      await load();
+    } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
     setBusy(false);
   };
   const markDone = async (item_key, done) => {
@@ -142,7 +188,7 @@ function ChainCommissary({ chainId }) {
                           <label key={p.item_key} className={`flex items-start gap-2 rounded p-1.5 cursor-pointer ${p.done ? 'bg-emerald-950/30' : 'bg-slate-800/50 hover:bg-slate-800'}`}>
                             <input type="checkbox" checked={!!p.done} onChange={(e) => markDone(p.item_key, e.target.checked)} className="mt-0.5 w-4 h-4 accent-emerald-500" />
                             <div className="flex-1 min-w-0">
-                              <div className={`text-sm ${p.done ? 'line-through text-slate-500' : 'text-white'}`}><span className="font-bold text-indigo-300">{p.total_qty} {p.unit}</span> · {p.name}</div>
+                              <div className={`text-sm ${p.done ? 'line-through text-slate-500' : 'text-white'}`}><span className="font-bold text-indigo-300">{p.stock_qty > 0 ? p.to_make : p.total_qty} {p.unit}</span> · {p.name}{p.stock_qty > 0 && <span className="text-[10px] text-emerald-400"> · במלאי {p.stock_qty} (הוזמן {p.total_qty})</span>}</div>
                               <div className="text-[11px] text-slate-500">{p.per_branch.map((b) => `${b.branch}: ${b.qty}`).join(' · ')}{p.done && p.done_by ? ` · ✓ ${p.done_by}` : ''}</div>
                             </div>
                           </label>
@@ -157,9 +203,11 @@ function ChainCommissary({ chainId }) {
                   <div className="text-xs font-bold text-slate-400 mb-1">הזמנות מהסניפים</div>
                   {dist.invoices.map((inv) => (
                     <div key={inv.branch_slug} className="flex items-center justify-between text-xs py-1 gap-2">
-                      <span className="text-white flex items-center gap-1.5">
-                        {inv.is_ready ? <span className="text-emerald-400 font-bold">✅ מוכן</span> : <span className="text-amber-400">⏳ {inv.done_items}/{inv.total_items}</span>}
-                        {inv.branch_name} <span className="text-slate-500">· {inv.lines} פריטים</span>
+                      <span className="text-white flex items-center gap-1.5 flex-wrap">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${orderStatus(inv.status)[1]}`}>{orderStatus(inv.status)[0]}</span>
+                        {inv.branch_name} <span className="text-slate-500">· {inv.lines} · הוכן {inv.done_items}/{inv.total_items}</span>
+                        {inv.rejected > 0 && <span className="text-red-400 font-bold">· {inv.rejected} נדחו</span>}
+                        {inv.eta && <span className="text-sky-400">· 🕐 {inv.eta}</span>}
                       </span>
                       <span className="flex items-center gap-2">
                         <span className="text-indigo-300 font-bold whitespace-nowrap">{ils2(inv.total_ils)} <span className="text-emerald-400/70 font-normal">(רווח {ils2(inv.margin_ils)})</span></span>
@@ -192,9 +240,12 @@ function ChainCommissary({ chainId }) {
             )
           ) : tab === 'catalog' ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-slate-300"><thead><tr className="text-slate-500 text-right"><th className="p-1.5">פריט</th><th className="p-1.5">מחלקה</th><th className="p-1.5 text-left">קוסט</th><th className="p-1.5 text-center">רווח %</th><th className="p-1.5 text-left">מחיר פנימי</th><th className="p-1.5 text-left">מרווח</th><th></th></tr></thead>
+              <table className="w-full text-xs text-slate-300"><thead><tr className="text-slate-500 text-right"><th className="p-1.5">פריט</th><th className="p-1.5">מחלקה</th><th className="p-1.5 text-center" title="מלאי בסיס זמין לקחת מיידית">מלאי</th><th className="p-1.5 text-center">תאריך יעד</th><th className="p-1.5 text-left">קוסט</th><th className="p-1.5 text-center">רווח %</th><th className="p-1.5 text-left">מחיר פנימי</th><th className="p-1.5 text-left">מרווח</th><th></th></tr></thead>
                 <tbody>{cat.map((c) => (
-                  <tr key={c.item_key} className="border-t border-slate-800"><td className="p-1.5 font-medium text-white">{c.name}<span className="text-slate-500"> /{c.unit}</span></td><td className="p-1.5 text-slate-400">{c.department || '—'}</td><td className="p-1.5 text-left text-slate-400 whitespace-nowrap">{ils2(c.cost_per_unit)}</td>
+                  <tr key={c.item_key} className="border-t border-slate-800"><td className="p-1.5 font-medium text-white">{c.name}<span className="text-slate-500"> /{c.unit}</span></td><td className="p-1.5 text-slate-400">{c.department || '—'}</td>
+                    <td className="p-1.5"><input type="number" dir="ltr" placeholder="—" value={stockDraft[c.item_key] ?? ''} onChange={(e) => setStockDraft((s) => ({ ...s, [c.item_key]: e.target.value }))} title="מלאי זמין מיידית" className="bg-slate-800 border border-slate-700 rounded w-12 px-1 py-0.5 text-center text-emerald-300" /></td>
+                    <td className="p-1.5"><input type="date" dir="ltr" value={dueDraft[c.item_key] ?? ''} onChange={(e) => setDueDraft((s) => ({ ...s, [c.item_key]: e.target.value }))} className="bg-slate-800 border border-slate-700 rounded w-28 px-1 py-0.5 text-white text-[11px]" /></td>
+                    <td className="p-1.5 text-left text-slate-400 whitespace-nowrap">{ils2(c.cost_per_unit)}</td>
                     <td className="p-1.5"><input type="number" dir="ltr" value={markups[c.item_key] ?? ''} onChange={(e) => setMarkups((s) => ({ ...s, [c.item_key]: e.target.value }))} className="bg-slate-800 border border-slate-700 rounded w-14 px-1 py-0.5 text-center text-white" /></td>
                     <td className="p-1.5 text-left font-bold text-indigo-300 whitespace-nowrap">{ils2(c.internal_price)}</td><td className={`p-1.5 text-left whitespace-nowrap ${c.margin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{ils2(c.margin)}</td>
                     <td className="p-1.5"><button onClick={() => saveMarkup(c.item_key)} disabled={busy} className="text-indigo-400 hover:text-indigo-200"><Save className="w-3.5 h-3.5" /></button></td></tr>
@@ -232,18 +283,54 @@ function ChainCommissary({ chainId }) {
                   <div><div className="text-lg font-extrabold">🏭 בית הכנות · {note.chain_name}</div><div className="text-xs text-slate-500">תעודת משלוח #{note.doc_number}</div></div>
                   <button onClick={() => setNote(null)} className="text-slate-400 hover:text-slate-700 text-xl leading-none">×</button>
                 </div>
-                <div className="flex justify-between text-sm mb-3"><div><b>לכבוד:</b> {note.branch_name}</div><div><b>תאריך:</b> {note.order_date}</div></div>
+                <div className="flex justify-between items-center text-sm mb-2"><div><b>לכבוד:</b> {note.branch_name}</div><div><b>תאריך:</b> {note.order_date}</div></div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${orderStatus(note.status)[1]}`}>{orderStatus(note.status)[0]}</span>
+                  {note.eta && <span className="text-xs text-slate-500">🕐 מוכן בערך: <b>{note.eta}</b></span>}
+                </div>
                 <table className="w-full text-sm mb-1">
                   <thead><tr className="border-b border-slate-200 text-slate-500 text-right text-xs"><th className="py-1">פריט</th><th className="py-1 text-center">כמות</th><th className="py-1 text-left">מחיר יח'</th><th className="py-1 text-left">סה"כ</th></tr></thead>
-                  <tbody>{note.lines.map((l, i) => (
-                    <tr key={i} className="border-b border-slate-100"><td className="py-1.5">{l.name}</td><td className="py-1.5 text-center font-bold">{l.qty} {l.unit}</td><td className="py-1.5 text-left text-slate-500">{ils2(l.unit_price)}</td><td className="py-1.5 text-left font-semibold">{ils2(l.line_total)}</td></tr>
-                  ))}</tbody>
+                  <tbody>{note.lines.map((l, i) => { const isRej = reject[l.item_key] !== undefined; return (
+                    <tr key={i} className="border-b border-slate-100"><td className={`py-1.5 ${isRej ? 'line-through text-red-400' : ''}`}>{l.name}{isRej && reject[l.item_key] ? <span className="text-[10px] text-red-500 no-underline"> · {reject[l.item_key]}</span> : ''}</td><td className={`py-1.5 text-center font-bold ${isRej ? 'line-through text-red-400' : ''}`}>{l.qty} {l.unit}</td><td className="py-1.5 text-left text-slate-500">{ils2(l.unit_price)}</td><td className="py-1.5 text-left font-semibold">{isRej ? '—' : ils2(l.line_total)}</td></tr>
+                  ); })}</tbody>
                 </table>
-                <div className="flex justify-between items-center border-t-2 border-slate-800 pt-2 mt-1 font-bold"><span>סה"כ</span><span className="text-lg text-indigo-700">{ils2(note.total)}</span></div>
+                <div className="flex justify-between items-center border-t-2 border-slate-800 pt-2 mt-1 font-bold"><span>סה"כ</span><span className="text-lg text-indigo-700">{ils2((note.lines || []).reduce((s, l) => s + (reject[l.item_key] !== undefined ? 0 : (l.line_total || 0)), 0))}</span></div>
+
+                {/* Approve / reject-items editor (screen only) */}
+                <div className="mt-4 rounded-lg bg-slate-50 border border-slate-200 p-3 no-print">
+                  <div className="font-bold text-slate-700 mb-2 text-sm">אישור הזמנה — סמן פריטים לדחייה + כתוב מתי מוכן</div>
+                  <div className="space-y-1 mb-2 max-h-40 overflow-y-auto">
+                    {note.lines.map((l, i) => { const isRej = reject[l.item_key] !== undefined; return (
+                      <div key={i} className="flex items-center gap-2">
+                        <label className="flex items-center gap-1 text-xs text-slate-600 w-32 shrink-0">
+                          <input type="checkbox" checked={isRej} onChange={(e) => setReject((s) => { const n = { ...s }; if (e.target.checked) n[l.item_key] = n[l.item_key] || ''; else delete n[l.item_key]; return n; })} className="w-3.5 h-3.5 accent-red-500" />
+                          <span className={isRej ? 'line-through text-red-500' : ''}>{l.name}</span>
+                        </label>
+                        {isRej && <input value={reject[l.item_key]} onChange={(e) => setReject((s) => ({ ...s, [l.item_key]: e.target.value }))} placeholder="סיבת דחייה" className="flex-1 border border-slate-300 rounded px-2 py-0.5 text-xs" />}
+                      </div>
+                    ); })}
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <label className="text-xs text-slate-600 shrink-0">מוכן בערך:</label>
+                    <input value={etaDraft} onChange={(e) => setEtaDraft(e.target.value)} placeholder="למשל: מחר 14:00 / 22/07 15:30" className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs" />
+                  </div>
+                  <button onClick={approveOrder} disabled={busy} className="w-full bg-sky-600 hover:bg-sky-500 text-white rounded-lg py-2 text-sm font-bold disabled:opacity-50">✅ אשר + הודע לסניף{Object.keys(reject).length ? ` (${Object.keys(reject).length} נדחו)` : ''}</button>
+                </div>
+
+                {/* Branch phone (where the "ready" alert goes) */}
+                <div className="mt-3 no-print">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-slate-600 shrink-0">📞 טלפון סניף:</label>
+                    <input value={phoneDraft} onChange={(e) => setPhoneDraft(e.target.value)} placeholder="0532181900" dir="ltr" className="flex-1 border border-slate-300 rounded px-2 py-1 text-xs text-left" />
+                    <button onClick={saveBranchPhone} disabled={busy} className="bg-slate-200 hover:bg-slate-300 rounded px-3 py-1 text-xs font-semibold">שמור</button>
+                  </div>
+                  {!note.phone && <div className="text-[11px] text-amber-600 mt-1">⚠ אין טלפון מוגדר — הזן כדי שהסניף יקבל הודעת "מוכן" בוואטסאפ.</div>}
+                </div>
+
                 {noteSent && <div className={`mt-3 text-sm rounded px-2 py-1.5 ${noteSent.ok ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{noteSent.ok ? '✅ ' : '⚠ '}{noteSent.text}</div>}
-                <div className="flex gap-2 mt-4">
+                <div className="flex gap-2 mt-4 no-print">
                   <button onClick={() => window.print()} className="flex-1 bg-slate-200 hover:bg-slate-300 rounded-lg py-2 text-sm font-semibold">🖨 הדפס</button>
-                  <button onClick={sendReadyFromNote} disabled={busy} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-bold disabled:opacity-50">✅ שלח "מוכן לאיסוף"</button>
+                  <button onClick={sendReadyFromNote} disabled={busy} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-bold disabled:opacity-50">📦 מוכן לאיסוף</button>
                 </div>
               </>
             )}
