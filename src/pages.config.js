@@ -165,6 +165,7 @@ import AIHub from './pages/AIHub';
 import QueueHub from './pages/QueueHub';
 import ColorPreview from './pages/ColorPreview';
 import Recipes from './pages/Recipes';
+import Commissary from './pages/Commissary';
 import CashFlow from './pages/CashFlow';
 import MenuManagement from './pages/MenuManagement';
 import PrepSheet from './pages/PrepSheet';
@@ -304,6 +305,7 @@ export const PAGES = {
     "QueueHub": QueueHub,
     "ColorPreview": ColorPreview,
     "Recipes": Recipes,
+    "Commissary": Commissary,
     "CashFlow": CashFlow,
     "MenuManagement": MenuManagement,
     "PrepSheet": PrepSheet,

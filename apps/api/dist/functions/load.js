@@ -14,6 +14,7 @@ import { getOrCreateLeadToken } from './eventThanks.js';
 import './cashflowActions.js';
 import './cashRegister.js';
 import './laborCost.js';
+import './commissary.js';
 import './i18nTranslate.js';
 import './notificationSettingsFns.js';
 import { randomUUID } from 'node:crypto';

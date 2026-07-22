@@ -85,6 +85,7 @@ export const adminLinks = [
   { title: "💰 תזרים מזומנים", url: createPageUrl("CashFlow"), icon: Wallet, isSubItem: true, color: "olive" },
   { title: "👥 עלות שכר", url: createPageUrl("LaborCost"), icon: BarChart3, isSubItem: true, color: "olive" },
   { title: "🍽 מתכונים ופוד-קוסט", url: createPageUrl("Recipes"), icon: ChefHat, isSubItem: true, color: "olive" },
+  { title: "🏭 בית הכנות (רשת)", url: createPageUrl("Commissary"), icon: ChefHat, isSubItem: true, color: "olive" },
   { title: "ניהול טיפים", url: createPageUrl("Tips"), icon: Banknote, isSubItem: true, color: "olive" },
   { title: "חשבוניות", url: createPageUrl("Invoices"), icon: FileText, isSubItem: true, color: "olive" },
   { title: "ספקים", url: createPageUrl("Suppliers"), icon: Building, isSubItem: true, color: "olive" },
