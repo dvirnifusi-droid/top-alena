@@ -184,6 +184,26 @@ export default function AvailabilityForm() {
          loadData();
      }, []);
 
+     // Auto-identify a logged-in employee: they're already authenticated by their
+     // session, so match their email to an active employee and drop them straight
+     // into their own form — no name pick, no access code. Falls back to the
+     // manual picker for guests / no-match / after "switch user".
+     useEffect(() => {
+         if (selectedEmployee || !allEmployees.length) return;
+         let cancelled = false;
+         (async () => {
+             try {
+                 const me = await base44.auth.me().catch(() => null);
+                 const email = me?.email;
+                 if (!email || cancelled) return;
+                 const emp = allEmployees.find(e => e.email && e.email.toLowerCase() === email.toLowerCase());
+                 if (emp && !cancelled) { setEmployeeEmail(emp.email); loadCurrentEmployee({ email: emp.email, skipAuth: true }); }
+             } catch { /* not logged in — the manual picker stays */ }
+         })();
+         return () => { cancelled = true; };
+         // eslint-disable-next-line react-hooks/exhaustive-deps
+     }, [allEmployees]);
+
      const buildDayDataForWeek = (offset) => {
          const deptConfig = settings?.departments?.find(d => d.key === selectedDepartment);
          const defaultPosition = deptConfig?.default_position ? [deptConfig.default_position] : deptConfig?.positions?.length > 0 ? [deptConfig.positions[0]] : [];
@@ -258,41 +278,48 @@ export default function AvailabilityForm() {
          }
      };
 
-     const loadCurrentEmployee = async () => {
-         if (!employeeEmail) {
+     const loadCurrentEmployee = async (opts = {}) => {
+         // skipAuth: the user is already logged in (session), so their identity is
+         // proven — no name pick / access code needed. opts.email lets the auto-login
+         // pass the address directly (state set is async).
+         const skipAuth = !!opts.skipAuth;
+         const email = opts.email || employeeEmail;
+         if (!email) {
              setError('בחר עובד מהרשימה');
              return;
          }
-         
-         if (useCodeAuth && !accessCode) {
+
+         if (!skipAuth && useCodeAuth && !accessCode) {
              setError('הכנס את קוד הגישה שלך');
              return;
          }
 
          setLoading(true);
          try {
-             const emp = allEmployees.find(e => e.email && e.email.toLowerCase() === employeeEmail.toLowerCase());
+             const emp = allEmployees.find(e => e.email && e.email.toLowerCase() === email.toLowerCase());
              if (!emp) {
                  setError('לא נמצא עובד עם מייל זה.');
                  setLoading(false);
                  return;
              }
-             
-             if (useCodeAuth) {
-                 if (emp.access_code !== accessCode) {
-                     setError('קוד הגישה אינו נכון. בדוק את ההקלדה.');
-                     setAccessCode('');
-                     setLoading(false);
-                     return;
-                 }
-             } else {
-                 if (emp.access_code) {
-                     setError('עובד זה דורש קוד גישה. בחר בהתחברות באמצעות קוד.');
-                     setLoading(false);
-                     return;
+
+             if (!skipAuth) {
+                 if (useCodeAuth) {
+                     if (emp.access_code !== accessCode) {
+                         setError('קוד הגישה אינו נכון. בדוק את ההקלדה.');
+                         setAccessCode('');
+                         setLoading(false);
+                         return;
+                     }
+                 } else {
+                     if (emp.access_code) {
+                         setError('עובד זה דורש קוד גישה. בחר בהתחברות באמצעות קוד.');
+                         setLoading(false);
+                         return;
+                     }
                  }
              }
-             
+
              setSelectedEmployee(emp);
              const dept = loginDepartment || emp.department || DEPARTMENTS[0]?.key || null;
              setSelectedDepartment(dept);
