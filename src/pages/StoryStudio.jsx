@@ -6,7 +6,7 @@ import { UploadFile } from '@/integrations/Core';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Upload, X, Copy, Check, Download, Sparkles } from 'lucide-react';
+import { Loader2, Upload, X, Copy, Check, Download, Sparkles, Wand2, RotateCcw } from 'lucide-react';
 
 const withHash = (tags) => (tags || []).map((h) => (String(h).startsWith('#') ? h : '#' + h)).join(' ');
 
@@ -26,6 +26,8 @@ function wrapLines(ctx, text, maxWidth) {
 
 export default function StoryStudio() {
   const [imageUrl, setImageUrl] = useState('');
+  const [enhancedUrl, setEnhancedUrl] = useState(''); // AI-retouched version (data URL)
+  const [enhancing, setEnhancing] = useState(false);
   const [note, setNote] = useState('');
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -35,15 +37,33 @@ export default function StoryStudio() {
   const [rendered, setRendered] = useState(false);
   const canvasRef = useRef(null);
 
+  // What the story is actually built on: the AI-retouched photo if the owner
+  // asked for it, otherwise the original upload.
+  const sourceUrl = enhancedUrl || imageUrl;
+
   const onFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true); setErr(''); setRes(null); setRendered(false);
+    setUploading(true); setErr(''); setRes(null); setRendered(false); setEnhancedUrl('');
     try {
       const { file_url } = await UploadFile({ file });
       setImageUrl(file_url);
     } catch (er) { setErr('העלאת התמונה נכשלה: ' + (er?.message || '')); }
     finally { setUploading(false); }
+  };
+
+  // Opt-in AI retouch — polishes the REAL dish (light/colour/background), keeps
+  // the food authentic. Costs a little per click, so it's a deliberate button.
+  const enhance = async () => {
+    if (!imageUrl) return;
+    setEnhancing(true); setErr(''); setRendered(false);
+    try {
+      const r = await base44.functions.enhanceStoryPhoto({ image_url: imageUrl, note });
+      const d = r?.data || r || {};
+      if (!d.image_data_url) throw new Error('שדרוג ה-AI לא הוחזר — נסה שוב');
+      setEnhancedUrl(d.image_data_url);
+    } catch (e) { setErr(e?.message || 'שדרוג ה-AI נכשל'); }
+    finally { setEnhancing(false); }
   };
 
   const generate = async () => {
@@ -56,38 +76,74 @@ export default function StoryStudio() {
     finally { setLoading(false); }
   };
 
-  // Compose the story image whenever a result + image are ready.
+  // Compose the story image whenever a result + image are ready. Uses the app's
+  // display serif (Frank Ruhl Libre) for a designed look, a legibility panel so
+  // text sits well on any photo, and a subtle photographic lift on the image.
   useEffect(() => {
-    if (!res || !imageUrl || !canvasRef.current) return;
+    if (!res || !sourceUrl || !canvasRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     canvas.width = 1080; canvas.height = 1920;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      try {
-        const scale = Math.max(1080 / img.width, 1920 / img.height);
-        const w = img.width * scale, h = img.height * scale;
-        ctx.fillStyle = '#1b1512'; ctx.fillRect(0, 0, 1080, 1920);
-        ctx.drawImage(img, (1080 - w) / 2, (1920 - h) / 2, w, h);
-        const grad = ctx.createLinearGradient(0, 1120, 0, 1920);
-        grad.addColorStop(0, 'rgba(26,16,10,0)');
-        grad.addColorStop(1, 'rgba(64,29,18,0.94)');
-        ctx.fillStyle = grad; ctx.fillRect(0, 1120, 1080, 800);
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '700 88px "Segoe UI", Arial';
-        const lines = wrapLines(ctx, res.overlay_text, 960);
-        let y = 1640 - (lines.length - 1) * 100;
-        for (const ln of lines) { ctx.fillText(ln, 540, y); y += 104; }
-        ctx.font = '600 46px "Segoe UI", Arial'; ctx.fillStyle = '#F0D9A0';
-        ctx.fillText(res.brand || '', 540, 1810);
-        setRendered(true);
-      } catch { setRendered(false); }
+
+    const paint = () => {
+      const img = new Image();
+      if (!enhancedUrl) img.crossOrigin = 'anonymous'; // data: URLs never taint
+      img.onload = () => {
+        try {
+          // Cover-fit with a gentle authentic lift (colour/contrast/brightness).
+          const scale = Math.max(1080 / img.width, 1920 / img.height);
+          const w = img.width * scale, h = img.height * scale;
+          ctx.fillStyle = '#160f0b'; ctx.fillRect(0, 0, 1080, 1920);
+          ctx.save();
+          ctx.filter = 'saturate(1.14) contrast(1.07) brightness(1.03)';
+          ctx.drawImage(img, (1080 - w) / 2, (1920 - h) / 2, w, h);
+          ctx.restore();
+
+          // Bottom gradient scrim for legibility.
+          const grad = ctx.createLinearGradient(0, 1000, 0, 1920);
+          grad.addColorStop(0, 'rgba(18,10,6,0)');
+          grad.addColorStop(0.55, 'rgba(30,15,9,0.72)');
+          grad.addColorStop(1, 'rgba(40,18,10,0.97)');
+          ctx.fillStyle = grad; ctx.fillRect(0, 1000, 1080, 920);
+
+          ctx.textAlign = 'center';
+          // Overlay headline — display serif, wrapped, with a soft shadow.
+          ctx.font = '900 96px "Frank Ruhl Libre", Georgia, serif';
+          const lines = wrapLines(ctx, res.overlay_text, 920);
+          const lineH = 112;
+          let y = 1600 - (lines.length - 1) * lineH;
+
+          // Brand accent bar above the headline.
+          ctx.fillStyle = '#E4A24E';
+          ctx.fillRect(540 - 64, y - 118, 128, 9);
+
+          ctx.save();
+          ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 22; ctx.shadowOffsetY = 4;
+          ctx.fillStyle = '#ffffff';
+          for (const ln of lines) { ctx.fillText(ln, 540, y); y += lineH; }
+          ctx.restore();
+
+          // Brand name — the app's sans.
+          ctx.font = '700 46px "Assistant", system-ui, sans-serif';
+          ctx.fillStyle = '#F0D9A0';
+          ctx.fillText(res.brand || '', 540, 1812);
+          setRendered(true);
+        } catch { setRendered(false); }
+      };
+      img.onerror = () => setRendered(false);
+      img.src = sourceUrl;
     };
-    img.onerror = () => setRendered(false);
-    img.src = imageUrl;
-  }, [res, imageUrl]);
+
+    // Make sure the display fonts are loaded before painting, else canvas falls
+    // back to a system face and the "cool font" is lost.
+    const fonts = (typeof document !== 'undefined' && document.fonts) ? document.fonts : null;
+    if (fonts?.load) {
+      Promise.all([
+        fonts.load('900 96px "Frank Ruhl Libre"'),
+        fonts.load('700 46px "Assistant"'),
+      ]).then(paint).catch(paint);
+    } else { paint(); }
+  }, [res, sourceUrl, enhancedUrl]);
 
   const download = () => {
     try {
@@ -103,9 +159,22 @@ export default function StoryStudio() {
         <Card className="p-4 space-y-3">
           <div className="text-sm text-slate-600 flex items-center gap-1"><Sparkles className="w-4 h-4 text-orange-600" /> העלה תמונת מוצר/מנה — ה-AI יכתוב טקסט ויעצב סטורי מוכן לפרסום.</div>
           {imageUrl ? (
-            <div className="relative inline-block">
-              <img src={imageUrl} alt="preview" className="max-h-52 rounded-lg border" />
-              <button onClick={() => { setImageUrl(''); setRes(null); setRendered(false); }} className="absolute top-1 left-1 bg-black/60 text-white rounded-full p-1" aria-label="הסר"><X className="w-4 h-4" /></button>
+            <div className="space-y-2">
+              <div className="relative inline-block">
+                <img src={sourceUrl} alt="preview" className="max-h-52 rounded-lg border" />
+                {enhancedUrl && <span className="absolute bottom-1 right-1 bg-orange-600 text-white text-[10px] px-1.5 py-0.5 rounded">✨ שודרג</span>}
+                <button onClick={() => { setImageUrl(''); setEnhancedUrl(''); setRes(null); setRendered(false); }} className="absolute top-1 left-1 bg-black/60 text-white rounded-full p-1" aria-label="הסר"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {!enhancedUrl ? (
+                  <Button size="sm" variant="outline" onClick={enhance} disabled={enhancing} className="text-orange-700 border-orange-300">
+                    {enhancing ? <><Loader2 className="w-4 h-4 animate-spin ml-1" /> משדרג…</> : <><Wand2 className="w-4 h-4 ml-1" /> שדרג עם AI (סטודיו)</>}
+                  </Button>
+                ) : (
+                  <button onClick={() => { setEnhancedUrl(''); setRendered(false); }} className="text-xs text-slate-500 hover:text-slate-700 inline-flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> חזור לתמונה המקורית</button>
+                )}
+              </div>
+              {!enhancedUrl && <p className="text-[11px] text-slate-400">משפר תאורה, צבע ורקע — המנה נשארת בדיוק כמו שצילמת. אופציונלי.</p>}
             </div>
           ) : (
             <label className="inline-flex items-center gap-2 cursor-pointer border border-dashed border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
@@ -118,7 +187,7 @@ export default function StoryStudio() {
             <label className="text-xs text-slate-500">הקשר (אופציונלי) — מנה חדשה / מבצע / חג</label>
             <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="למשל: מבצע חמישי, קוקטייל חדש…" className="mt-1" />
           </div>
-          <Button onClick={generate} disabled={loading || uploading || !imageUrl} className="bg-[#A04A2E] hover:bg-[#7A3722] w-full">
+          <Button onClick={generate} disabled={loading || uploading || enhancing || !imageUrl} className="bg-[#A04A2E] hover:bg-[#7A3722] w-full">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : '✨ צור סטורי'}
           </Button>
           {err && <p className="text-sm text-red-600">{err}</p>}

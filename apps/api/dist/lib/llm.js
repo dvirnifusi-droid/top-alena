@@ -452,6 +452,53 @@ export async function generateImage({ prompt }) {
     }
     throw new Error(`Imagen: no recipe worked. Last: ${lastErr}. Set GEMINI_IMAGE_MODEL env or switch to Vertex AI.`);
 }
+// Image-to-image editing ("nano banana"). Unlike generateImage (text→image,
+// invents a scene), this conditions on the OWNER's actual photo and returns an
+// enhanced version — so a real dish stays the real dish. gemini-2.5-flash-image
+// is the cheap image tier and is what's enabled on the key (verified live).
+export async function editImage({ imageUrl, instruction }) {
+    const { mime: inMime, data: inData } = await fetchFileAsBase64(imageUrl);
+    const models = [
+        process.env.GEMINI_IMAGE_EDIT_MODEL,
+        'gemini-2.5-flash-image',
+        'gemini-2.0-flash-preview-image-generation',
+    ].filter(Boolean);
+    let lastErr = '';
+    for (const model of models) {
+        const body = {
+            contents: [{ role: 'user', parts: [{ text: instruction }, { inlineData: { mimeType: inMime, data: inData } }] }],
+            generationConfig: { responseModalities: ['IMAGE'] },
+        };
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 60_000);
+        let res;
+        try {
+            res = await fetch(`${GEMINI_BASE}/models/${model}:generateContent?key=${geminiKey()}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body), signal: controller.signal,
+            });
+        }
+        catch (e) {
+            clearTimeout(timer);
+            lastErr = `${model}: ${e?.name === 'AbortError' ? 'timeout' : String(e?.message || e).slice(0, 120)}`;
+            continue;
+        }
+        clearTimeout(timer);
+        if (res.ok) {
+            const d = await res.json();
+            const parts = d?.candidates?.[0]?.content?.parts || [];
+            const img = parts.find((p) => p?.inlineData?.data);
+            if (img)
+                return { image_base64: img.inlineData.data, mime: img.inlineData.mimeType || 'image/png', model };
+            lastErr = `${model}: 200 but no image (finish=${d?.candidates?.[0]?.finishReason || '?'})`;
+            continue;
+        }
+        lastErr = `${model} ${res.status} ${(await res.text().catch(() => '')).slice(0, 160)}`;
+        if ([401, 403].includes(res.status))
+            break; // key not entitled — stop walking
+    }
+    throw new Error(`image edit failed: ${lastErr}`);
+}
 // Returns the Base44-compatible envelope { status, output, details } so the
 // frontend's existing checks keep working unchanged.
 export async function extractDataFromFile({ fileUrl, schema, }) {

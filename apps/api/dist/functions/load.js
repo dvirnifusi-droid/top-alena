@@ -34,7 +34,7 @@ import { TIER_THRESHOLDS } from '../lib/clubTier.js';
 import { marketingStats } from '../lib/marketingStats.js';
 import { walletAvailability, applyCertExpiry, normalizePrivateKey, emailFromServiceAccountJson, diagnoseGoogleWallet, } from '../lib/walletPass.js';
 import { TEMPLATES, templateStatus, templateRejectionRisk, sendTemplated, notifyOwner, notifyStaff, sendClubMessage } from '../lib/waTemplates.js';
-import { invokeLLM, generateImage } from '../lib/llm.js';
+import { invokeLLM, generateImage, editImage } from '../lib/llm.js';
 import { scanContent, importScanned } from '../lib/aiScanner.js';
 import { driveAccessToken, listDriveFiles, downloadDriveFile } from '../lib/gdrive.js';
 import { uploadStreamToS3 } from '../lib/storage.js';
@@ -4553,6 +4553,35 @@ registerFn('generateStoryContent', async ({ body, user }) => {
         cta: String(res.cta || ''),
         brand,
     };
+});
+/** Opt-in AI retouch: send the owner's ACTUAL photo to the image-editing model
+ *  and get back a polished version of the SAME dish (better light/colour/back-
+ *  ground) — authenticity preserved by a hard "do not change the food" instruction.
+ *  Returns a data: URL so the frontend canvas can use it with no CORS taint. */
+registerFn('enhanceStoryPhoto', async ({ body, user }) => {
+    await requireBackOffice(user, 'enhanceStoryPhoto', 'MarketingHub');
+    const imageUrl = String(body?.image_url || '').trim();
+    if (!imageUrl)
+        throw new Error('העלה תמונה קודם');
+    const note = String(body?.note || '').trim();
+    const instruction = [
+        'You are a professional food-photography retoucher. Enhance THIS EXACT photo for an Instagram story.',
+        'Improve lighting, white balance, sharpness and colour vibrancy; make the background cleaner and less distracting; make the food look fresh and appetising.',
+        'CRITICAL — authenticity: keep the SAME dish, the SAME plating, the SAME ingredients and garnish EXACTLY as in the photo. Do NOT add, remove, replace, restyle or invent any food or object. This is a real dish a paying customer will receive; it must stay true to the original.',
+        note ? `Context from the owner: ${note}` : '',
+        'Output a single photorealistic image, well-composed for a vertical story frame.',
+    ].filter(Boolean).join('\n');
+    let out;
+    try {
+        out = await editImage({ imageUrl, instruction });
+    }
+    catch (e) {
+        const msg = String(e?.message || '');
+        if (/40[13]/.test(msg))
+            throw new Error('שדרוג ה-AI לא זמין על החשבון כרגע. אפשר להשתמש בשיפור הרגיל.');
+        throw new Error('שדרוג ה-AI לא הצליח — נסה שוב, ואם חוזר השתמש בשיפור הרגיל.');
+    }
+    return { image_data_url: `data:${out.mime};base64,${out.image_base64}`, model: out.model };
 });
 /** Wallet setup state: what is configured, and when the Apple cert lapses. */
 registerFn('getWalletSetup', async ({ user }) => {
