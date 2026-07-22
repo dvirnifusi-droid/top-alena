@@ -1007,6 +1007,17 @@ function explodeRecipe(recipeId: string, units: number, recipeById: Map<string, 
   }
 }
 
+// The Postgres schema of the chain's designated commissary tenant. alena lives in
+// `public`; every other tenant in `tenant_<slug>`. The commissary can be a
+// dedicated tenant (e.g. nifusigroup) whose product tree the HQ must read
+// cross-schema. Slug is validated to a safe identifier before interpolation.
+async function commissarySchema(chainId: string): Promise<string> {
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT commissary_slug FROM public."Chain" WHERE id=$1`, chainId).catch(() => []);
+  const slug = String(rows[0]?.commissary_slug || '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  if (!slug || slug === 'alena') return 'public';
+  return `tenant_${slug.replace(/-/g, '_')}`;
+}
+
 // What the commissary must BUY to fulfil a date's orders: raw materials derived
 // from the product tree of every ordered prep, grouped by supplier, + the raw
 // cost and a profit-% suggestion (covers labor / fixed / variable).
@@ -1023,10 +1034,12 @@ registerFn('getChainCommissaryPurchasing', async ({ user, body }) => {
      WHERE o.chain_id=$1 AND o.order_date=$2 GROUP BY l.item_key`, chainId, date,
   ).catch(() => []);
 
-  // The commissary's recipe tree (its own schema).
-  const recipes: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, yield_qty FROM "Recipe"`).catch(() => []);
-  const ris: any[] = await (prisma as any).$queryRawUnsafe(`SELECT recipe_id, ingredient_id, prep_recipe_id, qty FROM "RecipeIngredient"`).catch(() => []);
-  const ings: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, price_per_unit, waste_percent, supplier_name FROM "Ingredient"`).catch(() => []);
+  // The commissary tenant's recipe tree — read from ITS schema (may differ from
+  // the container running this HQ query, e.g. a dedicated commissary tenant).
+  const sch = await commissarySchema(chainId);
+  const recipes: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, yield_qty FROM "${sch}"."Recipe"`).catch(() => []);
+  const ris: any[] = await (prisma as any).$queryRawUnsafe(`SELECT recipe_id, ingredient_id, prep_recipe_id, qty FROM "${sch}"."RecipeIngredient"`).catch(() => []);
+  const ings: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, price_per_unit, waste_percent, supplier_name FROM "${sch}"."Ingredient"`).catch(() => []);
   const recipeById = new Map(recipes.map((r) => [r.id, r]));
   const riByRecipe = new Map<string, any[]>();
   for (const ri of ris) { const a = riByRecipe.get(ri.recipe_id) || []; a.push(ri); riByRecipe.set(ri.recipe_id, a); }
@@ -1074,6 +1087,27 @@ registerFn('getChainCommissaryPurchasing', async ({ user, body }) => {
     suggested_total: r2(rawCost * (1 + profitPct / 100)),
     ingredient_count: acc.size, unpriced_preps: unpricedPreps,
   };
+});
+
+// Reset the commissary tenant's product tree (recipes + raw materials + local
+// commissary catalog) AND the published chain catalog — so the owner can wipe the
+// seeded demo and build the real tree from scratch. Confirm-gated (destructive).
+registerFn('resetCommissaryTenant', async ({ user, body }) => {
+  const chainId = String((body as any)?.chain_id || '');
+  if (!chainId) throw new Error('chain_id required');
+  await assertChainOwner(user, chainId);
+  if (String((body as any)?.confirm) !== 'RESET') throw new Error('confirm=RESET required');
+  await ensureChainCommissaryTables();
+  const sch = await commissarySchema(chainId);
+  const exec = (q: string, ...p: any[]) => (prisma as any).$executeRawUnsafe(q, ...p).catch(() => {});
+  // Product tree — children before parents (FK order).
+  await exec(`DELETE FROM "${sch}"."RecipeIngredient"`);
+  await exec(`DELETE FROM "${sch}"."CommissaryItem"`);
+  await exec(`DELETE FROM "${sch}"."Recipe"`);
+  await exec(`DELETE FROM "${sch}"."Ingredient"`);
+  // Published chain catalog + any orders' distribution for this chain.
+  await exec(`DELETE FROM public."CommissaryCatalogItem" WHERE chain_id=$1`, chainId);
+  return { ok: true, schema: sch };
 });
 
 // Owner sets the network profit % (labor / fixed / variable coverage).

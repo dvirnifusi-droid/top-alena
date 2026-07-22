@@ -125,6 +125,13 @@ function ChainCommissary({ chainId }) {
     catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
     setBusy(false);
   };
+  const resetTenant = async () => {
+    if (!window.confirm('לאפס לגמרי את עץ המוצר של בית ההכנות (מתכונים + חומרי גלם + קטלוג פנימי)? פעולה בלתי הפיכה — כדי לבנות את העץ האמיתי מאפס.')) return;
+    setBusy(true);
+    try { await base44.functions.resetCommissaryTenant({ chain_id: chainId, confirm: 'RESET' }); setMsg({ ok: true, text: '🗑️ בית ההכנות אופס. בנה עץ מוצר חדש דרך /Recipes + חשבוניות ספקים.' }); await load(); }
+    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    setBusy(false);
+  };
   const notifyReady = async (branch_slug, branch_name) => {
     setBusy(true);
     try { const r = await base44.functions.notifyBranchOrderReady({ chain_id: chainId, branch_slug, order_date: date }); const d = r?.data || r; setMsg(d?.ok ? { ok: true, text: `📤 נשלח ל-${branch_name}: מוכן לאיסוף` } : { ok: false, text: d?.message || 'לא נשלח (חסר טלפון)' }); }
@@ -343,6 +350,10 @@ function ChainCommissary({ chainId }) {
                 <a href={createPageUrl('Invoices')} className="block bg-slate-700 hover:bg-slate-600 text-white text-center rounded-lg py-2 font-bold">🧾 חשבוניות ספקים → עדכון מחירי חומרי גלם</a>
               </div>
               <p className="text-[11px] text-slate-500">חשבוניות הספקים של בית ההכנות (הרשת) נסרקות במסך החשבוניות ומעדכנות אוטומטית את מחירי חומרי הגלם — וזה מגלגל את כל עץ המוצר עד למחיר הפנימי שהסניפים משלמים.</p>
+              <div className="flex items-center justify-between border-t border-slate-800 pt-2">
+                <span className="text-[11px] text-slate-500">בית ההכנות (טננט): <b className="text-indigo-300">{data?.commissary_slug || '—'}</b></span>
+                <button onClick={resetTenant} disabled={busy} className="text-[11px] text-slate-500 hover:text-red-400">🗑️ אפס עץ מוצר</button>
+              </div>
             </div>
           ) : (
             <>
