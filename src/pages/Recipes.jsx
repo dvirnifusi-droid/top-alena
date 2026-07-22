@@ -295,8 +295,12 @@ function RecipesInner() {
         <Button size="sm" variant={filter === 'PREP' ? 'default' : 'outline'} onClick={() => setFilter('PREP')}>
           🥣 הכנות
         </Button>
+        <Button size="sm" variant={filter === 'INGREDIENT' ? 'default' : 'outline'} onClick={() => setFilter('INGREDIENT')}>
+          🏷 מלאי / חומרי גלם
+        </Button>
       </div>
 
+      {filter === 'INGREDIENT' ? <IngredientInventory /> : (<>
       {highFc.length > 0 && filter === 'DISH' && (
         <Card className="bg-red-50 border-red-200">
           <CardContent className="p-3 flex items-start gap-2 text-sm text-red-900">
@@ -382,7 +386,58 @@ function RecipesInner() {
           )}
         </CardContent>
       </Card>
+      </>)}
     </div>
+  );
+}
+
+// R2 — the raw-materials / inventory tab: every חומר גלם with its price-per-unit
+// (fed by invoices), inline-editable (manual fixed price → cascades all recipes).
+function IngredientInventory() {
+  const [ings, setIngs] = React.useState(null);
+  const [drafts, setDrafts] = React.useState({});
+  const [busy, setBusy] = React.useState(null);
+  const load = async () => {
+    try {
+      const r = await base44.functions.listIngredients({});
+      const list = (r?.data || r)?.ingredients || [];
+      setIngs(list);
+      const d = {}; list.forEach((i) => { d[i.id] = i.price_per_unit ?? ''; }); setDrafts(d);
+    } catch { setIngs([]); }
+  };
+  React.useEffect(() => { load(); }, []);
+  const save = async (i) => {
+    const price = Number(drafts[i.id]);
+    if (!Number.isFinite(price) || price < 0) return;
+    setBusy(i.id);
+    try { await base44.functions.applyIngredientPriceUpdate({ ingredient_id: i.id, price_per_unit: price }); await load(); }
+    catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+    setBusy(null);
+  };
+  if (!ings) return <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>;
+  return (
+    <Card>
+      <CardHeader className="pb-2"><CardTitle className="text-base">🏷 מלאי / חומרי גלם ({ings.length}) · מחיר ליחידה מהחשבוניות (ניתן לקבוע ידנית)</CardTitle></CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="p-2 text-right">חומר גלם</th><th className="p-2 text-right">ספק</th><th className="p-2 text-center">יח'</th><th className="p-2 text-center">מחיר ליח'</th><th></th></tr></thead>
+            <tbody className="divide-y">
+              {ings.map((i) => (
+                <tr key={i.id}>
+                  <td className="p-2 font-medium">{i.name}</td>
+                  <td className="p-2 text-xs text-slate-500">{i.supplier_name || '—'}</td>
+                  <td className="p-2 text-center text-xs">{i.unit || 'kg'}</td>
+                  <td className="p-2 text-center"><Input type="number" dir="ltr" className="h-8 w-24 mx-auto text-center" value={drafts[i.id] ?? ''} onChange={(e) => setDrafts((d) => ({ ...d, [i.id]: e.target.value }))} /></td>
+                  <td className="p-2"><Button size="sm" variant="outline" disabled={busy === i.id} onClick={() => save(i)}>{busy === i.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור'}</Button></td>
+                </tr>
+              ))}
+              {ings.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-slate-400 text-sm">אין חומרי גלם עדיין — הם נוצרים מהחשבוניות (עץ מוצר → 🆕 מוצרים חדשים).</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
