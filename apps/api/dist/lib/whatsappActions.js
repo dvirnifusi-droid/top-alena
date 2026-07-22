@@ -285,11 +285,11 @@ async function proposeShiftAssign(p) {
     if (matches.length > 1)
         return `❓ נמצאו ${matches.length} עובדים: ${matches.slice(0, 5).map((e) => e.full_name).join(', ')}. תוסיף שם משפחה.`;
     const emp = matches[0];
-    // Resolve position: explicit if given, else first scheduleable from emp.positions
-    // (same logic as AvailabilityRequests handleSingleAssign — keeps the schedule
-    // grid able to render the new assignment).
-    const SCHEDULE_POSITIONS_LUNCH = ['קופה + אריזות', 'מלצר', 'חומוס', 'טבח', 'מתלמד פלור', 'בלתם'];
-    const SCHEDULE_POSITIONS_DINNER = ['מנהל משמרת', 'ברמן', 'מלצר', 'ראנר', 'מארח/ת', 'מתלמד פלור', 'טבח', 'צאקר', 'גריל', 'פס בטטה', 'מקשר', 'מתלמד מטבח', 'שוטף כלים', 'בלתם'];
+    // Resolve position against the TENANT'S OWN active WorkPositions — NOT a
+    // hardcoded Alena list. The old code defaulted to 'מלצר', which created ghost
+    // assignments (a position that doesn't exist) at every non-Alena tenant, hidden
+    // in the grid but counted in labor cost. Now: explicit → employee's positions →
+    // the employee's raw first position → the tenant's first position. Never 'מלצר'.
     const NORMALIZE = {
         'מלצרית': 'מלצר', 'ברמנית': 'ברמן', 'ראנרית': 'ראנר', 'מארחת': 'מארח/ת', 'מארח': 'מארח/ת',
         'מנהלת משמרת': 'מנהל משמרת', 'טבחית': 'טבח', 'שוטפת כלים': 'שוטף כלים',
@@ -297,25 +297,32 @@ async function proposeShiftAssign(p) {
         'קופה ואריזות': 'קופה + אריזות', 'קופה +אריזות': 'קופה + אריזות',
     };
     const canon = (s) => NORMALIZE[String(s || '').trim()] || String(s || '').trim();
-    const order = p.shift_type === 'lunch' ? SCHEDULE_POSITIONS_LUNCH : SCHEDULE_POSITIONS_DINNER;
-    let position = '';
-    if (p.position) {
-        const c = canon(p.position);
-        if (order.includes(c))
-            position = c;
-    }
+    const normP = (s) => String(s || '').replace(/[\s"'׳״־\-/\\|,.]+/g, '').toLowerCase();
+    const wpRows = await prisma.$queryRawUnsafe(`SELECT position_name FROM "WorkPosition" WHERE is_active = true`).catch(() => []);
+    const tenantPositions = wpRows.map((r) => r.position_name).filter(Boolean);
+    // Match a requested name to one of the tenant's REAL positions (normalized).
+    const matchTenantPos = (raw) => {
+        const c = canon(raw);
+        if (!c)
+            return '';
+        const hit = tenantPositions.find((tp) => normP(tp) === normP(c));
+        return hit || '';
+    };
+    const empPositions = (emp.positions || []).map((x) => x?.position_name || x).filter(Boolean);
+    let position = matchTenantPos(p.position);
     if (!position) {
-        const empPositions = (emp.positions || []).map((x) => x?.position_name || x).filter(Boolean);
         for (const pp of empPositions) {
-            const c = canon(pp);
-            if (order.includes(c)) {
-                position = c;
+            const m = matchTenantPos(pp);
+            if (m) {
+                position = m;
                 break;
             }
         }
     }
+    // Last resort — keep it a REAL position: the employee's own first position, else
+    // the tenant's first configured position, else whatever was explicitly passed.
     if (!position)
-        position = 'מלצר';
+        position = empPositions[0] || tenantPositions[0] || canon(String(p.position || '')) || '';
     // Default times by shift type — same as the UI default
     const times = p.shift_type === 'lunch' ? { start: '12:00', end: '17:00' } : { start: '17:00', end: '23:00' };
     const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
