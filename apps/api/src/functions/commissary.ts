@@ -7,7 +7,7 @@
 // on prod; see the DB-drift playbook).
 import { registerFn } from './index.js';
 import { prisma } from '../db.js';
-import { requireBackOffice } from '../lib/pagePermissions.js';
+import { requireBackOffice, requireStaff } from '../lib/pagePermissions.js';
 import { currentTenantSlug } from '../lib/whatsappRouter.js';
 import { sendWhatsApp } from '../lib/twilio.js';
 import { prepCostPerUnit, rawCostPerUnit, internalPrice, marginPct, effectiveMarkup } from '../lib/commissary.js';
@@ -581,7 +581,7 @@ registerFn('publishCommissaryCatalog', async ({ user }) => {
 
 // Branch side: the published catalog for this branch's chain.
 registerFn('getBranchCommissaryInfo', async ({ user }) => {
-  await requireBackOffice(user, 'getBranchCommissaryInfo', 'BranchCommissary');
+  await requireStaff(user, 'getBranchCommissaryInfo', 'BranchCommissary');
   const slug = currentTenantSlug();
   const chain = await myChain();
   if (!chain) return { in_chain: false };
@@ -594,7 +594,7 @@ registerFn('getBranchCommissaryInfo', async ({ user }) => {
 
 // Branch side: this branch's order for a date.
 registerFn('getMyBranchCommissaryOrder', async ({ user, body }) => {
-  await requireBackOffice(user, 'getMyBranchCommissaryOrder', 'BranchCommissary');
+  await requireStaff(user, 'getMyBranchCommissaryOrder', 'BranchCommissary');
   const slug = currentTenantSlug();
   const chain = await myChain();
   if (!chain) return { lines: [] };
@@ -617,7 +617,7 @@ registerFn('getMyBranchCommissaryOrder', async ({ user, body }) => {
 
 // Branch side: submit/replace this branch's order (scoped to its own slug).
 registerFn('submitBranchCommissaryOrder', async ({ user, body }) => {
-  await requireBackOffice(user, 'submitBranchCommissaryOrder', 'BranchCommissary');
+  await requireStaff(user, 'submitBranchCommissaryOrder', 'BranchCommissary');
   const slug = currentTenantSlug();
   const chain = await myChain();
   if (!chain) throw new Error('not_in_chain');
