@@ -502,7 +502,14 @@ export default function Layout({ children, currentPageName }) {
     { title: "🚚 ספקים", url: createPageUrl("Suppliers"), icon: Package, color: "espresso" },
     { title: "🌳 עץ מוצר / מתכונים", url: createPageUrl("Recipes"), icon: ClipboardCheck, color: "espresso" },
   ]), []);
-  const navigationItems = isChainCommissary ? filterNav(networkNav, navFilter) : filterNav(permFilteredLinks, navFilter);
+  // A BRANCH inside a chain doesn't RUN a commissary or a network ops-HQ — it only
+  // ORDERS goods/preps from the network's commissary and RECEIVES network tasks
+  // (those links are added separately). Hide the network-management pages.
+  const BRANCH_HIDE_PAGES = ['Commissary', 'CommissaryOrders', 'OperationsHub'];
+  const branchScopedLinks = (branchOfChain && !isChainCommissary)
+    ? dropEmptyCategories(permFilteredLinks.filter((l) => l.isCategory || !BRANCH_HIDE_PAGES.includes(urlKey(l.url))))
+    : permFilteredLinks;
+  const navigationItems = isChainCommissary ? filterNav(networkNav, navFilter) : filterNav(branchScopedLinks, navFilter);
   const userName = user?.full_name || user?.email?.split('@')[0] || 'משתמש';
 
   const commonSidebarProps = {
