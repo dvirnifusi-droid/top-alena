@@ -14,6 +14,10 @@ import AiScannerButton from '@/components/scanner/AiScannerButton';
 
 const W = { terracotta: '#A04A2E', olive: '#44512C', brass: '#B89556', cream: '#FAF5E8', creamCard: '#F4ECD8', border: '#E8D9B5', charcoal: '#1F1B17', muted: '#7A6F5D' };
 
+// Virtual "all lists" tab — the backend returns every item across lists when no
+// list_id is sent, so this just aggregates them into one categorized view.
+const ALL_ID = '__all__';
+
 function OrderListInner() {
   const [lists, setLists] = useState([]);
   const [activeList, setActiveList] = useState(null);
@@ -44,7 +48,7 @@ function OrderListInner() {
   const loadItems = async (listId) => {
     setLoading(true);
     try {
-      const res = await base44.functions.getPrepItems(listId ? { list_id: listId } : {});
+      const res = await base44.functions.getPrepItems((listId && listId !== ALL_ID) ? { list_id: listId } : {});
       const data = res?.data || res || {};
       setItems(Array.isArray(data.items) ? data.items.map((it, i) => ({ ...it, sort: it.sort ?? i })) : []);
     } catch { /* ignore */ }
@@ -55,7 +59,7 @@ function OrderListInner() {
   const refreshSilent = async (listId) => {
     if (!listId) return;
     try {
-      const res = await base44.functions.getPrepItems({ list_id: listId });
+      const res = await base44.functions.getPrepItems(listId === ALL_ID ? {} : { list_id: listId });
       const next = ((res?.data || res || {}).items || []).map((it, i) => ({ ...it, sort: it.sort ?? i }));
       setItems(prev => (Date.now() - lastInteractionRef.current < 6000) ? prev : (fp(prev) === fp(next) ? prev : next));
     } catch { /* ignore */ }
@@ -173,7 +177,7 @@ function OrderListInner() {
     try { navigator.clipboard.writeText(full); alert('הרשימה הועתקה ✓ אפשר להדביק בוואטסאפ'); } catch { /* noop */ }
   };
 
-  const activeName = lists.find(l => l.id === activeList)?.name || '';
+  const activeName = activeList === ALL_ID ? 'הכל' : (lists.find(l => l.id === activeList)?.name || '');
 
   return (
     <div dir="rtl" className="p-4 md:p-6 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]">
@@ -187,7 +191,7 @@ function OrderListInner() {
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={addList}><Plus className="w-4 h-4 ml-1" />רשימה</Button>
               <AiScannerButton target="order_list" onImported={async (s) => { const id = await loadLists(s?.list_id); await loadItems(id); }} />
-              {activeList && !editMode && <Button size="sm" variant="outline" onClick={openEdit}><Pencil className="w-4 h-4 ml-1" />ערוך קטלוג</Button>}
+              {activeList && activeList !== ALL_ID && !editMode && <Button size="sm" variant="outline" onClick={openEdit}><Pencil className="w-4 h-4 ml-1" />ערוך קטלוג</Button>}
             </div>
           )}
         />
@@ -195,6 +199,13 @@ function OrderListInner() {
         {/* List tabs */}
         {lists.length > 0 && (
           <div className="flex gap-2 flex-wrap">
+            {lists.length > 1 && (
+              <button onClick={() => { setActiveList(ALL_ID); setEditMode(false); loadItems(ALL_ID); }}
+                className="px-3 py-1.5 rounded-full text-sm font-semibold border-2 transition"
+                style={activeList === ALL_ID ? { background: W.olive, color: '#fff', borderColor: W.olive } : { background: '#fff', color: W.muted, borderColor: W.border }}>
+                🗂 הכל
+              </button>
+            )}
             {lists.map(l => (
               <button key={l.id} onClick={() => { setActiveList(l.id); setEditMode(false); loadItems(l.id); }}
                 className="px-3 py-1.5 rounded-full text-sm font-semibold border-2 transition"
