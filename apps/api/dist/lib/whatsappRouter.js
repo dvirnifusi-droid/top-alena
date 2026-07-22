@@ -116,25 +116,12 @@ export async function resolveTenantFromMessage(fromPhone, body) {
         }
         // Token didn't resolve to a known tenant — fall through to memory/fallback.
     }
-    // 2. Memory lookup.
-    if (phone) {
-        try {
-            await ensurePhoneMapTable();
-            const rows = await prisma.$queryRawUnsafe(`SELECT last_tenant_slug FROM "platform"."PhoneTenantMap" WHERE phone = $1 LIMIT 1`, phone);
-            if (rows.length && rows[0].last_tenant_slug) {
-                return { slug: String(rows[0].last_tenant_slug).toLowerCase(), source: 'memory' };
-            }
-        }
-        catch (e) {
-            // eslint-disable-next-line no-console
-            console.warn('[whatsappRouter] phone map lookup failed:', e?.message);
-        }
-    }
-    // 2.5. Owner-phone lookup — a tenant OWNER who never messaged before has no
-    // memory row, so without this their first message falls to alena and they get
-    // treated as a guest (or re-enter onboarding). Match the sender against every
-    // live tenant's owner_phone by trailing 9 digits, so any owner reaches their
-    // OWN agent on the very first message.
+    // 2. Owner-phone lookup — AUTHORITATIVE, so it runs BEFORE the memory cache.
+    // A business owner must always reach their OWN agent, even if their phone was
+    // once cached against another tenant (e.g. they messaged before their own
+    // tenant went live and got stuck on 'alena'). Match the sender against every
+    // live tenant's owner_phone by trailing 9 digits. An owner who wants to act on
+    // a different tenant still overrides this with an explicit `+slug` (step 1).
     if (phone) {
         try {
             const digits = phone.replace(/\D/g, '');
@@ -153,7 +140,22 @@ export async function resolveTenantFromMessage(fromPhone, body) {
             console.warn('[whatsappRouter] owner_phone lookup failed:', e?.message);
         }
     }
-    // 3. Fallback.
+    // 3. Memory lookup — for NON-owners (employees) whose phone isn't an owner_phone
+    // of any live tenant, remember which tenant they last talked to.
+    if (phone) {
+        try {
+            await ensurePhoneMapTable();
+            const rows = await prisma.$queryRawUnsafe(`SELECT last_tenant_slug FROM "platform"."PhoneTenantMap" WHERE phone = $1 LIMIT 1`, phone);
+            if (rows.length && rows[0].last_tenant_slug) {
+                return { slug: String(rows[0].last_tenant_slug).toLowerCase(), source: 'memory' };
+            }
+        }
+        catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn('[whatsappRouter] phone map lookup failed:', e?.message);
+        }
+    }
+    // 4. Fallback.
     return { slug: FALLBACK_SLUG(), source: 'fallback' };
 }
 /**

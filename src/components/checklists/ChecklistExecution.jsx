@@ -44,6 +44,7 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
     const [aiSummary, setAiSummary] = useState('');
     const [saving, setSaving] = useState(false);
     const [startTime, setStartTime] = useState(new Date()); // Track start time for completion duration
+    const [photoWarn, setPhotoWarn] = useState(false); // blocks "completed" until a required photo is added
     const fileInputRef = useRef(null);
     const lastInteractionRef = useRef(0);
     const mark = () => { lastInteractionRef.current = Date.now(); };
@@ -109,6 +110,12 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
     };
 
     const handleItemCheck = (checked) => {
+        // A "photo required" item can't be marked done without at least one photo.
+        if (checked && currentItem.requires_photo_evidence && !(results[curKey]?.photo_urls || []).length) {
+            setPhotoWarn(true);
+            return;
+        }
+        setPhotoWarn(false);
         mark();
         const followup = !!(currentItem.critical && !checked);
         setResults(prev => ({
@@ -137,6 +144,7 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
             const urls = [...(results[curKey]?.photo_urls || []), file_url];
             setResults(prev => ({ ...prev, [curKey]: { ...prev[curKey], photo_urls: urls } }));
             patchItem(curKey, { photo_urls: urls, photo_url: urls[0] || null });
+            setPhotoWarn(false); // photo added — clear the "photo required" block
 
             // AI review — advisory only, never blocks the upload
             if (currentItem.ai_review) {
@@ -168,12 +176,14 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
 
     const nextItem = () => {
         if (currentItemIndex < items.length - 1) {
+            setPhotoWarn(false);
             setCurrentItemIndex(prev => prev + 1);
         }
     };
 
     const prevItem = () => {
         if (currentItemIndex > 0) {
+            setPhotoWarn(false);
             setCurrentItemIndex(prev => prev - 1);
         }
     };
@@ -411,6 +421,9 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                                 {currentItem.critical && (
                                     <Badge className="bg-red-100 text-red-800">קריטי</Badge>
                                 )}
+                                {currentItem.requires_photo_evidence && (
+                                    <Badge className="bg-amber-100 text-amber-800 flex items-center gap-1"><Camera className="w-3 h-3" /> צילום חובה</Badge>
+                                )}
                                 <Badge variant="outline">{currentItem.points} נקודות</Badge>
                             </div>
                         </div>
@@ -444,6 +457,12 @@ export default function ChecklistExecutionComponent({ checklist, user, onComplet
                                 לא הושלם
                             </Button>
                         </div>
+
+                        {photoWarn && (
+                            <div className="flex items-center justify-center gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                                <Camera className="w-4 h-4" /> המשימה מסומנת "צילום חובה" — צריך להוסיף תמונה לפני שמסמנים "הושלם".
+                            </div>
+                        )}
 
                         <div className="space-y-2">
                             <h4 className="font-semibold">מי ביצע את המשימה?</h4>
