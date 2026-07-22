@@ -25,9 +25,19 @@ export async function ensurePermissionTiers(): Promise<void> {
   _permEnsured = true;
 }
 
+// Common Hebrew job-title abbreviations → their full form, so a role written as an
+// abbreviation still auto-matches the spelled-out tier label. אחמ"ש = אחראי משמרת.
+const TITLE_ALIASES: Record<string, string> = {
+  'אחמש': 'אחראימשמרת',
+  'אחראימ': 'אחראימשמרת',
+};
+
 // Normalize a role/position/tier label for auto-matching ("מנהל  מטבח" ≡ "מנהל מטבח").
 // `/` is stripped too so a tier written "מארח/ת" matches the job title "מארחת".
-export const normTier = (s: any) => String(s || '').replace(/[\s"'׳״־\-/\\|,.]+/g, '').toLowerCase();
+export const normTier = (s: any) => {
+  const base = String(s || '').replace(/[\s"'׳״־\-/\\|,.]+/g, '').toLowerCase();
+  return TITLE_ALIASES[base] || base;
+};
 
 // Match a job title to exactly one tier. Exact match wins; otherwise fall back to
 // containment, which catches Hebrew gender forms and compound titles
