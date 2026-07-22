@@ -2,6 +2,7 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
+import NetworkLayout from "@/components/network/NetworkLayout";
 import VoiceControl from "@/components/voice/VoiceControl";
 import PinGate, { PIN_LOCKED_PAGES } from "@/components/shared/PinGate";
 import PermissionTierEditor, { buildCatalog } from "@/components/shared/PermissionTierEditor";
@@ -526,6 +527,12 @@ export default function Layout({ children, currentPageName }) {
   // Kitchen TV display — no sidebar, no chrome, fullscreen content only
   if (currentPageName === 'KitchenScreen') {
     return <div dir="rtl">{children}</div>;
+  }
+
+  // A network-type tenant (its own commissary) uses a top-toolbar console — no
+  // sidebar — like the Platform Admin shell. Formal + clean.
+  if (isChainCommissary) {
+    return <NetworkLayout currentPageName={currentPageName}>{children}</NetworkLayout>;
   }
 
   return (
