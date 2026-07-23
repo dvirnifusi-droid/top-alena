@@ -141,7 +141,9 @@ export const SCAN_PARSE_SPECS: Record<ScanType, { label: string; rowsKey: string
           },
         },
       },
-      required: ['name'],
+      // ingredients REQUIRED — else Gemini structured-output omits the optional
+      // array entirely (observed: it returned only name/kind/yield).
+      required: ['name', 'ingredients'],
     },
   },
 };
