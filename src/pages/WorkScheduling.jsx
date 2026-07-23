@@ -24,6 +24,7 @@ import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
 import SendScheduleWhatsAppDialog from '../components/scheduling/SendScheduleWhatsAppDialog';
 import { RestaurantProfile } from '@/entities/RestaurantProfile';
 import ScheduleInsights from '../components/scheduling/ScheduleInsights';
+import ShiftReplacementPanel from '../components/scheduling/ShiftReplacementPanel';
 
 // Default shifts (Alena's lunch/dinner). Each tenant can override via the
 // schedule-settings dialog — add בוקר/לילה, rename, retime, or hide positions.
@@ -1501,6 +1502,7 @@ export default function WorkScheduling() {
                                     <UserPlus className="w-4 h-4 ml-2" /> שיבוץ עובד
                                 </Button>
                             )}
+                            {isAdminLike && <ShiftReplacementPanel />}
                             {isAdminLike && (
                                 <Button variant="outline" onClick={() => setShowScheduleSettings(true)} className="border-[#D9BD83] text-[#44512C] hover:bg-[#F4ECD8]">
                                     ⚙️ הגדרות סידור

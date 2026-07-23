@@ -7881,6 +7881,24 @@ const REQUIRED_FORMS: { type: string; label: string }[] = [
   { type: 'allergens', label: 'הדרכת אלרגנים' },
   { type: 'work_safety', label: 'הדרכת בטיחות בעבודה' },
 ];
+// Structured fields a form needs FILLED beyond a signature. טופס 101 (Israeli
+// tax form) carries real data — id, address, marital status, children, credit
+// points. Captured per-employee in EmployeeForm.form_data (JSONB).
+const FORM_FIELDS: Record<string, { key: string; label: string; type?: string }[]> = {
+  '101': [
+    { key: 'id_number', label: 'תעודת זהות' },
+    { key: 'address', label: 'כתובת מלאה' },
+    { key: 'birth_date', label: 'תאריך לידה', type: 'date' },
+    { key: 'start_date', label: 'תאריך תחילת עבודה', type: 'date' },
+    { key: 'marital_status', label: 'מצב משפחתי', type: 'select:רווק/ה,נשוי/אה,גרוש/ה,אלמן/ה' },
+    { key: 'is_resident', label: 'תושב/ת ישראל', type: 'bool' },
+    { key: 'spouse_works', label: 'בן/בת זוג עובד/ת', type: 'bool' },
+    { key: 'children_count', label: 'מספר ילדים (מתחת 18)', type: 'number' },
+    { key: 'other_income', label: 'הכנסה נוספת / משכורת אחרת', type: 'bool' },
+    { key: 'tax_coordination', label: 'ביקש/ה תיאום מס', type: 'bool' },
+    { key: 'credit_points', label: 'נקודות זיכוי', type: 'number' },
+  ],
+};
 let _emp360Ensured = false;
 async function ensureEmployee360(): Promise<void> {
   if (_emp360Ensured) return;
@@ -7897,8 +7915,21 @@ async function ensureEmployee360(): Promise<void> {
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
      )`,
   ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "EmployeeForm" ADD COLUMN IF NOT EXISTS "form_data" JSONB`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(
     `CREATE UNIQUE INDEX IF NOT EXISTS "EmployeeForm_emp_type" ON "EmployeeForm" ("employee_id","form_type")`,
+  ).catch(() => {});
+  // Tenant-level blank-form library: the owner uploads the blank PDF (or a link)
+  // once per form_type, so every employee card can open/print the real form.
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "EmployeeFormTemplate" (
+       "form_type" TEXT PRIMARY KEY,
+       "form_label" TEXT,
+       "template_url" TEXT,
+       "link" TEXT,
+       "instructions" TEXT,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
   ).catch(() => {});
   await (prisma as any).$executeRawUnsafe(
     `CREATE TABLE IF NOT EXISTS "EmployeeTimeline" (
@@ -7932,19 +7963,26 @@ registerFn('getEmployee360', async ({ user, body }: any) => {
   const formRows: any[] = await (prisma as any).$queryRawUnsafe(
     `SELECT * FROM "EmployeeForm" WHERE employee_id=$1`, employeeId,
   ).catch(() => []);
+  const tplRows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "EmployeeFormTemplate"`).catch(() => []);
+  const tplByType: Record<string, any> = {};
+  for (const t of tplRows) tplByType[t.form_type] = t;
   const byType: Record<string, any> = {};
   for (const r of formRows) byType[r.form_type] = r;
+  const decorate = (form_type: string, form_label: string, required: boolean, r: any) => ({
+    form_type, form_label, required,
+    signed: !!r?.signed, signed_at: r?.signed_at || null, file_url: r?.file_url || null, note: r?.note || null,
+    form_data: r?.form_data || null,
+    fields: FORM_FIELDS[form_type] || [],
+    template_url: tplByType[form_type]?.template_url || null,
+    link: tplByType[form_type]?.link || null,
+    instructions: tplByType[form_type]?.instructions || null,
+  });
   // Merge stored rows over the required template, then append any extra custom
   // forms the manager added that aren't in the default list.
-  const forms = REQUIRED_FORMS.map((f) => {
-    const r = byType[f.type];
-    return { form_type: f.type, form_label: f.label, required: true,
-      signed: !!r?.signed, signed_at: r?.signed_at || null, file_url: r?.file_url || null, note: r?.note || null };
-  });
+  const forms = REQUIRED_FORMS.map((f) => decorate(f.type, f.label, true, byType[f.type]));
   for (const r of formRows) {
     if (!REQUIRED_FORMS.some((f) => f.type === r.form_type)) {
-      forms.push({ form_type: r.form_type, form_label: r.form_label || r.form_type, required: false,
-        signed: !!r.signed, signed_at: r.signed_at || null, file_url: r.file_url || null, note: r.note || null });
+      forms.push(decorate(r.form_type, r.form_label || r.form_type, false, r));
     }
   }
   const timeline: any[] = await (prisma as any).$queryRawUnsafe(
@@ -7976,22 +8014,53 @@ registerFn('setEmployeeForm', async ({ user, body }: any) => {
   const label = String(b.form_label || '').trim() || (REQUIRED_FORMS.find((f) => f.type === formType)?.label) || formType;
   const fileUrl = String(b.file_url || '').trim() || null;
   const note = String(b.note || '').trim() || null;
+  const hasFormData = Object.prototype.hasOwnProperty.call(b, 'form_data');
+  const formData = hasFormData && b.form_data && typeof b.form_data === 'object' ? JSON.stringify(b.form_data) : null;
   const { randomUUID } = await import('node:crypto');
   const existing: any[] = await (prisma as any).$queryRawUnsafe(
     `SELECT id FROM "EmployeeForm" WHERE employee_id=$1 AND form_type=$2 LIMIT 1`, employeeId, formType,
   ).catch(() => []);
   if (existing.length) {
-    await (prisma as any).$executeRawUnsafe(
-      `UPDATE "EmployeeForm" SET signed=$1, signed_at=$2, file_url=$3, note=$4, form_label=$5, "updatedAt"=NOW() WHERE id=$6`,
-      signed, signed ? new Date() : null, fileUrl, note, label, existing[0].id,
-    );
+    // form_data only overwritten when the caller sent it (so a plain sign toggle keeps the filled data).
+    if (hasFormData) {
+      await (prisma as any).$executeRawUnsafe(
+        `UPDATE "EmployeeForm" SET signed=$1, signed_at=$2, file_url=$3, note=$4, form_label=$5, form_data=$6::jsonb, "updatedAt"=NOW() WHERE id=$7`,
+        signed, signed ? new Date() : null, fileUrl, note, label, formData, existing[0].id,
+      );
+    } else {
+      await (prisma as any).$executeRawUnsafe(
+        `UPDATE "EmployeeForm" SET signed=$1, signed_at=$2, file_url=$3, note=$4, form_label=$5, "updatedAt"=NOW() WHERE id=$6`,
+        signed, signed ? new Date() : null, fileUrl, note, label, existing[0].id,
+      );
+    }
   } else {
     await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO "EmployeeForm" ("id","employee_id","form_type","form_label","signed","signed_at","file_url","note","updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())`,
-      randomUUID(), employeeId, formType, label, signed, signed ? new Date() : null, fileUrl, note,
+      `INSERT INTO "EmployeeForm" ("id","employee_id","form_type","form_label","signed","signed_at","file_url","note","form_data","updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,NOW())`,
+      randomUUID(), employeeId, formType, label, signed, signed ? new Date() : null, fileUrl, note, formData,
     );
   }
+  return { ok: true };
+});
+
+// Tenant-level blank-form library — owner uploads the blank PDF (template_url)
+// or a link once per form_type; every employee card can then open/print it.
+registerFn('setEmployeeFormTemplate', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'setEmployeeFormTemplate');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const formType = String(b.form_type || '').trim();
+  if (!formType) throw new Error('missing_form_type');
+  const label = String(b.form_label || '').trim() || (REQUIRED_FORMS.find((f) => f.type === formType)?.label) || formType;
+  const templateUrl = String(b.template_url || '').trim() || null;
+  const link = String(b.link || '').trim() || null;
+  const instructions = String(b.instructions || '').trim() || null;
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "EmployeeFormTemplate" ("form_type","form_label","template_url","link","instructions","updatedAt")
+     VALUES ($1,$2,$3,$4,$5,NOW())
+     ON CONFLICT ("form_type") DO UPDATE SET form_label=$2, template_url=$3, link=$4, instructions=$5, "updatedAt"=NOW()`,
+    formType, label, templateUrl, link, instructions,
+  );
   return { ok: true };
 });
 
@@ -20922,6 +20991,10 @@ registerFn('getReplacementCandidates', async ({ user, body }) => {
       if (a?.employee_name) scheduledNames.add(norm(a.employee_name));
     }
   }
+  // Phone lookup so the app UI can offer a one-tap WhatsApp / call to reach them.
+  const emps: any[] = await dbx.$queryRawUnsafe(`SELECT id, full_name, phone, employee_position, role FROM "Employee"`).catch(() => []);
+  const phoneById: Record<string, any> = {}; const empByName: Record<string, any> = {};
+  for (const e of emps) { phoneById[String(e.id)] = e; empByName[norm(e.full_name)] = e; }
   const seen = new Set<string>(); const candidates: any[] = [];
   for (const a of avail) {
     const type = norm(a.availability_type);
@@ -20930,7 +21003,9 @@ registerFn('getReplacementCandidates', async ({ user, body }) => {
     if (scheduledIds.has(idKey) || scheduledNames.has(norm(a.employee_name))) continue; // already scheduled
     const dedup = idKey || norm(a.employee_name);
     if (seen.has(dedup)) continue; seen.add(dedup);
-    candidates.push({ employee_id: a.employee_id, name: a.employee_name, availability_type: a.availability_type || null });
+    const emp = phoneById[idKey] || empByName[norm(a.employee_name)] || {};
+    candidates.push({ employee_id: a.employee_id, name: a.employee_name, availability_type: a.availability_type || null,
+      phone: emp.phone || null, position: emp.employee_position || emp.role || null });
   }
   return { date, candidates, scheduled_count: scheduledIds.size, submitted_count: avail.length };
 });

@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Loader2, FileSignature, ClipboardList, Plus, Trash2, Pencil, Upload,
   Star, CheckCircle2, Circle, ExternalLink, Scale, ArrowUp, Shuffle, LogIn, LogOut, StickyNote,
+  FileText, Download, ListChecks, ChevronDown, Save,
 } from 'lucide-react';
 
 const EVENT_TYPES = [
@@ -41,6 +42,11 @@ export default function Employee360({ employeeId }) {
   const [draft, setDraft] = useState(emptyEvent);
   const [editingId, setEditingId] = useState(null);
   const [newForm, setNewForm] = useState('');
+  const [openFields, setOpenFields] = useState(null);      // form_type whose 101-style field editor is open
+  const [fieldsDraft, setFieldsDraft] = useState({});
+  const [openTpl, setOpenTpl] = useState(null);            // form_type whose blank-template editor is open
+  const [tplLink, setTplLink] = useState('');
+  const [uploadingTpl, setUploadingTpl] = useState(null);
 
   const load = useCallback(async () => {
     if (!employeeId) return;
@@ -78,6 +84,38 @@ export default function Employee360({ employeeId }) {
     catch (e) { setErr(e?.message || 'שגיאה'); }
     setBusy(null);
   };
+
+  // 101-style fillable fields (per employee, saved to form_data)
+  const openFieldsEditor = (f) => {
+    if (openFields === f.form_type) { setOpenFields(null); return; }
+    setFieldsDraft(f.form_data || {}); setOpenFields(f.form_type);
+  };
+  const saveFields = async (f) => {
+    setBusy('fields_' + f.form_type);
+    try { await base44.functions.setEmployeeForm({ employee_id: employeeId, form_type: f.form_type, form_label: f.form_label, signed: f.signed, file_url: f.file_url, note: f.note, form_data: fieldsDraft }); setOpenFields(null); await load(); }
+    catch (e) { setErr(e?.message || 'שגיאה'); }
+    setBusy(null);
+  };
+
+  // Tenant-level blank-form template (owner uploads once per form_type)
+  const openTplEditor = (f) => {
+    if (openTpl === f.form_type) { setOpenTpl(null); return; }
+    setTplLink(f.link || ''); setOpenTpl(f.form_type);
+  };
+  const uploadTpl = async (f, file) => {
+    if (!file) return;
+    setUploadingTpl(f.form_type);
+    try { const { file_url } = await UploadFile({ file }); await base44.functions.setEmployeeFormTemplate({ form_type: f.form_type, form_label: f.form_label, template_url: file_url }); await load(); }
+    catch (e) { setErr(e?.message || 'העלאה נכשלה'); }
+    setUploadingTpl(null);
+  };
+  const saveTplLink = async (f) => {
+    setBusy('tpl_' + f.form_type);
+    try { await base44.functions.setEmployeeFormTemplate({ form_type: f.form_type, form_label: f.form_label, link: tplLink }); setOpenTpl(null); await load(); }
+    catch (e) { setErr(e?.message || 'שגיאה'); }
+    setBusy(null);
+  };
+  const countFilled = (fd) => (fd && typeof fd === 'object' ? Object.values(fd).filter((v) => v !== '' && v != null && v !== false).length : 0);
 
   const saveEvent = async () => {
     setBusy('event');
@@ -131,22 +169,89 @@ export default function Employee360({ employeeId }) {
           {s.forms_missing?.length > 0 && (
             <div className="text-xs bg-amber-50 text-amber-800 rounded px-2 py-1.5">חסר: {s.forms_missing.join(' · ')}</div>
           )}
-          {forms.map((f) => (
-            <div key={f.form_type} className="flex items-center gap-2 border-b last:border-0 py-1.5">
-              <button disabled={busy === f.form_type} onClick={() => toggleForm(f, !f.signed)} className="shrink-0">
-                {f.signed ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <Circle className="w-5 h-5 text-slate-300" />}
-              </button>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{f.form_label}{!f.required && <span className="text-[10px] text-slate-400"> · נוסף</span>}</div>
-                {f.signed && f.signed_at && <div className="text-[11px] text-slate-500">נחתם {fmtDate(f.signed_at)}</div>}
+          {forms.map((f) => {
+            const filled = countFilled(f.form_data);
+            const hasFields = (f.fields || []).length > 0;
+            const blank = f.template_url || f.link;
+            return (
+            <div key={f.form_type} className="border-b last:border-0 py-1.5">
+              <div className="flex items-center gap-2">
+                <button disabled={busy === f.form_type} onClick={() => toggleForm(f, !f.signed)} className="shrink-0" title="סמן חתום">
+                  {f.signed ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <Circle className="w-5 h-5 text-slate-300" />}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{f.form_label}{!f.required && <span className="text-[10px] text-slate-400"> · נוסף</span>}</div>
+                  <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap">
+                    {f.signed && f.signed_at && <span>נחתם {fmtDate(f.signed_at)}</span>}
+                    {hasFields && <span className={filled ? 'text-emerald-600' : 'text-amber-600'}>{filled ? `✓ ${filled} שדות מולאו` : 'יש שדות למלא'}</span>}
+                  </div>
+                </div>
+                {/* blank form to download/print */}
+                {blank && <a href={f.template_url || f.link} target="_blank" rel="noreferrer" className="shrink-0 text-indigo-600" title="הורד/פתח את הטופס הריק"><Download className="w-4 h-4" /></a>}
+                {hasFields && <button onClick={() => openFieldsEditor(f)} className={`shrink-0 ${openFields === f.form_type ? 'text-emerald-700' : 'text-slate-400 hover:text-slate-700'}`} title="מלא פרטי הטופס"><ListChecks className="w-4 h-4" /></button>}
+                {/* signed scan of this employee */}
+                {f.file_url && <a href={f.file_url} target="_blank" rel="noreferrer" className="text-blue-600 shrink-0" title="צפה במסמך החתום"><ExternalLink className="w-4 h-4" /></a>}
+                <label className="shrink-0 cursor-pointer text-slate-400 hover:text-slate-700" title="העלה סריקה חתומה של העובד">
+                  {uploading === f.form_type ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  <input type="file" className="hidden" accept="image/*,application/pdf" onChange={(e) => uploadFormFile(f, e.target.files?.[0])} />
+                </label>
+                <button onClick={() => openTplEditor(f)} className={`shrink-0 ${openTpl === f.form_type ? 'text-slate-700' : 'text-slate-300 hover:text-slate-600'}`} title="נהל את הטופס הריק (העלה PDF / קישור)"><FileText className="w-4 h-4" /></button>
               </div>
-              {f.file_url && <a href={f.file_url} target="_blank" rel="noreferrer" className="text-blue-600 shrink-0" title="צפה במסמך"><ExternalLink className="w-4 h-4" /></a>}
-              <label className="shrink-0 cursor-pointer text-slate-400 hover:text-slate-700" title="העלה סריקה חתומה">
-                {uploading === f.form_type ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                <input type="file" className="hidden" accept="image/*,application/pdf" onChange={(e) => uploadFormFile(f, e.target.files?.[0])} />
-              </label>
+
+              {/* Owner: manage the blank template for this form (tenant-wide) */}
+              {openTpl === f.form_type && (
+                <div className="mt-2 mr-7 bg-slate-50 rounded-lg p-2.5 space-y-2">
+                  <div className="text-[11px] text-slate-500">הטופס הריק (נשמר לכל העובדים ברשת):</div>
+                  <div className="flex items-center gap-2">
+                    <label className="cursor-pointer text-xs flex items-center gap-1 bg-white border rounded px-2 py-1 hover:bg-slate-50">
+                      {uploadingTpl === f.form_type ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} העלה PDF ריק
+                      <input type="file" className="hidden" accept="image/*,application/pdf" onChange={(e) => uploadTpl(f, e.target.files?.[0])} />
+                    </label>
+                    {f.template_url && <a href={f.template_url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 underline">קובץ נוכחי</a>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input value={tplLink} onChange={(e) => setTplLink(e.target.value)} placeholder="או קישור לטופס (למשל אתר רשות המסים)" dir="ltr" className="h-8 text-xs text-left" />
+                    <Button size="sm" variant="outline" className="h-8" disabled={busy === 'tpl_' + f.form_type} onClick={() => saveTplLink(f)}>שמור</Button>
+                  </div>
+                </div>
+              )}
+
+              {/* 101-style fillable fields for this employee */}
+              {openFields === f.form_type && (
+                <div className="mt-2 mr-7 bg-emerald-50/50 border border-emerald-100 rounded-lg p-3 space-y-2">
+                  <div className="text-xs font-semibold text-emerald-800 mb-1">מילוי פרטי {f.form_label}</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {f.fields.map((fld) => {
+                      const v = fieldsDraft[fld.key] ?? '';
+                      const set = (val) => setFieldsDraft((d) => ({ ...d, [fld.key]: val }));
+                      const isSel = String(fld.type || '').startsWith('select:');
+                      return (
+                        <label key={fld.key} className="text-[11px] text-slate-600 flex flex-col gap-0.5">
+                          {fld.label}
+                          {fld.type === 'bool' ? (
+                            <select value={v === true ? '1' : v === false ? '0' : ''} onChange={(e) => set(e.target.value === '' ? '' : e.target.value === '1')} className="h-8 rounded border border-slate-300 text-sm px-1">
+                              <option value="">—</option><option value="1">כן</option><option value="0">לא</option>
+                            </select>
+                          ) : isSel ? (
+                            <select value={v} onChange={(e) => set(e.target.value)} className="h-8 rounded border border-slate-300 text-sm px-1">
+                              <option value="">—</option>
+                              {fld.type.slice(7).split(',').map((o) => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : (
+                            <Input type={fld.type === 'number' ? 'number' : fld.type === 'date' ? 'date' : 'text'} value={v} onChange={(e) => set(e.target.value)} className="h-8 text-sm" />
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button size="sm" variant="ghost" onClick={() => setOpenFields(null)}>ביטול</Button>
+                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 gap-1" disabled={busy === 'fields_' + f.form_type} onClick={() => saveFields(f)}><Save className="w-3.5 h-3.5" /> שמור פרטים</Button>
+                  </div>
+                </div>
+              )}
             </div>
-          ))}
+          ); })}
           <div className="flex items-center gap-2 pt-1">
             <Input value={newForm} onChange={(e) => setNewForm(e.target.value)} placeholder="הוסף טופס נוסף (למשל: הצהרת בריאות)" className="h-8 text-sm" />
             <Button size="sm" variant="outline" className="h-8 gap-1" disabled={busy === 'newform' || !newForm.trim()} onClick={addCustomForm}><Plus className="w-3.5 h-3.5" /> הוסף</Button>
