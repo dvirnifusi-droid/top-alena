@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { base44 } from "@/api/base44Client";
 import { Plus, X, Heart, Share2, Send, ChevronLeft, ChevronRight, Eye, Trash2, MessageCircle } from "lucide-react";
 import { format, isAfter } from "date-fns";
@@ -412,8 +413,8 @@ export default function StoriesBar({ currentEmployee }) {
       )}
 
       {/* Story Viewer */}
-      {viewingStory && currentStory && (
-        <div className="fixed inset-0 z-50 bg-black flex items-center justify-center" onClick={() => setViewingStory(null)}>
+      {viewingStory && currentStory && createPortal((
+        <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center" onClick={() => setViewingStory(null)}>
           <div
           className="relative w-full max-w-sm h-full max-h-screen flex flex-col"
           onClick={e => e.stopPropagation()}
@@ -715,7 +716,7 @@ export default function StoriesBar({ currentEmployee }) {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {/* Upload Dialog */}
       {showUpload && (

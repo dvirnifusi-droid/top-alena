@@ -126,7 +126,7 @@ const TOOL_DECLARATIONS = [
   },
   {
     name: 'search_lead',
-    description: 'Fuzzy search for an event lead by customer name or phone.',
+    description: 'Search for ANY private-event / lead by customer name, COMPANY name, phone, or detail — including CLOSED/confirmed events. Returns each match with status (pending/contacted/quoted/won/lost) and closed=true when status is won. USE THIS for any question about an event\'s status, e.g. "is נועם from טאגזו\'s event on 30.7 closed?", "what\'s the status of the Tagzo event?". Do NOT confuse private events with table reservations.',
     parameters: { type: 'OBJECT', properties: { query: { type: 'STRING' } }, required: ['query'] },
   },
   {
@@ -1205,14 +1205,16 @@ async function tool_search_employee(args: any, _phone: string): Promise<any> {
 async function tool_search_lead(args: any, _phone: string): Promise<any> {
   const q = String(args?.query || '').toLowerCase().trim();
   if (!q) return { matches: [] };
-  const leads: any[] = await (prisma as any).eventLead.findMany({ orderBy: { id: 'desc' }, take: 200 });
-  const matches = leads.filter((l: any) =>
-    String(l.contact_name || '').toLowerCase().includes(q) ||
-    String(l.contact_phone || '').includes(q.replace(/\D/g, '')),
-  );
+  const qDigits = q.replace(/\D/g, '');
+  const leads: any[] = await (prisma as any).eventLead.findMany({ orderBy: { id: 'desc' }, take: 300 });
+  // Search ALL string fields (customer name, COMPANY / business name, notes, type…)
+  // so "נועם מחברת טאגזו" matches whether the company sits in contact/business/notes.
+  const hay = (l: any) => Object.values(l).filter((v) => typeof v === 'string').join(' ').toLowerCase();
+  const matches = leads.filter((l: any) => hay(l).includes(q) || (qDigits.length >= 4 && String(l.contact_phone || '').replace(/\D/g, '').includes(qDigits)));
   return { matches: matches.slice(0, 8).map((l: any) => ({
-    id: l.id, name: l.contact_name, phone: l.contact_phone, status: l.status,
-    event_date: l.event_date, guests: l.guest_count, type: l.event_type,
+    id: l.id, name: l.contact_name, company: l.business_name || l.company_name || l.company || null,
+    phone: l.contact_phone, status: l.status, closed: l.status === 'won',
+    event_date: l.event_date, event_time: l.event_time || null, guests: l.guest_count, type: l.event_type,
   })) };
 }
 
