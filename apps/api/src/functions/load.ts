@@ -8005,6 +8005,61 @@ async function ensureEmployee360(): Promise<void> {
   await (prisma as any).$executeRawUnsafe(
     `CREATE INDEX IF NOT EXISTS "EmployeeTimeline_emp" ON "EmployeeTimeline" ("employee_id")`,
   ).catch(() => {});
+  // CRM — meetings/conversations with the employee (interview, feedback, raise,
+  // role change, warning, disciplinary, hearing, termination, general…).
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "EmployeeMeeting" (
+       "id" TEXT PRIMARY KEY,
+       "employee_id" TEXT NOT NULL,
+       "meeting_type" TEXT NOT NULL,
+       "meeting_at" TIMESTAMP(3),
+       "participants" TEXT,
+       "purpose" TEXT,
+       "summary" TEXT,
+       "decisions" TEXT,
+       "followup_task" TEXT,
+       "followup_date" DATE,
+       "followup_done" BOOLEAN NOT NULL DEFAULT false,
+       "doc_url" TEXT,
+       "emp_signed" BOOLEAN NOT NULL DEFAULT false,
+       "mgr_signed" BOOLEAN NOT NULL DEFAULT false,
+       "salary_from" DOUBLE PRECISION,
+       "salary_to" DOUBLE PRECISION,
+       "salary_effective" DATE,
+       "salary_reason" TEXT,
+       "role_change" TEXT,
+       "created_by" TEXT,
+       "created_by_name" TEXT,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "EmployeeMeeting_emp" ON "EmployeeMeeting" ("employee_id")`).catch(() => {});
+  // CRM — full salary history (never overwritten; a raise appends a row).
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "EmployeeSalaryHistory" (
+       "id" TEXT PRIMARY KEY,
+       "employee_id" TEXT NOT NULL,
+       "old_rate" DOUBLE PRECISION,
+       "new_rate" DOUBLE PRECISION,
+       "pay_type" TEXT,
+       "effective_date" DATE,
+       "reason" TEXT,
+       "meeting_id" TEXT,
+       "created_by_name" TEXT,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "EmployeeSalaryHistory_emp" ON "EmployeeSalaryHistory" ("employee_id")`).catch(() => {});
+  // CRM — core personal fields the Employee model lacks (all additive, prod-safe).
+  for (const col of [
+    `ADD COLUMN IF NOT EXISTS "id_number" TEXT`,
+    `ADD COLUMN IF NOT EXISTS "birth_date" DATE`,
+    `ADD COLUMN IF NOT EXISTS "emergency_contact" TEXT`,
+    `ADD COLUMN IF NOT EXISTS "bank_details" TEXT`,
+    `ADD COLUMN IF NOT EXISTS "employment_type" TEXT`,
+    `ADD COLUMN IF NOT EXISTS "hire_date" DATE`,
+    `ADD COLUMN IF NOT EXISTS "termination" JSONB`,
+  ]) await (prisma as any).$executeRawUnsafe(`ALTER TABLE "Employee" ${col}`).catch(() => {});
   _emp360Ensured = true;
 }
 
@@ -8168,6 +8223,177 @@ registerFn('deleteEmployeeTimelineEvent', async ({ user, body }: any) => {
   if (!id) throw new Error('missing_id');
   await (prisma as any).$executeRawUnsafe(`DELETE FROM "EmployeeTimeline" WHERE id=$1`, id).catch(() => {});
   return { ok: true };
+});
+
+// ── CRM: meetings/conversations ────────────────────────────────────────────
+const MEETING_TIMELINE_MAP: Record<string, { type: string; label: string }> = {
+  hearing: { type: 'hearing', label: 'שיחת שימוע' },
+  termination: { type: 'termination', label: 'שיחת סיום העסקה' },
+  raise: { type: 'promotion', label: 'פגישת העלאת שכר' },
+  role_change: { type: 'role', label: 'שינוי תפקיד' },
+  warning: { type: 'note', label: 'שיחת אזהרה' },
+};
+async function insertTimeline(employeeId: string, ev: any) {
+  const { randomUUID } = await import('node:crypto');
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "EmployeeTimeline" ("id","employee_id","event_type","title","role","restaurant","rating","notes","effective_date","createdAt")
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
+    randomUUID(), employeeId, ev.event_type, ev.title || null, ev.role || null, ev.restaurant || null,
+    ev.rating ?? null, ev.notes || null, ev.effective_date || null,
+  ).catch(() => {});
+}
+
+registerFn('addEmployeeMeeting', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'addEmployeeMeeting');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const employeeId = String(b.employee_id || '');
+  if (!employeeId) throw new Error('missing_employee');
+  const mtype = String(b.meeting_type || 'general').trim();
+  const num = (v: any) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v));
+  const dt = (v: any) => (v ? new Date(v) : null);
+  const { randomUUID } = await import('node:crypto');
+  const id = randomUUID();
+  const byName = user.full_name || user.fullName || user.email || '';
+  const salaryTo = num(b.salary_to);
+  let salaryFrom = num(b.salary_from);
+
+  // For a raise, capture the current rate + apply the new one to EmployeePay,
+  // keeping full salary history (old rate never lost).
+  if (mtype === 'raise' && salaryTo != null) {
+    const payRows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT pay_type, hourly_rate, monthly_salary FROM "EmployeePay" WHERE employee_id=$1 LIMIT 1`, employeeId).catch(() => []);
+    const pay = payRows[0] || {};
+    const payType = pay.pay_type || 'hourly';
+    if (salaryFrom == null) salaryFrom = payType === 'monthly' ? (pay.monthly_salary ?? null) : (pay.hourly_rate ?? null);
+    // apply new rate
+    if (payRows.length) {
+      if (payType === 'monthly') await (prisma as any).$executeRawUnsafe(`UPDATE "EmployeePay" SET monthly_salary=$1, "updatedAt"=NOW() WHERE employee_id=$2`, salaryTo, employeeId).catch(() => {});
+      else await (prisma as any).$executeRawUnsafe(`UPDATE "EmployeePay" SET hourly_rate=$1, "updatedAt"=NOW() WHERE employee_id=$2`, salaryTo, employeeId).catch(() => {});
+    } else {
+      await (prisma as any).$executeRawUnsafe(`INSERT INTO "EmployeePay" ("id","employee_id","pay_type","hourly_rate","createdAt","updatedAt") VALUES ($1,$2,'hourly',$3,NOW(),NOW())`, randomUUID(), employeeId, salaryTo).catch(() => {});
+    }
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "EmployeeSalaryHistory" ("id","employee_id","old_rate","new_rate","pay_type","effective_date","reason","meeting_id","created_by_name","createdAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
+      randomUUID(), employeeId, salaryFrom, salaryTo, payType, dt(b.salary_effective), String(b.salary_reason || '').trim() || null, id, byName,
+    ).catch(() => {});
+  }
+
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "EmployeeMeeting" ("id","employee_id","meeting_type","meeting_at","participants","purpose","summary","decisions","followup_task","followup_date","doc_url","emp_signed","mgr_signed","salary_from","salary_to","salary_effective","salary_reason","role_change","created_by","created_by_name","createdAt")
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,NOW())`,
+    id, employeeId, mtype, dt(b.meeting_at) || new Date(), String(b.participants || '').trim() || null,
+    String(b.purpose || '').trim() || null, String(b.summary || '').trim() || null, String(b.decisions || '').trim() || null,
+    String(b.followup_task || '').trim() || null, dt(b.followup_date), String(b.doc_url || '').trim() || null,
+    !!b.emp_signed, !!b.mgr_signed, salaryFrom, salaryTo, dt(b.salary_effective),
+    String(b.salary_reason || '').trim() || null, String(b.role_change || '').trim() || null, user.id, byName,
+  );
+
+  // Mirror milestone meetings onto the timeline.
+  const map = MEETING_TIMELINE_MAP[mtype];
+  if (map) {
+    const note = mtype === 'raise' && salaryTo != null
+      ? `שכר עודכן${salaryFrom != null ? ` מ-${salaryFrom}` : ''} ל-${salaryTo}${b.salary_reason ? ` · ${b.salary_reason}` : ''}`
+      : (b.summary || b.purpose || null);
+    await insertTimeline(employeeId, { event_type: map.type, title: map.label, role: b.role_change || null, notes: note, effective_date: dt(b.meeting_at) || new Date() });
+  }
+  return { ok: true, id };
+});
+
+registerFn('updateEmployeeMeeting', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'updateEmployeeMeeting');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const id = String(b.id || ''); if (!id) throw new Error('missing_id');
+  const dt = (v: any) => (v ? new Date(v) : null);
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "EmployeeMeeting" SET meeting_type=$1, meeting_at=$2, participants=$3, purpose=$4, summary=$5, decisions=$6, followup_task=$7, followup_date=$8, followup_done=$9, doc_url=$10, emp_signed=$11, mgr_signed=$12 WHERE id=$13`,
+    String(b.meeting_type || 'general').trim(), dt(b.meeting_at), String(b.participants || '').trim() || null,
+    String(b.purpose || '').trim() || null, String(b.summary || '').trim() || null, String(b.decisions || '').trim() || null,
+    String(b.followup_task || '').trim() || null, dt(b.followup_date), !!b.followup_done, String(b.doc_url || '').trim() || null,
+    !!b.emp_signed, !!b.mgr_signed, id,
+  );
+  return { ok: true };
+});
+
+registerFn('deleteEmployeeMeeting', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'deleteEmployeeMeeting');
+  await ensureEmployee360();
+  const id = String((body || {}).id || ''); if (!id) throw new Error('missing_id');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "EmployeeMeeting" WHERE id=$1`, id).catch(() => {});
+  return { ok: true };
+});
+
+// Save the CRM core personal fields.
+registerFn('saveEmployeeCoreDetails', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'saveEmployeeCoreDetails');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const employeeId = String(b.employee_id || ''); if (!employeeId) throw new Error('missing_employee');
+  const s = (v: any) => (String(v ?? '').trim() || null);
+  const dt = (v: any) => (v ? new Date(v) : null);
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "Employee" SET id_number=$1, birth_date=$2, emergency_contact=$3, bank_details=$4, employment_type=$5, hire_date=$6, "updatedAt"=NOW() WHERE id=$7`,
+    s(b.id_number), dt(b.birth_date), s(b.emergency_contact), s(b.bank_details),
+    s(b.employment_type), dt(b.hire_date), employeeId,
+  );
+  return { ok: true };
+});
+
+// Change lifecycle status (candidate/onboarding/active/on_leave/terminated).
+// Termination keeps the employee (never deleted) + records the exit details.
+registerFn('updateEmployeeStatus', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'updateEmployeeStatus');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const employeeId = String(b.employee_id || ''); if (!employeeId) throw new Error('missing_employee');
+  const status = String(b.status || '').trim();
+  const VALID = ['candidate', 'onboarding', 'active', 'on_leave', 'terminated'];
+  if (!VALID.includes(status)) throw new Error('bad_status');
+  const term = status === 'terminated' && b.termination && typeof b.termination === 'object' ? JSON.stringify(b.termination) : null;
+  if (term) {
+    await (prisma as any).$executeRawUnsafe(`UPDATE "Employee" SET status=$1, termination=$2::jsonb, "updatedAt"=NOW() WHERE id=$3`, status, term, employeeId);
+    await insertTimeline(employeeId, { event_type: 'termination', title: 'סיום העסקה', notes: (b.termination.reason || null), effective_date: b.termination.end_date ? new Date(b.termination.end_date) : new Date() });
+  } else {
+    await (prisma as any).$executeRawUnsafe(`UPDATE "Employee" SET status=$1, "updatedAt"=NOW() WHERE id=$2`, status, employeeId);
+  }
+  return { ok: true };
+});
+
+// Aggregated CRM view: core personal details + meetings + salary history +
+// derived alerts. (Forms + timeline come from getEmployee360.)
+registerFn('getEmployeeCRM', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'getEmployeeCRM');
+  await ensureEmployee360();
+  const employeeId = String((body || {}).employee_id || ''); if (!employeeId) throw new Error('missing_employee');
+  const empRows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, full_name, email, phone, role, department, status, id_number, birth_date, emergency_contact, bank_details, employment_type, hire_date, termination FROM "Employee" WHERE id=$1 LIMIT 1`, employeeId,
+  ).catch(() => []);
+  const core = empRows[0] || {};
+  const meetings: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "EmployeeMeeting" WHERE employee_id=$1 ORDER BY COALESCE("meeting_at","createdAt") DESC`, employeeId).catch(() => []);
+  const salary: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "EmployeeSalaryHistory" WHERE employee_id=$1 ORDER BY COALESCE("effective_date","createdAt") DESC`, employeeId).catch(() => []);
+  const formRows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT form_type, signed FROM "EmployeeForm" WHERE employee_id=$1`, employeeId).catch(() => []);
+  const signed = new Set(formRows.filter((f) => f.signed).map((f) => f.form_type));
+
+  // Derived alerts — high-signal HR gaps.
+  const alerts: { level: string; text: string }[] = [];
+  if (!signed.has('work_agreement')) alerts.push({ level: 'red', text: 'הסכם עבודה לא חתום' });
+  if (!signed.has('101')) alerts.push({ level: 'red', text: 'טופס 101 חסר' });
+  if (!core.bank_details) alerts.push({ level: 'amber', text: 'חסרים פרטי בנק' });
+  if (!core.id_number) alerts.push({ level: 'amber', text: 'חסרה תעודת זהות' });
+  const todayISO = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+  for (const m of meetings) {
+    if (m.followup_date && !m.followup_done) {
+      const fd = new Date(m.followup_date).toISOString().slice(0, 10);
+      if (fd <= todayISO) alerts.push({ level: 'amber', text: `מעקב פתוח: ${m.followup_task || 'פגישת מעקב'} (${fd})` });
+    }
+  }
+  if (core.hire_date) {
+    const hire = new Date(core.hire_date); const probEnd = new Date(hire.getTime() + 90 * 86400000);
+    const days = Math.round((probEnd.getTime() - Date.now()) / 86400000);
+    if (days >= 0 && days <= 14) alerts.push({ level: 'amber', text: `תקופת ניסיון מסתיימת בעוד ${days} ימים` });
+  }
+  return { core, meetings, salary_history: salary, alerts };
 });
 
 // Start a fresh prep day: snapshot the current state into PrepArchive (so past

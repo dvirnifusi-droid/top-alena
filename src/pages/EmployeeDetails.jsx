@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Employee, Shift, WorkPosition } from '@/entities/all';
+import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -26,6 +27,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import EmployeePaySection from '../components/employees/EmployeePaySection';
 import EmployeeTierSelect from '../components/employees/EmployeeTierSelect';
 import Employee360 from '../components/employees/Employee360';
+import EmployeeMeetings from '../components/employees/EmployeeMeetings';
+import EmployeeCoreDetails, { statusMeta } from '../components/employees/EmployeeCoreDetails';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Phone, Building2, CalendarDays, AlertTriangle } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 
 
@@ -126,6 +133,13 @@ export default function EmployeeDetailsPage() {
     const [isEditingPositions, setIsEditingPositions] = useState(false);
     const [positionsData, setPositionsData] = useState([]);
     const [allPositions, setAllPositions] = useState([]);
+    const [crm, setCrm] = useState(null);
+    const [tab, setTab] = useState('overview');
+
+    const loadCrm = async (id) => {
+        try { const r = await base44.functions.getEmployeeCRM({ employee_id: id || employeeId }); setCrm(r?.data || r); }
+        catch (e) { /* CRM is additive — never block the page */ }
+    };
 
 
     useEffect(() => {
@@ -149,6 +163,7 @@ export default function EmployeeDetailsPage() {
             setShifts(shiftsData);
             setPositionsData(employeeData.positions || []);
             setAllPositions(workPositionsData);
+            loadCrm(id);
         } catch (error) {
             console.error("שגיאה בטעינת נתוני עובד:", error);
         }
@@ -250,43 +265,70 @@ export default function EmployeeDetailsPage() {
     return (
         <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-8">
-                {/* Header */}
-                <div>
-                    <Link to={createPageUrl('Employees')} className="text-[#44512C] hover:underline flex items-center gap-2 mb-2">
-                        <ArrowRight className="w-4 h-4" />
-                        חזרה לכל העובדים
-                    </Link>
-                    <PageHeader
-                        title={employee.full_name}
-                        subtitle={employee.role}
-                        icon={User}
-                        action={
-                            <Dialog open={isShiftFormOpen} onOpenChange={setIsShiftFormOpen}>
-                                <DialogTrigger asChild>
-                                    <Button onClick={() => { setEditingShift(null); setIsShiftFormOpen(true); }} className="bg-[#44512C] hover:bg-[#44512C]">
-                                        <Plus className="w-5 h-5 ml-2" />
-                                        הוסף משמרת
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="sm:max-w-[600px]">
-                                    <DialogHeader>
-                                        <DialogTitle>{editingShift ? 'עריכת משמרת' : 'הוספת משמרת חדשה'}</DialogTitle>
-                                    </DialogHeader>
-                                    <div className="py-4">
-                                        <ShiftForm
-                                            shift={editingShift}
-                                            employeeId={employee.id}
-                                            employeeName={employee.full_name}
-                                            onSave={handleSaveShift}
-                                            onCancel={() => setIsShiftFormOpen(false)}
-                                        />
+                {/* Header card — avatar + status + key facts + alerts */}
+                <Link to={createPageUrl('Employees')} className="text-[#44512C] hover:underline flex items-center gap-2 mb-1">
+                    <ArrowRight className="w-4 h-4" /> חזרה לכל העובדים
+                </Link>
+                <Card className="overflow-hidden">
+                    <div className="bg-gradient-to-l from-[#44512C] to-[#5c6b3d] p-5 text-white">
+                        <div className="flex items-start justify-between gap-4 flex-wrap">
+                            <div className="flex items-center gap-4">
+                                <Avatar className="w-16 h-16 border-2 border-white/40">
+                                    <AvatarFallback className="bg-white/20 text-white text-xl font-bold">
+                                        {(employee.full_name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('')}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <h1 className="text-2xl font-extrabold">{employee.full_name}</h1>
+                                    <p className="text-white/80">{employee.employee_position || employee.role}</p>
+                                    <div className="mt-1">
+                                        <Badge className={statusMeta(crm?.core?.status || employee.status).color}>{statusMeta(crm?.core?.status || employee.status).label}</Badge>
                                     </div>
-                                </DialogContent>
-                            </Dialog>
-                        }
-                    />
-                </div>
-                
+                                </div>
+                            </div>
+                            <Button onClick={() => { setEditingShift(null); setIsShiftFormOpen(true); }} className="bg-white/15 hover:bg-white/25 border border-white/30">
+                                <Plus className="w-4 h-4 ml-2" /> הוסף משמרת
+                            </Button>
+                        </div>
+                        <div className="flex flex-wrap gap-x-6 gap-y-1 mt-4 text-sm text-white/90">
+                            {employee.phone && <a href={`tel:${employee.phone}`} className="flex items-center gap-1.5 hover:underline"><Phone className="w-4 h-4" /> {employee.phone}</a>}
+                            {employee.department && <span className="flex items-center gap-1.5"><Building2 className="w-4 h-4" /> {employee.department}</span>}
+                            {crm?.core?.hire_date && <span className="flex items-center gap-1.5"><CalendarDays className="w-4 h-4" /> מ-{new Date(crm.core.hire_date).toLocaleDateString('he-IL')}</span>}
+                        </div>
+                    </div>
+                    {crm?.alerts?.length > 0 && (
+                        <div className="p-3 bg-amber-50 flex flex-wrap gap-2">
+                            {crm.alerts.map((a, i) => (
+                                <span key={i} className={`text-xs rounded-full px-2.5 py-1 flex items-center gap-1 ${a.level === 'red' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>
+                                    <AlertTriangle className="w-3.5 h-3.5" /> {a.text}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </Card>
+
+                {/* Controlled shift dialog — used by header button + shifts-tab edit */}
+                <Dialog open={isShiftFormOpen} onOpenChange={setIsShiftFormOpen}>
+                    <DialogContent className="sm:max-w-[600px]">
+                        <DialogHeader>
+                            <DialogTitle>{editingShift ? 'עריכת משמרת' : 'הוספת משמרת חדשה'}</DialogTitle>
+                        </DialogHeader>
+                        <div className="py-4">
+                            <ShiftForm shift={editingShift} employeeId={employee.id} employeeName={employee.full_name} onSave={handleSaveShift} onCancel={() => setIsShiftFormOpen(false)} />
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                <Tabs value={tab} onValueChange={setTab} className="w-full">
+                    <TabsList className="flex flex-wrap h-auto gap-1 bg-white/60 p-1">
+                        <TabsTrigger value="overview">סקירה</TabsTrigger>
+                        <TabsTrigger value="file">תיק עובד</TabsTrigger>
+                        <TabsTrigger value="shifts">משמרות</TabsTrigger>
+                        <TabsTrigger value="meetings">פגישות ושכר</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="overview" className="space-y-6 mt-4">
+                {crm?.core && <EmployeeCoreDetails core={crm.core} onChange={() => loadCrm()} />}
                 {/* Positions & Salary Info */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
@@ -410,9 +452,14 @@ export default function EmployeeDetailsPage() {
                     </Card>
                 </div>
 
+                    </TabsContent>
+
+                    <TabsContent value="file" className="mt-4">
                 {/* Itzik #1/#2 — 360° HR card: forms/signatures + life-in-the-group timeline */}
                 <Employee360 employeeId={employee.id} />
+                    </TabsContent>
 
+                    <TabsContent value="shifts" className="mt-4">
                 {/* Shifts List */}
                 <Card>
                     <CardHeader>
@@ -453,6 +500,12 @@ export default function EmployeeDetailsPage() {
                         </div>
                     </CardContent>
                 </Card>
+                    </TabsContent>
+
+                    <TabsContent value="meetings" className="mt-4">
+                        <EmployeeMeetings employeeId={employee.id} meetings={crm?.meetings || []} salaryHistory={crm?.salary_history || []} onChange={() => loadCrm()} />
+                    </TabsContent>
+                </Tabs>
             </div>
         </div>
     );
