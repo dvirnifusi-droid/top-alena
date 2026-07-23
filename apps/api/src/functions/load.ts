@@ -7818,6 +7818,63 @@ registerFn('setSupplierOrderMinimum', async ({ user, body }: any) => {
   return { ok: true };
 });
 
+// Add a supplier straight from the order screen (fills the required Supplier
+// columns with sensible defaults so a food supplier can be created in one line).
+registerFn('addOrderSupplier', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'addOrderSupplier');
+  await ensurePrepItems();
+  const b = (body || {}) as any;
+  const name = String(b.company_name || '').trim();
+  if (!name) throw new Error('company_name required');
+  const num = (v: any) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v));
+  const { randomUUID } = await import('node:crypto');
+  const id = randomUUID();
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "Supplier" ("id","company_name","supplier_id","contact_person","email","phone","category","status","min_order_amount","min_order_units","createdAt","updatedAt")
+     VALUES ($1,$2,$3,'','',$4,'מזון','approved',$5,$6,NOW(),NOW())`,
+    id, name, 'SUP-' + id.slice(0, 8), String(b.phone || '').slice(0, 40) || null, num(b.min_order_amount), num(b.min_order_units),
+  );
+  return { ok: true, id };
+});
+
+// Remove a supplier + unassign its products (so they show as "not assigned"
+// again rather than pointing at a supplier that no longer exists).
+registerFn('deleteOrderSupplier', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'deleteOrderSupplier');
+  await ensurePrepItems();
+  const id = String((body || {}).id || ''); if (!id) throw new Error('id required');
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT company_name FROM "Supplier" WHERE id=$1`, id).catch(() => []);
+  const name = rows[0]?.company_name;
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "Supplier" WHERE id=$1`, id).catch(() => {});
+  if (name) await (prisma as any).$executeRawUnsafe(`UPDATE "PrepItem" SET supplier_name=NULL WHERE supplier_name=$1`, name).catch(() => {});
+  return { ok: true };
+});
+
+// Set the FULL product set of a supplier: assign the given item_ids to it and
+// unassign any product currently on this supplier that's no longer in the list.
+registerFn('setSupplierProducts', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'setSupplierProducts');
+  await ensurePrepItems();
+  const b = (body || {}) as any;
+  const name = String(b.supplier_name || '').trim();
+  if (!name) throw new Error('supplier_name required');
+  const ids: string[] = Array.isArray(b.item_ids) ? b.item_ids.map((x: any) => String(x)).filter(Boolean) : [];
+  // Clear this supplier off everything first, then re-assign the chosen ids.
+  await (prisma as any).$executeRawUnsafe(`UPDATE "PrepItem" SET supplier_name=NULL WHERE supplier_name=$1`, name).catch(() => {});
+  for (const id of ids) {
+    await (prisma as any).$executeRawUnsafe(`UPDATE "PrepItem" SET supplier_name=$1 WHERE id=$2`, name, id).catch(() => {});
+  }
+  return { ok: true, count: ids.length };
+});
+
+// All order products (for the per-supplier product picker) — id, name, current supplier.
+registerFn('listOrderProducts', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensurePrepItems();
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, name, category, unit, supplier_name FROM "PrepItem" ORDER BY "category" ASC, "name" ASC`).catch(() => []);
+  return { products: rows };
+});
+
 // Split the flagged (to_prep) order items by supplier + flag below-minimum.
 registerFn('getOrderSupplierSplit', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
