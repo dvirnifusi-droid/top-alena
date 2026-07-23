@@ -183,6 +183,34 @@ export interface ScanResult {
 }
 
 // Classify (unless hinted) and parse. Never writes.
+// Deterministic recipe-line parser (fallback when the model drops ingredients).
+// "2 כוסות חלב" → {name:'חלב', qty:2, unit:'כוסות'}; "מלח" → {name:'מלח'}.
+const RECIPE_UNITS = ['ק"ג', 'ק״ג', 'קג', 'קילו', 'גרם', "גר'", 'ליטר', 'ליטרים', 'מ"ל', 'מ״ל', 'מל', 'כוסות', 'כוס', 'כפות', 'כף', 'כפיות', 'כפית', 'חבילה', 'חבילות', 'קופסה', 'קופסאות', 'יחידה', 'יחידות', "יח'", 'צרור', 'שיני', 'שן', 'ראש', 'קורט', 'צנצנת'];
+function parseRecipeLines(text: string): any[] {
+  const lines = String(text).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const out: any[] = [];
+  for (const raw of lines) {
+    if (/^(מתכון|recipe|רכיבים|מצרכים|אופן ההכנה|הוראות|הכנה|אופן|שלב)\b/i.test(raw) || /^מתכון ל/.test(raw)) continue;
+    let line = raw.replace(/\(.*?\)/g, ' ').replace(/[•\-\*–]/g, ' ').replace(/\s+/g, ' ').trim();
+    let qty: number | null = null;
+    const m = line.match(/^([\d]+(?:[.,\/][\d]+)?)\s*(.*)$/);
+    let rest = line;
+    if (m) {
+      const num = m[1].replace(',', '.');
+      qty = num.includes('/') ? Number(num.split('/')[0]) / Number(num.split('/')[1]) : Number(num);
+      if (!Number.isFinite(qty)) qty = null; else qty = Math.round(qty * 1000) / 1000;
+      rest = m[2].trim();
+    }
+    let unit: string | null = null;
+    const parts = rest.split(/\s+/);
+    if (parts.length && RECIPE_UNITS.includes(parts[0])) { unit = parts[0]; rest = parts.slice(1).join(' ').trim(); }
+    const name = rest.replace(/^של\s+/, '').trim();
+    if (!name || name.length < 2) continue;
+    out.push({ name: name.slice(0, 80), qty, unit });
+  }
+  return out;
+}
+
 export async function scanContent(opts: { fileUrls?: string[]; text?: string; hint?: string }): Promise<ScanResult> {
   const urls: string[] = (opts.fileUrls || []).filter(Boolean);
   const freeText = typeof opts.text === 'string' && opts.text.trim() ? opts.text.trim() : undefined;
@@ -214,6 +242,13 @@ export async function scanContent(opts: { fileUrls?: string[]; text?: string; hi
     maxOutputTokens: 4096,
     _ctx: { fn_name: 'aiScanContent.parse' },
   } as any);
+
+  // Gemini's structured output sometimes drops the nested ingredients array
+  // entirely (verified: it returned only name/kind/yield). A pasted recipe is
+  // line-based, so parse each line deterministically as a robust fallback.
+  if (classification === 'recipe' && parsed && (!Array.isArray(parsed.ingredients) || parsed.ingredients.length === 0) && freeText) {
+    parsed.ingredients = parseRecipeLines(freeText);
+  }
 
   const rows = Array.isArray(parsed?.[spec.rowsKey]) ? parsed[spec.rowsKey] : [];
   return {
