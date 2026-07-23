@@ -8,7 +8,7 @@
 // for proactive out-of-session sends are a separate (Meta-approved) flow.
 
 import { sendWhatsApp } from './twilio.js';
-import { prisma } from './db.js';
+import { prisma } from '../db.js';
 import { notifyOwner } from './waTemplates.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
 import { isNotifEnabled, notifText } from './notificationSettings.js';
