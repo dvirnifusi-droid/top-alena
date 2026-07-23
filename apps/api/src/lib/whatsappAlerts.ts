@@ -8,6 +8,7 @@
 // for proactive out-of-session sends are a separate (Meta-approved) flow.
 
 import { sendWhatsApp } from './twilio.js';
+import { prisma } from './db.js';
 import { notifyOwner } from './waTemplates.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
 import { isNotifEnabled, notifText } from './notificationSettings.js';
@@ -118,9 +119,22 @@ export async function alertCashDiscrepancy(row: any): Promise<void> {
 
 export async function alertEmailInvoicesImported(count: number): Promise<void> {
   if (!(await isNotifEnabled('invoices_imported_alert'))) return;
+  // Flag products the system isn't sure about — new / unmatched raw materials
+  // from the just-imported invoices that need owner approval in the product tree.
+  let reviewLine = '';
+  try {
+    const dbx = prisma as any;
+    const norm = (s: any) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const ings: any[] = await dbx.$queryRawUnsafe(`SELECT name FROM "Ingredient"`).catch(() => []);
+    const aliases: any[] = await dbx.$queryRawUnsafe(`SELECT alias FROM "IngredientAlias"`).catch(() => []);
+    const known = new Set([...ings.map((i) => norm(i.name)), ...aliases.map((a) => norm(a.alias))]);
+    const items: any[] = await dbx.$queryRawUnsafe(`SELECT DISTINCT product_name FROM "InvoiceItem" WHERE "createdAt" >= NOW() - INTERVAL '2 hours'`).catch(() => []);
+    const unmatched = new Set(items.map((it) => norm(it.product_name)).filter((n) => n && !known.has(n)));
+    if (unmatched.size > 0) reviewLine = `\n🆕 ${unmatched.size} מוצרים חדשים/לא-מזוהים — דורשים אישור בעץ המוצר (/Recipes).`;
+  } catch { /* best-effort */ }
   const fallback = [
     `📬 *נקלטו ${count} חשבוניות חדשות מהמייל*`,
-    'ממתינות לבדיקה ואישור בדף /Invoices.',
+    'ממתינות לבדיקה ואישור בדף /Invoices.' + reviewLine,
   ].join('\n');
   await broadcastToAdmins(await notifText('invoices_imported_alert', fallback, { count }));
 }
