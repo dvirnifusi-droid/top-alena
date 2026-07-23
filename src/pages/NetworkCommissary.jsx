@@ -6,6 +6,8 @@ import { base44 } from '@/api/base44Client';
 import { Loader2, Factory } from 'lucide-react';
 import PageGuard from '../components/shared/PageGuard';
 import { ChainCommissary } from './NetworkHQ';
+import AiScannerButton from '@/components/scanner/AiScannerButton';
+import { createPageUrl } from '@/utils';
 
 function NetworkCommissaryInner() {
   const [data, setData] = useState(null);
@@ -21,9 +23,13 @@ function NetworkCommissaryInner() {
   return (
     <div dir="rtl" className="min-h-screen bg-slate-950 text-white p-4 md:p-6">
       <div className="max-w-4xl mx-auto space-y-4">
-        <h1 className="text-2xl font-black flex items-center gap-2">
-          <Factory className="w-6 h-6 text-indigo-400" /> בית הכנות המרכזי{data?.chain?.name ? ` · ${data.chain.name}` : ''}
-        </h1>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h1 className="text-2xl font-black flex items-center gap-2">
+            <Factory className="w-6 h-6 text-indigo-400" /> בית הכנות המרכזי{data?.chain?.name ? ` · ${data.chain.name}` : ''}
+          </h1>
+          <AiScannerButton target="recipe" label="🍳 סרוק מתכון / מנה" variant="default" className="bg-indigo-600 hover:bg-indigo-500" onImported={() => { window.location.href = createPageUrl('Recipes'); }} />
+        </div>
+        <p className="text-xs text-slate-400">שלח/צלם מתכון או מנה → מהונדס לאחור לחומרי גלם, מתומחר מעץ המוצר, ונוסף כהכנה. (מופיע ב"🌳 עץ מוצר" — משם "פרסם לרשת" כדי שהסניפים יזמינו).</p>
         {loading ? (
           <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-slate-500" /></div>
         ) : !data?.in_network ? (
