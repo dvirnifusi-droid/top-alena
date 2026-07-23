@@ -7865,6 +7865,185 @@ registerFn('sendSupplierOrder', async ({ user, body }: any) => {
   catch (e: any) { return { ok: false, error: String(e?.message || e).slice(0, 160) }; }
 });
 
+// ─────────────────────────────────────────────────────────────────────────
+// Itzik roadmap #1/#2 — Employee card 360° (group-owner HR view).
+//   • EmployeeForm — signatures on required forms (טופס 101, הסכם עבודה,
+//     הדרכת בטיחות מזון, הדרכת אלרגנים, בטיחות בעבודה …). Signed / not-signed
+//     per form, with a date, an uploaded scan and a note.
+//   • EmployeeTimeline — the whole past in the group: hire, role changes /
+//     promotions (with WHICH restaurant), per-role performance ratings, and
+//     whether the employee went through a שימוע (hearing). Fully editable.
+// Isolated additive tables + guarded, same safe pattern as the configs above.
+const REQUIRED_FORMS: { type: string; label: string }[] = [
+  { type: '101', label: 'טופס 101' },
+  { type: 'work_agreement', label: 'הסכם עבודה' },
+  { type: 'food_safety', label: 'הדרכת בטיחות מזון (תברואה)' },
+  { type: 'allergens', label: 'הדרכת אלרגנים' },
+  { type: 'work_safety', label: 'הדרכת בטיחות בעבודה' },
+];
+let _emp360Ensured = false;
+async function ensureEmployee360(): Promise<void> {
+  if (_emp360Ensured) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "EmployeeForm" (
+       "id" TEXT PRIMARY KEY,
+       "employee_id" TEXT NOT NULL,
+       "form_type" TEXT NOT NULL,
+       "form_label" TEXT,
+       "signed" BOOLEAN NOT NULL DEFAULT false,
+       "signed_at" TIMESTAMP(3),
+       "file_url" TEXT,
+       "note" TEXT,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "EmployeeForm_emp_type" ON "EmployeeForm" ("employee_id","form_type")`,
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "EmployeeTimeline" (
+       "id" TEXT PRIMARY KEY,
+       "employee_id" TEXT NOT NULL,
+       "event_type" TEXT NOT NULL,
+       "title" TEXT,
+       "role" TEXT,
+       "restaurant" TEXT,
+       "rating" INTEGER,
+       "notes" TEXT,
+       "effective_date" DATE,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "EmployeeTimeline_emp" ON "EmployeeTimeline" ("employee_id")`,
+  ).catch(() => {});
+  _emp360Ensured = true;
+}
+
+// Full 360° for one employee: the required-forms checklist (stored rows merged
+// over the default template so the list always shows), the ordered life-in-the-
+// group timeline, and derived HR summary (hearing yes/no, forms signed, avg
+// rating). requireBackOffice — HR data (owner + managers only).
+registerFn('getEmployee360', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'getEmployee360');
+  await ensureEmployee360();
+  const employeeId = String((body || {}).employee_id || '');
+  if (!employeeId) throw new Error('missing_employee');
+  const formRows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT * FROM "EmployeeForm" WHERE employee_id=$1`, employeeId,
+  ).catch(() => []);
+  const byType: Record<string, any> = {};
+  for (const r of formRows) byType[r.form_type] = r;
+  // Merge stored rows over the required template, then append any extra custom
+  // forms the manager added that aren't in the default list.
+  const forms = REQUIRED_FORMS.map((f) => {
+    const r = byType[f.type];
+    return { form_type: f.type, form_label: f.label, required: true,
+      signed: !!r?.signed, signed_at: r?.signed_at || null, file_url: r?.file_url || null, note: r?.note || null };
+  });
+  for (const r of formRows) {
+    if (!REQUIRED_FORMS.some((f) => f.type === r.form_type)) {
+      forms.push({ form_type: r.form_type, form_label: r.form_label || r.form_type, required: false,
+        signed: !!r.signed, signed_at: r.signed_at || null, file_url: r.file_url || null, note: r.note || null });
+    }
+  }
+  const timeline: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT * FROM "EmployeeTimeline" WHERE employee_id=$1
+     ORDER BY COALESCE("effective_date", "createdAt"::date) DESC, "createdAt" DESC`, employeeId,
+  ).catch(() => []);
+  const ratings = timeline.filter((t) => t.event_type === 'rating' && t.rating != null).map((t) => Number(t.rating));
+  const summary = {
+    forms_signed: forms.filter((f) => f.signed).length,
+    forms_required: forms.filter((f) => f.required).length,
+    forms_missing: forms.filter((f) => f.required && !f.signed).map((f) => f.form_label),
+    had_hearing: timeline.some((t) => t.event_type === 'hearing'),
+    hearing_count: timeline.filter((t) => t.event_type === 'hearing').length,
+    avg_rating: ratings.length ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10 : null,
+  };
+  return { forms, timeline, summary };
+});
+
+// Mark a form signed / unsigned (upsert by employee+type). Custom forms allowed
+// via a free form_type + form_label. file_url = an uploaded scan of the signed doc.
+registerFn('setEmployeeForm', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'setEmployeeForm');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const employeeId = String(b.employee_id || '');
+  const formType = String(b.form_type || '').trim();
+  if (!employeeId || !formType) throw new Error('missing_fields');
+  const signed = !!b.signed;
+  const label = String(b.form_label || '').trim() || (REQUIRED_FORMS.find((f) => f.type === formType)?.label) || formType;
+  const fileUrl = String(b.file_url || '').trim() || null;
+  const note = String(b.note || '').trim() || null;
+  const { randomUUID } = await import('node:crypto');
+  const existing: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id FROM "EmployeeForm" WHERE employee_id=$1 AND form_type=$2 LIMIT 1`, employeeId, formType,
+  ).catch(() => []);
+  if (existing.length) {
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "EmployeeForm" SET signed=$1, signed_at=$2, file_url=$3, note=$4, form_label=$5, "updatedAt"=NOW() WHERE id=$6`,
+      signed, signed ? new Date() : null, fileUrl, note, label, existing[0].id,
+    );
+  } else {
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "EmployeeForm" ("id","employee_id","form_type","form_label","signed","signed_at","file_url","note","updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())`,
+      randomUUID(), employeeId, formType, label, signed, signed ? new Date() : null, fileUrl, note,
+    );
+  }
+  return { ok: true };
+});
+
+// Add a timeline event: hire / role / promotion / rating / hearing / note /
+// termination. rating (1-5) meaningful for 'rating'; restaurant = which branch.
+registerFn('addEmployeeTimelineEvent', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'addEmployeeTimelineEvent');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const employeeId = String(b.employee_id || '');
+  const eventType = String(b.event_type || 'note').trim();
+  if (!employeeId) throw new Error('missing_employee');
+  const rating = b.rating != null && b.rating !== '' ? Math.max(1, Math.min(5, Math.round(Number(b.rating)))) : null;
+  const effDate = b.effective_date ? new Date(b.effective_date) : null;
+  const { randomUUID } = await import('node:crypto');
+  const id = randomUUID();
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "EmployeeTimeline" ("id","employee_id","event_type","title","role","restaurant","rating","notes","effective_date","createdAt")
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
+    id, employeeId, eventType,
+    String(b.title || '').trim() || null, String(b.role || '').trim() || null,
+    String(b.restaurant || '').trim() || null, rating, String(b.notes || '').trim() || null, effDate,
+  );
+  return { ok: true, id };
+});
+
+// Edit an existing timeline event (Itzik: "everything editable").
+registerFn('updateEmployeeTimelineEvent', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'updateEmployeeTimelineEvent');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const id = String(b.id || '');
+  if (!id) throw new Error('missing_id');
+  const rating = b.rating != null && b.rating !== '' ? Math.max(1, Math.min(5, Math.round(Number(b.rating)))) : null;
+  const effDate = b.effective_date ? new Date(b.effective_date) : null;
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "EmployeeTimeline" SET event_type=$1, title=$2, role=$3, restaurant=$4, rating=$5, notes=$6, effective_date=$7 WHERE id=$8`,
+    String(b.event_type || 'note').trim(), String(b.title || '').trim() || null, String(b.role || '').trim() || null,
+    String(b.restaurant || '').trim() || null, rating, String(b.notes || '').trim() || null, effDate, id,
+  );
+  return { ok: true };
+});
+
+registerFn('deleteEmployeeTimelineEvent', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'deleteEmployeeTimelineEvent');
+  await ensureEmployee360();
+  const id = String((body || {}).id || '');
+  if (!id) throw new Error('missing_id');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "EmployeeTimeline" WHERE id=$1`, id).catch(() => {});
+  return { ok: true };
+});
+
 // Start a fresh prep day: snapshot the current state into PrepArchive (so past
 // days — who prepped what, when, with which photo — are kept), then clear the
 // daily fields. Scoped to one list when list_id is given, else the whole sheet.

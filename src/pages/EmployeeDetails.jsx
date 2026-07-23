@@ -25,6 +25,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EmployeePaySection from '../components/employees/EmployeePaySection';
 import EmployeeTierSelect from '../components/employees/EmployeeTierSelect';
+import Employee360 from '../components/employees/Employee360';
 import PageHeader from '@/components/shared/PageHeader';
 
 
@@ -408,6 +409,9 @@ export default function EmployeeDetailsPage() {
                         </CardContent>
                     </Card>
                 </div>
+
+                {/* Itzik #1/#2 — 360° HR card: forms/signatures + life-in-the-group timeline */}
+                <Employee360 employeeId={employee.id} />
 
                 {/* Shifts List */}
                 <Card>
