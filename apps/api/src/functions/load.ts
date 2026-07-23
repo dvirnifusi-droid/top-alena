@@ -20648,6 +20648,37 @@ registerFn('getDayAvailabilitySnapshot', async ({ body }) => {
   return { availability: result };
 }, { public: true });
 
+// Shift replacement: when someone reports sick / needs a swap, who submitted
+// availability for that day but was NOT scheduled → the manager's call list.
+registerFn('getReplacementCandidates', async ({ user, body }) => {
+  await requireBackOffice(user, 'getReplacementCandidates');
+  const date = String((body as any)?.date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('date (YYYY-MM-DD) required');
+  const dbx = prisma as any;
+  const norm = (s: any) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const avail: any[] = await dbx.$queryRawUnsafe(
+    `SELECT employee_id, employee_name, availability_type FROM "EmployeeAvailability" WHERE date=$1`, date).catch(() => []);
+  const shifts: any[] = await dbx.$queryRawUnsafe(`SELECT assigned_staff FROM "WorkShift" WHERE date=$1`, date).catch(() => []);
+  const scheduledIds = new Set<string>(); const scheduledNames = new Set<string>();
+  for (const s of shifts) {
+    for (const a of (Array.isArray(s.assigned_staff) ? s.assigned_staff : [])) {
+      if (a?.employee_id) scheduledIds.add(String(a.employee_id));
+      if (a?.employee_name) scheduledNames.add(norm(a.employee_name));
+    }
+  }
+  const seen = new Set<string>(); const candidates: any[] = [];
+  for (const a of avail) {
+    const type = norm(a.availability_type);
+    if (/unavail|לא ?זמין|busy|block|חסום|מבוקש חופש|חופש/.test(type)) continue; // explicitly not available
+    const idKey = String(a.employee_id || '');
+    if (scheduledIds.has(idKey) || scheduledNames.has(norm(a.employee_name))) continue; // already scheduled
+    const dedup = idKey || norm(a.employee_name);
+    if (seen.has(dedup)) continue; seen.add(dedup);
+    candidates.push({ employee_id: a.employee_id, name: a.employee_name, availability_type: a.availability_type || null });
+  }
+  return { date, candidates, scheduled_count: scheduledIds.size, submitted_count: avail.length };
+});
+
 // PUBLIC — fetch a reservation by tracking_token for the customer-view page.
 // Returns customer-safe fields only (no internal hostess_flag, no source data).
 registerFn('getReservationByToken', async ({ body }) => {

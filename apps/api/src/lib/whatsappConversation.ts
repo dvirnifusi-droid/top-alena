@@ -130,6 +130,11 @@ const TOOL_DECLARATIONS = [
     parameters: { type: 'OBJECT', properties: { query: { type: 'STRING' } }, required: ['query'] },
   },
   {
+    name: 'find_replacements',
+    description: 'When an employee is sick / needs a shift swap: returns coworkers who SUBMITTED availability for that date but were NOT scheduled — the manager\'s call list. USE right after a sick report or when asked "מי זמין להחליף?" / "מי הגיש ולא שובץ?".',
+    parameters: { type: 'OBJECT', properties: { date: { type: 'STRING', description: 'YYYY-MM-DD or "היום"/"מחר"' } }, required: ['date'] },
+  },
+  {
     name: 'search_invoice',
     description: 'Look up an invoice by number or supplier name fragment.',
     parameters: { type: 'OBJECT', properties: { query: { type: 'STRING' } }, required: ['query'] },
@@ -1218,6 +1223,27 @@ async function tool_search_lead(args: any, _phone: string): Promise<any> {
   })) };
 }
 
+async function tool_find_replacements(args: any, _phone: string): Promise<any> {
+  const raw = String(args?.date || '').trim().toLowerCase();
+  let date = raw;
+  if (/^(היום|today)$/.test(raw)) date = ymd();
+  else if (/^(מחר|tomorrow)$/.test(raw)) date = ymd(new Date(Date.now() + 864e5));
+  else if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) date = ymd(new Date(Date.now() + 864e5));
+  const norm = (s: any) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const avail: any[] = await (prisma as any).$queryRawUnsafe(`SELECT employee_id, employee_name, availability_type FROM "EmployeeAvailability" WHERE date=$1`, date).catch(() => []);
+  const shifts: any[] = await (prisma as any).$queryRawUnsafe(`SELECT assigned_staff FROM "WorkShift" WHERE date=$1`, date).catch(() => []);
+  const schedIds = new Set<string>(); const schedNames = new Set<string>();
+  for (const s of shifts) for (const a of (Array.isArray(s.assigned_staff) ? s.assigned_staff : [])) { if (a?.employee_id) schedIds.add(String(a.employee_id)); if (a?.employee_name) schedNames.add(norm(a.employee_name)); }
+  const seen = new Set<string>(); const candidates: any[] = [];
+  for (const a of avail) {
+    if (/unavail|לא ?זמין|busy|block|חסום|חופש/.test(norm(a.availability_type))) continue;
+    if (schedIds.has(String(a.employee_id || '')) || schedNames.has(norm(a.employee_name))) continue;
+    const k = String(a.employee_id || '') || norm(a.employee_name); if (!k || seen.has(k)) continue; seen.add(k);
+    candidates.push({ name: a.employee_name });
+  }
+  return { date, candidates, count: candidates.length };
+}
+
 async function tool_search_invoice(args: any, _phone: string): Promise<any> {
   const q = String(args?.query || '').toLowerCase().trim();
   if (!q) return { matches: [] };
@@ -2153,6 +2179,7 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   get_unpaid_invoices: tool_get_unpaid_invoices,
   search_employee: tool_search_employee,
   search_lead: tool_search_lead,
+  find_replacements: tool_find_replacements,
   search_invoice: tool_search_invoice,
   propose_event_add: tool_propose_event_add,
   propose_task_add: tool_propose_task_add,
@@ -2334,7 +2361,7 @@ type=${exec.type || '?'} · נשלח לפני ${Math.round((Date.now() - new Dat
 const UNIVERSAL_TOOLS = ['list_pending_proposals', 'modify_pending_proposal', 'cancel_pending_proposal'];
 const TOOL_GROUPS: Record<string, string[]> = {
   finance: ['get_today_revenue', 'get_cash_balance', 'list_unpaid_expenses', 'list_expected_income', 'get_recent_tips', 'propose_mark_expense_paid', 'propose_lock_tips', 'get_recipe_cost', 'list_high_food_cost', 'update_ingredient_price', 'get_my_recipe_summary', 'propose_set_dish_price'],
-  schedule: ['list_today_schedule', 'build_schedule_now', 'add_scheduling_rule', 'list_scheduling_rules', 'propose_shift_assign', 'propose_employee_shifts_batch', 'propose_remove_from_shift', 'propose_publish_schedule', 'search_employee', 'propose_invite_employee', 'propose_mark_sick'],
+  schedule: ['list_today_schedule', 'build_schedule_now', 'add_scheduling_rule', 'list_scheduling_rules', 'propose_shift_assign', 'propose_employee_shifts_batch', 'propose_remove_from_shift', 'propose_publish_schedule', 'search_employee', 'propose_invite_employee', 'propose_mark_sick', 'find_replacements'],
   reservations: ['check_availability', 'propose_create_reservation', 'propose_cancel_reservation'],
   orders: ['list_order_needs', 'propose_mark_supplier_ordered'],
   incidents: ['propose_open_incident', 'list_incidents', 'propose_resolve_incident'],
