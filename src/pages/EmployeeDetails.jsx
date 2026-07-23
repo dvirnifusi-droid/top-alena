@@ -29,6 +29,10 @@ import EmployeeTierSelect from '../components/employees/EmployeeTierSelect';
 import Employee360 from '../components/employees/Employee360';
 import EmployeeMeetings from '../components/employees/EmployeeMeetings';
 import EmployeeCoreDetails, { statusMeta } from '../components/employees/EmployeeCoreDetails';
+import EmployeeOnboarding from '../components/employees/EmployeeOnboarding';
+import EmployeeDocuments from '../components/employees/EmployeeDocuments';
+import EmployeeNotesTasks from '../components/employees/EmployeeNotesTasks';
+import EmployeeShiftHistory from '../components/employees/EmployeeShiftHistory';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -322,9 +326,11 @@ export default function EmployeeDetailsPage() {
                 <Tabs value={tab} onValueChange={setTab} className="w-full">
                     <TabsList className="flex flex-wrap h-auto gap-1 bg-white/60 p-1">
                         <TabsTrigger value="overview">סקירה</TabsTrigger>
+                        <TabsTrigger value="onboarding">קליטה ומסמכים</TabsTrigger>
                         <TabsTrigger value="file">תיק עובד</TabsTrigger>
                         <TabsTrigger value="shifts">משמרות</TabsTrigger>
                         <TabsTrigger value="meetings">פגישות ושכר</TabsTrigger>
+                        <TabsTrigger value="notes">הערות ומשימות</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="overview" className="space-y-6 mt-4">
@@ -454,16 +460,23 @@ export default function EmployeeDetailsPage() {
 
                     </TabsContent>
 
+                    <TabsContent value="onboarding" className="space-y-6 mt-4">
+                        {crm && <EmployeeOnboarding employeeId={employee.id} steps={crm.onboarding || []} done={crm.onboarding_done || 0} total={crm.onboarding_total || 10} onChange={() => loadCrm()} />}
+                        {crm && <EmployeeDocuments employeeId={employee.id} documents={crm.documents || []} onChange={() => loadCrm()} />}
+                    </TabsContent>
+
                     <TabsContent value="file" className="mt-4">
                 {/* Itzik #1/#2 — 360° HR card: forms/signatures + life-in-the-group timeline */}
                 <Employee360 employeeId={employee.id} />
                     </TabsContent>
 
-                    <TabsContent value="shifts" className="mt-4">
-                {/* Shifts List */}
+                    <TabsContent value="shifts" className="space-y-6 mt-4">
+                {/* Real attendance + lateness from clock vs roster */}
+                <EmployeeShiftHistory employeeId={employee.id} />
+                {/* Shifts List (sales/ratings history) */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>היסטוריית משמרות</CardTitle>
+                        <CardTitle>היסטוריית משמרות (מכירות ודירוגים)</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
@@ -504,6 +517,10 @@ export default function EmployeeDetailsPage() {
 
                     <TabsContent value="meetings" className="mt-4">
                         <EmployeeMeetings employeeId={employee.id} meetings={crm?.meetings || []} salaryHistory={crm?.salary_history || []} onChange={() => loadCrm()} />
+                    </TabsContent>
+
+                    <TabsContent value="notes" className="mt-4">
+                        <EmployeeNotesTasks employeeId={employee.id} notes={crm?.notes || []} tasks={crm?.tasks || []} onChange={() => loadCrm()} />
                     </TabsContent>
                 </Tabs>
             </div>

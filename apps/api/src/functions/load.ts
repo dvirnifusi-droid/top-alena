@@ -7938,6 +7938,20 @@ const REQUIRED_FORMS: { type: string; label: string }[] = [
   { type: 'allergens', label: 'הדרכת אלרגנים' },
   { type: 'work_safety', label: 'הדרכת בטיחות בעבודה' },
 ];
+// CRM onboarding — the process steps a new hire goes through (distinct from the
+// document/forms checklist above).
+const ONBOARDING_STEPS: { key: string; label: string }[] = [
+  { key: 'interview_done', label: 'ראיון עבודה בוצע' },
+  { key: 'terms_agreed', label: 'סוכמו תנאי העסקה' },
+  { key: 'agreement_sent', label: 'הסכם עבודה נשלח' },
+  { key: 'agreement_signed', label: 'הסכם עבודה נחתם' },
+  { key: 'form_101_done', label: 'טופס 101 הושלם' },
+  { key: 'id_photo', label: 'צילום תעודת זהות התקבל' },
+  { key: 'bank_details', label: 'פרטי בנק התקבלו' },
+  { key: 'safety_training', label: 'בוצעה הדרכת בטיחות' },
+  { key: 'pro_training', label: 'בוצעה הדרכה מקצועית' },
+  { key: 'first_shift', label: 'העובד שובץ למשמרת ראשונה' },
+];
 // Structured fields a form needs FILLED beyond a signature. טופס 101 (Israeli
 // tax form) carries real data — id, address, marital status, children, credit
 // points. Captured per-employee in EmployeeForm.form_data (JSONB).
@@ -8050,6 +8064,34 @@ async function ensureEmployee360(): Promise<void> {
      )`,
   ).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "EmployeeSalaryHistory_emp" ON "EmployeeSalaryHistory" ("employee_id")`).catch(() => {});
+  // CRM P2 — onboarding process checklist, documents folder, notes feed, tasks.
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "EmployeeOnboardingStep" (
+       "id" TEXT PRIMARY KEY, "employee_id" TEXT NOT NULL, "step_key" TEXT NOT NULL,
+       "done" BOOLEAN NOT NULL DEFAULT false, "done_at" TIMESTAMP(3), "file_url" TEXT, "note" TEXT,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP )`,
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "EmployeeOnboardingStep_emp_step" ON "EmployeeOnboardingStep" ("employee_id","step_key")`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "EmployeeDocument" (
+       "id" TEXT PRIMARY KEY, "employee_id" TEXT NOT NULL, "doc_type" TEXT, "label" TEXT, "file_url" TEXT,
+       "uploaded_by" TEXT, "uploaded_by_name" TEXT, "sign_status" TEXT DEFAULT 'none', "signed_at" TIMESTAMP(3),
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP )`,
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "EmployeeDocument_emp" ON "EmployeeDocument" ("employee_id")`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "EmployeeNote" (
+       "id" TEXT PRIMARY KEY, "employee_id" TEXT NOT NULL, "sentiment" TEXT DEFAULT 'neutral', "text" TEXT,
+       "created_by" TEXT, "created_by_name" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP )`,
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "EmployeeNote_emp" ON "EmployeeNote" ("employee_id")`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "EmployeeTask" (
+       "id" TEXT PRIMARY KEY, "employee_id" TEXT NOT NULL, "title" TEXT, "assignee" TEXT, "due_date" DATE,
+       "status" TEXT DEFAULT 'open', "source" TEXT, "created_by_name" TEXT,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP )`,
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "EmployeeTask_emp" ON "EmployeeTask" ("employee_id")`).catch(() => {});
   // CRM — core personal fields the Employee model lacks (all additive, prod-safe).
   for (const col of [
     `ADD COLUMN IF NOT EXISTS "id_number" TEXT`,
@@ -8374,6 +8416,13 @@ registerFn('getEmployeeCRM', async ({ user, body }: any) => {
   const salary: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "EmployeeSalaryHistory" WHERE employee_id=$1 ORDER BY COALESCE("effective_date","createdAt") DESC`, employeeId).catch(() => []);
   const formRows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT form_type, signed FROM "EmployeeForm" WHERE employee_id=$1`, employeeId).catch(() => []);
   const signed = new Set(formRows.filter((f) => f.signed).map((f) => f.form_type));
+  // P2 collections
+  const onbRows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "EmployeeOnboardingStep" WHERE employee_id=$1`, employeeId).catch(() => []);
+  const onbBy: Record<string, any> = {}; for (const r of onbRows) onbBy[r.step_key] = r;
+  const onboarding = ONBOARDING_STEPS.map((st) => ({ step_key: st.key, label: st.label, done: !!onbBy[st.key]?.done, done_at: onbBy[st.key]?.done_at || null, file_url: onbBy[st.key]?.file_url || null, note: onbBy[st.key]?.note || null }));
+  const documents: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "EmployeeDocument" WHERE employee_id=$1 ORDER BY "createdAt" DESC`, employeeId).catch(() => []);
+  const notes: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "EmployeeNote" WHERE employee_id=$1 ORDER BY "createdAt" DESC LIMIT 100`, employeeId).catch(() => []);
+  const tasks: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "EmployeeTask" WHERE employee_id=$1 ORDER BY "status" ASC, COALESCE("due_date",'9999-12-31') ASC`, employeeId).catch(() => []);
 
   // Derived alerts — high-signal HR gaps.
   const alerts: { level: string; text: string }[] = [];
@@ -8393,7 +8442,147 @@ registerFn('getEmployeeCRM', async ({ user, body }: any) => {
     const days = Math.round((probEnd.getTime() - Date.now()) / 86400000);
     if (days >= 0 && days <= 14) alerts.push({ level: 'amber', text: `תקופת ניסיון מסתיימת בעוד ${days} ימים` });
   }
-  return { core, meetings, salary_history: salary, alerts };
+  const openTasks = tasks.filter((t) => t.status !== 'done').length;
+  if (openTasks) alerts.push({ level: 'amber', text: `${openTasks} משימות פתוחות` });
+  const onbDone = onboarding.filter((o) => o.done).length;
+  if (core.status !== 'terminated' && onbDone < ONBOARDING_STEPS.length && (core.status === 'onboarding' || core.status === 'candidate'))
+    alerts.push({ level: 'amber', text: `קליטה: ${onbDone}/${ONBOARDING_STEPS.length} הושלמו` });
+
+  // Viewer scope — what this user may see. Back-office sees all; a user viewing
+  // their OWN card sees a limited self view (no salary). (reached this fn via
+  // requireBackOffice today, so scope is 'full' for now; self-view is future.)
+  const viewer_scope = 'full';
+  return { core, meetings, salary_history: salary, onboarding, documents, notes, tasks, alerts, viewer_scope,
+    onboarding_done: onbDone, onboarding_total: ONBOARDING_STEPS.length };
+});
+
+// ── CRM P2 fns: onboarding / documents / notes / tasks ─────────────────────
+registerFn('setOnboardingStep', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'setOnboardingStep');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const employeeId = String(b.employee_id || ''); const stepKey = String(b.step_key || '').trim();
+  if (!employeeId || !stepKey) throw new Error('missing_fields');
+  const done = !!b.done;
+  const fileUrl = String(b.file_url || '').trim() || null;
+  const note = String(b.note || '').trim() || null;
+  const { randomUUID } = await import('node:crypto');
+  const existing: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "EmployeeOnboardingStep" WHERE employee_id=$1 AND step_key=$2 LIMIT 1`, employeeId, stepKey).catch(() => []);
+  if (existing.length) await (prisma as any).$executeRawUnsafe(`UPDATE "EmployeeOnboardingStep" SET done=$1, done_at=$2, file_url=$3, note=$4, "updatedAt"=NOW() WHERE id=$5`, done, done ? new Date() : null, fileUrl, note, existing[0].id);
+  else await (prisma as any).$executeRawUnsafe(`INSERT INTO "EmployeeOnboardingStep" ("id","employee_id","step_key","done","done_at","file_url","note","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())`, randomUUID(), employeeId, stepKey, done, done ? new Date() : null, fileUrl, note);
+  return { ok: true };
+});
+
+registerFn('addEmployeeDocument', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'addEmployeeDocument');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const employeeId = String(b.employee_id || ''); if (!employeeId) throw new Error('missing_employee');
+  const { randomUUID } = await import('node:crypto');
+  const byName = user.full_name || user.fullName || user.email || '';
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "EmployeeDocument" ("id","employee_id","doc_type","label","file_url","uploaded_by","uploaded_by_name","sign_status","signed_at","createdAt")
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
+    randomUUID(), employeeId, String(b.doc_type || 'other'), String(b.label || '').trim() || null, String(b.file_url || '').trim() || null,
+    user.id, byName, String(b.sign_status || 'none'), b.sign_status === 'signed' ? new Date() : null,
+  );
+  return { ok: true };
+});
+registerFn('updateEmployeeDocument', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'updateEmployeeDocument');
+  await ensureEmployee360();
+  const b = (body || {}) as any; const id = String(b.id || ''); if (!id) throw new Error('missing_id');
+  const signStatus = String(b.sign_status || 'none');
+  await (prisma as any).$executeRawUnsafe(`UPDATE "EmployeeDocument" SET label=COALESCE($1,label), sign_status=$2, signed_at=$3 WHERE id=$4`, String(b.label || '').trim() || null, signStatus, signStatus === 'signed' ? new Date() : null, id);
+  return { ok: true };
+});
+registerFn('deleteEmployeeDocument', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'deleteEmployeeDocument');
+  await ensureEmployee360();
+  const id = String((body || {}).id || ''); if (!id) throw new Error('missing_id');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "EmployeeDocument" WHERE id=$1`, id).catch(() => {});
+  return { ok: true };
+});
+
+registerFn('addEmployeeNote', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'addEmployeeNote');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const employeeId = String(b.employee_id || ''); if (!employeeId) throw new Error('missing_employee');
+  const text = String(b.text || '').trim(); if (!text) throw new Error('empty');
+  const sentiment = ['positive', 'negative', 'neutral'].includes(b.sentiment) ? b.sentiment : 'neutral';
+  const { randomUUID } = await import('node:crypto');
+  const byName = user.full_name || user.fullName || user.email || '';
+  await (prisma as any).$executeRawUnsafe(`INSERT INTO "EmployeeNote" ("id","employee_id","sentiment","text","created_by","created_by_name","createdAt") VALUES ($1,$2,$3,$4,$5,$6,NOW())`, randomUUID(), employeeId, sentiment, text.slice(0, 1000), user.id, byName);
+  return { ok: true };
+});
+registerFn('deleteEmployeeNote', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'deleteEmployeeNote');
+  await ensureEmployee360();
+  const id = String((body || {}).id || ''); if (!id) throw new Error('missing_id');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "EmployeeNote" WHERE id=$1`, id).catch(() => {});
+  return { ok: true };
+});
+
+registerFn('addEmployeeTask', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'addEmployeeTask');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const employeeId = String(b.employee_id || ''); if (!employeeId) throw new Error('missing_employee');
+  const title = String(b.title || '').trim(); if (!title) throw new Error('empty');
+  const { randomUUID } = await import('node:crypto');
+  const byName = user.full_name || user.fullName || user.email || '';
+  await (prisma as any).$executeRawUnsafe(`INSERT INTO "EmployeeTask" ("id","employee_id","title","assignee","due_date","status","source","created_by_name","createdAt") VALUES ($1,$2,$3,$4,$5,'open',$6,$7,NOW())`, randomUUID(), employeeId, title.slice(0, 300), String(b.assignee || '').trim() || null, b.due_date ? new Date(b.due_date) : null, String(b.source || 'manual'), byName);
+  return { ok: true };
+});
+registerFn('updateEmployeeTask', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'updateEmployeeTask');
+  await ensureEmployee360();
+  const b = (body || {}) as any; const id = String(b.id || ''); if (!id) throw new Error('missing_id');
+  await (prisma as any).$executeRawUnsafe(`UPDATE "EmployeeTask" SET title=COALESCE($1,title), assignee=$2, due_date=$3, status=$4 WHERE id=$5`, String(b.title || '').trim() || null, String(b.assignee || '').trim() || null, b.due_date ? new Date(b.due_date) : null, ['open', 'done'].includes(b.status) ? b.status : 'open', id);
+  return { ok: true };
+});
+registerFn('deleteEmployeeTask', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'deleteEmployeeTask');
+  await ensureEmployee360();
+  const id = String((body || {}).id || ''); if (!id) throw new Error('missing_id');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "EmployeeTask" WHERE id=$1`, id).catch(() => {});
+  return { ok: true };
+});
+
+// Real shift history with lateness: scheduled (WorkShift.assigned_staff / shift
+// start_time) vs actual clock (ShiftTracking.shift_start/shift_end), Israel TZ.
+registerFn('getEmployeeShiftHistory', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'getEmployeeShiftHistory');
+  const employeeId = String((body || {}).employee_id || ''); if (!employeeId) throw new Error('missing_employee');
+  const norm = (s: any) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const empRows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT full_name FROM "Employee" WHERE id=$1`, employeeId).catch(() => []);
+  const empName = norm(empRows[0]?.full_name);
+  const clocks: any[] = await (prisma as any).$queryRawUnsafe(`SELECT date, shift_start, shift_end, total_hours FROM "ShiftTracking" WHERE employee_id=$1 ORDER BY date DESC LIMIT 120`, employeeId).catch(() => []);
+  const shifts: any[] = await (prisma as any).$queryRawUnsafe(`SELECT date, start_time, end_time, shift_type, assigned_staff FROM "WorkShift" ORDER BY date DESC LIMIT 500`).catch(() => []);
+  // index scheduled shifts by ISO date for this employee
+  const dayKey = (d: any) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(d));
+  const hhmm = (d: any) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(d));
+  const toMin = (t: string) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+  const schedByDay: Record<string, any> = {};
+  for (const s of shifts) {
+    const arr = Array.isArray(s.assigned_staff) ? s.assigned_staff : [];
+    const mine = arr.find((a: any) => String(a?.employee_id || '') === employeeId || norm(a?.employee_name) === empName);
+    if (!mine) continue;
+    schedByDay[dayKey(s.date)] = { start: mine.start_time || s.start_time || null, end: mine.end_time || s.end_time || null, role: mine.role || s.shift_type || null };
+  }
+  const rows = clocks.map((c) => {
+    const k = dayKey(c.date);
+    const sched = schedByDay[k] || {};
+    const actualStart = c.shift_start ? hhmm(c.shift_start) : null;
+    const actualEnd = c.shift_end ? hhmm(c.shift_end) : null;
+    let late = null, early = null;
+    if (sched.start && actualStart) { const d = toMin(actualStart)! - toMin(sched.start)!; if (d > 5) late = d; }
+    if (sched.end && actualEnd) { const d = toMin(sched.end)! - toMin(actualEnd)!; if (d > 5) early = d; }
+    return { date: k, scheduled_start: sched.start || null, scheduled_end: sched.end || null, actual_start: actualStart, actual_end: actualEnd, hours: c.total_hours ?? null, role: sched.role || null, late_minutes: late, early_leave_minutes: early, no_schedule: !sched.start };
+  });
+  const late_count = rows.filter((r) => r.late_minutes).length;
+  return { shifts: rows, late_count, total: rows.length };
 });
 
 // Start a fresh prep day: snapshot the current state into PrepArchive (so past
