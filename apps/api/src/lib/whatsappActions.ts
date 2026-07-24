@@ -1504,7 +1504,10 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
   // a stray pending task that hijacks the NEXT message. The agent's orders group
   // (propose_mark_supplier_ordered) handles it correctly.
   const looksLikeSupplierOrdered = /הזמנתי\s+מ|סמן.{0,12}שהזמנתי/.test(b);
-  if (looksLikeRestaurantEvent || looksLikeReservation || looksLikeReminder || looksLikeExpense || looksLikeSupplierOrdered) return null;
+  // Managing an EXISTING event ("עדכן/בטל/סמן ששולם … האירוע של X") must reach the
+  // agent's propose_update_event, not the old invoice/broadcast classifier.
+  const looksLikeEventMgmt = /האירוע|אירוע של|לאירוע של/.test(b);
+  if (looksLikeRestaurantEvent || looksLikeReservation || looksLikeReminder || looksLikeExpense || looksLikeSupplierOrdered || looksLikeEventMgmt) return null;
 
   // Check for a pending clarification first — if the user is answering a
   // follow-up question, merge the new field(s) into the saved partial intent.
