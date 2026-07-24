@@ -404,6 +404,30 @@ const TOOL_DECLARATIONS = [
       required: ['entries'],
     },
   },
+  {
+    name: 'request_availability_reopen',
+    description: 'עובד מבקש לפתוח מחדש זמינות שכבר הגיש ונעולה, כדי לשנות אותה. השתמש כשעובד אומר "אני רוצה לשנות זמינות", "לפתוח לי את הזמינות לשבוע הבא", "פתחו לי להגיש מחדש". אם מנהל מבקש עבור עובד — ציין employee_name. הבקשה נשלחת למנהל לאישור.',
+    parameters: { type: 'OBJECT', properties: {
+      week: { type: 'STRING', description: 'לאיזה שבוע: "הבא" (ברירת מחדל) / "השבוע" / "עוד שבועיים" / תאריך DD.MM' },
+      employee_name: { type: 'STRING', description: 'רק אם מנהל מבקש עבור עובד אחר (לא צריך כשהעובד עצמו מבקש).' },
+    } },
+  },
+  {
+    name: 'approve_availability_reopen',
+    description: 'מנהל מאשר לעובד להגיש/לשנות זמינות מחדש לשבוע (מוחק את הזמינות הקיימת שלו כדי שיגיש חדשה, בלי מטבעות). השתמש כש: "אשר לדבורה לשנות זמינות", "תאשר ל[שם] להגיש מחדש", "פתח מחדש ל[שם]".',
+    parameters: { type: 'OBJECT', properties: {
+      employee_name: { type: 'STRING', description: 'שם העובד לאשר.' },
+      week: { type: 'STRING', description: 'שבוע: "הבא" (ברירת מחדל) / "השבוע" / "עוד שבועיים" / DD.MM' },
+    }, required: ['employee_name'] },
+  },
+  {
+    name: 'reset_availability',
+    description: 'מנהל מאפס זמינות לשבוע כדי שיגישו מחדש (מוחק, בלי מטבעות). "אפס זמינות של כולם לשבוע הבא" = כולם; "אפס את הזמינות של דני" = רק אותו עובד. הצוות מקבל תזכורת להגיש מחדש.',
+    parameters: { type: 'OBJECT', properties: {
+      week: { type: 'STRING', description: 'שבוע: "הבא" (ברירת מחדל) / "השבוע" / "עוד שבועיים" / DD.MM' },
+      employee_name: { type: 'STRING', description: 'אופציונלי — רק עובד מסוים במקום כולם.' },
+    } },
+  },
   // ─── Employee / HR (manager) ───────────────────────────────────────
   {
     name: 'add_employee_note',
@@ -2569,6 +2593,77 @@ async function tool_submit_availability(args: any, phone: string): Promise<any> 
   };
 }
 
+// Resolve a Hebrew "week" phrase to the Sunday (YYYY-MM-DD) of that week. Default
+// (or "הבא") = next week — matching the employee form's default.
+function waWeekStart(text: string): string {
+  const t = String(text || '').trim();
+  const m = /(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?/.exec(t);
+  const today = ymd();
+  let baseYmd = today;
+  if (m) {
+    const d = m[1].padStart(2, '0'); const mo = m[2].padStart(2, '0');
+    let y = m[3] ? Number(m[3]) : Number(today.slice(0, 4)); if (y < 100) y += 2000;
+    baseYmd = `${y}-${mo}-${d}`;
+  }
+  const dow = new Date(`${baseYmd}T12:00:00Z`).getUTCDay(); // 0=Sun
+  const sun = new Date(`${baseYmd}T12:00:00Z`); sun.setUTCDate(sun.getUTCDate() - dow);
+  let sundayYmd = sun.toISOString().slice(0, 10);
+  if (!m) {
+    let addWeeks = 1; // default = next week
+    if (/השבוע|הנוכחי|הזה/.test(t)) addWeeks = 0;
+    else if (/שבועיים/.test(t)) addWeeks = 2;
+    else if (/שלושה שבוע|3 שבוע/.test(t)) addWeeks = 3;
+    const s2 = new Date(`${sundayYmd}T12:00:00Z`); s2.setUTCDate(s2.getUTCDate() + addWeeks * 7);
+    sundayYmd = s2.toISOString().slice(0, 10);
+  }
+  return sundayYmd;
+}
+
+async function tool_request_availability_reopen(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  const week_start = waWeekStart(args?.week);
+  let employee_id = scope.employee_id, employee_name = scope.employee_name;
+  if (args?.employee_name) {
+    if (!scope.can_write) return { error: 'רק מנהל יכול לבקש עבור עובד אחר.' };
+    const { emp, suggestions } = await resolveEmployeeWa(args.employee_name);
+    if (!emp) return { need_clarification: true, suggestions: suggestions.map((e) => e.full_name) };
+    employee_id = emp.id; employee_name = emp.full_name;
+  }
+  if (!employee_id) return { error: 'לא זוהה עובד. אם את/ה עובד/ת — כתוב/כתבי מהמספר הרשום במערכת.' };
+  const { functionHandlers } = await import('../functions/index.js');
+  const res: any = await functionHandlers['requestAvailabilityReopen']({ body: { employee_id, employee_name, week_start }, user: null, req: {} } as any).catch((e: any) => ({ error: String(e?.message || e) }));
+  if (res?.error && res.error !== 'not_submitted') return { error: res.error };
+  if (res?.message) return { ok: true, message: res.message };
+  return { ok: true, message: `📩 הבקשה לשינוי זמינות לשבוע ${week_start} נשלחה למנהל לאישור. תקבל/י הודעה כשיאושר.` };
+}
+
+async function tool_approve_availability_reopen(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const { emp, suggestions } = await resolveEmployeeWa(args?.employee_name);
+  if (!emp) return { need_clarification: true, suggestions: suggestions.map((e) => e.full_name) };
+  const week_start = waWeekStart(args?.week);
+  await stashPendingAction(phone, { type: 'approve_avail_reopen', employee_id: emp.id, employee_name: emp.full_name, week_start, target_phone: phone });
+  return { proposal: `🔓 לאשר ל-*${emp.full_name}* להגיש זמינות מחדש לשבוע ${week_start}? (הזמינות הקיימת שלו/ה תימחק)`, awaiting_confirmation: true };
+}
+
+async function tool_reset_availability(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const week_start = waWeekStart(args?.week);
+  let employee_id: string | null = null, who = 'כל העובדים';
+  if (args?.employee_name) {
+    const { emp, suggestions } = await resolveEmployeeWa(args.employee_name);
+    if (!emp) return { need_clarification: true, suggestions: suggestions.map((e) => e.full_name) };
+    employee_id = emp.id; who = emp.full_name;
+  }
+  await stashPendingAction(phone, { type: 'reset_avail', week_start, employee_id, who, target_phone: phone });
+  return { proposal: `🔄 לאפס זמינות של *${who}* לשבוע ${week_start}? ${employee_id ? 'העובד/ת' : 'כולם'} יצטרכו להגיש מחדש (בלי מטבעות) ויקבלו תזכורת.`, awaiting_confirmation: true };
+}
+
 // ── Employee / HR tool handlers (manager-gated) ────────────────────────────
 async function ensureCrmTablesWa(): Promise<void> {
   await (prisma as any).$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "EmployeeNote" ("id" TEXT PRIMARY KEY,"employee_id" TEXT NOT NULL,"sentiment" TEXT DEFAULT 'neutral',"text" TEXT,"created_by" TEXT,"created_by_name" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`).catch(() => {});
@@ -2980,6 +3075,9 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   get_my_hours: tool_get_my_hours,
   propose_mark_sick: tool_propose_mark_sick,
   submit_availability: tool_submit_availability,
+  request_availability_reopen: tool_request_availability_reopen,
+  approve_availability_reopen: tool_approve_availability_reopen,
+  reset_availability: tool_reset_availability,
   add_employee_note: tool_add_employee_note,
   add_employee_task: tool_add_employee_task,
   list_hr_gaps: tool_list_hr_gaps,
@@ -3196,7 +3294,7 @@ type=${exec.type || '?'} · נשלח לפני ${Math.round((Date.now() - new Dat
 const UNIVERSAL_TOOLS = ['list_pending_proposals', 'modify_pending_proposal', 'cancel_pending_proposal'];
 const TOOL_GROUPS: Record<string, string[]> = {
   finance: ['get_today_revenue', 'get_cash_balance', 'list_unpaid_expenses', 'list_expected_income', 'get_recent_tips', 'propose_mark_expense_paid', 'propose_lock_tips', 'get_recipe_cost', 'list_high_food_cost', 'update_ingredient_price', 'get_my_recipe_summary', 'propose_set_dish_price', 'daily_status'],
-  schedule: ['list_today_schedule', 'build_schedule_now', 'add_scheduling_rule', 'list_scheduling_rules', 'propose_shift_assign', 'propose_employee_shifts_batch', 'propose_remove_from_shift', 'propose_publish_schedule', 'search_employee', 'propose_invite_employee', 'propose_mark_sick', 'find_replacements', 'submit_availability'],
+  schedule: ['list_today_schedule', 'build_schedule_now', 'add_scheduling_rule', 'list_scheduling_rules', 'propose_shift_assign', 'propose_employee_shifts_batch', 'propose_remove_from_shift', 'propose_publish_schedule', 'search_employee', 'propose_invite_employee', 'propose_mark_sick', 'find_replacements', 'submit_availability', 'request_availability_reopen', 'approve_availability_reopen', 'reset_availability'],
   reservations: ['check_availability', 'list_reservations', 'propose_create_reservation', 'propose_cancel_reservation'],
   orders: ['list_order_needs', 'propose_mark_supplier_ordered'],
   incidents: ['propose_open_incident', 'list_incidents', 'propose_resolve_incident'],

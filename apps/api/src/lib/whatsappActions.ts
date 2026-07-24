@@ -1039,6 +1039,24 @@ async function executeAction(exec: any): Promise<string> {
       await (prisma as any).$executeRawUnsafe(`DELETE FROM "MenuItem" WHERE id=$1`, exec.item_id);
       return `✅ *${exec.item_name}* הוסר מהתפריט.`;
     }
+    case 'approve_avail_reopen': {
+      const { functionHandlers } = await import('../functions/index.js');
+      const res: any = await functionHandlers['approveAvailabilityReopen']({
+        user: { id: 'wa-owner', role: 'owner', email: 'whatsapp' },
+        body: { employee_id: exec.employee_id, week_start: exec.week_start }, req: {},
+      } as any).catch((e: any) => ({ error: String(e?.message || e) }));
+      if (res?.error) return `⚠️ לא הצלחתי לאשר: ${res.error}`;
+      return `✅ אושר ל-*${exec.employee_name || 'העובד'}* להגיש זמינות מחדש לשבוע ${exec.week_start}. נשלחה לו/ה הודעה בוואטסאפ.`;
+    }
+    case 'reset_avail': {
+      const { functionHandlers } = await import('../functions/index.js');
+      const res: any = await functionHandlers['resetAvailability']({
+        user: { id: 'wa-owner', role: 'owner', email: 'whatsapp' },
+        body: { week_start: exec.week_start, employee_id: exec.employee_id || null, notify: true }, req: {},
+      } as any).catch((e: any) => ({ error: String(e?.message || e) }));
+      if (res?.error) return `⚠️ האיפוס נכשל: ${res.error}`;
+      return `🔄 אופסה זמינות ל-*${res?.reset_count ?? 0}* עובדים לשבוע ${exec.week_start}. נשלחה להם תזכורת להגיש מחדש.`;
+    }
     case 'lock_tips': {
       // Mirror the Tips.jsx lock write (status/locked_by/locked_at), scoped to the
       // UTC day (+ optional shift_type); skips reports already locked.
