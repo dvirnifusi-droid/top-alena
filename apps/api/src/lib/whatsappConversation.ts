@@ -2442,7 +2442,7 @@ async function tool_my_branch_tasks(_args: any, phone: string): Promise<any> {
   const scope = await resolveAccessScope(phone);
   if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
   const rows: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT b.task_id, b.done, t.title, t.detail, t.due_date FROM public."NetworkTaskBranch" b JOIN public."NetworkTask" t ON t.id=b.task_id WHERE b.branch_slug=$1 ORDER BY b.done ASC, t."createdAt" DESC LIMIT 30`,
+    `SELECT b.task_id, b.done, t.title, t.detail, t.due_date FROM public."NetworkTaskBranch" b JOIN public."NetworkTask" t ON t.id=b.task_id WHERE b.slug=$1 ORDER BY b.done ASC, t."createdAt" DESC LIMIT 30`,
     currentTenantSlug(),
   ).catch(() => []);
   return { tasks: rows.map((r) => ({ id: r.task_id, title: r.title, detail: r.detail, due: r.due_date, done: r.done })), open: rows.filter((r) => !r.done).length };
@@ -2454,11 +2454,11 @@ async function tool_mark_branch_task(args: any, phone: string): Promise<any> {
   const slug = currentTenantSlug();
   const title = String(args?.title || '').trim();
   const rows: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT b.task_id, t.title FROM public."NetworkTaskBranch" b JOIN public."NetworkTask" t ON t.id=b.task_id WHERE b.branch_slug=$1 AND COALESCE(b.done,false)=false AND t.title ILIKE $2 LIMIT 2`,
+    `SELECT b.task_id, t.title FROM public."NetworkTaskBranch" b JOIN public."NetworkTask" t ON t.id=b.task_id WHERE b.slug=$1 AND COALESCE(b.done,false)=false AND t.title ILIKE $2 LIMIT 2`,
     slug, `%${title}%`,
   ).catch(() => []);
   if (rows.length !== 1) return rows.length ? { need_clarification: true, suggestions: rows.map((r) => r.title) } : { error: 'task_not_found' };
-  await (prisma as any).$executeRawUnsafe(`UPDATE public."NetworkTaskBranch" SET done=true, done_at=NOW() WHERE branch_slug=$1 AND task_id=$2`, slug, rows[0].task_id).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`UPDATE public."NetworkTaskBranch" SET done=true, done_at=NOW() WHERE slug=$1 AND task_id=$2`, slug, rows[0].task_id).catch(() => {});
   return { ok: true, marked_done: rows[0].title };
 }
 
