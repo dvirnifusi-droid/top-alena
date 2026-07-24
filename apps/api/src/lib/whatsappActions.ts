@@ -1437,7 +1437,13 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
   // (→ "❓ מתי?" even when the time is in the message). The agent's
   // propose_remind_me (same remind_me exec shape) parses the time reliably.
   const looksLikeReminder = /תזכיר\s*לי|תזכורת/.test(b);
-  if (looksLikeRestaurantEvent || looksLikeReservation || looksLikeReminder) return null;
+  // Expense mark-paid: the old classifier tags "סמן שההוצאה של X שולמה" as
+  // invoice_mark_paid → searches Invoice BY NUMBER → "לא מצאתי חשבונית עם מספר",
+  // even though X is a CashFlowEntry expense. The agent's propose_mark_expense_paid
+  // searches CashFlowEntry by supplier name — the same source the owner just saw
+  // in "אילו הוצאות לא שולמו". ("חשבונית" stays on the old invoice path.)
+  const looksLikeExpense = /הוצא/.test(b) && !/חשבונית/.test(b);
+  if (looksLikeRestaurantEvent || looksLikeReservation || looksLikeReminder || looksLikeExpense) return null;
 
   // Check for a pending clarification first — if the user is answering a
   // follow-up question, merge the new field(s) into the saved partial intent.

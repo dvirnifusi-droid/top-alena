@@ -2616,18 +2616,28 @@ async function tool_daily_status(_args: any, phone: string): Promise<any> {
   ]);
   // COMPACT flat summary — a huge nested blob confuses the model into hallucinating.
   const r: any = rev || {}, o: any = orders || {}, inc: any = incidents || {}, s: any = sched || {};
-  const orderCount = (Array.isArray(o.prep_order_items) ? o.prep_order_items.length : 0) + (Array.isArray(o.suppliers_to_order) ? o.suppliers_to_order.length : 0);
+  const supList: any[] = Array.isArray(o.suppliers_to_order) ? o.suppliers_to_order : [];
+  const prepList: any[] = Array.isArray(o.prep_order_items) ? o.prep_order_items : [];
+  // NAME what needs ordering (owner asked "which item? it doesn't say"). Count
+  // real items, and list supplier(name × item-count) + any prep items — not a
+  // bare "1" (which was actually counting SUPPLIERS, phrased as "1 item").
+  const orderItemsTotal = supList.reduce((sum, x) => sum + (Number(x.to_order_count) || 0), 0) + prepList.length;
+  const orderNeeds = [
+    ...supList.map((x) => `${x.supplier} (${x.to_order_count} פריטים)`),
+    ...prepList.map((p) => p.name),
+  ].slice(0, 8);
   const staffToday = ([...(s.lunch || []), ...(s.dinner || [])]).length;
   return {
     revenue_today_ils: r.combined_total ?? null,
     cash_today_ils: r.cash_today_approx ?? null,
     revenue_note: r.note || undefined,
-    order_needs_count: orderCount,
+    order_needs: orderNeeds,                 // e.g. ["טמפו (12 פריטים)"]
+    order_items_total: orderItemsTotal,
     open_incidents_count: inc.count ?? 0,
     open_incidents_titles: (inc.incidents || []).slice(0, 4).map((i: any) => i.title),
     hr_gaps_count: (hr as any)?.total ?? 0,
     staff_scheduled_today: staffToday,
-    note_for_agent: 'סכם בקצרה בעברית כברכת-בוקר למנהל: הכנסות, מזומן, כמה חוסרים להזמין, תקריות פתוחות, כמה משובצים היום, וכמה עובדים דורשים טיפול ב-HR.',
+    note_for_agent: 'סכם בקצרה בעברית כברכת-בוקר למנהל: הכנסות, מזומן, מה צריך להזמין (ציין את שמות הספקים/הפריטים מ-order_needs, לא רק מספר), תקריות פתוחות, כמה משובצים היום, וכמה עובדים דורשים טיפול ב-HR.',
   };
 }
 
