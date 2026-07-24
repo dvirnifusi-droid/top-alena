@@ -3,6 +3,7 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { Check, ChevronRight, Circle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { mapTermChildren } from "@/lib/termChildren"
 
 const DropdownMenu = DropdownMenuPrimitive.Root
 
@@ -59,7 +60,7 @@ const DropdownMenuContent = React.forwardRef(({ className, sideOffset = 4, ...pr
 ))
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
 
-const DropdownMenuItem = React.forwardRef(({ className, inset, ...props }, ref) => (
+const DropdownMenuItem = React.forwardRef(({ className, inset, children, ...props }, ref) => (
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
@@ -67,7 +68,7 @@ const DropdownMenuItem = React.forwardRef(({ className, inset, ...props }, ref) 
       inset && "pl-8",
       className
     )}
-    {...props} />
+    {...props}>{props.asChild ? children : mapTermChildren(children)}</DropdownMenuPrimitive.Item>
 ))
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName
 
@@ -109,11 +110,11 @@ const DropdownMenuRadioItem = React.forwardRef(({ className, children, ...props 
 ))
 DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName
 
-const DropdownMenuLabel = React.forwardRef(({ className, inset, ...props }, ref) => (
+const DropdownMenuLabel = React.forwardRef(({ className, inset, children, ...props }, ref) => (
   <DropdownMenuPrimitive.Label
     ref={ref}
     className={cn("px-2 py-1.5 text-sm font-semibold", inset && "pl-8", className)}
-    {...props} />
+    {...props}>{mapTermChildren(children)}</DropdownMenuPrimitive.Label>
 ))
 DropdownMenuLabel.displayName = DropdownMenuPrimitive.Label.displayName
 

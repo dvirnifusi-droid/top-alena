@@ -45,7 +45,7 @@ export default function PageHeader({ title, subtitle, icon: Icon, action, accent
                         <h1 className="font-display text-3xl sm:text-4xl font-black text-[#2A2018] leading-none truncate">{shownTitle}</h1>
                         {key && typeof title === 'string' && <PageConfigButton page={key} defaultTitle={title} />}
                     </div>
-                    {subtitle && <p className="text-[#8A7C64] text-sm mt-1.5">{subtitle}</p>}
+                    {subtitle && <p className="text-[#8A7C64] text-sm mt-1.5">{typeof subtitle === 'string' ? applyTerms(subtitle) : subtitle}</p>}
                 </div>
             </div>
             {action && <div className="flex-shrink-0">{action}</div>}
