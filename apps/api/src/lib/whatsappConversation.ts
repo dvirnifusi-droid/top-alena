@@ -659,6 +659,24 @@ const TOOL_DECLARATIONS = [
       },
     },
   },
+  {
+    name: 'propose_update_event',
+    description: 'עדכון אירוע פרטי מאושר קיים (לא ליד). השתמש כש: "תעדכן את האירוע של כהן ל-80 איש", "בטל את האירוע של לוי", "סמן ששולם האירוע של דנה", "תשנה את התאריך של האירוע של רוזן ל-15.9". מזהה את האירוע לפי שם הלקוח. ביטול אירוע גם משחרר את השולחן ששובץ.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        customer_name: { type: 'STRING', description: 'שם הלקוח של האירוע לעדכון.' },
+        guest_count: { type: 'INTEGER', description: 'כמות אורחים חדשה.' },
+        date: { type: 'STRING', description: 'תאריך חדש (YYYY-MM-DD / DD.MM / ביטוי עברי).' },
+        event_time: { type: 'STRING', description: 'שעה חדשה HH:MM.' },
+        status: { type: 'STRING', enum: ['confirmed', 'tentative', 'cancelled', 'completed'], description: 'מאושר/אופציה/בוטל/התקיים.' },
+        payment_status: { type: 'STRING', enum: ['unpaid', 'deposit_paid', 'paid'], description: 'לא שולם / מקדמה שולמה / שולם במלואו.' },
+        total_ils: { type: 'INTEGER', description: 'סכום כולל חדש (₪).' },
+        location: { type: 'STRING', description: 'מיקום/אולם.' },
+      },
+      required: ['customer_name'],
+    },
+  },
   // ─── Revenue / ordering / tips (manager-level) ─────────────────────────────
   {
     name: 'get_today_revenue',
@@ -1037,6 +1055,45 @@ async function tool_propose_add_event_lead(args: any, phone: string): Promise<an
     proposal: `אירוע חדש למערכת האירועים:\n${bits}`,
     awaiting_confirmation: true,
   };
+}
+
+// Update an already-approved private event (guests/date/time/status/payment/
+// total/location). Cancelling releases the linked table (via saveEventBooking).
+async function tool_propose_update_event(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const name = String(args?.customer_name || '').trim();
+  if (!name) return { error: 'על איזה אירוע? ציין שם לקוח.' };
+  const rows: any[] = await (prisma as any).eventBooking.findMany({
+    where: { approval_status: 'approved', customer_name: { contains: name, mode: 'insensitive' } },
+    orderBy: { event_date: 'desc' }, take: 6,
+  }).catch(() => []);
+  if (!rows.length) return { not_found: true, message: `לא מצאתי אירוע מאושר על השם "${name}".` };
+  if (rows.length > 1) return { ambiguous: true, candidates: rows.map((r: any) => `${r.customer_name} · ${r.event_date}${r.guest_count ? ` · ${r.guest_count} איש` : ''}`) };
+  const bk = rows[0];
+  const changes: any = {};
+  if (args.guest_count != null && Number.isFinite(Number(args.guest_count))) changes.guest_count = Math.round(Number(args.guest_count));
+  if (args.date) { const d = resolveDate(String(args.date)); if (d) changes.event_date = d; }
+  if (args.event_time) changes.event_time = String(args.event_time).slice(0, 10);
+  if (args.total_ils != null && Number.isFinite(Number(args.total_ils))) changes.total_ils = Math.round(Number(args.total_ils));
+  if (args.location) changes.location = String(args.location).slice(0, 200);
+  const ST: Record<string, string> = { confirmed: 'מאושר', tentative: 'אופציה', cancelled: 'בוטל', completed: 'התקיים' };
+  const PAY: Record<string, string> = { unpaid: 'לא שולם', deposit_paid: 'מקדמה שולמה', paid: 'שולם במלואו' };
+  if (ST[String(args.status)]) changes.status = String(args.status);
+  if (PAY[String(args.payment_status)]) changes.payment_status = String(args.payment_status);
+  if (!Object.keys(changes).length) return { error: 'מה לעדכן? (כמות/תאריך/שעה/סטטוס/תשלום/סכום/מיקום)' };
+  await stashPendingAction(phone, { type: 'update_event', booking_id: bk.id, customer_name: bk.customer_name, ...changes, target_phone: phone });
+  const bits = [
+    changes.status ? `סטטוס→${ST[changes.status]}` : null,
+    changes.guest_count != null ? `${changes.guest_count} איש` : null,
+    changes.event_date ? `תאריך→${changes.event_date}` : null,
+    changes.event_time ? `שעה→${changes.event_time}` : null,
+    changes.payment_status ? `תשלום→${PAY[changes.payment_status]}` : null,
+    changes.total_ils != null ? `₪${changes.total_ils}` : null,
+    changes.location ? `מיקום→${changes.location}` : null,
+  ].filter(Boolean).join(' · ');
+  return { proposal: `✏️ עדכון האירוע של *${bk.customer_name || ''}* (${bk.event_date}): ${bits}`, awaiting_confirmation: true };
 }
 
 // ─── Revenue / ordering / tips (manager-level) ─────────────────────────────
@@ -3133,6 +3190,7 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   propose_create_reservation: tool_propose_create_reservation,
   propose_cancel_reservation: tool_propose_cancel_reservation,
   propose_add_event_lead: tool_propose_add_event_lead,
+  propose_update_event: tool_propose_update_event,
   get_today_revenue: tool_get_today_revenue,
   list_order_needs: tool_list_order_needs,
   propose_mark_supplier_ordered: tool_propose_mark_supplier_ordered,
@@ -3298,7 +3356,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
   reservations: ['check_availability', 'list_reservations', 'propose_create_reservation', 'propose_cancel_reservation'],
   orders: ['list_order_needs', 'propose_mark_supplier_ordered'],
   incidents: ['propose_open_incident', 'list_incidents', 'propose_resolve_incident'],
-  events: ['propose_approve_event', 'propose_add_event_lead', 'list_open_leads', 'search_lead', 'propose_lead_set_stage', 'propose_event_add', 'propose_event_add_batch'],
+  events: ['propose_approve_event', 'propose_add_event_lead', 'propose_update_event', 'list_open_leads', 'search_lead', 'propose_lead_set_stage', 'propose_event_add', 'propose_event_add_batch'],
   tasks: ['propose_task_add', 'propose_task_done', 'list_open_tasks', 'propose_task_add_batch', 'propose_remind_me', 'list_today_events', 'update_scheduled_event', 'cancel_scheduled_event', 'my_branch_tasks', 'mark_branch_task'],
   invoices: ['get_unpaid_invoices', 'search_invoice', 'propose_invoice_mark_paid'],
   team: ['propose_team_broadcast', 'search_employee', 'count_staff', 'list_today_schedule', 'add_employee_note', 'add_employee_task', 'list_hr_gaps', 'employee_summary', 'log_employee_meeting', 'set_onboarding_step', 'issue_club_benefit', 'propose_customer_campaign'],

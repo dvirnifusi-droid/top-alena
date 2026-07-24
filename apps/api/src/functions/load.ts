@@ -15974,7 +15974,8 @@ registerFn('listEventBookings', async () => {
 registerFn('listUpcomingConfirmedEvents', async () => {
   const today = new Date().toISOString().slice(0, 10);
   const bookings = await db.eventBooking.findMany({
-    where: { approval_status: 'approved', event_date: { gte: today } },
+    // Exclude cancelled events from the upcoming timeline (they stay in the table).
+    where: { approval_status: 'approved', event_date: { gte: today }, NOT: { status: 'cancelled' } },
     orderBy: [{ event_date: 'asc' }, { event_time: 'asc' }],
     take: 100,
   });
@@ -15993,8 +15994,13 @@ registerFn('getEventBooking', async ({ body }) => {
 // EventBooking with the final details (date/time/guests + free-text menu + payment
 // terms) and, when it came from a lead, marks that lead 'won'. Free-text menu +
 // event type ride in selected_menu; payment terms in approval_notes.
+const EVENT_STATUSES = ['confirmed', 'tentative', 'cancelled', 'completed'];
+const EVENT_PAY_STATUSES = ['unpaid', 'deposit_paid', 'paid'];
 registerFn('saveEventBooking', async ({ user, body }: any) => {
   await requireBackOffice(user, 'saveEventBooking', 'EventsPrivate');
+  // Additive columns for full editing (no db push — the DB may lag the schema).
+  await db.$executeRawUnsafe(`ALTER TABLE "EventBooking" ADD COLUMN IF NOT EXISTS "location" TEXT`).catch(() => {});
+  await db.$executeRawUnsafe(`ALTER TABLE "EventBooking" ADD COLUMN IF NOT EXISTS "updated_by" TEXT`).catch(() => {});
   const b = (body || {}) as any;
   const eventDate = String(b.event_date || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) throw new Error('תאריך אירוע חובה (YYYY-MM-DD)');
@@ -16002,27 +16008,50 @@ registerFn('saveEventBooking', async ({ user, body }: any) => {
   const num = (v: any) => (v != null && v !== '' && Number.isFinite(Number(v))) ? Math.round(Number(v)) : null;
   const menuText = String(b.menu_text || '').slice(0, 4000);
   const eventType = String(b.event_type || '').slice(0, 80);
+  // Total: a directly-typed סה"כ wins; otherwise price-per-person × guests.
+  const totalDirect = num(b.total_ils);
+  const ppp = num(b.price_per_person);
+  const total_ils = totalDirect != null ? totalDirect : (ppp != null ? ppp * guestCount : null);
+  const existing = b.id ? await db.eventBooking.findUnique({ where: { id: String(b.id) } }).catch(() => null) : null;
+  const status = EVENT_STATUSES.includes(String(b.status)) ? String(b.status) : ((existing as any)?.status || 'confirmed');
+  const payment_status = EVENT_PAY_STATUSES.includes(String(b.payment_status)) ? String(b.payment_status)
+    : ((existing as any)?.payment_status || (num(b.deposit_amount_ils) ? 'deposit_paid' : 'unpaid'));
   const data: any = {
-    lead_id: b.lead_id ? String(b.lead_id) : null,
+    lead_id: b.lead_id ? String(b.lead_id) : ((existing as any)?.lead_id || null),
     customer_name: String(b.contact_name || '').slice(0, 120) || null,
     customer_phone: String(b.contact_phone || '').slice(0, 40) || null,
     event_date: eventDate,
     event_time: b.event_time ? String(b.event_time).slice(0, 10) : null,
     guest_count: guestCount,
     hours_window: b.hours_window ? String(b.hours_window).slice(0, 60) : null,
+    location: b.location ? String(b.location).slice(0, 200) : null,
     selected_menu: (menuText || eventType) ? { text: menuText || null, event_type: eventType || null } : null,
-    total_ils: num(b.total_ils),
+    total_ils,
+    discount_pct: num(b.discount_pct),
     deposit_amount_ils: num(b.deposit_amount_ils),
+    payment_status,
     approval_notes: b.payment_terms ? String(b.payment_terms).slice(0, 2000) : null,
     notes: b.notes ? String(b.notes).slice(0, 2000) : null,
-    status: 'confirmed',
+    status,
     approval_status: 'approved',
-    source: b.lead_id ? 'lead_closed' : 'manual',
+    source: b.lead_id ? 'lead_closed' : ((existing as any)?.source || 'manual'),
+    updated_by: (user as any)?.email || null,
   };
-  let booking;
+  let booking: any;
   if (b.id) booking = await db.eventBooking.update({ where: { id: String(b.id) }, data });
   else booking = await db.eventBooking.create({ data: { ...data, created_by: (user as any)?.email || null } });
   if (b.lead_id) { await db.eventLead.update({ where: { id: String(b.lead_id) }, data: { status: 'won', event_date: eventDate } }).catch(() => {}); }
+  // Keep the linked table reservation in sync: cancelling RELEASES the table;
+  // a date/time/guest change updates it so SeatingSetup never goes stale.
+  if (booking?.reservation_id) {
+    try {
+      if (status === 'cancelled') {
+        await (db as any).reservation.update({ where: { id: booking.reservation_id }, data: { status: 'cancelled', cancelled_at: new Date(), cancellation_reason: 'האירוע בוטל' } });
+      } else {
+        await (db as any).reservation.update({ where: { id: booking.reservation_id }, data: { date: new Date(`${eventDate}T00:00:00.000Z`), time: booking.event_time || undefined, party_size: guestCount } });
+      }
+    } catch { /* reservation may have been removed */ }
+  }
   return { ok: true, booking };
 });
 

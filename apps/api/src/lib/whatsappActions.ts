@@ -1039,6 +1039,44 @@ async function executeAction(exec: any): Promise<string> {
       await (prisma as any).$executeRawUnsafe(`DELETE FROM "MenuItem" WHERE id=$1`, exec.item_id);
       return `✅ *${exec.item_name}* הוסר מהתפריט.`;
     }
+    case 'update_event': {
+      // Update an approved EventBooking through saveEventBooking (which also
+      // re-syncs / releases the linked table). Merge changes onto the current
+      // row so unspecified fields aren't wiped by the full-replace save.
+      const bk: any = await (prisma as any).eventBooking.findUnique({ where: { id: exec.booking_id } }).catch(() => null);
+      if (!bk) return '⚠️ האירוע לא נמצא (אולי נמחק).';
+      const sm = (bk.selected_menu && typeof bk.selected_menu === 'object') ? bk.selected_menu : {};
+      const { functionHandlers } = await import('../functions/index.js');
+      const body: any = {
+        id: bk.id, lead_id: bk.lead_id || undefined,
+        contact_name: bk.customer_name, contact_phone: bk.customer_phone,
+        event_date: exec.event_date || bk.event_date,
+        event_time: exec.event_time !== undefined ? exec.event_time : bk.event_time,
+        guest_count: exec.guest_count != null ? exec.guest_count : bk.guest_count,
+        event_type: sm.event_type, menu_text: sm.text,
+        payment_terms: bk.approval_notes,
+        total_ils: exec.total_ils != null ? exec.total_ils : bk.total_ils,
+        deposit_amount_ils: bk.deposit_amount_ils,
+        location: exec.location != null ? exec.location : bk.location,
+        hours_window: bk.hours_window,
+        status: exec.status || bk.status || 'confirmed',
+        payment_status: exec.payment_status || bk.payment_status || 'unpaid',
+        notes: bk.notes,
+      };
+      const res: any = await functionHandlers['saveEventBooking']({
+        user: { id: 'wa-owner', role: 'owner', email: 'whatsapp' }, body, req: {},
+      } as any).catch((e: any) => ({ error: String(e?.message || e) }));
+      if (res?.error) return `⚠️ העדכון נכשל: ${res.error}`;
+      const STx: Record<string, string> = { confirmed: 'מאושר', tentative: 'אופציה', cancelled: 'בוטל', completed: 'התקיים' };
+      const bits = [
+        exec.status ? `סטטוס: ${STx[exec.status] || exec.status}` : null,
+        exec.guest_count != null ? `${exec.guest_count} איש` : null,
+        exec.event_date ? `תאריך ${exec.event_date}` : null,
+        exec.total_ils != null ? `₪${exec.total_ils}` : null,
+      ].filter(Boolean).join(' · ');
+      const released = exec.status === 'cancelled' && bk.reservation_id ? ' והשולחן שוחרר.' : '';
+      return `✅ האירוע של *${exec.customer_name || bk.customer_name || ''}* עודכן${bits ? `: ${bits}` : ''}.${released}`;
+    }
     case 'approve_avail_reopen': {
       const { functionHandlers } = await import('../functions/index.js');
       const res: any = await functionHandlers['approveAvailabilityReopen']({

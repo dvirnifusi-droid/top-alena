@@ -2750,6 +2750,8 @@ model EventBooking {
   short_notice        Boolean?
   source              String?
   notes               String?
+  location            String?
+  updated_by          String?
   created_by          String?
   created_date        String?
   updated_date        String?

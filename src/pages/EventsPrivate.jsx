@@ -927,10 +927,15 @@ function CloseEventDialog({ lead, booking, onClose, onSaved }) {
         event_time: booking.event_time || '',
         guest_count: booking.guest_count || '',
         event_type: sm.event_type || '',
+        location: booking.location || '',
+        hours_window: booking.hours_window || '',
         menu_text: sm.text || '',
         payment_terms: booking.approval_notes || '',
         total_ils: booking.total_ils ?? '',
+        price_per_person: '',
         deposit_amount_ils: booking.deposit_amount_ils ?? '',
+        status: booking.status || 'confirmed',
+        payment_status: booking.payment_status || 'unpaid',
         notes: booking.notes || '',
       });
       return;
@@ -943,10 +948,15 @@ function CloseEventDialog({ lead, booking, onClose, onSaved }) {
       event_time: lead.event_time || '',
       guest_count: lead.guest_count || '',
       event_type: lead.event_type || '',
+      location: lead.location || '',
+      hours_window: lead.hours_window || '',
       menu_text: '',
       payment_terms: '',
       total_ils: '',
+      price_per_person: '',
       deposit_amount_ils: lead?.deposit?.amount || '',
+      status: 'confirmed',
+      payment_status: lead?.deposit?.amount ? 'deposit_paid' : 'unpaid',
       notes: lead.notes || '',
     });
   }, [open, lead, booking]);
@@ -975,13 +985,40 @@ function CloseEventDialog({ lead, booking, onClose, onSaved }) {
             <div><Label className="text-xs">שעה</Label><Input type="time" value={f.event_time || ''} onChange={(e) => set('event_time', e.target.value)} /></div>
             <div><Label className="text-xs">אורחים</Label><Input type="number" value={f.guest_count || ''} onChange={(e) => set('guest_count', e.target.value)} /></div>
           </div>
-          <div><Label className="text-xs">סוג אירוע</Label><Input value={f.event_type || ''} onChange={(e) => set('event_type', e.target.value)} placeholder="יום הולדת / ערב חברה / ברית…" /></div>
-          <div><Label className="text-xs">תפריט</Label><Textarea rows={3} value={f.menu_text || ''} onChange={(e) => set('menu_text', e.target.value)} placeholder="מה סוכם — מנות / חבילה…" /></div>
-          <div><Label className="text-xs">תנאי תשלום</Label><Textarea rows={2} value={f.payment_terms || ''} onChange={(e) => set('payment_terms', e.target.value)} placeholder="מקדמה, יתרה, מועדי תשלום…" /></div>
           <div className="grid grid-cols-2 gap-2">
-            <div><Label className="text-xs">סכום כולל (₪)</Label><Input type="number" value={f.total_ils || ''} onChange={(e) => set('total_ils', e.target.value)} /></div>
+            <div><Label className="text-xs">סוג אירוע</Label><Input value={f.event_type || ''} onChange={(e) => set('event_type', e.target.value)} placeholder="יום הולדת / ברית / חתונה…" /></div>
+            <div><Label className="text-xs">חלון שעות</Label><Input value={f.hours_window || ''} onChange={(e) => set('hours_window', e.target.value)} placeholder="19:00-23:00" dir="ltr" /></div>
+          </div>
+          <div><Label className="text-xs">מיקום / אולם</Label><Input value={f.location || ''} onChange={(e) => set('location', e.target.value)} placeholder="במסעדה / כתובת אולם חיצוני…" /></div>
+          {/* status + payment status (full editing) */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-xs">סטטוס אירוע</Label>
+              <select value={f.status || 'confirmed'} onChange={(e) => set('status', e.target.value)} className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm">
+                <option value="confirmed">✅ מאושר</option>
+                <option value="tentative">🕒 אופציה</option>
+                <option value="cancelled">❌ בוטל</option>
+                <option value="completed">🎉 התקיים</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs">סטטוס תשלום</Label>
+              <select value={f.payment_status || 'unpaid'} onChange={(e) => set('payment_status', e.target.value)} className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm">
+                <option value="unpaid">לא שולם</option>
+                <option value="deposit_paid">מקדמה שולמה</option>
+                <option value="paid">שולם במלואו</option>
+              </select>
+            </div>
+          </div>
+          <div><Label className="text-xs">תפריט</Label><Textarea rows={3} value={f.menu_text || ''} onChange={(e) => set('menu_text', e.target.value)} placeholder="מה סוכם — מנות / חבילה…" /></div>
+          <div><Label className="text-xs">תנאי תשלום (טקסט חופשי)</Label><Textarea rows={2} value={f.payment_terms || ''} onChange={(e) => set('payment_terms', e.target.value)} placeholder="מקדמה, יתרה, מועדי תשלום…" /></div>
+          {/* Pricing: type a total directly OR a per-person price (auto-fills total). */}
+          <div className="grid grid-cols-3 gap-2 items-end">
+            <div><Label className="text-xs">מחיר לאדם (₪)</Label><Input type="number" value={f.price_per_person || ''} onChange={(e) => { const pp = e.target.value; set('price_per_person', pp); const g = Number(f.guest_count) || 0; if (pp && g) set('total_ils', Math.round(Number(pp) * g)); }} placeholder="אופציונלי" /></div>
+            <div><Label className="text-xs">סכום כולל (₪)</Label><Input type="number" value={f.total_ils || ''} onChange={(e) => set('total_ils', e.target.value)} placeholder="ישיר" /></div>
             <div><Label className="text-xs">מקדמה ששולמה (₪)</Label><Input type="number" value={f.deposit_amount_ils || ''} onChange={(e) => set('deposit_amount_ils', e.target.value)} /></div>
           </div>
+          <p className="text-[11px] text-gray-500 -mt-1">אפשר להזין סכום כולל ישירות, או מחיר לאדם והמערכת תכפיל בכמות.</p>
           <div><Label className="text-xs">הערות</Label><Textarea rows={2} value={f.notes || ''} onChange={(e) => set('notes', e.target.value)} /></div>
         </div>
         <DialogFooter>
@@ -1014,6 +1051,17 @@ function EventsTable() {
   };
   const menuOf = (b) => (b.selected_menu && typeof b.selected_menu === 'object') ? (b.selected_menu.text || '') : '';
   const typeOf = (b) => (b.selected_menu && typeof b.selected_menu === 'object') ? (b.selected_menu.event_type || '') : '';
+  const STATUS_META = {
+    confirmed: { t: '✅ מאושר', c: 'bg-emerald-100 text-emerald-800' },
+    tentative: { t: '🕒 אופציה', c: 'bg-amber-100 text-amber-800' },
+    cancelled: { t: '❌ בוטל', c: 'bg-red-100 text-red-700' },
+    completed: { t: '🎉 התקיים', c: 'bg-slate-200 text-slate-700' },
+  };
+  const PAY_META = {
+    unpaid: { t: 'לא שולם', c: 'bg-red-50 text-red-600' },
+    deposit_paid: { t: 'מקדמה', c: 'bg-amber-50 text-amber-700' },
+    paid: { t: 'שולם', c: 'bg-emerald-50 text-emerald-700' },
+  };
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -1032,15 +1080,21 @@ function EventsTable() {
                   <TableHeader><TableRow><TableHead>תאריך</TableHead><TableHead>שעה</TableHead><TableHead>אורחים</TableHead><TableHead>סוג</TableHead><TableHead>איש קשר</TableHead><TableHead>תפריט</TableHead><TableHead>תנאי תשלום</TableHead><TableHead>סכום</TableHead><TableHead>מקדמה</TableHead><TableHead></TableHead></TableRow></TableHeader>
                   <TableBody>
                     {bookings.map((b) => (
-                      <TableRow key={b.id}>
-                        <TableCell className="font-medium whitespace-nowrap">{b.event_date}</TableCell>
+                      <TableRow key={b.id} className={b.status === 'cancelled' ? 'opacity-60' : ''}>
+                        <TableCell className="font-medium whitespace-nowrap">
+                          {b.event_date}
+                          <span className={`block mt-0.5 text-[10px] rounded-full px-1.5 py-0.5 w-fit ${(STATUS_META[b.status] || STATUS_META.confirmed).c}`}>{(STATUS_META[b.status] || STATUS_META.confirmed).t}</span>
+                        </TableCell>
                         <TableCell>{b.event_time || '—'}</TableCell>
                         <TableCell>{b.guest_count}</TableCell>
-                        <TableCell>{typeOf(b) || '—'}</TableCell>
+                        <TableCell>{typeOf(b) || '—'}{b.location ? <span className="block text-[11px] text-gray-500">📍 {b.location}</span> : null}</TableCell>
                         <TableCell className="whitespace-nowrap">{b.customer_name || '—'}{b.customer_phone ? <a href={`tel:${b.customer_phone}`} className="block text-xs text-blue-600" dir="ltr">{b.customer_phone}</a> : null}</TableCell>
                         <TableCell className="max-w-[200px] text-xs whitespace-pre-wrap">{menuOf(b) || '—'}</TableCell>
                         <TableCell className="max-w-[160px] text-xs whitespace-pre-wrap">{b.approval_notes || '—'}</TableCell>
-                        <TableCell className="whitespace-nowrap">{b.total_ils != null ? `₪${Number(b.total_ils).toLocaleString()}` : '—'}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {b.total_ils != null ? `₪${Number(b.total_ils).toLocaleString()}` : '—'}
+                          <span className={`block mt-0.5 text-[10px] rounded-full px-1.5 py-0.5 w-fit ${(PAY_META[b.payment_status] || PAY_META.unpaid).c}`}>{(PAY_META[b.payment_status] || PAY_META.unpaid).t}</span>
+                        </TableCell>
                         <TableCell className="whitespace-nowrap">{b.deposit_amount_ils != null ? `₪${Number(b.deposit_amount_ils).toLocaleString()}` : '—'}</TableCell>
                         <TableCell className="whitespace-nowrap">
                           <button onClick={() => setEditBooking(b)} className="text-slate-400 hover:text-[#44512C] ml-2" title="ערוך אירוע"><Pencil className="w-4 h-4" /></button>
