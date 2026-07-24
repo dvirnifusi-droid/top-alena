@@ -909,12 +909,32 @@ function UpcomingEventsTimeline() {
 
 // Close-event form: from a won lead (lead has an id) OR a manual add (lead={}).
 // Prefills from the lead; the owner completes date + free-text menu + payment terms.
-function CloseEventDialog({ lead, onClose, onSaved }) {
-  const open = lead !== null && lead !== undefined;
+function CloseEventDialog({ lead, booking, onClose, onSaved }) {
+  const open = (lead !== null && lead !== undefined) || (booking !== null && booking !== undefined);
   const [f, setF] = React.useState({});
   const [saving, setSaving] = React.useState(false);
   React.useEffect(() => {
     if (!open) return;
+    if (booking) {
+      // Editing an existing closed event — prefill every field from the booking.
+      const sm = (booking.selected_menu && typeof booking.selected_menu === 'object') ? booking.selected_menu : {};
+      setF({
+        id: booking.id,
+        lead_id: booking.lead_id || '',
+        contact_name: booking.customer_name || '',
+        contact_phone: booking.customer_phone || '',
+        event_date: booking.event_date || '',
+        event_time: booking.event_time || '',
+        guest_count: booking.guest_count || '',
+        event_type: sm.event_type || '',
+        menu_text: sm.text || '',
+        payment_terms: booking.approval_notes || '',
+        total_ils: booking.total_ils ?? '',
+        deposit_amount_ils: booking.deposit_amount_ils ?? '',
+        notes: booking.notes || '',
+      });
+      return;
+    }
     setF({
       lead_id: lead.id || '',
       contact_name: lead.contact_name || '',
@@ -929,7 +949,7 @@ function CloseEventDialog({ lead, onClose, onSaved }) {
       deposit_amount_ils: lead?.deposit?.amount || '',
       notes: lead.notes || '',
     });
-  }, [open, lead]);
+  }, [open, lead, booking]);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const save = async () => {
     if (!f.event_date) { alert('בחר תאריך אירוע'); return; }
@@ -939,11 +959,12 @@ function CloseEventDialog({ lead, onClose, onSaved }) {
     finally { setSaving(false); }
   };
   if (!open) return null;
-  const isManual = !lead.id;
+  const isEdit = !!booking;
+  const isManual = !isEdit && !lead?.id;
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent dir="rtl" className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>{isManual ? '➕ הוספת אירוע ידני' : '✅ סגירת אירוע — נסגר ונחתם'}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{isEdit ? '✏️ עריכת אירוע' : isManual ? '➕ הוספת אירוע ידני' : '✅ סגירת אירוע — נסגר ונחתם'}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <div><Label className="text-xs">איש קשר</Label><Input value={f.contact_name || ''} onChange={(e) => set('contact_name', e.target.value)} /></div>
@@ -965,7 +986,7 @@ function CloseEventDialog({ lead, onClose, onSaved }) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>ביטול</Button>
-          <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (isManual ? 'שמור אירוע' : 'סגור וצור אירוע')}</Button>
+          <Button onClick={save} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (isEdit ? 'עדכן אירוע' : isManual ? 'שמור אירוע' : 'סגור וצור אירוע')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -978,6 +999,7 @@ function EventsTable() {
   const [bookings, setBookings] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [manual, setManual] = React.useState(null);
+  const [editBooking, setEditBooking] = React.useState(null);
   const load = React.useCallback(async () => {
     setLoading(true);
     try { const r = await base44.functions.listEventBookings({}); setBookings(r?.data?.bookings || r?.bookings || []); }
@@ -1020,7 +1042,10 @@ function EventsTable() {
                         <TableCell className="max-w-[160px] text-xs whitespace-pre-wrap">{b.approval_notes || '—'}</TableCell>
                         <TableCell className="whitespace-nowrap">{b.total_ils != null ? `₪${Number(b.total_ils).toLocaleString()}` : '—'}</TableCell>
                         <TableCell className="whitespace-nowrap">{b.deposit_amount_ils != null ? `₪${Number(b.deposit_amount_ils).toLocaleString()}` : '—'}</TableCell>
-                        <TableCell><button onClick={() => del(b.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button></TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <button onClick={() => setEditBooking(b)} className="text-slate-400 hover:text-[#44512C] ml-2" title="ערוך אירוע"><Pencil className="w-4 h-4" /></button>
+                          <button onClick={() => del(b.id)} className="text-red-400 hover:text-red-600" title="מחק"><Trash2 className="w-4 h-4" /></button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1029,6 +1054,7 @@ function EventsTable() {
             )}
       </CardContent>
       <CloseEventDialog lead={manual} onClose={() => setManual(null)} onSaved={() => { setManual(null); load(); }} />
+      <CloseEventDialog booking={editBooking} onClose={() => setEditBooking(null)} onSaved={() => { setEditBooking(null); load(); }} />
     </Card>
   );
 }
