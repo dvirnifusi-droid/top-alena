@@ -1426,7 +1426,14 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
     /אירוע\s*פרטי|אירוע\s*ב?מסעדה/.test(b) ||
     (/\d+\s*(איש|אנשים|סועדים|מוזמנים|אורחים)/.test(b) &&
       /אירוע|חתונה|גיבוש|מסיב|מצווה|ברית|הולדת|אירוסין|רווק|כנס|אירוח/.test(b));
-  if (looksLikeRestaurantEvent) return null;
+  // Table reservations have NO intent in this old classifier, so it can only
+  // mis-tag them (e.g. "תזמין על שם כהן" → task_add). Defer them to the agent's
+  // reservation tools, which carry the party/date/time context across turns.
+  const looksLikeReservation =
+    /יש מקום|מקום פנוי/.test(b) ||
+    /(תזמין|להזמין|תרשום|תכניס)\s*(לי\s*)?.{0,15}(שולחן|הזמנה|על שם)/.test(b) ||
+    /בטל.{0,12}הזמנה/.test(b);
+  if (looksLikeRestaurantEvent || looksLikeReservation) return null;
 
   // Check for a pending clarification first — if the user is answering a
   // follow-up question, merge the new field(s) into the saved partial intent.

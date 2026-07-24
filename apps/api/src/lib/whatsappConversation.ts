@@ -3224,11 +3224,32 @@ async function classifyIntent(message: string): Promise<string> {
 }
 
 // Resolve the focused tool declarations for a caller + message.
-async function routedToolDeclarations(role: string, message: string): Promise<{ decls: any[]; group: string }> {
+// The group the agent used on its most recent turn (within a short window),
+// read off the persisted agent_reply row. Powers sticky routing so a follow-up
+// with no keyword (e.g. giving the phone for an event just discussed) doesn't
+// get re-classified into an unrelated group and lose the flow.
+async function lastAgentGroup(phone: string): Promise<string | null> {
+  const cutoff = new Date(Date.now() - 8 * 60 * 1000);
+  const row: any = await (prisma as any).whatsAppMessage.findFirst({
+    where: { contact_phone: phone, direction: 'outbound', status: 'agent_reply', created_at: { gte: cutoff } },
+    orderBy: { id: 'desc' },
+  }).catch(() => null);
+  const g = row?.raw?.group;
+  return (typeof g === 'string' && g && g !== 'general' && g !== 'self') ? g : null;
+}
+
+async function routedToolDeclarations(role: string, message: string, phone: string): Promise<{ decls: any[]; group: string }> {
   if (role === 'staff' || role === 'guest') {
     return { decls: TOOL_DECLARATIONS.filter((d: any) => STAFF_TOOLS.includes(d.name)), group: 'self' };
   }
-  const cat = await classifyIntent(message);
+  // An explicit keyword ALWAYS wins — lets the owner switch topics mid-chat.
+  // Otherwise, if we're inside a recent flow, STAY in that group (sticky) so a
+  // context-free follow-up ("הטלפון 050...", "כן, 6 אנשים") keeps the right
+  // tools; only when there's neither keyword nor recent flow do we LLM-classify.
+  const kw = keywordIntent(message);
+  let cat: string;
+  if (kw) cat = kw;
+  else cat = (await lastAgentGroup(phone)) || (await classifyIntent(message));
   const names = new Set<string>([...UNIVERSAL_TOOLS, ...(TOOL_GROUPS[cat] || GENERAL_TOOLS)]);
   return { decls: TOOL_DECLARATIONS.filter((d: any) => names.has(d.name)), group: cat };
 }
@@ -3252,11 +3273,13 @@ export async function runConversationAgent(phone: string, userMessage: string): 
   // intent (+ universal). A short list makes gemini-2.5 map almost any phrasing
   // to the right tool instead of returning empty or picking the wrong one.
   let activeDecls = TOOL_DECLARATIONS;
+  let routedGroup = 'general';
   try {
     const { resolveAccessScope } = await import('./whatsappPermissions.js');
     const role = (await resolveAccessScope(phone)).role;
-    const routed = await routedToolDeclarations(role, userMessage);
+    const routed = await routedToolDeclarations(role, userMessage, phone);
     activeDecls = routed.decls.length ? routed.decls : TOOL_DECLARATIONS;
+    routedGroup = routed.group;
     console.log('[conversation] router', JSON.stringify({ role, group: routed.group, tools: activeDecls.length }));
   } catch { /* keep full list on scope error */ }
 
@@ -3325,6 +3348,7 @@ export async function runConversationAgent(phone: string, userMessage: string): 
           from_phone: process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+system',
           to_phone: phone, contact_phone: phone,
           body: text.slice(0, 2000), num_media: 0, status: 'agent_reply', is_read: true,
+          raw: { group: routedGroup } as any,
         },
       }).catch(() => {});
       return text;
