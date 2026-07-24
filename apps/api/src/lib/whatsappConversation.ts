@@ -3181,7 +3181,9 @@ const INTENT_KEYWORDS: Array<[string, RegExp]> = [
   ['tasks', /תזכיר|תזכורת|תזכיר לי/],
   // Expense mark-paid must beat deliveries: a supplier like "י.א שליחויות" contains
   // "שליח", so "סמן שההוצאה של י.א שליחויות שולמה" otherwise routes to deliveries.
-  ['finance', /הוצאה|הוצאות|ההוצאה|שההוצאה|לא שולמ|לא שילמ/],
+  // Match only "הוצאה/הוצאות" — NOT a bare "לא שולמ", which also catches
+  // "חשבוניות לא שולמו" (an invoices question that must reach the invoices group).
+  ['finance', /הוצאה|הוצאות|ההוצאה|שההוצאה/],
   // "שליח" only when it's NOT part of שליחות/שליחויות (a courier COMPANY name, not a task).
   ['deliveries', /משלוח|משלוחים|שליח(?!ו?ות)|נמסר|יצא לדרך|מי קיבל.{0,10}משלוח/],
   ['menu', /תפריט|הוסף מנה|מנה חדשה|תוריד.{0,12}(מהתפריט|מנה)|נגמר ה|מחק.{0,6}מנה|מה (יש )?בתפריט|תעדכן.{0,6}מנה|86 ל/],
