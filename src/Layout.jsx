@@ -235,7 +235,7 @@ export default function Layout({ children, currentPageName }) {
   const brandName = branding?.name || 'TOP APOLLO';
   const { pageEnabled, isLocked, unlockPlanFor } = useTenantModules();
   const { can: permCan, allowedPages: permPages } = useMyPermissions();
-  const { hiddenPages: ownerHiddenPages, applyTerms } = useAppConfig();
+  const { hiddenPages: ownerHiddenPages, applyTerms, navOrder: ownerNavOrder } = useAppConfig();
   const [paywall, setPaywall] = React.useState(null); // {title, plan} when a locked feature is clicked
   const lockedOf = (item) => {
     const pn = (item.url || '').replace(/^\//, '');
@@ -514,9 +514,29 @@ export default function Layout({ children, currentPageName }) {
     if (!ownerHiddenPages?.length) return permFilteredLinks;
     return dropEmptyCategories(permFilteredLinks.filter((l) => l.isCategory || !ownerHiddenPages.includes(urlKey(l.url))));
   }, [permFilteredLinks, ownerHiddenPages]);
+  // App Builder — apply the owner's custom sidebar order (drag-reorder). Items
+  // are sorted within their category by the owner's order, and a category bubbles
+  // up by its highest-priority item. Pages the owner didn't reorder keep their
+  // default relative position (stable sort). No custom order → untouched.
+  const orderedLinks = React.useMemo(() => {
+    if (!ownerNavOrder?.length) return ownerFilteredLinks;
+    const pri = (u) => { const i = ownerNavOrder.indexOf(urlKey(u)); return i === -1 ? Infinity : i; };
+    const segs = []; let cur = null;
+    for (const l of ownerFilteredLinks) {
+      if (l.isCategory) { cur = { cat: l, items: [] }; segs.push(cur); }
+      else if (cur) cur.items.push(l);
+      else segs.push({ cat: null, items: [l] });
+    }
+    for (const s of segs) s.items = [...s.items].sort((a, b) => pri(a.url) - pri(b.url));
+    const segPri = (s) => (s.items.length ? Math.min(...s.items.map((i) => pri(i.url))) : Infinity);
+    const sorted = [...segs].sort((a, b) => segPri(a) - segPri(b));
+    const out = [];
+    for (const s of sorted) { if (s.cat) out.push(s.cat); out.push(...s.items); }
+    return out;
+  }, [ownerFilteredLinks, ownerNavOrder]);
   const branchScopedLinks = (branchOfChain && !isChainCommissary)
-    ? dropEmptyCategories(ownerFilteredLinks.filter((l) => l.isCategory || !BRANCH_HIDE_PAGES.includes(urlKey(l.url))))
-    : ownerFilteredLinks;
+    ? dropEmptyCategories(orderedLinks.filter((l) => l.isCategory || !BRANCH_HIDE_PAGES.includes(urlKey(l.url))))
+    : orderedLinks;
   const navRaw = isChainCommissary ? filterNav(networkNav, navFilter) : filterNav(branchScopedLinks, navFilter);
   // App Builder — apply the owner's global term renames to sidebar labels.
   const navigationItems = navRaw.map((l) => (l && typeof l.title === 'string' ? { ...l, title: applyTerms(l.title) } : l));

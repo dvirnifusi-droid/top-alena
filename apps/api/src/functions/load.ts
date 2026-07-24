@@ -6685,6 +6685,7 @@ async function ensureAppConfig(): Promise<void> {
      )`,
   ).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "TenantAppConfig" ADD COLUMN IF NOT EXISTS "term_overrides" JSONB`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "TenantAppConfig" ADD COLUMN IF NOT EXISTS "nav_order" JSONB`).catch(() => {});
   _appCfgEnsured = true;
 }
 async function readAppConfig(): Promise<any> {
@@ -6696,6 +6697,7 @@ async function readAppConfig(): Promise<any> {
     hidden_pages: Array.isArray(r.hidden_pages) ? r.hidden_pages : [],
     page_config: (r.page_config && typeof r.page_config === 'object') ? r.page_config : {},
     term_overrides: (r.term_overrides && typeof r.term_overrides === 'object') ? r.term_overrides : {},
+    nav_order: Array.isArray(r.nav_order) ? r.nav_order : [],
   };
 }
 async function writeAppConfig(patch: any): Promise<void> {
@@ -6706,13 +6708,13 @@ async function writeAppConfig(patch: any): Promise<void> {
   const { randomUUID } = await import('node:crypto');
   if (existing.length) {
     await (prisma as any).$executeRawUnsafe(
-      `UPDATE "TenantAppConfig" SET business_type=$1, hidden_pages=$2::jsonb, page_config=$3::jsonb, term_overrides=$4::jsonb, "updatedAt"=NOW() WHERE id=$5`,
-      next.business_type, JSON.stringify(next.hidden_pages || []), JSON.stringify(next.page_config || {}), JSON.stringify(next.term_overrides || {}), existing[0].id,
+      `UPDATE "TenantAppConfig" SET business_type=$1, hidden_pages=$2::jsonb, page_config=$3::jsonb, term_overrides=$4::jsonb, nav_order=$5::jsonb, "updatedAt"=NOW() WHERE id=$6`,
+      next.business_type, JSON.stringify(next.hidden_pages || []), JSON.stringify(next.page_config || {}), JSON.stringify(next.term_overrides || {}), JSON.stringify(next.nav_order || []), existing[0].id,
     );
   } else {
     await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO "TenantAppConfig" ("id","business_type","hidden_pages","page_config","term_overrides","updatedAt") VALUES ($1,$2,$3::jsonb,$4::jsonb,$5::jsonb,NOW())`,
-      randomUUID(), next.business_type, JSON.stringify(next.hidden_pages || []), JSON.stringify(next.page_config || {}), JSON.stringify(next.term_overrides || {}),
+      `INSERT INTO "TenantAppConfig" ("id","business_type","hidden_pages","page_config","term_overrides","nav_order","updatedAt") VALUES ($1,$2,$3::jsonb,$4::jsonb,$5::jsonb,$6::jsonb,NOW())`,
+      randomUUID(), next.business_type, JSON.stringify(next.hidden_pages || []), JSON.stringify(next.page_config || {}), JSON.stringify(next.term_overrides || {}), JSON.stringify(next.nav_order || []),
     );
   }
 }
@@ -6735,6 +6737,7 @@ registerFn('setAppConfig', async ({ user, body }: any) => {
   const patch: any = {};
   if (b.business_type !== undefined) patch.business_type = b.business_type ? String(b.business_type).slice(0, 40) : null;
   if (Array.isArray(b.hidden_pages)) patch.hidden_pages = b.hidden_pages.map((p: any) => String(p)).filter(Boolean).slice(0, 300);
+  if (Array.isArray(b.nav_order)) patch.nav_order = b.nav_order.map((p: any) => String(p)).filter(Boolean).slice(0, 400);
   if (b.term_overrides && typeof b.term_overrides === 'object') {
     const valid = new Set(TERM_CATALOG.map((t) => t.key));
     const out: Record<string, string> = {};

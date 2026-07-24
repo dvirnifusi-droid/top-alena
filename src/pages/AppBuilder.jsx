@@ -10,7 +10,7 @@ import { useTenantModules } from '@/hooks/useTenantModules';
 import PageConfigButton from '@/components/shared/PageConfigButton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, LayoutGrid, Lock, Check, Store } from 'lucide-react';
+import { Loader2, LayoutGrid, Lock, Check, Store, GripVertical } from 'lucide-react';
 
 // The owner-facing pages that can be shown/hidden — mirrors the real sidebar,
 // grouped like it. Core shell pages (Dashboard, settings) stay always-on and
@@ -48,17 +48,42 @@ const PAGE_GROUPS = [
     { page: 'AIHub', title: '🤖 כלי AI' }, { page: 'Scanner', title: '🔍 סורק חכם' },
   ] },
 ];
+const ALL_PAGES = PAGE_GROUPS.flatMap((g) => g.pages);
 
 export default function AppBuilder() {
-  const { businessType, hiddenPages, verticals, loading, refresh, pageTitle, terms, termOverrides } = useAppConfig();
+  const { businessType, hiddenPages, verticals, loading, refresh, pageTitle, terms, termOverrides, navOrder } = useAppConfig();
   const { pageEnabled, isLocked, unlockPlanFor, modules, refresh: modulesRefresh } = useTenantModules();
   const [vertical, setVertical] = useState('');
   const [hidden, setHidden] = useState([]);
   const [termsDraft, setTermsDraft] = useState({});
+  const [order, setOrder] = useState(ALL_PAGES);
+  const [dragIdx, setDragIdx] = useState(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
 
-  useEffect(() => { if (!loading) { setVertical(businessType || ''); setHidden(hiddenPages || []); setTermsDraft(termOverrides || {}); } }, [loading, businessType, hiddenPages, termOverrides]);
+  useEffect(() => {
+    if (loading) return;
+    setVertical(businessType || ''); setHidden(hiddenPages || []); setTermsDraft(termOverrides || {});
+    // order = owner nav_order first (in that order), then the rest by default.
+    const byKey = Object.fromEntries(ALL_PAGES.map((p) => [p.page, p]));
+    const seen = new Set();
+    const ordered = [];
+    for (const k of (navOrder || [])) { if (byKey[k] && !seen.has(k)) { ordered.push(byKey[k]); seen.add(k); } }
+    for (const p of ALL_PAGES) if (!seen.has(p.page)) ordered.push(p);
+    setOrder(ordered);
+  }, [loading, businessType, hiddenPages, termOverrides, navOrder]);
+
+  const onDrop = (i) => {
+    if (dragIdx === null || dragIdx === i) { setDragIdx(null); return; }
+    setOrder((prev) => { const next = [...prev]; const [m] = next.splice(dragIdx, 1); next.splice(i, 0, m); return next; });
+    setDragIdx(null);
+  };
+  const saveOrder = async () => {
+    setSaving(true); setMsg(null);
+    try { await base44.functions.setAppConfig({ nav_order: order.map((p) => p.page) }); await refresh(); setMsg({ ok: true, text: '✅ סדר הסרגל נשמר — רענן את הדף' }); }
+    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    setSaving(false);
+  };
 
   const saveTerms = async () => {
     setSaving(true); setMsg(null);
@@ -219,6 +244,34 @@ export default function AppBuilder() {
                   </div>
                 ))}
                 <p className="text-[11px] text-slate-400">דפים עם 🔒 אינם כלולים בחבילה שלך — שדרוג יפתח אותם. את הכותרות והתוכן של כל דף עורכים דרך ה-⚙️ שבתוך הדף עצמו.</p>
+              </CardContent>
+            </Card>
+
+            {/* Sidebar order — drag to reorder */}
+            <Card>
+              <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-base">סדר הסרגל</CardTitle>
+                <Button size="sm" onClick={saveOrder} disabled={saving} className="bg-[#44512C] hover:bg-[#3a4525]">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור סדר'}</Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1">
+                  {order.map((p, i) => (
+                    <div
+                      key={p.page}
+                      draggable
+                      onDragStart={() => setDragIdx(i)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => onDrop(i)}
+                      onDragEnd={() => setDragIdx(null)}
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-grab active:cursor-grabbing transition ${dragIdx === i ? 'opacity-40 border-[#44512C]' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                    >
+                      <GripVertical className="w-4 h-4 text-slate-300 shrink-0" />
+                      <span className="text-slate-400 w-5 text-center text-xs">{i + 1}</span>
+                      <span className="flex-1 truncate">{p.title}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">גרור פריט למעלה/למטה כדי לקבוע את סדר הופעתו בסרגל הצד. פריט שגררת גבוה יעלה את הקטגוריה שלו כלפי מעלה.</p>
               </CardContent>
             </Card>
           </>

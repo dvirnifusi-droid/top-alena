@@ -21,11 +21,12 @@ async function _load(force = false) {
         hidden_pages: Array.isArray(d.hidden_pages) ? d.hidden_pages : [],
         page_config: (d.page_config && typeof d.page_config === 'object') ? d.page_config : {},
         term_overrides: (d.term_overrides && typeof d.term_overrides === 'object') ? d.term_overrides : {},
+        nav_order: Array.isArray(d.nav_order) ? d.nav_order : [],
         terms: Array.isArray(d.terms) ? d.terms : [],
         verticals: Array.isArray(d.verticals) ? d.verticals : [],
       };
     } catch {
-      _cache = { business_type: null, hidden_pages: [], page_config: {}, term_overrides: {}, terms: [], verticals: [] };
+      _cache = { business_type: null, hidden_pages: [], page_config: {}, term_overrides: {}, nav_order: [], terms: [], verticals: [] };
     }
     _inflight = null;
     _subs.forEach((fn) => { try { fn(_cache); } catch { /* */ } });
@@ -94,6 +95,7 @@ export function useAppConfig() {
     hiddenPages: cfg?.hidden_pages || [],
     pageConfig: cfg?.page_config || {},
     termOverrides: cfg?.term_overrides || {},
+    navOrder: cfg?.nav_order || [],
     terms: cfg?.terms || [],
     verticals: cfg?.verticals || [],
     loading: !cfg,
