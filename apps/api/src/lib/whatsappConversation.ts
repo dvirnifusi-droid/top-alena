@@ -3179,7 +3179,11 @@ const INTENT_KEYWORDS: Array<[string, RegExp]> = [
   // Reminders/personal-calendar must win early — "תזכיר לי להתקשר לספק" otherwise
   // gets hijacked by the orders rule ("ספק") and the model hallucinates an order/incident.
   ['tasks', /תזכיר|תזכורת|תזכיר לי/],
-  ['deliveries', /משלוח|משלוחים|שליח|נמסר|יצא לדרך|מי קיבל.{0,10}משלוח/],
+  // Expense mark-paid must beat deliveries: a supplier like "י.א שליחויות" contains
+  // "שליח", so "סמן שההוצאה של י.א שליחויות שולמה" otherwise routes to deliveries.
+  ['finance', /הוצאה|הוצאות|ההוצאה|שההוצאה|לא שולמ|לא שילמ/],
+  // "שליח" only when it's NOT part of שליחות/שליחויות (a courier COMPANY name, not a task).
+  ['deliveries', /משלוח|משלוחים|שליח(?!ו?ות)|נמסר|יצא לדרך|מי קיבל.{0,10}משלוח/],
   ['menu', /תפריט|הוסף מנה|מנה חדשה|תוריד.{0,12}(מהתפריט|מנה)|נגמר ה|מחק.{0,6}מנה|מה (יש )?בתפריט|תעדכן.{0,6}מנה|86 ל/],
   ['recruitment', /מועמד|מועמדים|גיוס|תזמן ראיון|קישור לגיוס|מי הגיש מועמדות|תפסול.{0,6}מועמד|קיבלנו.{0,10}לעבודה|ראיון עם/],
   ['reservations', /יש מקום|מקום פנוי|(תזמין|להזמין|תרשום|תכניס).{0,12}(שולחן|מקום|הזמנה)|שולחן ל|סועדים|לשבת|רזרב|בטל.{0,10}הזמנה|כמה הזמנות|אילו הזמנות|רשימת הזמנות|הזמנות (של )?(היום|מחר|שבת|הערב)|מי מגיע/],
