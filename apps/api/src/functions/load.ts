@@ -6644,6 +6644,19 @@ const APP_VERTICALS: { key: string; label: string; hint_pages?: string[] }[] = [
   { key: 'events_hall', label: '🎉 אולם אירועים' },
   { key: 'hotel', label: '🏨 מלון' },
 ];
+// Per-vertical presets — the recommended default app shape. `hide` = pages that
+// don't fit the vertical (hidden from the sidebar by default; the owner can
+// re-show any of them after). `titles` = suggested page-title overrides so the
+// wording fits the business. Applied only on explicit "apply preset" and never
+// clobbers a title the owner already set by hand.
+const VERTICAL_PRESETS: Record<string, { hide: string[]; titles: Record<string, string> }> = {
+  restaurant: { hide: [], titles: {} },
+  bar: { hide: ['PrepSheet'], titles: { OrderList: 'הזמנת ברים ומלאי' } },
+  cafe: { hide: ['EventsPrivate'], titles: {} },
+  delivery: { hide: ['PublicReservationSettings', 'QueueHub', 'EventsPrivate'], titles: { OrderList: 'הזמנות ומלאי' } },
+  events_hall: { hide: ['QueueHub', 'PrepSheet'], titles: { EventsPrivate: 'אירועים', PublicReservationSettings: 'בקשות הצעה' } },
+  hotel: { hide: ['QueueHub', 'PrepSheet', 'Recipes'], titles: { PublicReservationSettings: 'הזמנת חדרים', EventsPrivate: 'אירועים ואולמות', WorkScheduling: 'סידור עובדים' } },
+};
 let _appCfgEnsured = false;
 async function ensureAppConfig(): Promise<void> {
   if (_appCfgEnsured) return;
@@ -6723,6 +6736,28 @@ registerFn('setPageConfig', async ({ user, body }: any) => {
   pc[page] = entry;
   await writeAppConfig({ page_config: pc });
   return { ok: true };
+});
+
+// Apply a vertical's recommended preset: set business_type, hide the pages that
+// don't fit that business, and suggest page titles — WITHOUT clobbering any
+// title the owner already set by hand. The owner can re-show/rename after.
+registerFn('applyVerticalPreset', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'applyVerticalPreset');
+  const vertical = String((body || {}).vertical || '').trim();
+  const preset = VERTICAL_PRESETS[vertical];
+  if (!preset) throw new Error('unknown_vertical');
+  const cur = await readAppConfig();
+  // hidden pages = union of current + preset (additive so we don't surprise-show
+  // something the owner hid; they can un-hide in the page list).
+  const hidden = Array.from(new Set([...(cur.hidden_pages || []), ...preset.hide]));
+  // titles: only fill pages the owner hasn't titled themselves.
+  const pc = { ...(cur.page_config || {}) };
+  for (const [page, title] of Object.entries(preset.titles)) {
+    const existing = pc[page] || {};
+    if (!existing.title) pc[page] = { ...existing, title };
+  }
+  await writeAppConfig({ business_type: vertical, hidden_pages: hidden, page_config: pc });
+  return { ok: true, hidden_pages: hidden, applied_titles: Object.keys(preset.titles) };
 });
 
 // ── Per-tenant work-schedule configuration (dynamic shifts + which positions

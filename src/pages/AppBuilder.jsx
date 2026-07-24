@@ -59,6 +59,19 @@ export default function AppBuilder() {
     catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
     setSaving(false);
   };
+  const applyPreset = async () => {
+    if (!vertical) return;
+    if (!window.confirm('להחיל את ברירות המחדל המומלצות לסוג העסק? (יסתיר דפים שלא מתאימים ויתאים כותרות — תוכל לשנות אחר כך)')) return;
+    setSaving(true); setMsg(null);
+    try {
+      const r = await base44.functions.applyVerticalPreset({ vertical });
+      const d = r?.data || r;
+      await refresh();
+      setHidden(d?.hidden_pages || hidden);
+      setMsg({ ok: true, text: '✅ התבנית הוחלה — רענן את הדף כדי לראות את הסרגל המעודכן' });
+    } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    setSaving(false);
+  };
 
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
@@ -90,7 +103,13 @@ export default function AppBuilder() {
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-slate-400 mt-2">משפיע על מונחים והמלצות ברירת-מחדל לעסק שלך.</p>
+                {vertical && (
+                  <div className="mt-3 flex items-center gap-2 flex-wrap bg-amber-50/60 rounded-lg p-2.5">
+                    <span className="text-xs text-slate-600 flex-1">החל את ברירות המחדל המומלצות ל{(verticals.find((v) => v.key === vertical)?.label) || 'עסק'} — יסתיר דפים לא-רלוונטיים ויתאים כותרות.</span>
+                    <Button size="sm" variant="outline" className="border-amber-300 text-amber-800 hover:bg-amber-100" disabled={saving} onClick={applyPreset}>החל תבנית</Button>
+                  </div>
+                )}
+                <p className="text-[11px] text-slate-400 mt-2">אפשר לשנות הכל ידנית אחרי החלת התבנית.</p>
               </CardContent>
             </Card>
 
