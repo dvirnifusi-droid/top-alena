@@ -6117,17 +6117,17 @@ registerFn('saveAvailabilityWeek', async ({ body }) => {
     }
   }
 
-  const nowIso = new Date().toISOString();
+  const nowD = new Date(); // Date object → Prisma binds as timestamp (a string param errors 42804)
   const snapJson = JSON.stringify(dayNorm);
   if (existing) {
     await db.$executeRawUnsafe(
       `UPDATE "AvailabilitySubmission" SET status='submitted', snapshot=$1::jsonb, submitted_at=$2, department=$3, employee_name=$4, ${firstTime && coinsAwarded > 0 ? 'coins_awarded_at=$2,' : ''} "updatedAt"=$2 WHERE employee_id=$5 AND week_start=$6`,
-      snapJson, nowIso, department, employee_name, employee_id, week_start).catch(() => {});
+      snapJson, nowD, department, employee_name, employee_id, week_start).catch((e: any) => console.warn('[saveAvailabilityWeek] update', e?.message));
   } else {
     await db.$executeRawUnsafe(
       `INSERT INTO "AvailabilitySubmission"(employee_id,employee_name,week_start,department,status,snapshot,submitted_at,coins_awarded_at,"createdAt","updatedAt")
        VALUES($1,$2,$3,$4,'submitted',$5::jsonb,$6,$7,$6,$6)`,
-      employee_id, employee_name, week_start, department, snapJson, nowIso, coinsAwarded > 0 ? nowIso : null).catch(() => {});
+      employee_id, employee_name, week_start, department, snapJson, nowD, coinsAwarded > 0 ? nowD : null).catch((e: any) => console.warn('[saveAvailabilityWeek] insert', e?.message));
   }
   return { ok: true, coinsAwarded, availableShifts, locked_now: true, diff };
 });
