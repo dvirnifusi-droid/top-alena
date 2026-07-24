@@ -8402,12 +8402,45 @@ registerFn('updateEmployeeStatus', async ({ user, body }: any) => {
   return { ok: true };
 });
 
+// ── CRM scoped permissions ─────────────────────────────────────────────────
+// Who may see what on an employee card:
+//   • owner/admin → everything.
+//   • manager → everything; salary only within their pay scope (pay_access_scope
+//     'all' or matching the target's department) — reuses the salary-privacy
+//     mechanism, so "accounting/GM see salary, a shift-manager doesn't".
+//   • the employee themselves (email matches) → self view: own shifts, documents,
+//     onboarding/to-sign; NO salary / meetings / notes-about-them; read-only.
+//   • anyone else → forbidden.
+async function resolveCrmScope(user: any, targetId: string): Promise<any> {
+  if (!user?.id) throw new Error('unauthorized');
+  let liveRole: string = user?.role || '';
+  try { const row: any = await (prisma as any).user.findUnique({ where: { id: user.id }, select: { role: true } }); if (row?.role) liveRole = row.role; } catch { /* */ }
+  const isOwnerAdmin = liveRole === 'owner' || liveRole === 'admin';
+  const isManager = liveRole === 'manager';
+  const tRows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT email, department FROM "Employee" WHERE id=$1 LIMIT 1`, targetId).catch(() => []);
+  const target = tRows[0] || {};
+  const isSelf = !!(target.email && user.email && String(target.email).toLowerCase() === String(user.email).toLowerCase());
+  let canSalary = isOwnerAdmin;
+  if (isManager && !canSalary && user.email) {
+    const vRows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT pay_access_scope FROM "Employee" WHERE lower(email)=lower($1) LIMIT 1`, user.email).catch(() => []);
+    const sc = vRows[0]?.pay_access_scope;
+    canSalary = sc === 'all' || (!!sc && sc === target.department);
+  }
+  if (isOwnerAdmin || isManager) {
+    return { level: isOwnerAdmin ? 'owner' : 'manager', canCore: true, canSalary, canDocuments: true, canMeetings: true, canNotes: true, canShifts: true, canOnboarding: true, canEdit: true, isSelf };
+  }
+  if (isSelf) {
+    return { level: 'self', canCore: true, canSalary: false, canDocuments: true, canMeetings: false, canNotes: false, canShifts: true, canOnboarding: true, canEdit: false, isSelf: true };
+  }
+  throw new Error('forbidden');
+}
+
 // Aggregated CRM view: core personal details + meetings + salary history +
-// derived alerts. (Forms + timeline come from getEmployee360.)
+// derived alerts. (Forms + timeline come from getEmployee360.) Scoped per viewer.
 registerFn('getEmployeeCRM', async ({ user, body }: any) => {
-  await requireBackOffice(user, 'getEmployeeCRM');
   await ensureEmployee360();
   const employeeId = String((body || {}).employee_id || ''); if (!employeeId) throw new Error('missing_employee');
+  const scope = await resolveCrmScope(user, employeeId);
   const empRows: any[] = await (prisma as any).$queryRawUnsafe(
     `SELECT id, full_name, email, phone, role, department, status, id_number, birth_date, emergency_contact, bank_details, employment_type, hire_date, termination FROM "Employee" WHERE id=$1 LIMIT 1`, employeeId,
   ).catch(() => []);
@@ -8443,16 +8476,21 @@ registerFn('getEmployeeCRM', async ({ user, body }: any) => {
     if (days >= 0 && days <= 14) alerts.push({ level: 'amber', text: `תקופת ניסיון מסתיימת בעוד ${days} ימים` });
   }
   const openTasks = tasks.filter((t) => t.status !== 'done').length;
-  if (openTasks) alerts.push({ level: 'amber', text: `${openTasks} משימות פתוחות` });
+  if (openTasks && scope.canNotes) alerts.push({ level: 'amber', text: `${openTasks} משימות פתוחות` });
   const onbDone = onboarding.filter((o) => o.done).length;
   if (core.status !== 'terminated' && onbDone < ONBOARDING_STEPS.length && (core.status === 'onboarding' || core.status === 'candidate'))
     alerts.push({ level: 'amber', text: `קליטה: ${onbDone}/${ONBOARDING_STEPS.length} הושלמו` });
 
-  // Viewer scope — what this user may see. Back-office sees all; a user viewing
-  // their OWN card sees a limited self view (no salary). (reached this fn via
-  // requireBackOffice today, so scope is 'full' for now; self-view is future.)
-  const viewer_scope = 'full';
-  return { core, meetings, salary_history: salary, onboarding, documents, notes, tasks, alerts, viewer_scope,
+  // Redact per scope — salary/meetings/notes hidden from unauthorized viewers.
+  let outMeetings = meetings, outSalary = salary, outNotes = notes, outTasks = tasks, outAlerts = alerts;
+  if (!scope.canSalary) {
+    outSalary = [];
+    outMeetings = outMeetings.map((m: any) => ({ ...m, salary_from: null, salary_to: null, salary_reason: null }));
+  }
+  if (!scope.canMeetings) outMeetings = [];
+  if (!scope.canNotes) { outNotes = []; outTasks = []; }
+  if (scope.level === 'self') outAlerts = []; // don't surface HR-gap alerts to the employee
+  return { core, meetings: outMeetings, salary_history: outSalary, onboarding, documents, notes: outNotes, tasks: outTasks, alerts: outAlerts, viewer_scope: scope,
     onboarding_done: onbDone, onboarding_total: ONBOARDING_STEPS.length };
 });
 
@@ -8553,8 +8591,10 @@ registerFn('deleteEmployeeTask', async ({ user, body }: any) => {
 // Real shift history with lateness: scheduled (WorkShift.assigned_staff / shift
 // start_time) vs actual clock (ShiftTracking.shift_start/shift_end), Israel TZ.
 registerFn('getEmployeeShiftHistory', async ({ user, body }: any) => {
-  await requireBackOffice(user, 'getEmployeeShiftHistory');
+  await ensureEmployee360();
   const employeeId = String((body || {}).employee_id || ''); if (!employeeId) throw new Error('missing_employee');
+  const scope = await resolveCrmScope(user, employeeId);
+  if (!scope.canShifts) throw new Error('forbidden');
   const norm = (s: any) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
   const empRows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT full_name FROM "Employee" WHERE id=$1`, employeeId).catch(() => []);
   const empName = norm(empRows[0]?.full_name);

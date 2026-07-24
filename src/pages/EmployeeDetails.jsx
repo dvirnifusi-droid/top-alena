@@ -329,12 +329,12 @@ export default function EmployeeDetailsPage() {
                         <TabsTrigger value="onboarding">קליטה ומסמכים</TabsTrigger>
                         <TabsTrigger value="file">תיק עובד</TabsTrigger>
                         <TabsTrigger value="shifts">משמרות</TabsTrigger>
-                        <TabsTrigger value="meetings">פגישות ושכר</TabsTrigger>
-                        <TabsTrigger value="notes">הערות ומשימות</TabsTrigger>
+                        {(crm?.viewer_scope?.canMeetings ?? true) && <TabsTrigger value="meetings">פגישות ושכר</TabsTrigger>}
+                        {(crm?.viewer_scope?.canNotes ?? true) && <TabsTrigger value="notes">הערות ומשימות</TabsTrigger>}
                     </TabsList>
 
                     <TabsContent value="overview" className="space-y-6 mt-4">
-                {crm?.core && <EmployeeCoreDetails core={crm.core} onChange={() => loadCrm()} />}
+                {crm?.core && <EmployeeCoreDetails core={crm.core} readOnly={crm?.viewer_scope?.canEdit === false} onChange={() => loadCrm()} />}
                 {/* Positions & Salary Info */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
@@ -433,9 +433,9 @@ export default function EmployeeDetailsPage() {
                     </CardContent>
                 </Card>
 
-                {/* Pay & employer-cost (privacy-aware) */}
-                <EmployeePaySection employee={employee} />
-                <EmployeeTierSelect employee={employee} />
+                {/* Pay & employer-cost (privacy-aware) — hidden from viewers without salary access */}
+                {(crm?.viewer_scope?.canSalary ?? true) && <EmployeePaySection employee={employee} />}
+                {(crm?.viewer_scope?.canEdit ?? true) && <EmployeeTierSelect employee={employee} />}
 
                 {/* Monthly Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

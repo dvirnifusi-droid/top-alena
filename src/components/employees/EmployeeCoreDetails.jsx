@@ -17,7 +17,7 @@ export const STATUSES = [
 export const statusMeta = (v) => STATUSES.find((s) => s.value === v) || STATUSES[2];
 const d10 = (v) => (v ? String(v).slice(0, 10) : '');
 
-export default function EmployeeCoreDetails({ core = {}, onChange }) {
+export default function EmployeeCoreDetails({ core = {}, onChange, readOnly = false }) {
   const employeeId = core.id;
   const [form, setForm] = useState({
     id_number: core.id_number || '', birth_date: d10(core.birth_date), hire_date: d10(core.hire_date),
@@ -59,7 +59,7 @@ export default function EmployeeCoreDetails({ core = {}, onChange }) {
         <CardContent>
           <div className="flex flex-wrap gap-2">
             {STATUSES.map((s) => (
-              <button key={s.value} disabled={busy} onClick={() => setStatus(s.value)}
+              <button key={s.value} disabled={busy || readOnly} onClick={() => !readOnly && setStatus(s.value)}
                 className={`text-sm rounded-full px-3 py-1.5 border transition ${core.status === s.value ? s.color + ' border-transparent font-bold ring-2 ring-offset-1 ring-slate-300' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
                 {s.label}
               </button>
@@ -118,9 +118,11 @@ export default function EmployeeCoreDetails({ core = {}, onChange }) {
           </div>
           <label className="text-[11px] text-slate-600 flex flex-col gap-0.5">איש קשר לשעת חירום<Input value={form.emergency_contact} onChange={(e) => upd('emergency_contact', e.target.value)} placeholder="שם + טלפון" className="h-9 text-sm" /></label>
           <label className="text-[11px] text-slate-600 flex flex-col gap-0.5">פרטי חשבון בנק<Textarea value={form.bank_details} onChange={(e) => upd('bank_details', e.target.value)} placeholder="בנק / סניף / חשבון" rows={2} className="text-sm" /></label>
-          <div className="flex justify-end">
-            <Button size="sm" disabled={busy} onClick={saveDetails} className="bg-[#44512C] hover:bg-[#3a4525] gap-1">{busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} שמור פרטים</Button>
-          </div>
+          {!readOnly && (
+            <div className="flex justify-end">
+              <Button size="sm" disabled={busy} onClick={saveDetails} className="bg-[#44512C] hover:bg-[#3a4525] gap-1">{busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} שמור פרטים</Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
