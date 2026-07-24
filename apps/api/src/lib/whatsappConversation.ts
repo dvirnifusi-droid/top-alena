@@ -504,6 +504,32 @@ const TOOL_DECLARATIONS = [
     description: 'Update ONE open delivery (matched by customer name/phone/address) — set status and/or courier. Use for "המשלוח של דנה יצא", "סמן שהמשלוח לרחוב הרצל 5 נמסר", "תן את המשלוח של 0501234567 לרון". status ∈ picked_up (יצא/נאסף) / delivered (נמסר) / cancelled (בוטל).',
     parameters: { type: 'OBJECT', properties: { customer: { type: 'STRING', description: 'Customer name, phone, or address.' }, status: { type: 'STRING' }, courier: { type: 'STRING' } }, required: ['customer'] },
   },
+  // ─── Recruitment (manager) ──────────────────────────────────────────
+  {
+    name: 'list_candidates',
+    description: 'List job candidates (not rejected/hired), best score first. Use for "מי הגיש מועמדות?", "אילו מועמדים יש?", "מועמדים למלצרות". role filters by the applied role.',
+    parameters: { type: 'OBJECT', properties: { role: { type: 'STRING', description: 'Optional — filter by role applied for (מלצר/טבח/ברמן…).' } } },
+  },
+  {
+    name: 'candidate_summary',
+    description: 'Details on ONE job candidate — score, role, experience, AI summary, status, next interview. Use for "ספר לי על המועמד יוסי", "מה הציון של דנה?".',
+    parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' } }, required: ['name'] },
+  },
+  {
+    name: 'schedule_interview',
+    description: 'Book an interview with a candidate. Use for "תזמן ראיון ליוסי מחר ב-16:00", "ראיון עם דנה ב-28.07 בשעה 12:30". Sets the candidate\'s status to "interview".',
+    parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' }, date: { type: 'STRING', description: 'YYYY-MM-DD or DD.MM.' }, time: { type: 'STRING', description: 'HH:MM.' } }, required: ['name', 'date', 'time'] },
+  },
+  {
+    name: 'update_candidate_status',
+    description: 'Advance or reject a candidate. Use for "תפסול את המועמד X", "קיבלנו את דנה לעבודה", "יוסי מעניין אותנו". status ∈ interested / interview / rejected / hired.',
+    parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' }, status: { type: 'STRING' } }, required: ['name', 'status'] },
+  },
+  {
+    name: 'recruitment_link',
+    description: 'Get the job-application link to share with potential hires. Use for "תן לי קישור לגיוס", "איפה נרשמים לעבודה?".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
   // ─── Scheduling (admin) ────────────────────────────────────────────
   {
     name: 'build_schedule_now',
@@ -2632,6 +2658,73 @@ async function tool_update_delivery(args: any, phone: string): Promise<any> {
   return { ok: true, delivery: `${d.customer_name || ''} · ${d.address}`, status: st || d.delivery_status, courier: args?.courier || undefined };
 }
 
+// ── Recruitment (manager) ──────────────────────────────────────────────────
+async function resolveCandidate(name: string): Promise<{ c: any; suggestions: any[] }> {
+  const q = String(name || '').trim(); if (!q) return { c: null, suggestions: [] };
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, full_name, phone, role_applied, score, status, ai_summary, experience FROM "JobCandidate" WHERE full_name ILIKE $1 OR full_name ILIKE $2 ORDER BY score DESC NULLS LAST LIMIT 5`, `%${q}%`, `${q}%`).catch(() => []);
+  if (rows.length === 1) return { c: rows[0], suggestions: [] };
+  return { c: null, suggestions: rows.slice(0, 5) };
+}
+async function tool_list_candidates(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const role = String(args?.role || '').trim();
+  const rows: any[] = role
+    ? await (prisma as any).$queryRawUnsafe(`SELECT full_name, phone, role_applied, score, status FROM "JobCandidate" WHERE COALESCE(status,'pending') NOT IN ('rejected','hired') AND role_applied ILIKE $1 ORDER BY score DESC NULLS LAST LIMIT 30`, `%${role}%`).catch(() => [])
+    : await (prisma as any).$queryRawUnsafe(`SELECT full_name, phone, role_applied, score, status FROM "JobCandidate" WHERE COALESCE(status,'pending') NOT IN ('rejected','hired') ORDER BY score DESC NULLS LAST LIMIT 30`).catch(() => []);
+  return { count: rows.length, candidates: rows.map((r) => ({ name: r.full_name, phone: r.phone, role: r.role_applied, score: r.score, status: r.status || 'pending' })) };
+}
+async function tool_candidate_summary(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const { c, suggestions } = await resolveCandidate(args?.name);
+  if (!c) return { need_clarification: true, suggestions: suggestions.map((x) => x.full_name) };
+  const iv: any[] = await (prisma as any).$queryRawUnsafe(`SELECT scheduled_date, scheduled_time, status FROM "Interview" WHERE candidate_id=$1 ORDER BY scheduled_date DESC LIMIT 1`, c.id).catch(() => []);
+  return { name: c.full_name, phone: c.phone, role: c.role_applied, score: c.score, status: c.status || 'pending', experience: c.experience, summary: c.ai_summary, next_interview: iv[0] ? `${iv[0].scheduled_date} ${iv[0].scheduled_time}` : null };
+}
+async function tool_schedule_interview(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const { c, suggestions } = await resolveCandidate(args?.name);
+  if (!c) return { need_clarification: true, suggestions: suggestions.map((x) => x.full_name) };
+  // date → YYYY-MM-DD
+  const t = String(args?.date || '').trim(); let iso: string | null = null;
+  let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t); if (m) iso = t;
+  else { m = /^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?$/.exec(t); if (m) { const y = m[3] ? (Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3])) : Number(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }).slice(0, 4)); iso = `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`; } }
+  const time = String(args?.time || '').trim();
+  if (!iso || !/^\d{1,2}:\d{2}$/.test(time)) return { error: 'צריך תאריך (למשל 28.07) ושעה (למשל 16:00) לראיון.' };
+  const { randomUUID } = await import('node:crypto');
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "Interview" ("id","candidate_id","candidate_name","candidate_phone","scheduled_date","scheduled_time","status","type","created_date","updated_date") VALUES ($1,$2,$3,$4,$5,$6,'scheduled','interview',NOW()::text,NOW()::text)`,
+    randomUUID(), c.id, c.full_name, c.phone || null, iso, time.padStart(5, '0'),
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`UPDATE "JobCandidate" SET status='interview', updated_date=NOW()::text WHERE id=$1`, c.id).catch(() => {});
+  return { ok: true, candidate: c.full_name, date: iso, time };
+}
+async function tool_update_candidate_status(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const { c, suggestions } = await resolveCandidate(args?.name);
+  if (!c) return { need_clarification: true, suggestions: suggestions.map((x) => x.full_name) };
+  const map: Record<string, string> = { interested: 'interested', interview: 'interview', rejected: 'rejected', hired: 'hired', pending: 'pending' };
+  const status = map[String(args?.status || '').toLowerCase()] || null;
+  if (!status) return { error: 'סטטוס לא תקין (interested/interview/rejected/hired).' };
+  await (prisma as any).$executeRawUnsafe(`UPDATE "JobCandidate" SET status=$1, updated_date=NOW()::text${status === 'hired' ? ", hired_at=NOW()::text" : ''} WHERE id=$2`, status, c.id).catch(() => {});
+  return { ok: true, candidate: c.full_name, status };
+}
+async function tool_recruitment_link(_args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const slug = currentTenantSlug();
+  const origin = slug === 'alena' || !slug ? 'https://topalena.com' : `https://${slug}.topalena.com`;
+  return { link: `${origin}/JobApplication`, note: 'שתף את הקישור עם מועמדים — הם ימלאו טופס והמערכת תדרג אותם אוטומטית.' };
+}
+
 const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> = {
   build_schedule_now: tool_build_schedule_now,
   add_scheduling_rule: tool_add_scheduling_rule,
@@ -2669,6 +2762,11 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   list_menu: tool_list_menu,
   list_deliveries: tool_list_deliveries,
   update_delivery: tool_update_delivery,
+  list_candidates: tool_list_candidates,
+  candidate_summary: tool_candidate_summary,
+  schedule_interview: tool_schedule_interview,
+  update_candidate_status: tool_update_candidate_status,
+  recruitment_link: tool_recruitment_link,
   list_today_schedule: tool_list_today_schedule,
   list_today_events: tool_list_today_events,
   list_open_tasks: tool_list_open_tasks,
@@ -2869,6 +2967,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
   team: ['propose_team_broadcast', 'search_employee', 'list_today_schedule', 'add_employee_note', 'add_employee_task', 'list_hr_gaps', 'employee_summary', 'log_employee_meeting', 'set_onboarding_step', 'issue_club_benefit', 'propose_customer_campaign'],
   menu: ['list_menu', 'add_menu_item', 'set_menu_item_availability', 'update_menu_item', 'remove_menu_item', 'propose_set_dish_price', 'get_recipe_cost'],
   deliveries: ['list_deliveries', 'update_delivery'],
+  recruitment: ['list_candidates', 'candidate_summary', 'schedule_interview', 'update_candidate_status', 'recruitment_link'],
 };
 // When the intent is unclear, a modest common set (still far smaller than 54).
 const GENERAL_TOOLS = ['get_today_revenue', 'daily_status', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'propose_create_reservation', 'list_order_needs', 'list_incidents', 'propose_open_incident', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee', 'issue_club_benefit'];
@@ -2882,6 +2981,7 @@ const INTENT_KEYWORDS: Array<[string, RegExp]> = [
   ['team', /הערה על|תעד ש|מחמאה|מי חסר (לו )?טפסים|מי צריך לחתום|חסר.{0,6}(הסכם|טופס|101)|ספר לי על|מה המצב עם|כרטיס עובד|כרטיס של|שיחת משוב|שיחת אזהרה|שימוע|העלאת שכר|קמפיין|לכל הלקוחות|הטבה ל/],
   ['deliveries', /משלוח|משלוחים|שליח|נמסר|יצא לדרך|מי קיבל.{0,10}משלוח/],
   ['menu', /תפריט|הוסף מנה|מנה חדשה|תוריד.{0,12}(מהתפריט|מנה)|נגמר ה|מחק.{0,6}מנה|מה (יש )?בתפריט|תעדכן.{0,6}מנה|86 ל/],
+  ['recruitment', /מועמד|מועמדים|גיוס|תזמן ראיון|קישור לגיוס|מי הגיש מועמדות|תפסול.{0,6}מועמד|קיבלנו.{0,10}לעבודה|ראיון עם/],
   ['reservations', /יש מקום|מקום פנוי|(תזמין|להזמין|תרשום|תכניס).{0,12}(שולחן|מקום|הזמנה)|שולחן ל|סועדים|לשבת|רזרב|בטל.{0,10}הזמנה/],
   ['orders', /ירקן|ספק|מה חסר|מה צריך להזמין|צריך להזמין|מלאי|הזמנתי מ|סמן שהזמנתי|מהבשר|מהאלכוהול/],
   ['incidents', /תקלה|תקלות|התקלקל|נשבר|לא עובד|לא עובדת|מה פתוח|אירוע חריג|קלקול|דליפה|סגור.{0,10}תקלה/],
@@ -2915,6 +3015,7 @@ async function classifyIntent(message: string): Promise<string> {
     `team = תגיד לכל העובדים/תודיע לצוות/שלח הודעה למלצרים · או ניהול עובד ספציפי: רשום הערה על עובד/תעד שעובד איחר/מחמאה/תזכורת לעובד/מי חסר לו טפסים/מי צריך לחתום/ספר לי על עובד/כרטיס עובד · או קמפיין ללקוחות/הטבה ללקוח\n` +
     `menu = תפריט/מנה/הוסף מנה/תוריד מהתפריט/נגמר/86/שנה מחיר מנה/מחק מנה/מה בתפריט/קטגוריה\n` +
     `deliveries = משלוח/משלוחים/שליח/יצא/נמסר/מי קיבל/כתובת\n` +
+    `recruitment = מועמד/מועמדים/גיוס/ראיון/תזמן ראיון/מי הגיש מועמדות/קיבלנו לעבודה/תפסול מועמד/קישור לגיוס\n` +
     `general = ברכה/שאלה כללית/לא ברור\n` +
     `בקשה: "${String(message).slice(0, 300)}"`;
   try {
@@ -2927,7 +3028,7 @@ async function classifyIntent(message: string): Promise<string> {
     });
     const data: any = await res.json().catch(() => ({}));
     const raw = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('').toLowerCase();
-    const cat = (raw.match(/finance|schedule|reservations|orders|incidents|events|tasks|invoices|team|menu|deliveries|general/) || ['general'])[0];
+    const cat = (raw.match(/finance|schedule|reservations|orders|incidents|events|tasks|invoices|team|menu|deliveries|recruitment|general/) || ['general'])[0];
     return cat;
   } catch { return 'general'; }
 }
