@@ -1413,6 +1413,21 @@ async function consumePendingClarification(id: string): Promise<void> {
 // On success path we ALSO store the exec payload on the same outbound row
 // so tryConfirmPendingAction can find it on the next admin message.
 export async function tryProposeAction(fromPhone: string, body: string): Promise<string | null> {
+  // ── Restaurant private-event guard ──────────────────────────────────────
+  // The old LLM classifier tags "אירוע פרטי במסעדה ל-30 איש" as event_add (a
+  // PERSONAL calendar reminder) and asks "❓ מתי האירוע?" — wrong. A restaurant
+  // booking with a guest count / event-type must go to the conversation agent's
+  // propose_add_event_lead (creates a real EventLead). Defer those by returning
+  // null here so the webhook falls through to runConversationAgent. Personal
+  // reminders ("תזכיר לי…", "פגישה עם דביר מחר 14:00") have no guest count / event
+  // word, so they still flow through the fast deterministic path below.
+  const b = String(body || '');
+  const looksLikeRestaurantEvent =
+    /אירוע\s*פרטי|אירוע\s*ב?מסעדה/.test(b) ||
+    (/\d+\s*(איש|אנשים|סועדים|מוזמנים|אורחים)/.test(b) &&
+      /אירוע|חתונה|גיבוש|מסיב|מצווה|ברית|הולדת|אירוסין|רווק|כנס|אירוח/.test(b));
+  if (looksLikeRestaurantEvent) return null;
+
   // Check for a pending clarification first — if the user is answering a
   // follow-up question, merge the new field(s) into the saved partial intent.
   const pending = await loadPendingClarification(fromPhone);
