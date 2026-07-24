@@ -6652,10 +6652,10 @@ const APP_VERTICALS: { key: string; label: string; hint_pages?: string[] }[] = [
 const VERTICAL_PRESETS: Record<string, { hide: string[]; titles: Record<string, string>; terms?: Record<string, string> }> = {
   restaurant: { hide: [], titles: {}, terms: {} },
   bar: { hide: ['PrepSheet'], titles: { OrderList: 'הזמנת ברים ומלאי' }, terms: { waiter: 'ברמן' } },
-  cafe: { hide: ['EventsPrivate'], titles: {}, terms: { waiter: 'בריסטה' } },
-  delivery: { hide: ['PublicReservationSettings', 'QueueHub', 'EventsPrivate'], titles: { OrderList: 'הזמנות ומלאי' }, terms: {} },
-  events_hall: { hide: ['QueueHub', 'PrepSheet'], titles: { EventsPrivate: 'אירועים', PublicReservationSettings: 'בקשות הצעה' }, terms: { guest: 'אורח', table: 'שולחן' } },
-  hotel: { hide: ['QueueHub', 'PrepSheet', 'Recipes'], titles: { PublicReservationSettings: 'הזמנת חדרים', EventsPrivate: 'אירועים ואולמות', WorkScheduling: 'סידור עובדים' }, terms: { table: 'חדר', waiter: 'איש צוות', guest: 'אורח' } },
+  cafe: { hide: ['EventsHub'], titles: {}, terms: { waiter: 'בריסטה' } },
+  delivery: { hide: ['QueueHub', 'EventsHub', 'SeatingSetup', 'TablesManagement'], titles: { OrderList: 'הזמנות ומלאי' }, terms: {} },
+  events_hall: { hide: ['QueueHub', 'PrepSheet'], titles: { EventsHub: 'אירועים' }, terms: { guest: 'אורח', table: 'שולחן' } },
+  hotel: { hide: ['QueueHub', 'PrepSheet', 'Recipes'], titles: { EventsHub: 'אירועים ואולמות', WorkScheduling: 'סידור עובדים' }, terms: { table: 'חדר', waiter: 'איש צוות', guest: 'אורח' } },
 };
 // Canonical business terms the owner can rename app-wide (Wix-model). Default
 // Hebrew value shown; the owner's override substitutes for it across the sidebar

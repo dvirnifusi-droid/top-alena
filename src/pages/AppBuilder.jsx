@@ -12,25 +12,40 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, LayoutGrid, Lock, Check, Store } from 'lucide-react';
 
-// The main owner-facing pages that can be shown/hidden. (Core shell pages like
-// the dashboard are always on.) Grouped for a readable list.
+// The owner-facing pages that can be shown/hidden — mirrors the real sidebar,
+// grouped like it. Core shell pages (Dashboard, settings) stay always-on and
+// are intentionally excluded. Titles match the sidebar (emojis included).
 const PAGE_GROUPS = [
-  { group: 'תפעול', pages: [
-    { page: 'WorkScheduling', title: 'סידור עבודה' }, { page: 'EmployeesHub', title: 'עובדים' },
-    { page: 'OrderList', title: 'רשימת הזמנות' }, { page: 'Checklists', title: "צ'קליסטים" },
-    { page: 'Incidents', title: 'אירועים חריגים' }, { page: 'PrepSheet', title: 'דף הכנות' },
+  { group: '🎛 תפעול', pages: [
+    { page: 'OperationsHub', title: 'מטה תפעול' }, { page: 'BriefingManagement', title: 'ניהול תדריכים' },
+    { page: 'MenuManagement', title: '🍽 ניהול תפריט' }, { page: 'PrepSheet', title: '👨‍🍳 דף הכנות' },
+    { page: 'DishGuide', title: '📖 מדריך מנות' }, { page: 'TablesManagement', title: 'ניהול שולחנות' },
+    { page: 'SeatingSetup', title: 'ניהול הושבה' }, { page: 'RestroomCleaning', title: 'ניקיון שירותים 🚽' },
+    { page: 'Checklists', title: "צ'קליסטים" }, { page: 'OrderList', title: '🛒 רשימת הזמנה' },
+    { page: 'Incidents', title: 'תקריות' }, { page: 'ShiftEndReport', title: 'דוח סיום משמרת' },
+    { page: 'QueueHub', title: '📞 תור והזמנות' },
   ] },
-  { group: 'לקוחות והזמנות', pages: [
-    { page: 'PublicReservationSettings', title: 'הזמנת מקום' }, { page: 'CustomerClub', title: 'מועדון לקוחות' },
-    { page: 'QueueHub', title: 'ניהול תור' }, { page: 'EventsPrivate', title: 'אירועים פרטיים' },
+  { group: '💰 כספים ודוחות', pages: [
+    { page: 'Reports', title: 'דוחות' }, { page: 'CashFlow', title: '💰 תזרים מזומנים' },
+    { page: 'LaborCost', title: '👥 עלות שכר' }, { page: 'Recipes', title: '🍽 מתכונים ופוד-קוסט' },
+    { page: 'Tips', title: 'ניהול טיפים' }, { page: 'Invoices', title: 'חשבוניות' },
+    { page: 'Suppliers', title: 'ספקים' }, { page: 'OperatingCosts', title: 'עלויות תפעול' },
   ] },
-  { group: 'כספים', pages: [
-    { page: 'CashFlow', title: 'תזרים מזומנים' }, { page: 'LaborCost', title: 'עלות שכר' },
-    { page: 'Invoices', title: 'חשבוניות' }, { page: 'OperatingCosts', title: 'עלויות תפעול' },
+  { group: '🏭 רשת ובית הכנות', pages: [
+    { page: 'Commissary', title: '🏭 בית הכנות (רשת)' }, { page: 'CommissaryOrders', title: '📦 הזמנות והפצה' },
   ] },
-  { group: 'שיווק ותוכן', pages: [
-    { page: 'MarketingHub', title: 'מרכז שיווק' }, { page: 'StoryStudio', title: 'סטודיו סטוריז' },
-    { page: 'Recipes', title: 'עץ מוצר' },
+  { group: '👥 צוות', pages: [
+    { page: 'EmployeesHub', title: '👥 עובדים וסידור' }, { page: 'RecruitmentHub', title: '🎓 גיוס והכשרה' },
+  ] },
+  { group: '🌿 אירועים ומשלוחים', pages: [
+    { page: 'EventsHub', title: '🌿 אירועים פרטיים' }, { page: 'EventVendors', title: '🤝 ספקי אירועים' },
+    { page: 'DeliveriesHub', title: '📦 משלוחים' },
+  ] },
+  { group: '📢 שיווק ולקוחות', pages: [
+    { page: 'MarketingHub', title: '📢 שיווק ולקוחות' }, { page: 'StoriesHub', title: '🏆 גמיפיקציה וסטוריז' },
+  ] },
+  { group: '🤖 כלים חכמים', pages: [
+    { page: 'AIHub', title: '🤖 כלי AI' }, { page: 'Scanner', title: '🔍 סורק חכם' },
   ] },
 ];
 
