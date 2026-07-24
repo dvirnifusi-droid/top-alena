@@ -2425,6 +2425,18 @@ async function tool_build_schedule_now(_args: any, _phone: string): Promise<any>
   }
   const asg = res.assignmentCount || 0;
   const sh = res.createdShifts || 0;
+  // Nothing got placed (0 shifts, 0 assignments) — either no availability was
+  // submitted for the target week or everyone marked themselves unavailable.
+  // Don't report a misleading "✅ built, 0 shifts"; say plainly it couldn't build.
+  if (asg === 0 && sh === 0) {
+    return {
+      ok: false,
+      no_availability: true,
+      target_week: res.target_week,
+      insights: res.insights || [],
+      message: `⚠️ לא נבנה סידור לשבוע ${res.target_week || 'הבא'} — לא נמצאו הגשות זמינות פנויות לשבוע הזה.${(res.insights || []).length ? ' ' + (res.insights || []).join(' ') : ''}\nרוצה שאשלח לצוות תזכורת להגיש זמינות?`,
+    };
+  }
   return {
     ok: true,
     created_shifts: sh,
