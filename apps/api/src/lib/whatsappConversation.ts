@@ -1039,7 +1039,15 @@ async function tool_get_today_revenue(_args: any, phone: string): Promise<any> {
     cash_today_approx: Math.round(beecomm_open_money + gomiley_cash),
     last_beecomm_update: bc?.captured_at || null,
     last_gomiley_update: gm?.captured_at || null,
-    note: (!bc && !gm) ? 'עדיין אין נתוני מכירות היום (Beecomm/Gomiley לא סונכרנו).' : undefined,
+    note: (!bc && !gm)
+      ? 'עדיין אין נתוני מכירות היום (Beecomm/Gomiley לא סונכרנו).'
+      // combined_total = closed sales today. cash_today_approx is money currently
+      // in OPEN tables + delivery cash — a SEPARATE live figure that can exceed
+      // closed sales early in the day. Do NOT phrase it as "מתוכם X במזומן"
+      // (it is not a subset of sales); present them as two separate numbers, e.g.
+      // "מכרנו X ש"ח; בקופה/בשולחנות פתוחים יש כ-Y ש"ח". A credit-only breakdown
+      // isn't available — if asked "כמה באשראי", say we don't have that split.
+      : 'combined_total=מכירות סגורות היום; cash_today_approx=כסף בשולחנות פתוחים+מזומן משלוחים (נתון נפרד, לא חלק מהמכירות).',
   };
 }
 

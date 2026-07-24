@@ -1443,7 +1443,12 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
   // searches CashFlowEntry by supplier name — the same source the owner just saw
   // in "אילו הוצאות לא שולמו". ("חשבונית" stays on the old invoice path.)
   const looksLikeExpense = /הוצא/.test(b) && !/חשבונית/.test(b);
-  if (looksLikeRestaurantEvent || looksLikeReservation || looksLikeReminder || looksLikeExpense) return null;
+  // "הזמנתי מ[ספק]" (I ORDERED from a supplier → mark it ordered). The old
+  // classifier tags it as task_add ("add task: order from X"), which then leaves
+  // a stray pending task that hijacks the NEXT message. The agent's orders group
+  // (propose_mark_supplier_ordered) handles it correctly.
+  const looksLikeSupplierOrdered = /הזמנתי\s+מ|סמן.{0,12}שהזמנתי/.test(b);
+  if (looksLikeRestaurantEvent || looksLikeReservation || looksLikeReminder || looksLikeExpense || looksLikeSupplierOrdered) return null;
 
   // Check for a pending clarification first — if the user is answering a
   // follow-up question, merge the new field(s) into the saved partial intent.
