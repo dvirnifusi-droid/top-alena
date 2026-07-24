@@ -36,7 +36,7 @@ const PAGE_GROUPS = [
 
 export default function AppBuilder() {
   const { businessType, hiddenPages, verticals, loading, refresh, pageTitle } = useAppConfig();
-  const { pageEnabled, isLocked, unlockPlanFor } = useTenantModules();
+  const { pageEnabled, isLocked, unlockPlanFor, modules, refresh: modulesRefresh } = useTenantModules();
   const [vertical, setVertical] = useState('');
   const [hidden, setHidden] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -57,6 +57,17 @@ export default function AppBuilder() {
     setSaving(true); setMsg(null);
     try { await base44.functions.setAppConfig({ hidden_pages: hidden }); await refresh(); setMsg({ ok: true, text: '✅ הסרגל עודכן — רענן את הדף כדי לראות' }); }
     catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    setSaving(false);
+  };
+  const toggleModule = async (m) => {
+    if (m.core || m.locked) return;
+    setSaving(true); setMsg(null);
+    try {
+      const r = await base44.functions.updateMyTenantModule({ module_key: m.key, enabled: !m.enabled });
+      const d = r?.data || r;
+      if (d?.ok === false) { setMsg({ ok: false, text: d.message || 'לא ניתן להפעיל' }); }
+      else { await (modulesRefresh && modulesRefresh()); setMsg({ ok: true, text: `✅ ${m.name_he} ${!m.enabled ? 'הופעל' : 'כובה'} — רענן את הדף` }); }
+    } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
     setSaving(false);
   };
   const applyPreset = async () => {
@@ -110,6 +121,31 @@ export default function AppBuilder() {
                   </div>
                 )}
                 <p className="text-[11px] text-slate-400 mt-2">אפשר לשנות הכל ידנית אחרי החלת התבנית.</p>
+              </CardContent>
+            </Card>
+
+            {/* Modules — whole feature areas the owner turns on/off (plan-gated) */}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-base">מודולים (אזורי פעילות)</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {(!modules || modules.length === 0) ? <p className="text-sm text-slate-400 text-center py-2">טוען מודולים…</p> : (
+                  modules.filter((m) => !m.core).map((m) => (
+                    <div key={m.key} className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${m.locked ? 'bg-slate-50 border-slate-100' : m.enabled ? 'bg-emerald-50/50 border-emerald-200' : 'bg-white border-slate-200'}`}>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold flex items-center gap-1.5">{m.icon ? <span>{m.icon}</span> : null}{m.name_he}</div>
+                        {m.description_he && <div className="text-[11px] text-slate-500 truncate">{m.description_he}</div>}
+                      </div>
+                      {m.locked ? (
+                        <span className="text-[11px] text-amber-600 flex items-center gap-1 shrink-0"><Lock className="w-3.5 h-3.5" /> {m.unlock_plan || 'שדרוג'}</span>
+                      ) : (
+                        <button disabled={saving} onClick={() => toggleModule(m)} className={`relative w-11 h-6 rounded-full transition shrink-0 ${m.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`} title={m.enabled ? 'פעיל' : 'כבוי'}>
+                          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all ${m.enabled ? 'right-0.5' : 'right-[22px]'}`} />
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+                <p className="text-[11px] text-slate-400">כיבוי מודול מסתיר את כל הדפים שלו. מודולים עם 🔒 אינם בחבילה שלך.</p>
               </CardContent>
             </Card>
 

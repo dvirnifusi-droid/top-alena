@@ -28018,6 +28018,18 @@ registerFn('updateMyTenantModule', async ({ user, body }) => {
   const def = MODULE_CATALOG.find(m => m.key === module_key);
   if (!def) throw new Error('unknown module');
   if (def.core) throw new Error('core module cannot be toggled');
+  // Paywall guard: an owner may DISABLE any of their modules, but may only
+  // ENABLE a module their plan includes. Enabling a not-in-plan (locked) module
+  // must go through an upgrade — never a direct toggle.
+  if (enabled) {
+    try {
+      const pi: any[] = await (prisma as any).$queryRawUnsafe(`SELECT modules FROM "TenantPlanInfo" WHERE id = 1`);
+      const planModules: string[] | null = pi[0] ? (Array.isArray(pi[0].modules) ? pi[0].modules : []) : null;
+      if (planModules && !planModules.includes(module_key)) {
+        return { ok: false, error: 'locked', message: 'המודול לא כלול בחבילה שלך — נדרש שדרוג.' };
+      }
+    } catch { /* no plan table → no paywall (backward compatible) */ }
+  }
   await ensureModuleSettingTable();
   await (prisma as any).moduleSetting.upsert({
     where: { module_key },
