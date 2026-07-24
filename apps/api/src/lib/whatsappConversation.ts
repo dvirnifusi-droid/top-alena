@@ -2710,12 +2710,12 @@ async function tool_add_menu_item(args: any, phone: string): Promise<any> {
   if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
   const name = String(args?.name || '').trim(); const price = Number(args?.price);
   if (!name || !Number.isFinite(price) || price < 0) return { error: 'צריך שם מנה ומחיר.' };
-  const { randomUUID } = await import('node:crypto');
-  await (prisma as any).$executeRawUnsafe(
-    `INSERT INTO "MenuItem" ("id","name","category","description","price","available","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,true,NOW(),NOW())`,
-    randomUUID(), name.slice(0, 120), String(args?.category || 'כללי').slice(0, 60), String(args?.description || '').slice(0, 500) || null, price,
-  ).catch(() => {});
-  return { ok: true, added: name, price, category: String(args?.category || 'כללי') };
+  const category = String(args?.category || 'כללי').slice(0, 60);
+  await stashPendingAction(phone, {
+    type: 'menu_add', name: name.slice(0, 120), price, category,
+    description: String(args?.description || '').slice(0, 500) || null,
+  });
+  return { proposal: `➕ להוסיף לתפריט: *${name}* · ${price}₪ · ${category}`, awaiting_confirmation: true };
 }
 async function tool_set_menu_item_availability(args: any, phone: string): Promise<any> {
   const { resolveAccessScope } = await import('./whatsappPermissions.js');
@@ -2733,13 +2733,17 @@ async function tool_update_menu_item(args: any, phone: string): Promise<any> {
   if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
   const { item, suggestions } = await resolveMenuItem(args?.name);
   if (!item) return { need_clarification: true, suggestions: suggestions.map((i) => i.name) };
-  const sets: string[] = []; const vals: any[] = [];
-  if (args?.new_price != null && Number.isFinite(Number(args.new_price))) { sets.push(`price=$${sets.length + 1}`); vals.push(Number(args.new_price)); }
-  if (args?.new_name) { sets.push(`name=$${sets.length + 1}`); vals.push(String(args.new_name).slice(0, 120)); }
-  if (args?.new_category) { sets.push(`category=$${sets.length + 1}`); vals.push(String(args.new_category).slice(0, 60)); }
-  if (!sets.length) return { error: 'לא צוין מה לעדכן (מחיר/שם/קטגוריה).' };
-  await (prisma as any).$executeRawUnsafe(`UPDATE "MenuItem" SET ${sets.join(', ')}, "updatedAt"=NOW() WHERE id=$${sets.length + 1}`, ...vals, item.id).catch(() => {});
-  return { ok: true, item: item.name, updated: { price: args?.new_price, name: args?.new_name, category: args?.new_category } };
+  const new_price = (args?.new_price != null && Number.isFinite(Number(args.new_price))) ? Number(args.new_price) : null;
+  const new_name = args?.new_name ? String(args.new_name).slice(0, 120) : null;
+  const new_category = args?.new_category ? String(args.new_category).slice(0, 60) : null;
+  if (new_price == null && !new_name && !new_category) return { error: 'לא צוין מה לעדכן (מחיר/שם/קטגוריה).' };
+  await stashPendingAction(phone, { type: 'menu_update', item_id: item.id, item_name: item.name, new_price, new_name, new_category });
+  const changes = [
+    new_name ? `שם→${new_name}` : null,
+    new_price != null ? `מחיר→${new_price}₪` : null,
+    new_category ? `קטגוריה→${new_category}` : null,
+  ].filter(Boolean).join(' · ');
+  return { proposal: `✏️ לעדכן את *${item.name}*: ${changes}`, awaiting_confirmation: true };
 }
 async function tool_remove_menu_item(args: any, phone: string): Promise<any> {
   const { resolveAccessScope } = await import('./whatsappPermissions.js');
@@ -2747,8 +2751,8 @@ async function tool_remove_menu_item(args: any, phone: string): Promise<any> {
   if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
   const { item, suggestions } = await resolveMenuItem(args?.name);
   if (!item) return { need_clarification: true, suggestions: suggestions.map((i) => i.name) };
-  await (prisma as any).$executeRawUnsafe(`DELETE FROM "MenuItem" WHERE id=$1`, item.id).catch(() => {});
-  return { ok: true, deleted: item.name };
+  await stashPendingAction(phone, { type: 'menu_remove', item_id: item.id, item_name: item.name });
+  return { proposal: `🗑️ להסיר מהתפריט את *${item.name}*?`, awaiting_confirmation: true };
 }
 async function tool_list_menu(args: any, phone: string): Promise<any> {
   const { resolveAccessScope } = await import('./whatsappPermissions.js');
@@ -3118,6 +3122,9 @@ const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_
 const INTENT_KEYWORDS: Array<[string, RegExp]> = [
   ['team', /תגיד לכל|תודיע לכל|שלח לכל|הודעה לכל|תעדכן את (כל|ה)|לכל העובדים|לכל הצוות|תגיד למלצרים|תגיד לטבחים|תגיד למטבח/],
   ['team', /הערה על|תעד ש|מחמאה|מי חסר (לו )?טפסים|מי צריך לחתום|חסר.{0,6}(הסכם|טופס|101)|ספר לי על|מה המצב עם|כרטיס עובד|כרטיס של|שיחת משוב|שיחת אזהרה|שימוע|העלאת שכר|קמפיין|לכל הלקוחות|הטבה ל/],
+  // Reminders/personal-calendar must win early — "תזכיר לי להתקשר לספק" otherwise
+  // gets hijacked by the orders rule ("ספק") and the model hallucinates an order/incident.
+  ['tasks', /תזכיר|תזכורת|תזכיר לי/],
   ['deliveries', /משלוח|משלוחים|שליח|נמסר|יצא לדרך|מי קיבל.{0,10}משלוח/],
   ['menu', /תפריט|הוסף מנה|מנה חדשה|תוריד.{0,12}(מהתפריט|מנה)|נגמר ה|מחק.{0,6}מנה|מה (יש )?בתפריט|תעדכן.{0,6}מנה|86 ל/],
   ['recruitment', /מועמד|מועמדים|גיוס|תזמן ראיון|קישור לגיוס|מי הגיש מועמדות|תפסול.{0,6}מועמד|קיבלנו.{0,10}לעבודה|ראיון עם/],

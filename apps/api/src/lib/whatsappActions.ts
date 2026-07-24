@@ -1018,6 +1018,27 @@ async function executeAction(exec: any): Promise<string> {
       ].filter(Boolean).join(' · ');
       return `✅ האירוע נוסף למערכת האירועים${parts ? `: ${parts}` : ''}. תוכל לנהל אותו במסך האירועים.`;
     }
+    case 'menu_add': {
+      const { randomUUID } = await import('node:crypto');
+      await (prisma as any).$executeRawUnsafe(
+        `INSERT INTO "MenuItem" ("id","name","category","description","price","available","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,true,NOW(),NOW())`,
+        randomUUID(), exec.name, exec.category || 'כללי', exec.description || null, exec.price,
+      );
+      return `✅ *${exec.name}* נוסף לתפריט במחיר ${exec.price}₪.`;
+    }
+    case 'menu_update': {
+      const sets: string[] = []; const vals: any[] = [];
+      if (exec.new_price != null) { sets.push(`price=$${sets.length + 1}`); vals.push(exec.new_price); }
+      if (exec.new_name) { sets.push(`name=$${sets.length + 1}`); vals.push(exec.new_name); }
+      if (exec.new_category) { sets.push(`category=$${sets.length + 1}`); vals.push(exec.new_category); }
+      if (!sets.length) return '⚠️ לא צוין מה לעדכן.';
+      await (prisma as any).$executeRawUnsafe(`UPDATE "MenuItem" SET ${sets.join(', ')}, "updatedAt"=NOW() WHERE id=$${sets.length + 1}`, ...vals, exec.item_id);
+      return `✅ *${exec.new_name || exec.item_name}* עודכן בתפריט.`;
+    }
+    case 'menu_remove': {
+      await (prisma as any).$executeRawUnsafe(`DELETE FROM "MenuItem" WHERE id=$1`, exec.item_id);
+      return `✅ *${exec.item_name}* הוסר מהתפריט.`;
+    }
     case 'lock_tips': {
       // Mirror the Tips.jsx lock write (status/locked_by/locked_at), scoped to the
       // UTC day (+ optional shift_type); skips reports already locked.
