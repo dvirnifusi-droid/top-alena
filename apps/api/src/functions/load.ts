@@ -5961,6 +5961,278 @@ registerFn('awardAvailabilityCoins', async ({ body }) => {
   }
   return { success: true, coinsAwarded: coins };
 });
+// ─── Availability lock + manager-approved reopen (owner spec 2026-07-25) ────
+// Once an employee submits availability for a week it LOCKS. To change it they
+// request a reopen; a manager approves → their week's rows are deleted and they
+// resubmit fresh (NO extra coins). Manager can also reset a whole week (or one
+// filtered employee). On a resubmit-after-reopen the manager gets a WA diff of
+// what changed. State envelope = ad-hoc "AvailabilitySubmission" table (one row
+// per employee×week), created idempotently — no prisma db push (additive only).
+const AVAIL_DOW = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+const availYmdIL = (d: any) => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+function availWeekDates(weekStart: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(`${weekStart}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + i);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+async function ensureAvailSubTable() {
+  await db.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "AvailabilitySubmission" (
+      "id" TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "employee_id" TEXT NOT NULL,
+      "employee_name" TEXT,
+      "week_start" TEXT NOT NULL,
+      "department" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'submitted',
+      "snapshot" JSONB,
+      "submitted_at" TIMESTAMP(3),
+      "coins_awarded_at" TIMESTAMP(3),
+      "reopen_requested_at" TIMESTAMP(3),
+      "reopened_at" TIMESTAMP(3),
+      "reopened_by" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`).catch(() => {});
+  await db.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "AvailabilitySubmission_emp_week" ON "AvailabilitySubmission"("employee_id","week_start")`).catch(() => {});
+}
+// Delete an employee's EmployeeAvailability rows for a given week (Israel-day
+// bucketed, mirroring runWeeklyScheduleBuild so TZ storage never causes a miss).
+async function deleteAvailWeekRows(employee_id: string, weekDates: string[]): Promise<number> {
+  const rows: any[] = await db.employeeAvailability.findMany({ where: { employee_id }, select: { id: true, date: true } }).catch(() => []);
+  const set = new Set(weekDates);
+  const ids = rows.filter((r) => set.has(availYmdIL(r.date))).map((r) => r.id);
+  if (ids.length) await db.employeeAvailability.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+  return ids.length;
+}
+// Human-readable diff between an old snapshot and the new day list (by weekday).
+function availDiff(oldSnap: any[], newDays: any[]): string[] {
+  const norm = (arr: any[]) => {
+    const m: Record<string, any> = {};
+    for (const d of (arr || [])) if (d?.date) m[String(d.date).slice(0, 10)] = d;
+    return m;
+  };
+  const label = (d: any) => {
+    if (!d || d.availability_type === 'unavailable') return 'לא פנוי';
+    const pref = d.shift_preference === 'lunch' ? 'צהריים' : d.shift_preference === 'dinner' ? 'ערב' : d.shift_preference === 'both' ? 'צהריים+ערב' : '';
+    const base = d.availability_type === 'partial' ? 'חלקי' : 'פנוי';
+    return pref ? `${base} ${pref}` : base;
+  };
+  const o = norm(oldSnap), n = norm(newDays);
+  const dates = [...new Set([...Object.keys(o), ...Object.keys(n)])].sort();
+  const changes: string[] = [];
+  for (const ds of dates) {
+    const a = label(o[ds]), b = label(n[ds]);
+    if (a !== b) {
+      const dow = AVAIL_DOW[new Date(`${ds}T12:00:00Z`).getUTCDay()];
+      changes.push(`${dow} ${ds.slice(8, 10)}/${ds.slice(5, 7)}: ${a} → ${b}`);
+    }
+  }
+  return changes;
+}
+async function notifyAvailManagers(text: string) {
+  try {
+    const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
+    const phones: string[] = await reportRecipientPhones();
+    for (const p of phones) { try { await sendWhatsApp(p, text); } catch { /* per-recipient */ } }
+  } catch { /* no-op */ }
+}
+
+// Unified availability submit — enforces the lock, writes the week's day rows,
+// awards coins only on the FIRST submission for the week, and on a resubmit
+// (after reopen/reset) sends the manager a diff. Called by the web form + WA.
+registerFn('saveAvailabilityWeek', async ({ body }) => {
+  await ensureAvailSubTable();
+  const b = body as any;
+  const employee_id = String(b.employee_id || '').trim();
+  const employee_name = String(b.employee_name || '').trim();
+  const week_start = String(b.week_start || '').slice(0, 10);
+  const department = b.department ? String(b.department) : null;
+  const days: any[] = Array.isArray(b.days) ? b.days : [];
+  if (!employee_id || !week_start) return { ok: false, error: 'missing employee_id/week_start' };
+
+  const existRows: any[] = await db.$queryRawUnsafe(
+    `SELECT * FROM "AvailabilitySubmission" WHERE employee_id=$1 AND week_start=$2 LIMIT 1`, employee_id, week_start);
+  const existing = existRows[0] || null;
+  // Editable only when never submitted OR the manager reopened/reset it (status='open').
+  if (existing && existing.status !== 'open') {
+    return { ok: false, locked: true, status: existing.status,
+      error: existing.status === 'reopen_requested'
+        ? 'הבקשה לשינוי ממתינה לאישור המנהל.'
+        : 'הזמינות לשבוע זה נעולה. שלח/י בקשה לפתוח מחדש.' };
+  }
+
+  const weekDates = availWeekDates(week_start);
+  // Replace the week's rows.
+  await deleteAvailWeekRows(employee_id, weekDates);
+  const dayNorm = weekDates.map((ds) => {
+    const src = days.find((d) => String(d.date).slice(0, 10) === ds) || null;
+    if (!src) return null;
+    const at = String(src.availability_type || 'unavailable');
+    return {
+      date: ds, availability_type: at,
+      shift_preference: src.shift_preference || 'both',
+      reason: src.reason || null,
+      positions: src.positions || null,
+      available_from: at === 'partial' ? (src.available_from || '') : '',
+      available_until: at === 'partial' ? (src.available_until || '') : '',
+    };
+  }).filter(Boolean) as any[];
+  for (const d of dayNorm) {
+    await db.employeeAvailability.create({ data: {
+      employee_id, employee_name, date: new Date(`${d.date}T00:00:00.000Z`),
+      availability_type: d.availability_type, shift_preference: d.shift_preference,
+      reason: d.reason, positions: d.positions as any,
+      available_from: d.available_from, available_until: d.available_until, department,
+    } as any }).catch(() => {});
+  }
+
+  const availableShifts = dayNorm.reduce((c, d) => d.availability_type === 'unavailable' ? c : c + (d.shift_preference === 'both' ? 2 : 1), 0);
+  // Coins ONLY on the first submission for this week (envelope-scoped, not the
+  // rolling 6-day window) → a reopen/reset resubmit grants nothing.
+  let coinsAwarded = 0;
+  const firstTime = !existing || !existing.coins_awarded_at;
+  if (firstTime && availableShifts > 0) {
+    const coins = availableShifts * 5;
+    try {
+      const since = new Date(Date.now() - 6 * 86400_000);
+      const prior = await db.coinTransaction.findFirst({ where: { employee_id, trigger: 'availability_submitted', createdAt: { gte: since } } });
+      if (!prior) {
+        await db.coinTransaction.create({ data: { employee_id, employee_name, amount: coins, reason: `הגשת סידור זמינות - ${availableShifts} משמרות פנויות`, type_: 'earned', trigger: 'availability_submitted', status: 'approved' } });
+        await db.employee.update({ where: { id: employee_id }, data: { coin_balance: { increment: coins } } }).catch(() => {});
+        coinsAwarded = coins;
+      }
+    } catch (e: any) { console.warn('[saveAvailabilityWeek] coins skipped:', e?.message); }
+  }
+
+  // Resubmit-after-reopen → diff the old snapshot vs the new days and tell the manager.
+  let diff: string[] = [];
+  if (existing && existing.snapshot && existing.coins_awarded_at) {
+    diff = availDiff(Array.isArray(existing.snapshot) ? existing.snapshot : [], dayNorm);
+    if (diff.length) {
+      await notifyAvailManagers(`✏️ *${employee_name || 'עובד'}* עדכן/ה זמינות לשבוע ${week_start}:\n${diff.map((x) => `• ${x}`).join('\n')}`);
+    }
+  }
+
+  const nowIso = new Date().toISOString();
+  const snapJson = JSON.stringify(dayNorm);
+  if (existing) {
+    await db.$executeRawUnsafe(
+      `UPDATE "AvailabilitySubmission" SET status='submitted', snapshot=$1::jsonb, submitted_at=$2, department=$3, employee_name=$4, ${firstTime && coinsAwarded > 0 ? 'coins_awarded_at=$2,' : ''} "updatedAt"=$2 WHERE employee_id=$5 AND week_start=$6`,
+      snapJson, nowIso, department, employee_name, employee_id, week_start).catch(() => {});
+  } else {
+    await db.$executeRawUnsafe(
+      `INSERT INTO "AvailabilitySubmission"(employee_id,employee_name,week_start,department,status,snapshot,submitted_at,coins_awarded_at,"createdAt","updatedAt")
+       VALUES($1,$2,$3,$4,'submitted',$5::jsonb,$6,$7,$6,$6)`,
+      employee_id, employee_name, week_start, department, snapJson, nowIso, coinsAwarded > 0 ? nowIso : null).catch(() => {});
+  }
+  return { ok: true, coinsAwarded, availableShifts, locked_now: true, diff };
+});
+
+// Per-employee lock state for a week (manager page badges + approve buttons).
+registerFn('getAvailabilityLockStates', async ({ user, body }) => {
+  await requireBackOffice(user, 'getAvailabilityLockStates');
+  await ensureAvailSubTable();
+  const week_start = String((body as any)?.week_start || '').slice(0, 10);
+  if (!week_start) return { states: [] };
+  const rows: any[] = await db.$queryRawUnsafe(
+    `SELECT employee_id, employee_name, status, submitted_at, reopen_requested_at, department FROM "AvailabilitySubmission" WHERE week_start=$1`, week_start);
+  return { week_start, states: rows };
+});
+
+// Employee-facing: is THIS employee's week locked? (no back-office gate — the
+// self-service form is authenticated but not a manager). Returns the status so
+// the form can render read-only + a "request reopen" button.
+registerFn('getAvailabilityLockForEmployee', async ({ body }) => {
+  await ensureAvailSubTable();
+  const b = body as any;
+  const employee_id = String(b.employee_id || '').trim();
+  const week_start = String(b.week_start || '').slice(0, 10);
+  if (!employee_id || !week_start) return { status: 'open' };
+  const rows: any[] = await db.$queryRawUnsafe(`SELECT status, submitted_at FROM "AvailabilitySubmission" WHERE employee_id=$1 AND week_start=$2 LIMIT 1`, employee_id, week_start);
+  const s = rows[0];
+  return { status: s?.status || 'open', submitted_at: s?.submitted_at || null };
+});
+
+// Employee (or manager on their behalf) requests to reopen a locked week.
+registerFn('requestAvailabilityReopen', async ({ body }) => {
+  await ensureAvailSubTable();
+  const b = body as any;
+  const employee_id = String(b.employee_id || '').trim();
+  const week_start = String(b.week_start || '').slice(0, 10);
+  if (!employee_id || !week_start) return { ok: false, error: 'missing employee_id/week_start' };
+  const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM "AvailabilitySubmission" WHERE employee_id=$1 AND week_start=$2 LIMIT 1`, employee_id, week_start);
+  const sub = rows[0];
+  if (!sub) return { ok: false, error: 'not_submitted', message: 'עדיין לא הגשת זמינות לשבוע הזה — אפשר להגיש רגיל.' };
+  if (sub.status === 'open') return { ok: true, status: 'open', message: 'הזמינות כבר פתוחה לעריכה.' };
+  const nm = sub.employee_name || b.employee_name || 'עובד';
+  await db.$executeRawUnsafe(`UPDATE "AvailabilitySubmission" SET status='reopen_requested', reopen_requested_at=NOW(), "updatedAt"=NOW() WHERE employee_id=$1 AND week_start=$2`, employee_id, week_start).catch(() => {});
+  await notifyAvailManagers(`🔓 *${nm}* מבקש/ת לשנות זמינות לשבוע ${week_start}.\nלאישור: השב/י "אשר ל${nm} לשנות זמינות" — או בדף *בקשות זמינות*.`);
+  return { ok: true, status: 'reopen_requested' };
+});
+
+// Manager approves a reopen → clears the week's rows so the employee resubmits.
+registerFn('approveAvailabilityReopen', async ({ user, body }) => {
+  await requireBackOffice(user, 'approveAvailabilityReopen');
+  await ensureAvailSubTable();
+  const b = body as any;
+  const employee_id = String(b.employee_id || '').trim();
+  const week_start = String(b.week_start || '').slice(0, 10);
+  if (!employee_id || !week_start) return { ok: false, error: 'missing employee_id/week_start' };
+  const weekDates = availWeekDates(week_start);
+  await deleteAvailWeekRows(employee_id, weekDates);
+  await db.$executeRawUnsafe(`UPDATE "AvailabilitySubmission" SET status='open', reopened_at=NOW(), reopened_by=$3, "updatedAt"=NOW() WHERE employee_id=$1 AND week_start=$2`, employee_id, week_start, user?.email || 'manager').catch(() => {});
+  // Notify the employee they can resubmit.
+  try {
+    const emp: any = await db.employee.findUnique({ where: { id: employee_id }, select: { phone: true, full_name: true } });
+    if (emp?.phone) {
+      const link = `${process.env.PUBLIC_APP_URL || 'https://topalena.com'}/AvailabilityForm`;
+      await sendWhatsApp(emp.phone, `✅ אושר! אפשר להגיש זמינות מחדש לשבוע ${week_start}.\n${link}`).catch(() => {});
+    }
+  } catch { /* best-effort */ }
+  return { ok: true, status: 'open' };
+});
+
+// Manager reset — clear a week's availability for ALL submitted employees, or a
+// single employee when employee_id is passed (the page's name filter).
+registerFn('resetAvailability', async ({ user, body }) => {
+  await requireBackOffice(user, 'resetAvailability');
+  await ensureAvailSubTable();
+  const b = body as any;
+  const week_start = String(b.week_start || '').slice(0, 10);
+  const onlyEmp = b.employee_id ? String(b.employee_id) : null;
+  if (!week_start) return { ok: false, error: 'missing week_start' };
+  const weekDates = availWeekDates(week_start);
+  // Targets: submissions for the week, plus anyone with raw rows in the week.
+  const subRows: any[] = await db.$queryRawUnsafe(`SELECT employee_id FROM "AvailabilitySubmission" WHERE week_start=$1`, week_start);
+  const rawRows: any[] = await db.employeeAvailability.findMany({ select: { employee_id: true, date: true } }).catch(() => []);
+  const set = new Set(weekDates);
+  const rawEmp = new Set(rawRows.filter((r) => set.has(availYmdIL(r.date))).map((r) => r.employee_id));
+  let targets = [...new Set([...subRows.map((r) => r.employee_id), ...rawEmp])];
+  if (onlyEmp) targets = targets.filter((id) => id === onlyEmp);
+  const link = `${process.env.PUBLIC_APP_URL || 'https://topalena.com'}/AvailabilityForm`;
+  let reset = 0;
+  for (const empId of targets) {
+    await deleteAvailWeekRows(empId, weekDates);
+    await db.$executeRawUnsafe(
+      `INSERT INTO "AvailabilitySubmission"(employee_id,week_start,status,reopened_at,reopened_by,"createdAt","updatedAt")
+       VALUES($1,$2,'open',NOW(),$3,NOW(),NOW())
+       ON CONFLICT (employee_id,week_start) DO UPDATE SET status='open', reopened_at=NOW(), reopened_by=$3, "updatedAt"=NOW()`,
+      empId, week_start, user?.email || 'manager').catch(() => {});
+    reset++;
+    if (b.notify) {
+      try {
+        const emp: any = await db.employee.findUnique({ where: { id: empId }, select: { phone: true } });
+        if (emp?.phone) await sendWhatsApp(emp.phone, `🔄 המנהל איפס את הזמינות לשבוע ${week_start} — אנא הגש/י מחדש:\n${link}`).catch(() => {});
+      } catch { /* best-effort */ }
+    }
+  }
+  return { ok: true, reset_count: reset };
+});
+
 registerFn('awardBriefingCoins', async ({ body }) =>
   awardCoins((body as any).employee_id, (body as any).amount ?? 3, 'briefing_read'),
 );

@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Loader2, Users, ChevronLeft, ChevronRight, CheckCircle2, Zap, Edit2, ChevronDown, ChevronUp, Plus, Sparkles } from 'lucide-react';
+import { Loader2, Users, ChevronLeft, ChevronRight, CheckCircle2, Zap, Edit2, ChevronDown, ChevronUp, Plus, Sparkles, RotateCcw, Unlock, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import PageGuard from '../components/shared/PageGuard';
 import { canonRole, canonRoles } from '@/lib/roles';
@@ -61,10 +61,15 @@ function AvailabilityRequestsInner() {
      // Roster panel: collapsed by default. Holds both "didn't submit" and inactive lists.
      const [rosterOpen, setRosterOpen] = useState(false);
      const [inactiveEmployees, setInactiveEmployees] = useState([]);
+     // Availability lock lifecycle: per-employee status for the displayed week.
+     const [lockStates, setLockStates] = useState({}); // employee_id -> { status, ... }
+     const [resetting, setResetting] = useState(false);
+     const [approvingId, setApprovingId] = useState(null);
 
     const weekStart = startOfWeek(addDays(new Date(), weekOffset * 7), { weekStartsOn: 0 });
     const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
     const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+    const weekStartStr = format(weekStart, 'yyyy-MM-dd');
 
     useEffect(() => {
         loadData();
@@ -102,10 +107,48 @@ function AvailabilityRequestsInner() {
             setEmployees(allEmps);
             setInactiveEmployees(inactiveEmps || []);
             setSettings(sett[0] || null);
+            // Lock-lifecycle states for the displayed week.
+            try {
+                const ls = await base44.functions.getAvailabilityLockStates({ week_start: format(startOfWeek(addDays(new Date(), weekOffset * 7), { weekStartsOn: 0 }), 'yyyy-MM-dd') });
+                const arr = (ls?.data || ls)?.states || [];
+                const map = {};
+                for (const s of arr) map[s.employee_id] = s;
+                setLockStates(map);
+            } catch { setLockStates({}); }
         } catch (e) {
             console.error(e);
         }
         setLoading(false);
+    };
+
+    // Reset the displayed week's availability. If a single employee is filtered
+    // (name search resolves to exactly one submitted employee) reset only them.
+    const handleResetAvailability = async () => {
+        const submittedNames = new Set(weekAvailabilities.map(a => a.employee_id));
+        let onlyEmp = null, who = 'כל העובדים';
+        if (filterSearch.trim()) {
+            const matches = employees.filter(e => submittedNames.has(e.id) && (e.full_name || '').includes(filterSearch.trim()));
+            if (matches.length === 1) { onlyEmp = matches[0].id; who = matches[0].full_name; }
+        }
+        if (!window.confirm(`לאפס את הזמינות של ${who} לשבוע ${format(weekStart, 'dd/MM')}? ${onlyEmp ? 'העובד' : 'כולם'} יצטרכו להגיש מחדש (ללא מטבעות נוספים).`)) return;
+        setResetting(true);
+        try {
+            const r = await base44.functions.resetAvailability({ week_start: weekStartStr, employee_id: onlyEmp, notify: true });
+            const res = r?.data || r;
+            toast.success(`אופסה זמינות ל-${res?.reset_count ?? 0} עובדים. נשלחה להם תזכורת להגיש מחדש.`);
+            await loadData();
+        } catch (e) { toast.error('שגיאה באיפוס הזמינות'); }
+        setResetting(false);
+    };
+
+    const handleApproveReopen = async (employee_id, name) => {
+        setApprovingId(employee_id);
+        try {
+            await base44.functions.approveAvailabilityReopen({ employee_id, week_start: weekStartStr });
+            toast.success(`${name || 'העובד'} יכול/ה להגיש זמינות מחדש. נשלחה הודעה בוואטסאפ.`);
+            await loadData();
+        } catch (e) { toast.error('שגיאה באישור'); }
+        setApprovingId(null);
     };
 
     const getAvailForDay = (dateStr) => {
@@ -595,9 +638,47 @@ function AvailabilityRequestsInner() {
                                 : <Zap className="w-4 h-4 ml-2" />}
                             שבץ אוטומטית לסידור
                         </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleResetAvailability}
+                            disabled={resetting || weekAvailabilities.length === 0}
+                            className="border-amber-300 text-amber-800 hover:bg-amber-50"
+                            title="מוחק את הזמינות של השבוע כדי שיגישו מחדש (ללא מטבעות). פילטר שם = רק אותו עובד."
+                        >
+                            {resetting ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <RotateCcw className="w-4 h-4 ml-2" />}
+                            אפס זמינות
+                        </Button>
                     </div>
                 }
             />
+
+            {/* ---------- Reopen requests (employees asking to change a locked week) ---------- */}
+            {(() => {
+                const reqs = Object.values(lockStates).filter(s => s?.status === 'reopen_requested');
+                if (!reqs.length) return null;
+                return (
+                    <Card className="mb-4 border-amber-300 bg-amber-50">
+                        <CardContent className="p-3">
+                            <div className="flex items-center gap-2 mb-2 text-amber-900 font-bold text-sm">
+                                <Unlock className="w-4 h-4" /> בקשות לשינוי זמינות ({reqs.length})
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {reqs.map(r => (
+                                    <div key={r.employee_id} className="flex items-center gap-2 bg-white rounded-lg border border-amber-200 px-3 py-1.5">
+                                        <span className="text-sm font-medium">{r.employee_name || 'עובד'}</span>
+                                        <Button size="sm" className="h-7 bg-amber-600 hover:bg-amber-700 text-white text-xs"
+                                            disabled={approvingId === r.employee_id}
+                                            onClick={() => handleApproveReopen(r.employee_id, r.employee_name)}>
+                                            {approvingId === r.employee_id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'אשר פתיחה מחדש'}
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                );
+            })()}
 
             {/* ---------- Filter bar ---------- */}
             <Card className="mb-4 p-3">
@@ -739,7 +820,11 @@ function AvailabilityRequestsInner() {
                                                         return (
                                                             <div key={avail.id} className={`p-3 rounded-lg border ${anyAssigned ? 'bg-pink-100 border-pink-300' : typeConfig.color.replace('text-', 'border-').replace('-800', '-300').replace('-100', '-50')}`}>
                                                                 <div className="flex items-center justify-between mb-2">
-                                                                    <span className="font-bold">{avail.employee_name}</span>
+                                                                    <span className="font-bold flex items-center gap-1">
+                                                                        {avail.employee_name}
+                                                                        {lockStates[avail.employee_id]?.status === 'submitted' && <Lock className="w-3 h-3 text-gray-400" title="נעול — הוגש" />}
+                                                                        {lockStates[avail.employee_id]?.status === 'reopen_requested' && <Unlock className="w-3 h-3 text-amber-500" title="ביקש/ה לפתוח מחדש" />}
+                                                                    </span>
                                                                     <div className="flex gap-1">
                                                                         <Badge className={`${typeConfig.color} text-xs`}>{typeConfig.label}</Badge>
                                                                         <Button size="sm" variant="ghost" onClick={() => handleEditAvail(avail)}>

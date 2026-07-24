@@ -389,57 +389,75 @@ export default function AvailabilityForm() {
         }
         setSaving(true);
         const weekDates = getWeekDays(selectedWeekOffset).map(d => format(d, 'yyyy-MM-dd'));
+        const week_start = weekDates[0];
+        const days = weekDates.map(dateStr => {
+            const data = dayData[dateStr];
+            if (!data) return null;
+            return {
+                date: dateStr,
+                availability_type: data.availability_type,
+                shift_preference: data.shift_preference,
+                reason: data.reason,
+                positions: canonRoles(data.positions), // מלצרית → מלצר at the source
+                available_from: data.availability_type === 'partial' ? data.available_from || '' : '',
+                available_until: data.availability_type === 'partial' ? data.available_until || '' : '',
+            };
+        }).filter(Boolean);
         try {
-            for (const dateStr of weekDates) {
-                const data = dayData[dateStr];
-                if (!data) continue;
-                const existing = existingAvailabilities.find(a => a.date === dateStr);
-                const record = {
-                    employee_id: selectedEmployee.id,
-                    employee_name: selectedEmployee.full_name,
-                    date: dateStr,
-                    availability_type: data.availability_type,
-                    shift_preference: data.shift_preference,
-                    reason: data.reason,
-                    positions: canonRoles(data.positions), // מלצרית → מלצר at the source
-                    available_from: data.availability_type === 'partial' ? data.available_from || '' : '',
-                    available_until: data.availability_type === 'partial' ? data.available_until || '' : '',
-                    department: selectedDepartment,
-                };
-                if (existing) {
-                    await base44.entities.EmployeeAvailability.update(existing.id, record);
-                } else {
-                    await base44.entities.EmployeeAvailability.create(record);
-                }
-            }
-            const availableShifts = Object.values(dayData).reduce((count, data) => {
-                if (data.availability_type === 'unavailable') return count;
-                return count + (data.shift_preference === 'both' ? 2 : 1);
-            }, 0);
-
-            if (availableShifts > 0) {
-                const coinsToAward = availableShifts * 5;
-                const res = await awardAvailabilityCoins({
-                    employee_id: selectedEmployee.id,
-                    employee_name: selectedEmployee.full_name,
-                    availableShifts,
-                    coinsToAward,
-                });
-                const awarded = res?.data?.coinsAwarded || coinsToAward;
-                setCoinsAwarded(awarded);
+            // Single locked+coins+diff-aware write (backend enforces the lock and
+            // awards coins only on the first submission for the week).
+            const r = await base44.functions.saveAvailabilityWeek({
+                employee_id: selectedEmployee.id,
+                employee_name: selectedEmployee.full_name,
+                week_start,
+                department: selectedDepartment,
+                days,
+            });
+            const res = r?.data || r;
+            if (res?.locked) { alert(res.error || 'הזמינות לשבוע זה נעולה — יש לבקש פתיחה מחדש.'); setSaving(false); return; }
+            if (res?.coinsAwarded > 0) {
+                setCoinsAwarded(res.coinsAwarded);
                 toast({
-                    title: `🪙 +${awarded} מטבעות נוספו!`,
-                    description: `קיבלת ${awarded} מטבעות על הגשת סידור עם ${availableShifts} משמרות פנויות`,
+                    title: `🪙 +${res.coinsAwarded} מטבעות נוספו!`,
+                    description: `קיבלת ${res.coinsAwarded} מטבעות על הגשת סידור עם ${res.availableShifts} משמרות פנויות`,
                     duration: 5000,
                 });
             }
-
+            setWeekLock('submitted'); // it's now locked for this week
             setSubmitted(true);
         } catch (e) {
             console.error(e);
             alert('שגיאה בשמירת הבקשה');
         }
         setSaving(false);
+    };
+
+    // Lock lifecycle for the selected week: null/'open' = editable, 'submitted' =
+    // locked (needs reopen), 'reopen_requested' = waiting for manager approval.
+    const [weekLock, setWeekLock] = useState(null);
+    const [reopenLoading, setReopenLoading] = useState(false);
+    useEffect(() => {
+        let alive = true;
+        if (!selectedEmployee) { setWeekLock(null); return; }
+        const wk = format(getWeekDays(selectedWeekOffset)[0], 'yyyy-MM-dd');
+        base44.functions.getAvailabilityLockForEmployee({ employee_id: selectedEmployee.id, week_start: wk })
+            .then(r => { if (alive) setWeekLock((r?.data || r)?.status || 'open'); })
+            .catch(() => { if (alive) setWeekLock('open'); });
+        return () => { alive = false; };
+    }, [selectedEmployee, selectedWeekOffset]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const handleRequestReopen = async () => {
+        if (!selectedEmployee) return;
+        setReopenLoading(true);
+        try {
+            const wk = format(getWeekDays(selectedWeekOffset)[0], 'yyyy-MM-dd');
+            await base44.functions.requestAvailabilityReopen({
+                employee_id: selectedEmployee.id, employee_name: selectedEmployee.full_name, week_start: wk,
+            });
+            setWeekLock('reopen_requested');
+            toast({ title: '📩 הבקשה נשלחה למנהל', description: 'תקבל/י הודעה כשהמנהל יאשר לך לשנות.', duration: 5000 });
+        } catch (e) { alert('שגיאה בשליחת הבקשה'); }
+        setReopenLoading(false);
     };
 
     const handleReset = () => {
@@ -826,6 +844,21 @@ export default function AvailabilityForm() {
                 })}
             </div>
 
+            {weekLock === 'submitted' && (
+                <div className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-center" dir="rtl">
+                    <p className="font-bold text-amber-900 mb-1">🔒 הזמינות שלך לשבוע הזה כבר הוגשה ונעולה</p>
+                    <p className="text-sm text-amber-800 mb-3">כדי לשנות — בקש/י מהמנהל לפתוח לך מחדש. אחרי אישור תוכל/י להגיש שוב (בלי מטבעות נוספים).</p>
+                    <Button onClick={handleRequestReopen} disabled={reopenLoading} className="bg-amber-600 hover:bg-amber-700 text-white">
+                        {reopenLoading ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : null}
+                        בקש לפתוח מחדש
+                    </Button>
+                </div>
+            )}
+            {weekLock === 'reopen_requested' && (
+                <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-center text-blue-800" dir="rtl">
+                    ⏳ הבקשה שלך לשינוי נשלחה למנהל וממתינה לאישור. תקבל/י הודעה כשאפשר יהיה להגיש מחדש.
+                </div>
+            )}
             <div className="mt-8 flex justify-end gap-3">
                 <Button
                     variant="outline"
@@ -837,7 +870,7 @@ export default function AvailabilityForm() {
                 <Button
                     size="lg"
                     onClick={handleSubmit}
-                    disabled={saving}
+                    disabled={saving || weekLock === 'submitted' || weekLock === 'reopen_requested'}
                     className="text-lg px-10"
                 >
                     {saving ? <Loader2 className="w-5 h-5 animate-spin ml-2" /> : <CheckCircle2 className="w-5 h-5 ml-2" />}
