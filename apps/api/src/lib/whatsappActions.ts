@@ -1433,7 +1433,11 @@ export async function tryProposeAction(fromPhone: string, body: string): Promise
     /יש מקום|מקום פנוי/.test(b) ||
     /(תזמין|להזמין|תרשום|תכניס)\s*(לי\s*)?.{0,15}(שולחן|הזמנה|על שם)/.test(b) ||
     /בטל.{0,12}הזמנה/.test(b);
-  if (looksLikeRestaurantEvent || looksLikeReservation) return null;
+  // Reminders: the old classifier flakily fills wake_hhmm instead of remind_at
+  // (→ "❓ מתי?" even when the time is in the message). The agent's
+  // propose_remind_me (same remind_me exec shape) parses the time reliably.
+  const looksLikeReminder = /תזכיר\s*לי|תזכורת/.test(b);
+  if (looksLikeRestaurantEvent || looksLikeReservation || looksLikeReminder) return null;
 
   // Check for a pending clarification first — if the user is answering a
   // follow-up question, merge the new field(s) into the saved partial intent.
