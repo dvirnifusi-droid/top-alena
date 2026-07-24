@@ -35,14 +35,22 @@ const PAGE_GROUPS = [
 ];
 
 export default function AppBuilder() {
-  const { businessType, hiddenPages, verticals, loading, refresh, pageTitle } = useAppConfig();
+  const { businessType, hiddenPages, verticals, loading, refresh, pageTitle, terms, termOverrides } = useAppConfig();
   const { pageEnabled, isLocked, unlockPlanFor, modules, refresh: modulesRefresh } = useTenantModules();
   const [vertical, setVertical] = useState('');
   const [hidden, setHidden] = useState([]);
+  const [termsDraft, setTermsDraft] = useState({});
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
 
-  useEffect(() => { if (!loading) { setVertical(businessType || ''); setHidden(hiddenPages || []); } }, [loading, businessType, hiddenPages]);
+  useEffect(() => { if (!loading) { setVertical(businessType || ''); setHidden(hiddenPages || []); setTermsDraft(termOverrides || {}); } }, [loading, businessType, hiddenPages, termOverrides]);
+
+  const saveTerms = async () => {
+    setSaving(true); setMsg(null);
+    try { await base44.functions.setAppConfig({ term_overrides: termsDraft }); await refresh(); setMsg({ ok: true, text: '✅ המונחים נשמרו — רענן את הדף' }); }
+    catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    setSaving(false);
+  };
 
   const isOn = (page) => !hidden.includes(page);
   const toggle = (page) => setHidden((p) => (p.includes(page) ? p.filter((x) => x !== page) : [...p, page]));
@@ -146,6 +154,26 @@ export default function AppBuilder() {
                   ))
                 )}
                 <p className="text-[11px] text-slate-400">כיבוי מודול מסתיר את כל הדפים שלו. מודולים עם 🔒 אינם בחבילה שלך.</p>
+              </CardContent>
+            </Card>
+
+            {/* Global terms — rename business terms app-wide */}
+            <Card>
+              <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-base">מונחים (שמות גלובליים)</CardTitle>
+                <Button size="sm" onClick={saveTerms} disabled={saving} className="bg-[#44512C] hover:bg-[#3a4525]">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור'}</Button>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {(terms || []).map((t) => (
+                    <label key={t.key} className="text-sm flex items-center gap-2">
+                      <span className="text-slate-500 w-20 shrink-0">{t.default}</span>
+                      <span className="text-slate-300">→</span>
+                      <input value={termsDraft[t.key] ?? ''} onChange={(e) => setTermsDraft((p) => ({ ...p, [t.key]: e.target.value }))} placeholder={t.default} className="flex-1 h-8 rounded border border-slate-300 px-2 text-sm" />
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">שינוי מונח מחליף אותו בכל הסרגל והכותרות (למשל "שולחן"→"חדר" למלון). ריק = המונח המקורי.</p>
               </CardContent>
             </Card>
 

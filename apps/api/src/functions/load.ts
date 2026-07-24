@@ -6649,14 +6649,29 @@ const APP_VERTICALS: { key: string; label: string; hint_pages?: string[] }[] = [
 // re-show any of them after). `titles` = suggested page-title overrides so the
 // wording fits the business. Applied only on explicit "apply preset" and never
 // clobbers a title the owner already set by hand.
-const VERTICAL_PRESETS: Record<string, { hide: string[]; titles: Record<string, string> }> = {
-  restaurant: { hide: [], titles: {} },
-  bar: { hide: ['PrepSheet'], titles: { OrderList: 'הזמנת ברים ומלאי' } },
-  cafe: { hide: ['EventsPrivate'], titles: {} },
-  delivery: { hide: ['PublicReservationSettings', 'QueueHub', 'EventsPrivate'], titles: { OrderList: 'הזמנות ומלאי' } },
-  events_hall: { hide: ['QueueHub', 'PrepSheet'], titles: { EventsPrivate: 'אירועים', PublicReservationSettings: 'בקשות הצעה' } },
-  hotel: { hide: ['QueueHub', 'PrepSheet', 'Recipes'], titles: { PublicReservationSettings: 'הזמנת חדרים', EventsPrivate: 'אירועים ואולמות', WorkScheduling: 'סידור עובדים' } },
+const VERTICAL_PRESETS: Record<string, { hide: string[]; titles: Record<string, string>; terms?: Record<string, string> }> = {
+  restaurant: { hide: [], titles: {}, terms: {} },
+  bar: { hide: ['PrepSheet'], titles: { OrderList: 'הזמנת ברים ומלאי' }, terms: { waiter: 'ברמן' } },
+  cafe: { hide: ['EventsPrivate'], titles: {}, terms: { waiter: 'בריסטה' } },
+  delivery: { hide: ['PublicReservationSettings', 'QueueHub', 'EventsPrivate'], titles: { OrderList: 'הזמנות ומלאי' }, terms: {} },
+  events_hall: { hide: ['QueueHub', 'PrepSheet'], titles: { EventsPrivate: 'אירועים', PublicReservationSettings: 'בקשות הצעה' }, terms: { guest: 'אורח', table: 'שולחן' } },
+  hotel: { hide: ['QueueHub', 'PrepSheet', 'Recipes'], titles: { PublicReservationSettings: 'הזמנת חדרים', EventsPrivate: 'אירועים ואולמות', WorkScheduling: 'סידור עובדים' }, terms: { table: 'חדר', waiter: 'איש צוות', guest: 'אורח' } },
 };
+// Canonical business terms the owner can rename app-wide (Wix-model). Default
+// Hebrew value shown; the owner's override substitutes for it across the sidebar
+// + page titles (and anywhere else that routes a string through applyTerms).
+const TERM_CATALOG: { key: string; label: string; default: string }[] = [
+  { key: 'shift', label: 'משמרת', default: 'משמרת' },
+  { key: 'employee', label: 'עובד', default: 'עובד' },
+  { key: 'waiter', label: 'מלצר', default: 'מלצר' },
+  { key: 'manager', label: 'מנהל', default: 'מנהל' },
+  { key: 'table', label: 'שולחן', default: 'שולחן' },
+  { key: 'guest', label: 'אורח', default: 'אורח' },
+  { key: 'event', label: 'אירוע', default: 'אירוע' },
+  { key: 'menu', label: 'תפריט', default: 'תפריט' },
+  { key: 'branch', label: 'סניף', default: 'סניף' },
+  { key: 'club', label: 'מועדון', default: 'מועדון' },
+];
 let _appCfgEnsured = false;
 async function ensureAppConfig(): Promise<void> {
   if (_appCfgEnsured) return;
@@ -6669,6 +6684,7 @@ async function ensureAppConfig(): Promise<void> {
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
      )`,
   ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "TenantAppConfig" ADD COLUMN IF NOT EXISTS "term_overrides" JSONB`).catch(() => {});
   _appCfgEnsured = true;
 }
 async function readAppConfig(): Promise<any> {
@@ -6679,6 +6695,7 @@ async function readAppConfig(): Promise<any> {
     business_type: r.business_type || null,
     hidden_pages: Array.isArray(r.hidden_pages) ? r.hidden_pages : [],
     page_config: (r.page_config && typeof r.page_config === 'object') ? r.page_config : {},
+    term_overrides: (r.term_overrides && typeof r.term_overrides === 'object') ? r.term_overrides : {},
   };
 }
 async function writeAppConfig(patch: any): Promise<void> {
@@ -6689,13 +6706,13 @@ async function writeAppConfig(patch: any): Promise<void> {
   const { randomUUID } = await import('node:crypto');
   if (existing.length) {
     await (prisma as any).$executeRawUnsafe(
-      `UPDATE "TenantAppConfig" SET business_type=$1, hidden_pages=$2::jsonb, page_config=$3::jsonb, "updatedAt"=NOW() WHERE id=$4`,
-      next.business_type, JSON.stringify(next.hidden_pages || []), JSON.stringify(next.page_config || {}), existing[0].id,
+      `UPDATE "TenantAppConfig" SET business_type=$1, hidden_pages=$2::jsonb, page_config=$3::jsonb, term_overrides=$4::jsonb, "updatedAt"=NOW() WHERE id=$5`,
+      next.business_type, JSON.stringify(next.hidden_pages || []), JSON.stringify(next.page_config || {}), JSON.stringify(next.term_overrides || {}), existing[0].id,
     );
   } else {
     await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO "TenantAppConfig" ("id","business_type","hidden_pages","page_config","updatedAt") VALUES ($1,$2,$3::jsonb,$4::jsonb,NOW())`,
-      randomUUID(), next.business_type, JSON.stringify(next.hidden_pages || []), JSON.stringify(next.page_config || {}),
+      `INSERT INTO "TenantAppConfig" ("id","business_type","hidden_pages","page_config","term_overrides","updatedAt") VALUES ($1,$2,$3::jsonb,$4::jsonb,$5::jsonb,NOW())`,
+      randomUUID(), next.business_type, JSON.stringify(next.hidden_pages || []), JSON.stringify(next.page_config || {}), JSON.stringify(next.term_overrides || {}),
     );
   }
 }
@@ -6707,17 +6724,25 @@ registerFn('getAppConfig', async ({ user }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   try {
     const cfg = await readAppConfig();
-    return { ...cfg, verticals: APP_VERTICALS };
-  } catch { return { business_type: null, hidden_pages: [], page_config: {}, verticals: APP_VERTICALS }; }
+    return { ...cfg, verticals: APP_VERTICALS, terms: TERM_CATALOG };
+  } catch { return { business_type: null, hidden_pages: [], page_config: {}, term_overrides: {}, verticals: APP_VERTICALS, terms: TERM_CATALOG }; }
 });
 
-// WRITE — owner only. Business type + which pages are hidden from the sidebar.
+// WRITE — owner only. Business type + which pages are hidden + term overrides.
 registerFn('setAppConfig', async ({ user, body }: any) => {
   await requireBackOffice(user, 'setAppConfig');
   const b = (body || {}) as any;
   const patch: any = {};
   if (b.business_type !== undefined) patch.business_type = b.business_type ? String(b.business_type).slice(0, 40) : null;
   if (Array.isArray(b.hidden_pages)) patch.hidden_pages = b.hidden_pages.map((p: any) => String(p)).filter(Boolean).slice(0, 300);
+  if (b.term_overrides && typeof b.term_overrides === 'object') {
+    const valid = new Set(TERM_CATALOG.map((t) => t.key));
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(b.term_overrides)) {
+      if (valid.has(k) && v && String(v).trim()) out[k] = String(v).trim().slice(0, 60);
+    }
+    patch.term_overrides = out;
+  }
   await writeAppConfig(patch);
   return { ok: true };
 });
@@ -6756,8 +6781,13 @@ registerFn('applyVerticalPreset', async ({ user, body }: any) => {
     const existing = pc[page] || {};
     if (!existing.title) pc[page] = { ...existing, title };
   }
-  await writeAppConfig({ business_type: vertical, hidden_pages: hidden, page_config: pc });
-  return { ok: true, hidden_pages: hidden, applied_titles: Object.keys(preset.titles) };
+  // terms: only fill terms the owner hasn't overridden themselves.
+  const terms = { ...(cur.term_overrides || {}) };
+  for (const [k, v] of Object.entries(preset.terms || {})) {
+    if (!terms[k]) terms[k] = v;
+  }
+  await writeAppConfig({ business_type: vertical, hidden_pages: hidden, page_config: pc, term_overrides: terms });
+  return { ok: true, hidden_pages: hidden, applied_titles: Object.keys(preset.titles), applied_terms: Object.keys(preset.terms || {}) };
 });
 
 // ── Per-tenant work-schedule configuration (dynamic shifts + which positions

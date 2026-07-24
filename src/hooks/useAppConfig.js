@@ -20,10 +20,12 @@ async function _load(force = false) {
         business_type: d.business_type || null,
         hidden_pages: Array.isArray(d.hidden_pages) ? d.hidden_pages : [],
         page_config: (d.page_config && typeof d.page_config === 'object') ? d.page_config : {},
+        term_overrides: (d.term_overrides && typeof d.term_overrides === 'object') ? d.term_overrides : {},
+        terms: Array.isArray(d.terms) ? d.terms : [],
         verticals: Array.isArray(d.verticals) ? d.verticals : [],
       };
     } catch {
-      _cache = { business_type: null, hidden_pages: [], page_config: {}, verticals: [] };
+      _cache = { business_type: null, hidden_pages: [], page_config: {}, term_overrides: {}, terms: [], verticals: [] };
     }
     _inflight = null;
     _subs.forEach((fn) => { try { fn(_cache); } catch { /* */ } });
@@ -47,13 +49,37 @@ export function useAppConfig() {
   const pageTitle = useCallback((page, fallback) => (cfg?.page_config?.[page]?.title) || fallback, [cfg]);
   const label = useCallback((page, key, fallback) => (cfg?.page_config?.[page]?.labels?.[key]) || fallback, [cfg]);
   const sectionHidden = useCallback((page, sec) => !!(cfg?.page_config?.[page]?.hidden_sections || []).includes(sec), [cfg]);
+  // term(key) — the owner's override for a canonical business term, or its default.
+  const term = useCallback((key, fallback) => {
+    const ov = cfg?.term_overrides?.[key];
+    if (ov) return ov;
+    const t = (cfg?.terms || []).find((x) => x.key === key);
+    return t?.default ?? fallback ?? key;
+  }, [cfg]);
+  // applyTerms(str) — substitute any owner-renamed term's default word with its
+  // override inside an arbitrary display string (sidebar labels, titles…).
+  const applyTerms = useCallback((str) => {
+    if (typeof str !== 'string' || !str) return str;
+    const ov = cfg?.term_overrides || {};
+    const cat = cfg?.terms || [];
+    const subs = cat
+      .map((t) => ({ from: t.default, to: ov[t.key] }))
+      .filter((s) => s.to && s.from && s.to !== s.from)
+      .sort((a, b) => b.from.length - a.from.length);
+    if (!subs.length) return str;
+    let out = str;
+    for (const s of subs) out = out.split(s.from).join(s.to);
+    return out;
+  }, [cfg]);
   return {
     businessType: cfg?.business_type || null,
     hiddenPages: cfg?.hidden_pages || [],
     pageConfig: cfg?.page_config || {},
+    termOverrides: cfg?.term_overrides || {},
+    terms: cfg?.terms || [],
     verticals: cfg?.verticals || [],
     loading: !cfg,
-    isHidden, pageTitle, label, sectionHidden,
+    isHidden, pageTitle, label, sectionHidden, term, applyTerms,
     refresh: refreshAppConfig,
   };
 }

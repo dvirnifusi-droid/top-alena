@@ -235,7 +235,7 @@ export default function Layout({ children, currentPageName }) {
   const brandName = branding?.name || 'TOP APOLLO';
   const { pageEnabled, isLocked, unlockPlanFor } = useTenantModules();
   const { can: permCan, allowedPages: permPages } = useMyPermissions();
-  const { hiddenPages: ownerHiddenPages } = useAppConfig();
+  const { hiddenPages: ownerHiddenPages, applyTerms } = useAppConfig();
   const [paywall, setPaywall] = React.useState(null); // {title, plan} when a locked feature is clicked
   const lockedOf = (item) => {
     const pn = (item.url || '').replace(/^\//, '');
@@ -517,7 +517,9 @@ export default function Layout({ children, currentPageName }) {
   const branchScopedLinks = (branchOfChain && !isChainCommissary)
     ? dropEmptyCategories(ownerFilteredLinks.filter((l) => l.isCategory || !BRANCH_HIDE_PAGES.includes(urlKey(l.url))))
     : ownerFilteredLinks;
-  const navigationItems = isChainCommissary ? filterNav(networkNav, navFilter) : filterNav(branchScopedLinks, navFilter);
+  const navRaw = isChainCommissary ? filterNav(networkNav, navFilter) : filterNav(branchScopedLinks, navFilter);
+  // App Builder — apply the owner's global term renames to sidebar labels.
+  const navigationItems = navRaw.map((l) => (l && typeof l.title === 'string' ? { ...l, title: applyTerms(l.title) } : l));
   const userName = user?.full_name || user?.email?.split('@')[0] || 'משתמש';
 
   const commonSidebarProps = {

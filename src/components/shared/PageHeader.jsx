@@ -29,9 +29,9 @@ export default function PageHeader({ title, subtitle, icon: Icon, action, accent
     // Mobile: stack title above actions (side-by-side squeezes the text column
     // to ~1ch when the action block is wide — letters render vertically).
     const key = usePageKey(pageKey);
-    const { pageTitle } = useAppConfig();
-    // Owner override wins; default is always the page's built-in title.
-    const shownTitle = (key && typeof title === 'string') ? pageTitle(key, title) : title;
+    const { pageTitle, applyTerms } = useAppConfig();
+    // Owner override wins; else apply any global term renames to the default.
+    const shownTitle = (key && typeof title === 'string') ? applyTerms(pageTitle(key, title)) : title;
     return (
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
             <div className="flex items-center gap-3 min-w-0">
