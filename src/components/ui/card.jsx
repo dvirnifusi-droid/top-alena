@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { mapTermChildren } from "@/lib/termChildren"
 
 const Card = React.forwardRef(({ className, ...props }, ref) => (
   <div
@@ -18,19 +19,19 @@ const CardHeader = React.forwardRef(({ className, ...props }, ref) => (
 ))
 CardHeader.displayName = "CardHeader"
 
-const CardTitle = React.forwardRef(({ className, ...props }, ref) => (
+const CardTitle = React.forwardRef(({ className, children, ...props }, ref) => (
   <div
     ref={ref}
     className={cn("font-display font-bold leading-none tracking-tight", className)}
-    {...props} />
+    {...props}>{mapTermChildren(children)}</div>
 ))
 CardTitle.displayName = "CardTitle"
 
-const CardDescription = React.forwardRef(({ className, ...props }, ref) => (
+const CardDescription = React.forwardRef(({ className, children, ...props }, ref) => (
   <div
     ref={ref}
     className={cn("text-sm text-muted-foreground", className)}
-    {...props} />
+    {...props}>{mapTermChildren(children)}</div>
 ))
 CardDescription.displayName = "CardDescription"
 

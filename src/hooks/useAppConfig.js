@@ -36,6 +36,24 @@ async function _load(force = false) {
 
 export function refreshAppConfig() { return _load(true); }
 
+// Pure, hook-free term substitution reading the module cache directly — so shared
+// UI primitives (Button, CardTitle, Label…) can apply the owner's global term
+// renames to their text children with ZERO per-component hook/subscription cost.
+// No overrides (or cache not loaded yet) → returns the string unchanged instantly.
+export function applyTermsGlobal(str) {
+  if (typeof str !== 'string' || !str || !_cache) return str;
+  const ov = _cache.term_overrides;
+  if (!ov) return str;
+  const cat = _cache.terms || [];
+  let out = str;
+  const subs = [];
+  for (const t of cat) { const to = ov[t.key]; if (to && t.default && to !== t.default) subs.push([t.default, to]); }
+  if (!subs.length) return str;
+  subs.sort((a, b) => b[0].length - a[0].length);
+  for (const [from, to] of subs) out = out.split(from).join(to);
+  return out;
+}
+
 export function useAppConfig() {
   const [cfg, setCfg] = useState(_cache);
   useEffect(() => {
