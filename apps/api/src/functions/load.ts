@@ -6628,6 +6628,103 @@ registerFn('setReservationPageExtras', async ({ user, body }: any) => {
   return { ok: true };
 });
 
+// ═══ App Builder (Wix-model) — per-tenant app configuration ═══════════════════
+// Every business starts from the DEFAULT we built (the current tenant), then the
+// OWNER can adapt it: pick a business vertical, hide pages they don't use, and
+// override any page's title/labels/section visibility. Employees only SEE the
+// result. Additive table + guarded, same safe pattern as ReservationPageConfig.
+//   business_type  — vertical key (restaurant/bar/cafe/delivery/hotel/events_hall)
+//   hidden_pages   — page names the owner removed from their sidebar
+//   page_config    — { <PageName>: { title, labels:{k:v}, hidden_sections:[] } }
+const APP_VERTICALS: { key: string; label: string; hint_pages?: string[] }[] = [
+  { key: 'restaurant', label: '🍽️ מסעדה' },
+  { key: 'bar', label: '🍸 בר' },
+  { key: 'cafe', label: '☕ בית קפה' },
+  { key: 'delivery', label: '🛵 מזון ומשלוחים' },
+  { key: 'events_hall', label: '🎉 אולם אירועים' },
+  { key: 'hotel', label: '🏨 מלון' },
+];
+let _appCfgEnsured = false;
+async function ensureAppConfig(): Promise<void> {
+  if (_appCfgEnsured) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "TenantAppConfig" (
+       "id" TEXT PRIMARY KEY,
+       "business_type" TEXT,
+       "hidden_pages" JSONB,
+       "page_config" JSONB,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  ).catch(() => {});
+  _appCfgEnsured = true;
+}
+async function readAppConfig(): Promise<any> {
+  await ensureAppConfig();
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "TenantAppConfig" LIMIT 1`).catch(() => []);
+  const r = rows[0] || {};
+  return {
+    business_type: r.business_type || null,
+    hidden_pages: Array.isArray(r.hidden_pages) ? r.hidden_pages : [],
+    page_config: (r.page_config && typeof r.page_config === 'object') ? r.page_config : {},
+  };
+}
+async function writeAppConfig(patch: any): Promise<void> {
+  await ensureAppConfig();
+  const cur = await readAppConfig();
+  const next = { ...cur, ...patch };
+  const existing: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "TenantAppConfig" LIMIT 1`).catch(() => []);
+  const { randomUUID } = await import('node:crypto');
+  if (existing.length) {
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "TenantAppConfig" SET business_type=$1, hidden_pages=$2::jsonb, page_config=$3::jsonb, "updatedAt"=NOW() WHERE id=$4`,
+      next.business_type, JSON.stringify(next.hidden_pages || []), JSON.stringify(next.page_config || {}), existing[0].id,
+    );
+  } else {
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "TenantAppConfig" ("id","business_type","hidden_pages","page_config","updatedAt") VALUES ($1,$2,$3::jsonb,$4::jsonb,NOW())`,
+      randomUUID(), next.business_type, JSON.stringify(next.hidden_pages || []), JSON.stringify(next.page_config || {}),
+    );
+  }
+}
+
+// READ — any authenticated user (employees must see the owner's customizations:
+// hidden pages + overridden titles). Guarded → {} on any failure so the app
+// always renders with its built-in defaults.
+registerFn('getAppConfig', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  try {
+    const cfg = await readAppConfig();
+    return { ...cfg, verticals: APP_VERTICALS };
+  } catch { return { business_type: null, hidden_pages: [], page_config: {}, verticals: APP_VERTICALS }; }
+});
+
+// WRITE — owner only. Business type + which pages are hidden from the sidebar.
+registerFn('setAppConfig', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'setAppConfig');
+  const b = (body || {}) as any;
+  const patch: any = {};
+  if (b.business_type !== undefined) patch.business_type = b.business_type ? String(b.business_type).slice(0, 40) : null;
+  if (Array.isArray(b.hidden_pages)) patch.hidden_pages = b.hidden_pages.map((p: any) => String(p)).filter(Boolean).slice(0, 300);
+  await writeAppConfig(patch);
+  return { ok: true };
+});
+
+// WRITE — owner only. Override one page's title / labels / hidden sections.
+registerFn('setPageConfig', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'setPageConfig');
+  const b = (body || {}) as any;
+  const page = String(b.page || '').trim(); if (!page) throw new Error('missing_page');
+  const cur = await readAppConfig();
+  const pc = { ...(cur.page_config || {}) };
+  const entry = { ...(pc[page] || {}) };
+  if (b.title !== undefined) entry.title = b.title ? String(b.title).slice(0, 200) : undefined;
+  if (b.labels && typeof b.labels === 'object') entry.labels = { ...(entry.labels || {}), ...b.labels };
+  if (Array.isArray(b.hidden_sections)) entry.hidden_sections = b.hidden_sections.map((s: any) => String(s)).slice(0, 100);
+  pc[page] = entry;
+  await writeAppConfig({ page_config: pc });
+  return { ok: true };
+});
+
 // ── Per-tenant work-schedule configuration (dynamic shifts + which positions
 // appear). Isolated table + guarded, same safe pattern as ReservationPageConfig.
 // Lets each business define its own shifts (בוקר/צהריים/ערב/לילה) and hide

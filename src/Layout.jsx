@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 
 import { useTenantBranding } from "./hooks/useTenantBranding";
 import { useTenantModules } from "./hooks/useTenantModules";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import FeaturePaywall from "./components/platform/FeaturePaywall";
 import AiChatWidget from "./components/ai-assistant/AiChatWidget";
 import AppLanguagePicker from "./components/shared/AppLanguagePicker";
@@ -234,6 +235,7 @@ export default function Layout({ children, currentPageName }) {
   const brandName = branding?.name || 'TOP APOLLO';
   const { pageEnabled, isLocked, unlockPlanFor } = useTenantModules();
   const { can: permCan, allowedPages: permPages } = useMyPermissions();
+  const { hiddenPages: ownerHiddenPages } = useAppConfig();
   const [paywall, setPaywall] = React.useState(null); // {title, plan} when a locked feature is clicked
   const lockedOf = (item) => {
     const pn = (item.url || '').replace(/^\//, '');
@@ -506,9 +508,15 @@ export default function Layout({ children, currentPageName }) {
   // ORDERS goods/preps from the network's commissary and RECEIVES network tasks
   // (those links are added separately). Hide the network-management pages.
   const BRANCH_HIDE_PAGES = ['Commissary', 'CommissaryOrders', 'OperationsHub'];
+  // App Builder — drop pages the OWNER hid for this business (Wix-model). Default
+  // is everything; this only removes owner-hidden pages. Applies to every viewer.
+  const ownerFilteredLinks = React.useMemo(() => {
+    if (!ownerHiddenPages?.length) return permFilteredLinks;
+    return dropEmptyCategories(permFilteredLinks.filter((l) => l.isCategory || !ownerHiddenPages.includes(urlKey(l.url))));
+  }, [permFilteredLinks, ownerHiddenPages]);
   const branchScopedLinks = (branchOfChain && !isChainCommissary)
-    ? dropEmptyCategories(permFilteredLinks.filter((l) => l.isCategory || !BRANCH_HIDE_PAGES.includes(urlKey(l.url))))
-    : permFilteredLinks;
+    ? dropEmptyCategories(ownerFilteredLinks.filter((l) => l.isCategory || !BRANCH_HIDE_PAGES.includes(urlKey(l.url))))
+    : ownerFilteredLinks;
   const navigationItems = isChainCommissary ? filterNav(networkNav, navFilter) : filterNav(branchScopedLinks, navFilter);
   const userName = user?.full_name || user?.email?.split('@')[0] || 'משתמש';
 

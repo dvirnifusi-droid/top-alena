@@ -59,6 +59,13 @@ export default function AdminSettings() {
 
             <Section title="התחלה מהירה" emoji="🚀">
                 <Tile
+                    to={createPageUrl('AppBuilder')}
+                    title="בונה האפליקציה"
+                    sub="התאם את האפליקציה לעסק שלך — סוג עסק ואילו דפים מופיעים בסרגל"
+                    icon={SlidersHorizontal}
+                    accent="orange"
+                />
+                <Tile
                     to={createPageUrl('Setup')}
                     title="בואו נתחיל"
                     sub="אשף ההקמה — חבר את כל מה שצריך כדי שהמערכת תעבוד בשבילך"
