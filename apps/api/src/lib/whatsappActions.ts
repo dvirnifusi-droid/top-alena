@@ -986,24 +986,30 @@ async function executeAction(exec: any): Promise<string> {
       return `✅ ההזמנה של *${exec.customer_name || ''}* (${exec.date || ''} ${exec.time || ''}) בוטלה.`;
     }
     case 'add_event_lead': {
-      // Restaurant private-event lead — routes through the real createEventLead fn
-      // so it lands on the events callback board with all the ---META--- markers.
-      const { functionHandlers } = await import('../functions/index.js');
-      const res: any = await functionHandlers['createEventLead']({
-        user: { id: 'wa-owner', role: 'owner', email: 'whatsapp' },
-        body: {
+      // Restaurant private-event lead — write the EventLead directly (mirrors
+      // createEventLead in load.ts, incl. the ---META--- notes block) so a lead
+      // added from WhatsApp is identical to one added from the Events CRM dialog.
+      const META_MARK = '---META---';
+      const meta: any = {};
+      if (exec.event_time) meta.event_time = exec.event_time;
+      const head = String(exec.notes || '').trim();
+      const notes = `${head}${head ? '\n' : ''}${META_MARK}\n${JSON.stringify(meta)}`;
+      const nowIso = new Date().toISOString();
+      await (prisma as any).eventLead.create({
+        data: {
           contact_name: exec.contact_name || null,
           contact_phone: exec.contact_phone,
           event_date: exec.event_date || null,
           event_type: exec.event_type || null,
-          guest_count: exec.guest_count ?? null,
-          event_time: exec.event_time || null,
-          notes: exec.notes || null,
+          guest_count: (exec.guest_count ?? null),
+          status: 'pending',
           source: 'whatsapp',
-        },
-        req: {},
-      } as any).catch((e: any) => ({ error: String(e?.message || e) }));
-      if (res?.error) return `⚠️ האירוע לא נשמר: ${res.error}`;
+          notes,
+          created_by: 'whatsapp',
+          created_date: nowIso,
+          updated_date: nowIso,
+        } as any,
+      });
       const parts = [
         exec.contact_name ? `*${exec.contact_name}*` : null,
         exec.event_type || null,
