@@ -673,6 +673,7 @@ const TOOL_DECLARATIONS = [
         payment_status: { type: 'STRING', enum: ['unpaid', 'deposit_paid', 'paid'], description: 'לא שולם / מקדמה שולמה / שולם במלואו.' },
         total_ils: { type: 'INTEGER', description: 'סכום כולל חדש (₪).' },
         location: { type: 'STRING', description: 'מיקום/אולם.' },
+        table: { type: 'STRING', description: 'שיוך לשולחן/ות במפה, למשל "10" או "10,11". "שייך את האירוע של כהן לשולחן 10".' },
       },
       required: ['customer_name'],
     },
@@ -1082,7 +1083,8 @@ async function tool_propose_update_event(args: any, phone: string): Promise<any>
   const PAY: Record<string, string> = { unpaid: 'לא שולם', deposit_paid: 'מקדמה שולמה', paid: 'שולם במלואו' };
   if (ST[String(args.status)]) changes.status = String(args.status);
   if (PAY[String(args.payment_status)]) changes.payment_status = String(args.payment_status);
-  if (!Object.keys(changes).length) return { error: 'מה לעדכן? (כמות/תאריך/שעה/סטטוס/תשלום/סכום/מיקום)' };
+  if (args.table !== undefined) changes.table_numbers = String(args.table).split(/[,\s]+/).map((s: string) => s.trim()).filter(Boolean);
+  if (!Object.keys(changes).length) return { error: 'מה לעדכן? (כמות/תאריך/שעה/סטטוס/תשלום/סכום/מיקום/שולחן)' };
   await stashPendingAction(phone, { type: 'update_event', booking_id: bk.id, customer_name: bk.customer_name, ...changes, target_phone: phone });
   const bits = [
     changes.status ? `סטטוס→${ST[changes.status]}` : null,
@@ -1092,6 +1094,7 @@ async function tool_propose_update_event(args: any, phone: string): Promise<any>
     changes.payment_status ? `תשלום→${PAY[changes.payment_status]}` : null,
     changes.total_ils != null ? `₪${changes.total_ils}` : null,
     changes.location ? `מיקום→${changes.location}` : null,
+    changes.table_numbers ? (changes.table_numbers.length ? `שולחן→${changes.table_numbers.join(',')}` : 'ביטול שיוך שולחן') : null,
   ].filter(Boolean).join(' · ');
   return { proposal: `✏️ עדכון האירוע של *${bk.customer_name || ''}* (${bk.event_date}): ${bits}`, awaiting_confirmation: true };
 }

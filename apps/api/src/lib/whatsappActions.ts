@@ -1067,12 +1067,20 @@ async function executeAction(exec: any): Promise<string> {
         user: { id: 'wa-owner', role: 'owner', email: 'whatsapp' }, body, req: {},
       } as any).catch((e: any) => ({ error: String(e?.message || e) }));
       if (res?.error) return `⚠️ העדכון נכשל: ${res.error}`;
+      // Optional table assignment via the same message.
+      if (Array.isArray(exec.table_numbers)) {
+        await functionHandlers['assignEventTable']({
+          user: { id: 'wa-owner', role: 'owner', email: 'whatsapp' },
+          body: { booking_id: exec.booking_id, table_numbers: exec.table_numbers }, req: {},
+        } as any).catch(() => {});
+      }
       const STx: Record<string, string> = { confirmed: 'מאושר', tentative: 'אופציה', cancelled: 'בוטל', completed: 'התקיים' };
       const bits = [
         exec.status ? `סטטוס: ${STx[exec.status] || exec.status}` : null,
         exec.guest_count != null ? `${exec.guest_count} איש` : null,
         exec.event_date ? `תאריך ${exec.event_date}` : null,
         exec.total_ils != null ? `₪${exec.total_ils}` : null,
+        Array.isArray(exec.table_numbers) && exec.table_numbers.length ? `שולחן ${exec.table_numbers.join(',')}` : null,
       ].filter(Boolean).join(' · ');
       const released = exec.status === 'cancelled' && bk.reservation_id ? ' והשולחן שוחרר.' : '';
       return `✅ האירוע של *${exec.customer_name || bk.customer_name || ''}* עודכן${bits ? `: ${bits}` : ''}.${released}`;

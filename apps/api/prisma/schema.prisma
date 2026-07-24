@@ -2751,6 +2751,7 @@ model EventBooking {
   source              String?
   notes               String?
   location            String?
+  assigned_table      Json?
   updated_by          String?
   created_by          String?
   created_date        String?

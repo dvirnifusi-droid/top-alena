@@ -913,6 +913,14 @@ function CloseEventDialog({ lead, booking, onClose, onSaved }) {
   const open = (lead !== null && lead !== undefined) || (booking !== null && booking !== undefined);
   const [f, setF] = React.useState({});
   const [saving, setSaving] = React.useState(false);
+  const [layoutTables, setLayoutTables] = React.useState([]); // tables from the seating map
+  // Load the seating map's tables once, so the manager can optionally pick a table.
+  React.useEffect(() => {
+    if (!open) return;
+    base44.entities.SeatingLayout.list()
+      .then((r) => { const rows = r?.data || r || []; const t = (rows[0]?.tables) || []; setLayoutTables(Array.isArray(t) ? t : []); })
+      .catch(() => setLayoutTables([]));
+  }, [open]);
   React.useEffect(() => {
     if (!open) return;
     if (booking) {
@@ -936,6 +944,7 @@ function CloseEventDialog({ lead, booking, onClose, onSaved }) {
         deposit_amount_ils: booking.deposit_amount_ils ?? '',
         status: booking.status || 'confirmed',
         payment_status: booking.payment_status || 'unpaid',
+        table_numbers: Array.isArray(booking.assigned_table) ? booking.assigned_table.map(String) : [],
         notes: booking.notes || '',
       });
       return;
@@ -957,6 +966,7 @@ function CloseEventDialog({ lead, booking, onClose, onSaved }) {
       deposit_amount_ils: lead?.deposit?.amount || '',
       status: 'confirmed',
       payment_status: lead?.deposit?.amount ? 'deposit_paid' : 'unpaid',
+      table_numbers: [],
       notes: lead.notes || '',
     });
   }, [open, lead, booking]);
@@ -964,7 +974,13 @@ function CloseEventDialog({ lead, booking, onClose, onSaved }) {
   const save = async () => {
     if (!f.event_date) { alert('בחר תאריך אירוע'); return; }
     setSaving(true);
-    try { await base44.functions.saveEventBooking(f); onSaved && onSaved(); }
+    try {
+      const r = await base44.functions.saveEventBooking(f);
+      const bkId = (r?.data || r)?.booking?.id || f.id;
+      // Optional manual table assignment (mirrors the current picker selection).
+      if (bkId) await base44.functions.assignEventTable({ booking_id: bkId, table_numbers: f.table_numbers || [] }).catch(() => {});
+      onSaved && onSaved();
+    }
     catch (e) { alert('שמירה נכשלה: ' + (e?.message || '')); }
     finally { setSaving(false); }
   };
@@ -1019,6 +1035,26 @@ function CloseEventDialog({ lead, booking, onClose, onSaved }) {
             <div><Label className="text-xs">מקדמה ששולמה (₪)</Label><Input type="number" value={f.deposit_amount_ils || ''} onChange={(e) => set('deposit_amount_ils', e.target.value)} /></div>
           </div>
           <p className="text-[11px] text-gray-500 -mt-1">אפשר להזין סכום כולל ישירות, או מחיר לאדם והמערכת תכפיל בכמות.</p>
+          {/* Optional MANUAL table assignment from the seating map (never automatic). */}
+          {layoutTables.length > 0 && (
+            <div>
+              <Label className="text-xs">שיוך לשולחן במפה (אופציונלי)</Label>
+              <div className="flex flex-wrap gap-1.5 mt-1 max-h-28 overflow-y-auto p-1.5 border rounded-md bg-slate-50">
+                {layoutTables.map((t) => {
+                  const tn = String(t.table_number);
+                  const sel = (f.table_numbers || []).includes(tn);
+                  return (
+                    <button key={tn} type="button"
+                      onClick={() => set('table_numbers', sel ? (f.table_numbers || []).filter((x) => x !== tn) : [...(f.table_numbers || []), tn])}
+                      className={`text-xs rounded-full px-2 py-1 border transition-colors ${sel ? 'bg-[#44512C] text-white border-[#44512C]' : 'bg-white text-slate-600 border-slate-300 hover:border-[#44512C]'}`}>
+                      🪑 {tn}{t.max_capacity ? ` (${t.max_capacity})` : ''}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-gray-500 mt-0.5">בחר שולחן אחד או יותר — לא חובה. השיוך יופיע במפת השולחנות בתאריך האירוע.</p>
+            </div>
+          )}
           <div><Label className="text-xs">הערות</Label><Textarea rows={2} value={f.notes || ''} onChange={(e) => set('notes', e.target.value)} /></div>
         </div>
         <DialogFooter>
@@ -1087,7 +1123,7 @@ function EventsTable() {
                         </TableCell>
                         <TableCell>{b.event_time || '—'}</TableCell>
                         <TableCell>{b.guest_count}</TableCell>
-                        <TableCell>{typeOf(b) || '—'}{b.location ? <span className="block text-[11px] text-gray-500">📍 {b.location}</span> : null}</TableCell>
+                        <TableCell>{typeOf(b) || '—'}{b.location ? <span className="block text-[11px] text-gray-500">📍 {b.location}</span> : null}{Array.isArray(b.assigned_table) && b.assigned_table.length ? <span className="block text-[11px] text-[#44512C] font-medium">🪑 {b.assigned_table.join(', ')}</span> : null}</TableCell>
                         <TableCell className="whitespace-nowrap">{b.customer_name || '—'}{b.customer_phone ? <a href={`tel:${b.customer_phone}`} className="block text-xs text-blue-600" dir="ltr">{b.customer_phone}</a> : null}</TableCell>
                         <TableCell className="max-w-[200px] text-xs whitespace-pre-wrap">{menuOf(b) || '—'}</TableCell>
                         <TableCell className="max-w-[160px] text-xs whitespace-pre-wrap">{b.approval_notes || '—'}</TableCell>

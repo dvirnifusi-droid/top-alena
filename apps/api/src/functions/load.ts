@@ -16055,6 +16055,39 @@ registerFn('saveEventBooking', async ({ user, body }: any) => {
   return { ok: true, booking };
 });
 
+// Assign (or clear) the table(s) for an approved event — a MANUAL, opt-in choice
+// (never automatic). Writes assigned_table on the linked Reservation (the seating
+// map's source of truth) + mirrors it on the EventBooking; creates the reservation
+// if the event doesn't have one yet. Passing an empty list clears the assignment.
+registerFn('assignEventTable', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'assignEventTable', 'EventsPrivate');
+  await db.$executeRawUnsafe(`ALTER TABLE "EventBooking" ADD COLUMN IF NOT EXISTS "assigned_table" JSONB`).catch(() => {});
+  const b = (body || {}) as any;
+  const bkId = String(b.booking_id || '');
+  if (!bkId) throw new Error('booking_id required');
+  const tables = Array.isArray(b.table_numbers) ? b.table_numbers.map((t: any) => String(t).trim()).filter(Boolean) : [];
+  const bk: any = await db.eventBooking.findUnique({ where: { id: bkId } });
+  if (!bk) throw new Error('event_not_found');
+  let resId = bk.reservation_id;
+  if (!resId && tables.length) {
+    const resv: any = await (db as any).reservation.create({ data: {
+      customer_name: bk.customer_name || 'אירוע פרטי',
+      customer_phone: bk.customer_phone || null,
+      date: new Date(`${String(bk.event_date).slice(0, 10)}T00:00:00.000Z`),
+      time: bk.event_time || '12:00',
+      party_size: bk.guest_count || 1,
+      status: 'confirmed',
+      special_occasion: 'private_event',
+      assigned_table: tables,
+    } });
+    resId = resv.id;
+  } else if (resId) {
+    await (db as any).reservation.update({ where: { id: resId }, data: { assigned_table: tables.length ? tables : null } }).catch(() => {});
+  }
+  const updated = await db.eventBooking.update({ where: { id: bkId }, data: { reservation_id: resId || bk.reservation_id, assigned_table: tables.length ? tables : null } });
+  return { ok: true, table_numbers: tables, booking: updated };
+});
+
 // All confirmed events for the events table — newest first, past + future.
 registerFn('listEventBookings', async ({ user }: any) => {
   await requireBackOffice(user, 'listEventBookings', 'EventsPrivate');
