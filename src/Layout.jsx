@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { useTenantBranding } from "./hooks/useTenantBranding";
 import { useTenantModules } from "./hooks/useTenantModules";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { syncTermDom } from "@/lib/termDom";
 import FeaturePaywall from "./components/platform/FeaturePaywall";
 import AiChatWidget from "./components/ai-assistant/AiChatWidget";
 import AppLanguagePicker from "./components/shared/AppLanguagePicker";
@@ -235,7 +236,10 @@ export default function Layout({ children, currentPageName }) {
   const brandName = branding?.name || 'TOP APOLLO';
   const { pageEnabled, isLocked, unlockPlanFor } = useTenantModules();
   const { can: permCan, allowedPages: permPages } = useMyPermissions();
-  const { hiddenPages: ownerHiddenPages, applyTerms, navOrder: ownerNavOrder } = useAppConfig();
+  const { hiddenPages: ownerHiddenPages, applyTerms, navOrder: ownerNavOrder, termOverrides: ownerTerms } = useAppConfig();
+  // App Builder — keep the DOM term observer in sync (covers free page text not
+  // routed through the shared UI primitives). No-op when no term renames exist.
+  React.useEffect(() => { syncTermDom(); }, [ownerTerms]);
   const [paywall, setPaywall] = React.useState(null); // {title, plan} when a locked feature is clicked
   const lockedOf = (item) => {
     const pn = (item.url || '').replace(/^\//, '');

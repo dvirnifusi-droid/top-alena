@@ -37,6 +37,18 @@ async function _load(force = false) {
 
 export function refreshAppConfig() { return _load(true); }
 
+// True only when the owner has at least one ACTIVE term rename (override differs
+// from the default). Used to decide whether to attach the DOM term observer at
+// all — so tenants with no renames pay zero cost.
+export function hasTermOverrides() {
+  if (!_cache) return false;
+  const ov = _cache.term_overrides;
+  if (!ov) return false;
+  const cat = _cache.terms || [];
+  for (const t of cat) { const to = ov[t.key]; if (to && t.default && to !== t.default) return true; }
+  return false;
+}
+
 // Pure, hook-free term substitution reading the module cache directly — so shared
 // UI primitives (Button, CardTitle, Label…) can apply the owner's global term
 // renames to their text children with ZERO per-component hook/subscription cost.
