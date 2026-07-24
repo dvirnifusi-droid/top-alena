@@ -1,4 +1,7 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
+import { useAppConfig } from '@/hooks/useAppConfig';
+import PageConfigButton from '@/components/shared/PageConfigButton';
 
 // Shared page shell + header so every page opens the same way: warm gradient
 // canvas, centered max-width column, and one editorial header treatment
@@ -13,9 +16,22 @@ export function PageShell({ children, className = '' }) {
     );
 }
 
-export default function PageHeader({ title, subtitle, icon: Icon, action, accent = 'var(--brand-primary, #A04A2E)' }) {
+// Derive the page key from the URL (createPageUrl → "/PageName"). Every page
+// that uses PageHeader therefore gets the owner ⚙️ + editable title for free.
+function usePageKey(explicit) {
+    const loc = useLocation();
+    if (explicit) return explicit;
+    const seg = (loc?.pathname || '').split('/').filter(Boolean).pop() || '';
+    return seg || null;
+}
+
+export default function PageHeader({ title, subtitle, icon: Icon, action, accent = 'var(--brand-primary, #A04A2E)', pageKey }) {
     // Mobile: stack title above actions (side-by-side squeezes the text column
     // to ~1ch when the action block is wide — letters render vertically).
+    const key = usePageKey(pageKey);
+    const { pageTitle } = useAppConfig();
+    // Owner override wins; default is always the page's built-in title.
+    const shownTitle = (key && typeof title === 'string') ? pageTitle(key, title) : title;
     return (
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
             <div className="flex items-center gap-3 min-w-0">
@@ -25,7 +41,10 @@ export default function PageHeader({ title, subtitle, icon: Icon, action, accent
                     </div>
                 )}
                 <div className="min-w-0">
-                    <h1 className="font-display text-3xl sm:text-4xl font-black text-[#2A2018] leading-none truncate">{title}</h1>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <h1 className="font-display text-3xl sm:text-4xl font-black text-[#2A2018] leading-none truncate">{shownTitle}</h1>
+                        {key && typeof title === 'string' && <PageConfigButton page={key} defaultTitle={title} />}
+                    </div>
                     {subtitle && <p className="text-[#8A7C64] text-sm mt-1.5">{subtitle}</p>}
                 </div>
             </div>
