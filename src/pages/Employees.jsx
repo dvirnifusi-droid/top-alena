@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Key } from "lucide-react";
 import { base44 } from '@/api/base44Client';
+import HrAlertsBanner from '@/components/employees/HrAlertsBanner';
 import PageHeader from '@/components/shared/PageHeader';
 import EmployeeTierMatrix from '@/components/employees/EmployeeTierMatrix';
 import AiScannerButton from '@/components/scanner/AiScannerButton';
@@ -1040,6 +1041,8 @@ function EmployeesInner() {
               </div>
             </div>
           </Card>
+
+          <HrAlertsBanner />
 
           <Card>
             <CardContent className="p-0">

@@ -8659,6 +8659,39 @@ registerFn('getEmployeeCRM', async ({ user, body }: any) => {
     onboarding_done: onbDone, onboarding_total: ONBOARDING_STEPS.length };
 });
 
+// HR alerts ACROSS ALL employees — so the owner sees at a glance who needs
+// attention (unsigned agreement, missing 101 / bank / id, overdue follow-ups,
+// probation ending) without opening each card. Batched (a few queries).
+registerFn('getHrAlerts', async ({ user }: any) => {
+  await requireBackOffice(user, 'getHrAlerts');
+  await ensureEmployee360();
+  const emps: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, full_name, status, id_number, bank_details, hire_date FROM "Employee" WHERE COALESCE(status,'active') <> 'terminated'`,
+  ).catch(() => []);
+  if (!emps.length) return { employees: [], total: 0 };
+  const forms: any[] = await (prisma as any).$queryRawUnsafe(`SELECT employee_id, form_type, signed FROM "EmployeeForm"`).catch(() => []);
+  const signedBy: Record<string, Set<string>> = {};
+  for (const f of forms) { if (f.signed) { (signedBy[f.employee_id] = signedBy[f.employee_id] || new Set()).add(f.form_type); } }
+  const meetings: any[] = await (prisma as any).$queryRawUnsafe(`SELECT employee_id, followup_date, followup_done, followup_task FROM "EmployeeMeeting" WHERE followup_date IS NOT NULL AND COALESCE(followup_done,false)=false`).catch(() => []);
+  const dueBy: Record<string, string[]> = {};
+  const todayISO = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+  for (const m of meetings) { const fd = new Date(m.followup_date).toISOString().slice(0, 10); if (fd <= todayISO) (dueBy[m.employee_id] = dueBy[m.employee_id] || []).push(m.followup_task || 'מעקב'); }
+  const out: any[] = [];
+  for (const e of emps) {
+    const sg = signedBy[e.id] || new Set();
+    const gaps: { level: string; text: string }[] = [];
+    if (!sg.has('work_agreement')) gaps.push({ level: 'red', text: 'הסכם לא חתום' });
+    if (!sg.has('101')) gaps.push({ level: 'red', text: '101 חסר' });
+    if (!e.bank_details) gaps.push({ level: 'amber', text: 'חסר בנק' });
+    if (!e.id_number) gaps.push({ level: 'amber', text: 'חסרה ת"ז' });
+    const due = dueBy[e.id] || []; if (due.length) gaps.push({ level: 'amber', text: `${due.length} מעקב פתוח` });
+    if (e.hire_date) { const probEnd = new Date(new Date(e.hire_date).getTime() + 90 * 86400000); const days = Math.round((probEnd.getTime() - Date.now()) / 86400000); if (days >= 0 && days <= 14) gaps.push({ level: 'amber', text: `ניסיון מסתיים בעוד ${days}י'` }); }
+    if (gaps.length) out.push({ employee_id: e.id, name: e.full_name, status: e.status, gaps, red: gaps.some((g) => g.level === 'red') });
+  }
+  out.sort((a, b) => (b.red ? 1 : 0) - (a.red ? 1 : 0) || b.gaps.length - a.gaps.length);
+  return { employees: out, total: out.length, checked: emps.length };
+});
+
 // ── CRM P2 fns: onboarding / documents / notes / tasks ─────────────────────
 registerFn('setOnboardingStep', async ({ user, body }: any) => {
   await requireBackOffice(user, 'setOnboardingStep');
