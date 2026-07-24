@@ -208,12 +208,16 @@ const TOOL_DECLARATIONS = [
   },
   {
     name: 'modify_pending_proposal',
-    description: 'Use ONLY when the user is *correcting* the most recent pending proposal that has NOT been confirmed yet. Pass only the field(s) the user changed; others stay as-is. After calling this, restate the updated proposal to the user.',
+    description: 'Use ONLY when the user is *correcting* the most recent pending proposal that has NOT been confirmed yet (e.g. after "תזמין שולחן ל-4" the user says "לא, ל-6 אנשים"). Pass only the field(s) the user changed; others stay as-is. Works for reservations (party_size/customer_name/when), events (guest_count/contact_name/when), reminders/tasks (when/title). After calling this, restate the updated proposal.',
     parameters: {
       type: 'OBJECT',
       properties: {
-        when: { type: 'STRING', description: 'New time/date if user corrected it ("15:00", "רביעי 14:00", etc.)' },
-        title: { type: 'STRING', description: 'New title if user corrected it' },
+        when: { type: 'STRING', description: 'New time/date if user corrected it ("15:00", "רביעי 14:00", "מחר ב-9", etc.)' },
+        title: { type: 'STRING', description: 'New title/name if user corrected it' },
+        party_size: { type: 'INTEGER', description: 'New number of diners for a reservation ("לא, ל-6 אנשים")' },
+        guest_count: { type: 'INTEGER', description: 'New guest count for an event lead' },
+        customer_name: { type: 'STRING', description: 'New reservation customer name' },
+        contact_name: { type: 'STRING', description: 'New event-lead contact name' },
         lead_min: { type: 'INTEGER', description: 'New lead-time reminder in minutes' },
         stage: { type: 'STRING', enum: ['pending','contacted','quoted','won','lost'] },
         invoice_number: { type: 'STRING' },
@@ -1859,6 +1863,23 @@ async function tool_modify_pending_proposal(args: any, phone: string): Promise<a
     if (!inv) return { error: `no invoice with number ${args.invoice_number}` };
     exec.invoice_id = inv.id; exec.invoice_number = args.invoice_number;
   }
+  // Reservation corrections ("לא, ל-6 אנשים" / "תעשה את זה ל-21:00" / new name).
+  if (exec.type === 'create_reservation') {
+    if (args.party_size !== undefined) { const n = parseInt(String(args.party_size), 10); if (Number.isFinite(n) && n > 0) exec.party_size = n; }
+    if (args.customer_name !== undefined) exec.customer_name = String(args.customer_name).trim();
+    if (args.when !== undefined) {
+      const iso = tryParseTimestamp(args.when);
+      if (iso) { const d = new Date(iso); exec.date = d.toLocaleDateString('en-CA', { timeZone: TZ }); exec.time = d.toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }); }
+    }
+  }
+  // Event-lead corrections (guest count / name / date).
+  if (exec.type === 'add_event_lead') {
+    const gc = args.guest_count ?? args.party_size;
+    if (gc !== undefined) { const n = parseInt(String(gc), 10); if (Number.isFinite(n) && n > 0) exec.guest_count = n; }
+    if (args.contact_name !== undefined) exec.contact_name = String(args.contact_name).trim();
+    else if (args.title !== undefined) exec.contact_name = String(args.title).trim();
+    if (args.when !== undefined) { const iso = tryParseTimestamp(args.when); if (iso) exec.event_date = iso.slice(0, 10); }
+  }
   await (prisma as any).whatsAppMessage.update({
     where: { id: pending.id },
     data: { raw: { pending_action: exec } as any, created_at: new Date() }, // reset clock — fresh 10 min window
@@ -1879,6 +1900,10 @@ async function tool_modify_pending_proposal(args: any, phone: string): Promise<a
     summary += `💳 חשבונית ${exec.invoice_number} → שולמה`;
   } else if (exec.type === 'shift_assign') {
     summary += `📅 ${exec.employee_name} · ${exec.date} · ${exec.shift_type === 'lunch' ? 'צהריים' : 'ערב'}`;
+  } else if (exec.type === 'create_reservation') {
+    summary += `📅 ${exec.customer_name} · ${exec.party_size} סועדים · ${exec.date} ${exec.time}`;
+  } else if (exec.type === 'add_event_lead') {
+    summary += `🎉 ${exec.contact_name || ''} · ${exec.event_type || 'אירוע'} · ${exec.guest_count || '?'} איש${exec.event_date ? ` · ${exec.event_date}` : ''}`;
   } else {
     summary += JSON.stringify(exec).slice(0, 200);
   }
@@ -2047,7 +2072,16 @@ function tryParseTimestamp(raw: string): string | null {
   }
   // HH:MM with optional date keyword — build via Israel offset to avoid the
   // double-timezone bug that turned 15:30 into 18:30.
-  const hhmm = s.match(/(\d{1,2}):(\d{2})/);
+  // First normalize a BARE hour after "ב-"/"בשעה" (e.g. "מחר ב-9", "בשעה 8")
+  // into HH:MM so the matcher catches it. Evening/night bumps 1-11 → PM.
+  const timeNorm = (!/\d{1,2}:\d{2}/.test(s))
+    ? s.replace(/(?:בשעה\s*|ב-|ב\s)(\d{1,2})(?!\d)/, (_m: string, hr: string) => {
+        let H = parseInt(hr, 10);
+        if (/בערב|בלילה|בלי׳|evening|night|pm/.test(s) && H >= 1 && H <= 11) H += 12;
+        return `${H}:00`;
+      })
+    : s;
+  const hhmm = timeNorm.match(/(\d{1,2}):(\d{2})/);
   if (hhmm) {
     const h = parseInt(hhmm[1]); const m = parseInt(hhmm[2]);
     let targetYmd = explicitYmd || ymd();
@@ -3192,7 +3226,7 @@ const INTENT_KEYWORDS: Array<[string, RegExp]> = [
   ['orders', /ירקן|ספק|מה חסר|מה צריך להזמין|צריך להזמין|מלאי|הזמנתי מ|סמן שהזמנתי|מהבשר|מהאלכוהול/],
   ['incidents', /תקלה|תקלות|התקלקל|נשבר|לא עובד|לא עובדת|מה פתוח|אירוע חריג|קלקול|דליפה|סגור.{0,10}תקלה/],
   ['invoices', /חשבונית|חשבוניות|חשבונית ספק/],
-  ['events', /אירוע פרטי|ליד|לידים|הצעת מחיר|אשר.{0,10}אירוע|חתונה|מסיבה|אירוע של/],
+  ['events', /אירוע פרטי|ליד|לידים|הצעת מחיר|אשר.{0,10}אירוע|חתונה|מסיבה|אירוע של|לאירוע|האירוע|תחזור.{0,8}אירוע|בחזרה.{0,8}אירוע/],
   ['schedule', /סידור|משמר|זמינות|שבץ|שיבוץ|מי עובד|פרסם.{0,10}סידור|מחלה|חולה|תוריד.{0,12}(מ|ממשמרת)|לו"?ז|עובד חדש|הזמן עובד/],
   ['finance', /מכר|כמה מכרנו|כמה כסף|הכנס|מזומן|קופ|טיפ|הוצא|שילמתי|מחיר|עלות|פוד.?קוסט|רווח|מה המצב/],
   ['tasks', /משימה|משימות|תזכורת|תזכיר|יומן|פגיש|תזכור|לעשות/],
