@@ -1864,6 +1864,17 @@ function vagueTimeToHHMM(s: string): { h: number; m: number } | null {
 function tryParseTimestamp(raw: string): string | null {
   if (!raw) return null;
   const s = String(raw).trim().toLowerCase();
+  // Explicit Israeli DD.MM / DD.MM.YYYY date (e.g. "12.8", "12/08/2026"). The
+  // agent often gets these and the old parser ignored them → defaulted to today.
+  const explicitYmd = (() => {
+    const m = s.match(/(?:^|\s)(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?=\s|$|\D)/);
+    if (!m) return null;
+    const d = Number(m[1]); const mo = Number(m[2]);
+    if (d < 1 || d > 31 || mo < 1 || mo > 12) return null;
+    let y = m[3] ? Number(m[3]) : Number(ymd().slice(0, 4));
+    if (y < 100) y += 2000;
+    return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  })();
   // ISO — but if no timezone, treat as ISRAEL-LOCAL (not UTC).
   // The LLM agent often converts "ראשון 11:30" into a naive ISO without Z,
   // and Node parses naked ISO as UTC on a UTC server, baking in +3h drift.
@@ -1901,31 +1912,36 @@ function tryParseTimestamp(raw: string): string | null {
   const hhmm = s.match(/(\d{1,2}):(\d{2})/);
   if (hhmm) {
     const h = parseInt(hhmm[1]); const m = parseInt(hhmm[2]);
-    let targetYmd = ymd();
-    if (/מחר|tomorrow/.test(s)) {
-      const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 1);
-      targetYmd = ymd(t);
-    } else if (/מחרתיים/.test(s)) {
-      const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 2);
-      targetYmd = ymd(t);
-    } else {
-      const HE: Record<string, number> = { 'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6 };
-      for (const [name, dow] of Object.entries(HE)) {
-        if (s.includes(name)) {
-          const delta = ((dow - israelDow() + 7) % 7) || 7;
-          const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + delta);
-          targetYmd = ymd(t);
-          break;
+    let targetYmd = explicitYmd || ymd();
+    if (!explicitYmd) {
+      if (/מחר|tomorrow/.test(s)) {
+        const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 1);
+        targetYmd = ymd(t);
+      } else if (/מחרתיים/.test(s)) {
+        const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 2);
+        targetYmd = ymd(t);
+      } else {
+        const HE: Record<string, number> = { 'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3, 'חמישי': 4, 'שישי': 5, 'שבת': 6 };
+        for (const [name, dow] of Object.entries(HE)) {
+          if (s.includes(name)) {
+            const delta = ((dow - israelDow() + 7) % 7) || 7;
+            const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + delta);
+            targetYmd = ymd(t);
+            break;
+          }
         }
       }
     }
     let candidate = dateAtIsraelLocal(targetYmd, h, m);
-    if (candidate.getTime() < Date.now() + 60_000 && !/מחר|tomorrow|מחרתיים|ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת/.test(s)) {
+    // Only bump a "past" time to tomorrow when NO explicit date/day was given.
+    if (!explicitYmd && candidate.getTime() < Date.now() + 60_000 && !/מחר|tomorrow|מחרתיים|ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת/.test(s)) {
       const t = new Date(`${targetYmd}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 1);
       candidate = dateAtIsraelLocal(ymd(t), h, m);
     }
     return candidate.toISOString();
   }
+  // Explicit date with NO time given → default to 12:00 that day.
+  if (explicitYmd) return dateAtIsraelLocal(explicitYmd, 12, 0).toISOString();
   // No HH:MM — try vague time-of-day combined with a date hint.
   const vague = vagueTimeToHHMM(s);
   if (vague) {
@@ -2448,7 +2464,21 @@ async function tool_daily_status(_args: any, phone: string): Promise<any> {
     tool_list_hr_gaps({}, phone).catch(() => null),
     tool_list_today_schedule({}, phone).catch(() => null),
   ]);
-  return { revenue: rev, order_needs: orders, open_incidents: incidents, hr_gaps: (hr as any)?.total ?? null, today_schedule: sched };
+  // COMPACT flat summary — a huge nested blob confuses the model into hallucinating.
+  const r: any = rev || {}, o: any = orders || {}, inc: any = incidents || {}, s: any = sched || {};
+  const orderCount = (Array.isArray(o.prep_order_items) ? o.prep_order_items.length : 0) + (Array.isArray(o.suppliers_to_order) ? o.suppliers_to_order.length : 0);
+  const staffToday = ([...(s.lunch || []), ...(s.dinner || [])]).length;
+  return {
+    revenue_today_ils: r.combined_total ?? null,
+    cash_today_ils: r.cash_today_approx ?? null,
+    revenue_note: r.note || undefined,
+    order_needs_count: orderCount,
+    open_incidents_count: inc.count ?? 0,
+    open_incidents_titles: (inc.incidents || []).slice(0, 4).map((i: any) => i.title),
+    hr_gaps_count: (hr as any)?.total ?? 0,
+    staff_scheduled_today: staffToday,
+    note_for_agent: 'סכם בקצרה בעברית כברכת-בוקר למנהל: הכנסות, מזומן, כמה חוסרים להזמין, תקריות פתוחות, כמה משובצים היום, וכמה עובדים דורשים טיפול ב-HR.',
+  };
 }
 
 // Log a full meeting on an employee's card (interview/feedback/warning/raise/…).
