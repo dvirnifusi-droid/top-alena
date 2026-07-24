@@ -3104,7 +3104,12 @@ export async function runConversationAgent(phone: string, userMessage: string): 
     systemInstruction: { parts: [{ text: systemPrompt }] },
     contents,
     tools: [{ functionDeclarations: activeDecls }],
-    generationConfig: { maxOutputTokens: 4000, temperature: 0.3 },
+    // thinkingBudget:0 — gemini-2.5-flash is a THINKING model; without this it
+    // spends the whole budget "thinking" and returns an EMPTY candidate
+    // (finishReason STOP, no content) → the agent then declines/hallucinates.
+    // Same fix as classifyIntent. The toolset is already narrowed per-intent, so
+    // the model doesn't need extended reasoning to pick the right tool.
+    generationConfig: { maxOutputTokens: 4000, temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } },
   };
   let retriedEmpty = false;
 
