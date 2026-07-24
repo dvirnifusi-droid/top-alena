@@ -33,6 +33,7 @@ import {
   listOpenTasks,
 } from './whatsappCalendar.js';
 import { matchEmployees } from './employeeMatch.js';
+import { currentTenantSlug } from './whatsappRouter.js';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const MODEL = process.env.GEMINI_AGENT_MODEL || 'gemini-2.5-flash';
@@ -427,6 +428,36 @@ const TOOL_DECLARATIONS = [
     name: 'employee_summary',
     description: 'A 360° snapshot of ONE employee — status, which required forms are signed, recent notes, open tasks. Use for "ספר לי על יוסי", "מה המצב עם ליאור?", "כרטיס של דנה".',
     parameters: { type: 'OBJECT', properties: { employee_name: { type: 'STRING' } }, required: ['employee_name'] },
+  },
+  {
+    name: 'log_employee_meeting',
+    description: 'Record a full meeting on an employee card. Use for "תעד פגישת משוב עם יוסי: ...", "רשום שיחת אזהרה לדנה על איחורים", "שיחת שימוע ל...". meeting_type ∈ interview/onboarding/feedback/raise/role_change/warning/disciplinary/motivation/hearing/termination/general.',
+    parameters: { type: 'OBJECT', properties: { employee_name: { type: 'STRING' }, meeting_type: { type: 'STRING' }, summary: { type: 'STRING', description: 'What was said / decided.' } }, required: ['employee_name', 'summary'] },
+  },
+  {
+    name: 'set_onboarding_step',
+    description: 'Mark an onboarding step done for a new hire. Use for "יוסי חתם על ההסכם", "קיבלנו את ה-101 של דנה", "ליאור עבר הדרכת בטיחות". step_key ∈ interview_done/terms_agreed/agreement_sent/agreement_signed/form_101_done/id_photo/bank_details/safety_training/pro_training/first_shift.',
+    parameters: { type: 'OBJECT', properties: { employee_name: { type: 'STRING' }, step_key: { type: 'STRING' }, done: { type: 'BOOLEAN', description: 'true (default) = done, false = un-mark.' } }, required: ['employee_name', 'step_key'] },
+  },
+  {
+    name: 'daily_status',
+    description: 'A morning status briefing — today revenue, open incidents, order needs, HR gaps, today\'s schedule, all at once. Use for "מה המצב היום?", "תן לי סיכום בוקר", "מה קורה?".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'issue_club_benefit',
+    description: 'Issue a club benefit / coupon to a customer (resolved by phone or name). Use for "תן לדנה כהן קפה חינם", "הטבה של 20% ללקוח 0501234567". benefit = the reward text.',
+    parameters: { type: 'OBJECT', properties: { customer: { type: 'STRING', description: 'Customer name or phone.' }, benefit: { type: 'STRING', description: 'The benefit text, e.g. "קפה חינם".' } }, required: ['customer', 'benefit'] },
+  },
+  {
+    name: 'my_branch_tasks',
+    description: 'THIS branch\'s tasks from network HQ (for a branch in a chain). Use for "מה המשימות מהמטה?", "מה הרשת ביקשה?".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'mark_branch_task',
+    description: 'Mark one of this branch\'s network-HQ tasks as done, matched by (part of) its title. Use for "סיימתי את המשימה של המטה על ...".',
+    parameters: { type: 'OBJECT', properties: { title: { type: 'STRING' } }, required: ['title'] },
   },
   // ─── Scheduling (admin) ────────────────────────────────────────────
   {
@@ -2333,6 +2364,104 @@ async function tool_employee_summary(args: any, phone: string): Promise<any> {
   };
 }
 
+// Morning briefing — aggregates the existing read tools so the agent composes a
+// single "what's the status today" answer. Read-only, manager-gated.
+async function tool_daily_status(_args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const [rev, orders, incidents, hr, sched] = await Promise.all([
+    tool_get_today_revenue({}, phone).catch(() => null),
+    tool_list_order_needs({}, phone).catch(() => null),
+    tool_list_incidents({}, phone).catch(() => null),
+    tool_list_hr_gaps({}, phone).catch(() => null),
+    tool_list_today_schedule({}, phone).catch(() => null),
+  ]);
+  return { revenue: rev, order_needs: orders, open_incidents: incidents, hr_gaps: (hr as any)?.total ?? null, today_schedule: sched };
+}
+
+// Log a full meeting on an employee's card (interview/feedback/warning/raise/…).
+async function tool_log_employee_meeting(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const { emp, suggestions } = await resolveEmployeeWa(args?.employee_name);
+  if (!emp) return { need_clarification: true, suggestions: suggestions.map((e) => e.full_name) };
+  await (prisma as any).$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "EmployeeMeeting" ("id" TEXT PRIMARY KEY,"employee_id" TEXT NOT NULL,"meeting_type" TEXT NOT NULL,"meeting_at" TIMESTAMP(3),"participants" TEXT,"purpose" TEXT,"summary" TEXT,"decisions" TEXT,"followup_task" TEXT,"followup_date" DATE,"followup_done" BOOLEAN NOT NULL DEFAULT false,"doc_url" TEXT,"emp_signed" BOOLEAN NOT NULL DEFAULT false,"mgr_signed" BOOLEAN NOT NULL DEFAULT false,"salary_from" DOUBLE PRECISION,"salary_to" DOUBLE PRECISION,"salary_effective" DATE,"salary_reason" TEXT,"role_change" TEXT,"created_by" TEXT,"created_by_name" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`).catch(() => {});
+  const VALID = ['interview', 'onboarding', 'feedback', 'raise', 'role_change', 'warning', 'disciplinary', 'motivation', 'hearing', 'termination', 'general'];
+  const mtype = VALID.includes(String(args?.meeting_type)) ? String(args.meeting_type) : 'general';
+  const { randomUUID } = await import('node:crypto');
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "EmployeeMeeting" ("id","employee_id","meeting_type","meeting_at","summary","created_by_name","createdAt") VALUES ($1,$2,$3,NOW(),$4,$5,NOW())`,
+    randomUUID(), emp.id, mtype, String(args?.summary || '').slice(0, 2000) || null, scope.employee_name || 'מנהל',
+  ).catch(() => {});
+  return { ok: true, employee: emp.full_name, meeting_type: mtype };
+}
+
+// Mark an onboarding step done for a new hire.
+async function tool_set_onboarding_step(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const { emp, suggestions } = await resolveEmployeeWa(args?.employee_name);
+  if (!emp) return { need_clarification: true, suggestions: suggestions.map((e) => e.full_name) };
+  const KEYS = ['interview_done', 'terms_agreed', 'agreement_sent', 'agreement_signed', 'form_101_done', 'id_photo', 'bank_details', 'safety_training', 'pro_training', 'first_shift'];
+  const step = KEYS.includes(String(args?.step_key)) ? String(args.step_key) : null;
+  if (!step) return { error: 'unknown_step', valid: KEYS };
+  await (prisma as any).$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "EmployeeOnboardingStep" ("id" TEXT PRIMARY KEY,"employee_id" TEXT NOT NULL,"step_key" TEXT NOT NULL,"done" BOOLEAN NOT NULL DEFAULT false,"done_at" TIMESTAMP(3),"file_url" TEXT,"note" TEXT,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "EmployeeOnboardingStep_emp_step" ON "EmployeeOnboardingStep" ("employee_id","step_key")`).catch(() => {});
+  const { randomUUID } = await import('node:crypto');
+  const done = args?.done === false ? false : true;
+  const ex: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "EmployeeOnboardingStep" WHERE employee_id=$1 AND step_key=$2 LIMIT 1`, emp.id, step).catch(() => []);
+  if (ex.length) await (prisma as any).$executeRawUnsafe(`UPDATE "EmployeeOnboardingStep" SET done=$1, done_at=$2, "updatedAt"=NOW() WHERE id=$3`, done, done ? new Date() : null, ex[0].id).catch(() => {});
+  else await (prisma as any).$executeRawUnsafe(`INSERT INTO "EmployeeOnboardingStep" ("id","employee_id","step_key","done","done_at","updatedAt") VALUES ($1,$2,$3,$4,$5,NOW())`, randomUUID(), emp.id, step, done, done ? new Date() : null).catch(() => {});
+  return { ok: true, employee: emp.full_name, step, done };
+}
+
+// Issue a club benefit (coupon) to a customer resolved by phone or name.
+async function tool_issue_club_benefit(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const desc = String(args?.benefit || '').trim(); if (!desc) return { error: 'no_benefit' };
+  const q = String(args?.customer || '').trim();
+  const digits = q.replace(/[^\d]/g, '');
+  let cust: any = null;
+  if (digits.length >= 7) { const r: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, name, phone FROM "Customer" WHERE phone LIKE $1 LIMIT 2`, `%${digits.slice(-9)}%`).catch(() => []); cust = r.length === 1 ? r[0] : null; if (r.length > 1) return { need_clarification: true, note: 'כמה לקוחות עם הטלפון הזה' }; }
+  if (!cust && q) { const r: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, name, phone FROM "Customer" WHERE name ILIKE $1 LIMIT 4`, `%${q}%`).catch(() => []); if (r.length === 1) cust = r[0]; else if (r.length > 1) return { need_clarification: true, suggestions: r.map((c) => `${c.name} (${c.phone || '—'})`) }; }
+  if (!cust) return { error: 'customer_not_found', note: 'לא נמצא לקוח — נסה טלפון מלא או שם מדויק.' };
+  const { grantBenefit } = await import('./clubCore.js');
+  const b = await grantBenefit({ customerId: cust.id, description: desc.slice(0, 200), source: `wa_manual_${Date.now()}`, validDays: 30 }).catch(() => null);
+  if (!b) return { error: 'grant_failed' };
+  return { ok: true, customer: cust.name, benefit: desc, code: (b as any).code || null };
+}
+
+// This branch's network tasks (from HQ) + mark one done.
+async function tool_my_branch_tasks(_args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT b.task_id, b.done, t.title, t.detail, t.due_date FROM public."NetworkTaskBranch" b JOIN public."NetworkTask" t ON t.id=b.task_id WHERE b.branch_slug=$1 ORDER BY b.done ASC, t."createdAt" DESC LIMIT 30`,
+    currentTenantSlug(),
+  ).catch(() => []);
+  return { tasks: rows.map((r) => ({ id: r.task_id, title: r.title, detail: r.detail, due: r.due_date, done: r.done })), open: rows.filter((r) => !r.done).length };
+}
+async function tool_mark_branch_task(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const slug = currentTenantSlug();
+  const title = String(args?.title || '').trim();
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT b.task_id, t.title FROM public."NetworkTaskBranch" b JOIN public."NetworkTask" t ON t.id=b.task_id WHERE b.branch_slug=$1 AND COALESCE(b.done,false)=false AND t.title ILIKE $2 LIMIT 2`,
+    slug, `%${title}%`,
+  ).catch(() => []);
+  if (rows.length !== 1) return rows.length ? { need_clarification: true, suggestions: rows.map((r) => r.title) } : { error: 'task_not_found' };
+  await (prisma as any).$executeRawUnsafe(`UPDATE public."NetworkTaskBranch" SET done=true, done_at=NOW() WHERE branch_slug=$1 AND task_id=$2`, slug, rows[0].task_id).catch(() => {});
+  return { ok: true, marked_done: rows[0].title };
+}
+
 const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> = {
   build_schedule_now: tool_build_schedule_now,
   add_scheduling_rule: tool_add_scheduling_rule,
@@ -2356,6 +2485,12 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   add_employee_task: tool_add_employee_task,
   list_hr_gaps: tool_list_hr_gaps,
   employee_summary: tool_employee_summary,
+  daily_status: tool_daily_status,
+  log_employee_meeting: tool_log_employee_meeting,
+  set_onboarding_step: tool_set_onboarding_step,
+  issue_club_benefit: tool_issue_club_benefit,
+  my_branch_tasks: tool_my_branch_tasks,
+  mark_branch_task: tool_mark_branch_task,
   list_today_schedule: tool_list_today_schedule,
   list_today_events: tool_list_today_events,
   list_open_tasks: tool_list_open_tasks,
@@ -2545,18 +2680,18 @@ type=${exec.type || '?'} · נשלח לפני ${Math.round((Date.now() - new Dat
 // focused list makes tool selection accurate for almost any wording.
 const UNIVERSAL_TOOLS = ['list_pending_proposals', 'modify_pending_proposal', 'cancel_pending_proposal'];
 const TOOL_GROUPS: Record<string, string[]> = {
-  finance: ['get_today_revenue', 'get_cash_balance', 'list_unpaid_expenses', 'list_expected_income', 'get_recent_tips', 'propose_mark_expense_paid', 'propose_lock_tips', 'get_recipe_cost', 'list_high_food_cost', 'update_ingredient_price', 'get_my_recipe_summary', 'propose_set_dish_price'],
+  finance: ['get_today_revenue', 'get_cash_balance', 'list_unpaid_expenses', 'list_expected_income', 'get_recent_tips', 'propose_mark_expense_paid', 'propose_lock_tips', 'get_recipe_cost', 'list_high_food_cost', 'update_ingredient_price', 'get_my_recipe_summary', 'propose_set_dish_price', 'daily_status'],
   schedule: ['list_today_schedule', 'build_schedule_now', 'add_scheduling_rule', 'list_scheduling_rules', 'propose_shift_assign', 'propose_employee_shifts_batch', 'propose_remove_from_shift', 'propose_publish_schedule', 'search_employee', 'propose_invite_employee', 'propose_mark_sick', 'find_replacements', 'submit_availability'],
   reservations: ['check_availability', 'propose_create_reservation', 'propose_cancel_reservation'],
   orders: ['list_order_needs', 'propose_mark_supplier_ordered'],
   incidents: ['propose_open_incident', 'list_incidents', 'propose_resolve_incident'],
   events: ['propose_approve_event', 'list_open_leads', 'search_lead', 'propose_lead_set_stage', 'propose_event_add', 'propose_event_add_batch'],
-  tasks: ['propose_task_add', 'propose_task_done', 'list_open_tasks', 'propose_task_add_batch', 'propose_remind_me', 'list_today_events', 'update_scheduled_event', 'cancel_scheduled_event'],
+  tasks: ['propose_task_add', 'propose_task_done', 'list_open_tasks', 'propose_task_add_batch', 'propose_remind_me', 'list_today_events', 'update_scheduled_event', 'cancel_scheduled_event', 'my_branch_tasks', 'mark_branch_task'],
   invoices: ['get_unpaid_invoices', 'search_invoice', 'propose_invoice_mark_paid'],
-  team: ['propose_team_broadcast', 'search_employee', 'list_today_schedule', 'add_employee_note', 'add_employee_task', 'list_hr_gaps', 'employee_summary'],
+  team: ['propose_team_broadcast', 'search_employee', 'list_today_schedule', 'add_employee_note', 'add_employee_task', 'list_hr_gaps', 'employee_summary', 'log_employee_meeting', 'set_onboarding_step', 'issue_club_benefit'],
 };
 // When the intent is unclear, a modest common set (still far smaller than 54).
-const GENERAL_TOOLS = ['get_today_revenue', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'propose_create_reservation', 'list_order_needs', 'list_incidents', 'propose_open_incident', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee'];
+const GENERAL_TOOLS = ['get_today_revenue', 'daily_status', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'propose_create_reservation', 'list_order_needs', 'list_incidents', 'propose_open_incident', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee', 'issue_club_benefit'];
 const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_mark_sick', 'submit_availability'];
 
 // Deterministic keyword routing — covers the vast majority of phrasings without
