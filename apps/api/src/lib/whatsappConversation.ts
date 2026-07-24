@@ -459,6 +459,14 @@ const TOOL_DECLARATIONS = [
     description: 'Mark one of this branch\'s network-HQ tasks as done, matched by (part of) its title. Use for "סיימתי את המשימה של המטה על ...".',
     parameters: { type: 'OBJECT', properties: { title: { type: 'STRING' } }, required: ['title'] },
   },
+  {
+    name: 'propose_customer_campaign',
+    description: 'Send a MASS marketing message to a CUSTOMER segment (owner only). Use for "שלח קמפיין ללקוחות שלא הגיעו חודשיים", "תשלח הודעה לכל הלקוחות ש...", "קמפיין יומולדת". segment ∈ all_consented / winback_30 / winback_60 / winback_90 / vip / almost_vip / birthday_this_month / birthday_today. ALWAYS requires the owner to confirm with "כן" before anything is sent — this tool only PROPOSES.',
+    parameters: { type: 'OBJECT', properties: {
+      segment: { type: 'STRING', description: 'Target audience segment (see list). Default all_consented.' },
+      message: { type: 'STRING', description: 'The message text to send the customers.' },
+    }, required: ['message'] },
+  },
   // ─── Scheduling (admin) ────────────────────────────────────────────
   {
     name: 'build_schedule_now',
@@ -2462,6 +2470,33 @@ async function tool_mark_branch_task(args: any, phone: string): Promise<any> {
   return { ok: true, marked_done: rows[0].title };
 }
 
+// Mass customer campaign — OWNER only, and ALWAYS requires an explicit "כן"
+// confirm before anything is sent (consent/24h-throttle/opt-out are enforced by
+// sendCustomerCampaign on execute). The propose step only previews the count.
+const CAMPAIGN_SEGMENTS = ['all_consented', 'winback_30', 'winback_60', 'winback_90', 'vip', 'almost_vip', 'birthday_this_month', 'birthday_today'];
+async function tool_propose_customer_campaign(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.is_owner) return { error: 'רק הבעלים יכול לשלוח קמפיין ללקוחות.' };
+  const message = String(args?.message || '').trim();
+  if (message.length < 5) return { error: 'צריך תוכן הודעה לקמפיין (לפחות כמה מילים).' };
+  const segment = CAMPAIGN_SEGMENTS.includes(String(args?.segment)) ? String(args.segment) : 'all_consented';
+  // Preview the recipient count through the real segment builder.
+  let count = 0;
+  try {
+    const { functionHandlers } = await import('../functions/index.js');
+    const pv: any = await functionHandlers['previewCustomerSegment']({ user: { id: 'wa-owner', role: 'owner', email: '' }, body: { segment }, req: {} } as any);
+    count = (pv?.count ?? pv?.total ?? (Array.isArray(pv?.customers) ? pv.customers.length : 0)) || 0;
+  } catch { /* preview best-effort */ }
+  if (!count) return { error: 'לא נמצאו לקוחות מסכימים בסגמנט הזה — נסה סגמנט אחר (כולם / לא-הגיעו-חודשיים / VIP / יומולדת).' };
+  const segLabel: Record<string, string> = { all_consented: 'כל הלקוחות המסכימים', winback_30: 'לא הגיעו חודש', winback_60: 'לא הגיעו חודשיים', winback_90: 'לא הגיעו 3 חודשים', vip: 'לקוחות VIP', almost_vip: 'קרובים ל-VIP', birthday_this_month: 'ימי הולדת החודש', birthday_today: 'ימי הולדת היום' };
+  await stashPendingAction(phone, { type: 'customer_campaign', segment, message });
+  return {
+    proposal: `📣 שליחת קמפיין ל-*${count} לקוחות* (${segLabel[segment]}):\n"${message}"\n\n⚠️ זו שליחה המונית ללקוחות אמיתיים. ההסכמות + מגבלת 24ש' נאכפות אוטומטית. לאשר?`,
+    awaiting_confirmation: true,
+  };
+}
+
 const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> = {
   build_schedule_now: tool_build_schedule_now,
   add_scheduling_rule: tool_add_scheduling_rule,
@@ -2491,6 +2526,7 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   issue_club_benefit: tool_issue_club_benefit,
   my_branch_tasks: tool_my_branch_tasks,
   mark_branch_task: tool_mark_branch_task,
+  propose_customer_campaign: tool_propose_customer_campaign,
   list_today_schedule: tool_list_today_schedule,
   list_today_events: tool_list_today_events,
   list_open_tasks: tool_list_open_tasks,
@@ -2688,7 +2724,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
   events: ['propose_approve_event', 'list_open_leads', 'search_lead', 'propose_lead_set_stage', 'propose_event_add', 'propose_event_add_batch'],
   tasks: ['propose_task_add', 'propose_task_done', 'list_open_tasks', 'propose_task_add_batch', 'propose_remind_me', 'list_today_events', 'update_scheduled_event', 'cancel_scheduled_event', 'my_branch_tasks', 'mark_branch_task'],
   invoices: ['get_unpaid_invoices', 'search_invoice', 'propose_invoice_mark_paid'],
-  team: ['propose_team_broadcast', 'search_employee', 'list_today_schedule', 'add_employee_note', 'add_employee_task', 'list_hr_gaps', 'employee_summary', 'log_employee_meeting', 'set_onboarding_step', 'issue_club_benefit'],
+  team: ['propose_team_broadcast', 'search_employee', 'list_today_schedule', 'add_employee_note', 'add_employee_task', 'list_hr_gaps', 'employee_summary', 'log_employee_meeting', 'set_onboarding_step', 'issue_club_benefit', 'propose_customer_campaign'],
 };
 // When the intent is unclear, a modest common set (still far smaller than 54).
 const GENERAL_TOOLS = ['get_today_revenue', 'daily_status', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'propose_create_reservation', 'list_order_needs', 'list_incidents', 'propose_open_incident', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee', 'issue_club_benefit'];
@@ -2699,7 +2735,7 @@ const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_
 // only a fallback for wording the keywords miss.
 const INTENT_KEYWORDS: Array<[string, RegExp]> = [
   ['team', /תגיד לכל|תודיע לכל|שלח לכל|הודעה לכל|תעדכן את (כל|ה)|לכל העובדים|לכל הצוות|תגיד למלצרים|תגיד לטבחים|תגיד למטבח/],
-  ['team', /הערה על|תעד ש|מחמאה|מי חסר (לו )?טפסים|מי צריך לחתום|חסר.{0,6}(הסכם|טופס|101)|ספר לי על|מה המצב עם|כרטיס עובד|כרטיס של|שיחת משוב|שיחת אזהרה|שימוע|העלאת שכר/],
+  ['team', /הערה על|תעד ש|מחמאה|מי חסר (לו )?טפסים|מי צריך לחתום|חסר.{0,6}(הסכם|טופס|101)|ספר לי על|מה המצב עם|כרטיס עובד|כרטיס של|שיחת משוב|שיחת אזהרה|שימוע|העלאת שכר|קמפיין|לכל הלקוחות|הטבה ל/],
   ['reservations', /יש מקום|מקום פנוי|(תזמין|להזמין|תרשום|תכניס).{0,12}(שולחן|מקום|הזמנה)|שולחן ל|סועדים|לשבת|רזרב|בטל.{0,10}הזמנה/],
   ['orders', /ירקן|ספק|מה חסר|מה צריך להזמין|צריך להזמין|מלאי|הזמנתי מ|סמן שהזמנתי|מהבשר|מהאלכוהול/],
   ['incidents', /תקלה|תקלות|התקלקל|נשבר|לא עובד|לא עובדת|מה פתוח|אירוע חריג|קלקול|דליפה|סגור.{0,10}תקלה/],

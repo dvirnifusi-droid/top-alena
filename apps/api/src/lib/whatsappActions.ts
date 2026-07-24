@@ -1061,6 +1061,21 @@ async function executeAction(exec: any): Promise<string> {
       return `📢 ההודעה נשלחה אישית ל-${r.sent}/${r.total} עובדים.\n${names}${r.total > 10 ? ` ועוד ${r.total - 10}` : ''}${r.sent < r.total ? `\n⚠️ ${r.total - r.sent} לא נשלחו בוואטסאפ (כנראה בלי שיחה פתוחה מול הסוכן) — קיבלו התראת אפליקציה.` : ''}`;
     }
 
+    case 'customer_campaign': {
+      // Mass customer campaign — send through the real sendCustomerCampaign fn so
+      // consent, the 24h throttle and opt-outs are all enforced. Owner-synthesized
+      // context; the propose step already verified the caller is the owner.
+      const { functionHandlers } = await import('../functions/index.js');
+      const res: any = await functionHandlers['sendCustomerCampaign']({
+        user: { id: 'wa-owner', role: 'owner', email: '' },
+        body: { segment: exec.segment, message_template: exec.message, channel: 'whatsapp', campaign_key: `wa_${Date.now()}`, campaign_label: 'קמפיין מוואטסאפ' },
+        req: {},
+      } as any).catch((e: any) => ({ error: String(e?.message || e) }));
+      if (res?.error) return `⚠️ הקמפיין לא נשלח: ${res.error}`;
+      const sent = res?.sent ?? 0;
+      const matched = res?.total_matched ?? sent;
+      return `📣 הקמפיין נשלח ל-*${sent}* לקוחות${matched > sent ? ` (${matched - sent} דולגו — כבר קיבלו ב-24ש' או לא מסכימים)` : ''}.`;
+    }
     case 'invite_employee': {
       // Mirror inviteEmployeeViaWhatsApp (load.ts:23268): token + PendingInvitation
       // row + WhatsApp link to /EmployeeComplete.
