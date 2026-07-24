@@ -373,6 +373,32 @@ const TOOL_DECLARATIONS = [
     description: 'CALLER reports themselves sick — creates a sick-day request and notifies the manager. Use when employee says "אני חולה", "לא מרגיש טוב, לא אגיע", "חולה היום/מחר". Do NOT use for someone else.',
     parameters: { type: 'OBJECT', properties: { date: { type: 'STRING', description: 'Date in YYYY-MM-DD, or the literals "today" / "tomorrow" / "היום" / "מחר".' } } },
   },
+  {
+    name: 'submit_availability',
+    description: 'The CALLER submits their OWN work availability for the upcoming schedule (הגשת סידור/זמינות). Use when a staff member says "אני רוצה להגיש סידור", "להגיש זמינות", "אני פנוי ראשון שלישי חמישי", "לא יכול שבת", etc. FIRST make sure you know, per day, whether they are available and (optionally) the shift preference + time window — ask follow-up questions in Hebrew if the message is vague ("לאיזה שבוע?", "אילו ימים ומתי?"). Then call this with one entry per day. Do NOT submit for anyone else.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        entries: {
+          type: 'ARRAY',
+          description: 'One entry per day the caller is talking about.',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              date: { type: 'STRING', description: 'Date as YYYY-MM-DD or DD.MM / DD/MM (current year assumed).' },
+              available: { type: 'BOOLEAN', description: 'true = available to work that day (default), false = NOT available.' },
+              shift_preference: { type: 'STRING', description: 'One of: morning / noon / evening / both. Default both.' },
+              from: { type: 'STRING', description: 'Earliest start HH:MM (optional).' },
+              until: { type: 'STRING', description: 'Latest end HH:MM (optional).' },
+              note: { type: 'STRING', description: 'Optional free note (e.g. "עד 20:00 בגלל לימודים").' },
+            },
+            required: ['date'],
+          },
+        },
+      },
+      required: ['entries'],
+    },
+  },
   // ─── Scheduling (admin) ────────────────────────────────────────────
   {
     name: 'build_schedule_now',
@@ -2153,6 +2179,57 @@ async function tool_list_scheduling_rules(_args: any, _phone: string): Promise<a
   return { count: rows.length, rules: rows };
 }
 
+// Employee submits their OWN availability for the coming schedule via WhatsApp.
+// Records EmployeeAvailability rows (one per day) — the same source the schedule
+// builder + replacement-finder read. Replaces any prior submission for that day.
+async function tool_submit_availability(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.employee_id) return { error: 'unauthenticated' };
+  const entries: any[] = Array.isArray(args?.entries) ? args.entries : [];
+  if (!entries.length) return { error: 'no_entries' };
+  const todayISO = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+  const curYear = Number(todayISO.slice(0, 4));
+  const parseDate = (s: any): string | null => {
+    const t = String(s || '').trim();
+    let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    m = /^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?$/.exec(t);
+    if (m) { const d = m[1].padStart(2, '0'); const mo = m[2].padStart(2, '0'); let y = m[3] ? Number(m[3]) : curYear; if (y < 100) y += 2000; return `${y}-${mo}-${d}`; }
+    return null;
+  };
+  const normPref = (p: any) => { const s = String(p || '').toLowerCase(); if (/morning|בוקר/.test(s)) return 'morning'; if (/noon|צהר/.test(s)) return 'noon'; if (/evening|ערב/.test(s)) return 'evening'; return 'both'; };
+  const results: { date: string; available: boolean }[] = [];
+  for (const e of entries) {
+    const iso = parseDate(e.date);
+    if (!iso) continue;
+    const available = e.available !== false;
+    const dayStart = new Date(iso + 'T00:00:00.000Z');
+    const dayEnd = new Date(dayStart.getTime() + 86400000);
+    await (prisma as any).employeeAvailability.deleteMany({ where: { employee_id: scope.employee_id, date: { gte: dayStart, lt: dayEnd } } }).catch(() => {});
+    await (prisma as any).employeeAvailability.create({
+      data: {
+        employee_id: scope.employee_id,
+        employee_name: scope.employee_name || '',
+        date: dayStart,
+        availability_type: available ? 'available' : 'unavailable',
+        shift_preference: normPref(e.shift_preference),
+        available_from: e.from ? String(e.from).slice(0, 5) : null,
+        available_until: e.until ? String(e.until).slice(0, 5) : null,
+        reason: e.note ? String(e.note).slice(0, 200) : null,
+      },
+    }).catch(() => {});
+    results.push({ date: iso, available });
+  }
+  if (!results.length) return { error: 'no_valid_dates', message: 'לא הצלחתי לפענח את התאריכים — נסה לכתוב כמו 27.07 או 2026-07-27.' };
+  const avail = results.filter((r) => r.available).map((r) => r.date);
+  const unavail = results.filter((r) => !r.available).map((r) => r.date);
+  return {
+    ok: true, submitted: results.length,
+    summary: `✅ נרשמה זמינות ל-${results.length} ימים.${avail.length ? ` פנוי: ${avail.join(', ')}.` : ''}${unavail.length ? ` לא פנוי: ${unavail.join(', ')}.` : ''} המנהל יראה את זה בבניית הסידור.`,
+  };
+}
+
 const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> = {
   build_schedule_now: tool_build_schedule_now,
   add_scheduling_rule: tool_add_scheduling_rule,
@@ -2171,6 +2248,7 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   get_my_tips: tool_get_my_tips,
   get_my_hours: tool_get_my_hours,
   propose_mark_sick: tool_propose_mark_sick,
+  submit_availability: tool_submit_availability,
   list_today_schedule: tool_list_today_schedule,
   list_today_events: tool_list_today_events,
   list_open_tasks: tool_list_open_tasks,
@@ -2361,7 +2439,7 @@ type=${exec.type || '?'} · נשלח לפני ${Math.round((Date.now() - new Dat
 const UNIVERSAL_TOOLS = ['list_pending_proposals', 'modify_pending_proposal', 'cancel_pending_proposal'];
 const TOOL_GROUPS: Record<string, string[]> = {
   finance: ['get_today_revenue', 'get_cash_balance', 'list_unpaid_expenses', 'list_expected_income', 'get_recent_tips', 'propose_mark_expense_paid', 'propose_lock_tips', 'get_recipe_cost', 'list_high_food_cost', 'update_ingredient_price', 'get_my_recipe_summary', 'propose_set_dish_price'],
-  schedule: ['list_today_schedule', 'build_schedule_now', 'add_scheduling_rule', 'list_scheduling_rules', 'propose_shift_assign', 'propose_employee_shifts_batch', 'propose_remove_from_shift', 'propose_publish_schedule', 'search_employee', 'propose_invite_employee', 'propose_mark_sick', 'find_replacements'],
+  schedule: ['list_today_schedule', 'build_schedule_now', 'add_scheduling_rule', 'list_scheduling_rules', 'propose_shift_assign', 'propose_employee_shifts_batch', 'propose_remove_from_shift', 'propose_publish_schedule', 'search_employee', 'propose_invite_employee', 'propose_mark_sick', 'find_replacements', 'submit_availability'],
   reservations: ['check_availability', 'propose_create_reservation', 'propose_cancel_reservation'],
   orders: ['list_order_needs', 'propose_mark_supplier_ordered'],
   incidents: ['propose_open_incident', 'list_incidents', 'propose_resolve_incident'],
@@ -2372,7 +2450,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
 };
 // When the intent is unclear, a modest common set (still far smaller than 54).
 const GENERAL_TOOLS = ['get_today_revenue', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'propose_create_reservation', 'list_order_needs', 'list_incidents', 'propose_open_incident', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee'];
-const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_mark_sick'];
+const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_mark_sick', 'submit_availability'];
 
 // Deterministic keyword routing — covers the vast majority of phrasings without
 // an LLM call. Order matters: more specific intents first. The LLM classifier is
