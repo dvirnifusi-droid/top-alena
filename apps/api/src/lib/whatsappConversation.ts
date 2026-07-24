@@ -399,6 +399,35 @@ const TOOL_DECLARATIONS = [
       required: ['entries'],
     },
   },
+  // ─── Employee / HR (manager) ───────────────────────────────────────
+  {
+    name: 'add_employee_note',
+    description: 'Log a note about an employee — positive OR negative. Use for "רשום שיוסי איחר", "תעד שליאור קיבל מחמאה מלקוח", "הערה על דנה: ניהלה משמרת מצוין". Resolve the employee by name; classify sentiment (positive/negative/neutral) from the text.',
+    parameters: { type: 'OBJECT', properties: {
+      employee_name: { type: 'STRING', description: 'The employee the note is about (name or part of it).' },
+      text: { type: 'STRING', description: 'The note text.' },
+      sentiment: { type: 'STRING', description: 'positive / negative / neutral — infer from the text.' },
+    }, required: ['employee_name', 'text'] },
+  },
+  {
+    name: 'add_employee_task',
+    description: 'Add a follow-up task tied to an employee. Use for "תזכורת: שיחת משוב עם יוסי בעוד שבועיים", "לבדוק העלאת שכר לליאור בעוד חודש", "להשלים חתימה על הסכם עם דנה".',
+    parameters: { type: 'OBJECT', properties: {
+      employee_name: { type: 'STRING' },
+      title: { type: 'STRING', description: 'The task.' },
+      due_date: { type: 'STRING', description: 'Optional YYYY-MM-DD or DD.MM.' },
+    }, required: ['employee_name', 'title'] },
+  },
+  {
+    name: 'list_hr_gaps',
+    description: 'Which employees need HR attention — missing signed agreement / 101 / bank details, overdue follow-ups, probation ending. Use for "מי חסר לו טפסים?", "מי צריך לחתום על הסכם?", "מי צריך טיפול?".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'employee_summary',
+    description: 'A 360° snapshot of ONE employee — status, which required forms are signed, recent notes, open tasks. Use for "ספר לי על יוסי", "מה המצב עם ליאור?", "כרטיס של דנה".',
+    parameters: { type: 'OBJECT', properties: { employee_name: { type: 'STRING' } }, required: ['employee_name'] },
+  },
   // ─── Scheduling (admin) ────────────────────────────────────────────
   {
     name: 'build_schedule_now',
@@ -2230,6 +2259,80 @@ async function tool_submit_availability(args: any, phone: string): Promise<any> 
   };
 }
 
+// ── Employee / HR tool handlers (manager-gated) ────────────────────────────
+async function ensureCrmTablesWa(): Promise<void> {
+  await (prisma as any).$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "EmployeeNote" ("id" TEXT PRIMARY KEY,"employee_id" TEXT NOT NULL,"sentiment" TEXT DEFAULT 'neutral',"text" TEXT,"created_by" TEXT,"created_by_name" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "EmployeeTask" ("id" TEXT PRIMARY KEY,"employee_id" TEXT NOT NULL,"title" TEXT,"assignee" TEXT,"due_date" DATE,"status" TEXT DEFAULT 'open',"source" TEXT,"created_by_name" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`).catch(() => {});
+}
+async function resolveEmployeeWa(name: string): Promise<{ emp: any; suggestions: any[] }> {
+  const emps: any[] = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 500 }).catch(() => []);
+  const mm = matchEmployees(String(name || ''), emps);
+  if (mm.exact.length === 1) return { emp: mm.exact[0], suggestions: [] };
+  return { emp: null, suggestions: (mm.exact.length ? mm.exact : mm.suggestions).slice(0, 5) };
+}
+async function tool_add_employee_note(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const text = String(args?.text || '').trim(); if (!text) return { error: 'no_text' };
+  const { emp, suggestions } = await resolveEmployeeWa(args?.employee_name);
+  if (!emp) return { need_clarification: true, suggestions: suggestions.map((e) => e.full_name) };
+  await ensureCrmTablesWa();
+  const sentiment = ['positive', 'negative', 'neutral'].includes(String(args?.sentiment)) ? String(args.sentiment) : 'neutral';
+  const { randomUUID } = await import('node:crypto');
+  await (prisma as any).$executeRawUnsafe(`INSERT INTO "EmployeeNote" ("id","employee_id","sentiment","text","created_by_name","createdAt") VALUES ($1,$2,$3,$4,$5,NOW())`, randomUUID(), emp.id, sentiment, text.slice(0, 1000), scope.employee_name || 'מנהל (WhatsApp)').catch(() => {});
+  return { ok: true, employee: emp.full_name, sentiment, saved: text };
+}
+async function tool_add_employee_task(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const title = String(args?.title || '').trim(); if (!title) return { error: 'no_title' };
+  const { emp, suggestions } = await resolveEmployeeWa(args?.employee_name);
+  if (!emp) return { need_clarification: true, suggestions: suggestions.map((e) => e.full_name) };
+  await ensureCrmTablesWa();
+  // parse due date (YYYY-MM-DD or DD.MM)
+  let due: Date | null = null;
+  const t = String(args?.due_date || '').trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  if (m) due = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00.000Z`);
+  else { m = /^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?$/.exec(t); if (m) { const y = m[3] ? (Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3])) : Number(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }).slice(0, 4)); due = new Date(`${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}T00:00:00.000Z`); } }
+  const { randomUUID } = await import('node:crypto');
+  await (prisma as any).$executeRawUnsafe(`INSERT INTO "EmployeeTask" ("id","employee_id","title","due_date","status","source","created_by_name","createdAt") VALUES ($1,$2,$3,$4,'open','whatsapp',$5,NOW())`, randomUUID(), emp.id, title.slice(0, 300), due, scope.employee_name || 'מנהל').catch(() => {});
+  return { ok: true, employee: emp.full_name, task: title, due_date: due ? due.toISOString().slice(0, 10) : null };
+}
+async function tool_list_hr_gaps(_args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const emps: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, full_name, id_number, bank_details FROM "Employee" WHERE COALESCE(status,'active')<>'terminated'`).catch(() => []);
+  const forms: any[] = await (prisma as any).$queryRawUnsafe(`SELECT employee_id, form_type, signed FROM "EmployeeForm"`).catch(() => []);
+  const signed: Record<string, Set<string>> = {};
+  for (const f of forms) if (f.signed) (signed[f.employee_id] = signed[f.employee_id] || new Set()).add(f.form_type);
+  const out: any[] = [];
+  for (const e of emps) { const s = signed[e.id] || new Set(); const g: string[] = []; if (!s.has('work_agreement')) g.push('הסכם'); if (!s.has('101')) g.push('101'); if (!e.bank_details) g.push('בנק'); if (!e.id_number) g.push('ת"ז'); if (g.length) out.push({ name: e.full_name, missing: g }); }
+  return { total: out.length, checked: emps.length, employees: out.slice(0, 30) };
+}
+async function tool_employee_summary(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const { emp, suggestions } = await resolveEmployeeWa(args?.employee_name);
+  if (!emp) return { need_clarification: true, suggestions: suggestions.map((e) => e.full_name) };
+  await ensureCrmTablesWa();
+  const forms: any[] = await (prisma as any).$queryRawUnsafe(`SELECT form_type FROM "EmployeeForm" WHERE employee_id=$1 AND signed=true`, emp.id).catch(() => []);
+  const signed = new Set(forms.map((f) => f.form_type));
+  const notes: any[] = await (prisma as any).$queryRawUnsafe(`SELECT sentiment, text FROM "EmployeeNote" WHERE employee_id=$1 ORDER BY "createdAt" DESC LIMIT 3`, emp.id).catch(() => []);
+  const tasks: any[] = await (prisma as any).$queryRawUnsafe(`SELECT title FROM "EmployeeTask" WHERE employee_id=$1 AND status<>'done' ORDER BY COALESCE("due_date",'9999-12-31') ASC LIMIT 5`, emp.id).catch(() => []);
+  return {
+    name: emp.full_name, status: emp.status, position: (emp.positions || [])[0]?.position_name || emp.role || null,
+    forms_signed: ['work_agreement', '101', 'food_safety', 'allergens', 'work_safety'].filter((f) => signed.has(f)).length,
+    forms_missing: ['הסכם', '101'].filter((_, i) => !signed.has(i === 0 ? 'work_agreement' : '101')),
+    recent_notes: notes.map((n) => `${n.sentiment === 'positive' ? '👍' : n.sentiment === 'negative' ? '⚠️' : '•'} ${n.text}`),
+    open_tasks: tasks.map((t) => t.title),
+  };
+}
+
 const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> = {
   build_schedule_now: tool_build_schedule_now,
   add_scheduling_rule: tool_add_scheduling_rule,
@@ -2249,6 +2352,10 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   get_my_hours: tool_get_my_hours,
   propose_mark_sick: tool_propose_mark_sick,
   submit_availability: tool_submit_availability,
+  add_employee_note: tool_add_employee_note,
+  add_employee_task: tool_add_employee_task,
+  list_hr_gaps: tool_list_hr_gaps,
+  employee_summary: tool_employee_summary,
   list_today_schedule: tool_list_today_schedule,
   list_today_events: tool_list_today_events,
   list_open_tasks: tool_list_open_tasks,
@@ -2446,7 +2553,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
   events: ['propose_approve_event', 'list_open_leads', 'search_lead', 'propose_lead_set_stage', 'propose_event_add', 'propose_event_add_batch'],
   tasks: ['propose_task_add', 'propose_task_done', 'list_open_tasks', 'propose_task_add_batch', 'propose_remind_me', 'list_today_events', 'update_scheduled_event', 'cancel_scheduled_event'],
   invoices: ['get_unpaid_invoices', 'search_invoice', 'propose_invoice_mark_paid'],
-  team: ['propose_team_broadcast', 'search_employee', 'list_today_schedule'],
+  team: ['propose_team_broadcast', 'search_employee', 'list_today_schedule', 'add_employee_note', 'add_employee_task', 'list_hr_gaps', 'employee_summary'],
 };
 // When the intent is unclear, a modest common set (still far smaller than 54).
 const GENERAL_TOOLS = ['get_today_revenue', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'propose_create_reservation', 'list_order_needs', 'list_incidents', 'propose_open_incident', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee'];
@@ -2457,6 +2564,7 @@ const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_
 // only a fallback for wording the keywords miss.
 const INTENT_KEYWORDS: Array<[string, RegExp]> = [
   ['team', /תגיד לכל|תודיע לכל|שלח לכל|הודעה לכל|תעדכן את (כל|ה)|לכל העובדים|לכל הצוות|תגיד למלצרים|תגיד לטבחים|תגיד למטבח/],
+  ['team', /הערה על|תעד ש|מחמאה|מי חסר (לו )?טפסים|מי צריך לחתום|חסר.{0,6}(הסכם|טופס|101)|ספר לי על|מה המצב עם|כרטיס עובד|כרטיס של|שיחת משוב|שיחת אזהרה|שימוע|העלאת שכר/],
   ['reservations', /יש מקום|מקום פנוי|(תזמין|להזמין|תרשום|תכניס).{0,12}(שולחן|מקום|הזמנה)|שולחן ל|סועדים|לשבת|רזרב|בטל.{0,10}הזמנה/],
   ['orders', /ירקן|ספק|מה חסר|מה צריך להזמין|צריך להזמין|מלאי|הזמנתי מ|סמן שהזמנתי|מהבשר|מהאלכוהול/],
   ['incidents', /תקלה|תקלות|התקלקל|נשבר|לא עובד|לא עובדת|מה פתוח|אירוע חריג|קלקול|דליפה|סגור.{0,10}תקלה/],
@@ -2487,7 +2595,7 @@ async function classifyIntent(message: string): Promise<string> {
     `events = אירוע פרטי/ליד/הצעת מחיר/אשר אירוע\n` +
     `tasks = משימה/תזכורת/יומן/פגישה/תזכיר לי\n` +
     `invoices = חשבונית ספק/סמן ששולמה/חפש חשבונית\n` +
-    `team = תגיד לכל העובדים/תודיע לצוות/שלח הודעה למלצרים\n` +
+    `team = תגיד לכל העובדים/תודיע לצוות/שלח הודעה למלצרים · או ניהול עובד ספציפי: רשום הערה על עובד/תעד שעובד איחר/מחמאה/תזכורת לעובד/מי חסר לו טפסים/מי צריך לחתום/ספר לי על עובד/כרטיס עובד\n` +
     `general = ברכה/שאלה כללית/לא ברור\n` +
     `בקשה: "${String(message).slice(0, 300)}"`;
   try {
