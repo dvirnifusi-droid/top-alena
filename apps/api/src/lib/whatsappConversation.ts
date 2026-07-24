@@ -467,6 +467,43 @@ const TOOL_DECLARATIONS = [
       message: { type: 'STRING', description: 'The message text to send the customers.' },
     }, required: ['message'] },
   },
+  // ─── Menu editing (manager) ─────────────────────────────────────────
+  {
+    name: 'add_menu_item',
+    description: 'Add a NEW dish to the menu. Use for "תוסיף לתפריט המבורגר טלה ב-68", "מנה חדשה: סלט קיסר 42 בקטגוריה סלטים".',
+    parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' }, price: { type: 'NUMBER' }, category: { type: 'STRING', description: 'e.g. מנות ראשונות/עיקריות/קינוחים/שתייה. Default כללי.' }, description: { type: 'STRING' } }, required: ['name', 'price'] },
+  },
+  {
+    name: 'set_menu_item_availability',
+    description: 'Take a dish OFF the menu (86 / out of stock) or bring it back. Use for "תוריד את הפסטה מהתפריט", "נגמר הסלמון", "החזר את הפוקאצ\'ה". available=false to hide, true to restore.',
+    parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' }, available: { type: 'BOOLEAN' } }, required: ['name', 'available'] },
+  },
+  {
+    name: 'update_menu_item',
+    description: 'Change a dish\'s price / name / category. Use for "תשנה מחיר הפיצה ל-55", "תשנה את השם של הבורגר ל-בורגר הבית", "תעביר את הטירמיסו לקטגוריה קינוחים".',
+    parameters: { type: 'OBJECT', properties: { name: { type: 'STRING', description: 'Current dish name.' }, new_price: { type: 'NUMBER' }, new_name: { type: 'STRING' }, new_category: { type: 'STRING' } }, required: ['name'] },
+  },
+  {
+    name: 'remove_menu_item',
+    description: 'Permanently DELETE a dish from the menu. Use for "תמחק את X מהתפריט לגמרי". (For a temporary out-of-stock use set_menu_item_availability instead.)',
+    parameters: { type: 'OBJECT', properties: { name: { type: 'STRING' } }, required: ['name'] },
+  },
+  {
+    name: 'list_menu',
+    description: 'List menu dishes (optionally by category), with prices + which are currently unavailable. Use for "מה יש בתפריט?", "תראה לי את הקינוחים", "מה ירד מהתפריט?".',
+    parameters: { type: 'OBJECT', properties: { category: { type: 'STRING' } } },
+  },
+  // ─── Deliveries (manager) ───────────────────────────────────────────
+  {
+    name: 'list_deliveries',
+    description: 'Today\'s / open deliveries — customer, address, courier, status. Use for "מה המשלוחים היום?", "אילו משלוחים פתוחים?", "מי עדיין לא קיבל?".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'update_delivery',
+    description: 'Update ONE open delivery (matched by customer name/phone/address) — set status and/or courier. Use for "המשלוח של דנה יצא", "סמן שהמשלוח לרחוב הרצל 5 נמסר", "תן את המשלוח של 0501234567 לרון". status ∈ picked_up (יצא/נאסף) / delivered (נמסר) / cancelled (בוטל).',
+    parameters: { type: 'OBJECT', properties: { customer: { type: 'STRING', description: 'Customer name, phone, or address.' }, status: { type: 'STRING' }, courier: { type: 'STRING' } }, required: ['customer'] },
+  },
   // ─── Scheduling (admin) ────────────────────────────────────────────
   {
     name: 'build_schedule_now',
@@ -2497,6 +2534,104 @@ async function tool_propose_customer_campaign(args: any, phone: string): Promise
   };
 }
 
+// ── Menu editing (manager) ─────────────────────────────────────────────────
+async function resolveMenuItem(name: string): Promise<{ item: any; suggestions: any[] }> {
+  const q = String(name || '').trim(); if (!q) return { item: null, suggestions: [] };
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, name, category, price, available FROM "MenuItem" WHERE name ILIKE $1 OR name ILIKE $2 LIMIT 5`, `%${q}%`, `${q}%`).catch(() => []);
+  if (rows.length === 1) return { item: rows[0], suggestions: [] };
+  return { item: null, suggestions: rows.slice(0, 5) };
+}
+async function tool_add_menu_item(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const name = String(args?.name || '').trim(); const price = Number(args?.price);
+  if (!name || !Number.isFinite(price) || price < 0) return { error: 'צריך שם מנה ומחיר.' };
+  const { randomUUID } = await import('node:crypto');
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "MenuItem" ("id","name","category","description","price","available","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,true,NOW(),NOW())`,
+    randomUUID(), name.slice(0, 120), String(args?.category || 'כללי').slice(0, 60), String(args?.description || '').slice(0, 500) || null, price,
+  ).catch(() => {});
+  return { ok: true, added: name, price, category: String(args?.category || 'כללי') };
+}
+async function tool_set_menu_item_availability(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const { item, suggestions } = await resolveMenuItem(args?.name);
+  if (!item) return { need_clarification: true, suggestions: suggestions.map((i) => i.name) };
+  const available = args?.available === true || String(args?.available).toLowerCase() === 'true';
+  await (prisma as any).$executeRawUnsafe(`UPDATE "MenuItem" SET available=$1, "updatedAt"=NOW() WHERE id=$2`, available, item.id).catch(() => {});
+  return { ok: true, item: item.name, available };
+}
+async function tool_update_menu_item(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const { item, suggestions } = await resolveMenuItem(args?.name);
+  if (!item) return { need_clarification: true, suggestions: suggestions.map((i) => i.name) };
+  const sets: string[] = []; const vals: any[] = [];
+  if (args?.new_price != null && Number.isFinite(Number(args.new_price))) { sets.push(`price=$${sets.length + 1}`); vals.push(Number(args.new_price)); }
+  if (args?.new_name) { sets.push(`name=$${sets.length + 1}`); vals.push(String(args.new_name).slice(0, 120)); }
+  if (args?.new_category) { sets.push(`category=$${sets.length + 1}`); vals.push(String(args.new_category).slice(0, 60)); }
+  if (!sets.length) return { error: 'לא צוין מה לעדכן (מחיר/שם/קטגוריה).' };
+  await (prisma as any).$executeRawUnsafe(`UPDATE "MenuItem" SET ${sets.join(', ')}, "updatedAt"=NOW() WHERE id=$${sets.length + 1}`, ...vals, item.id).catch(() => {});
+  return { ok: true, item: item.name, updated: { price: args?.new_price, name: args?.new_name, category: args?.new_category } };
+}
+async function tool_remove_menu_item(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const { item, suggestions } = await resolveMenuItem(args?.name);
+  if (!item) return { need_clarification: true, suggestions: suggestions.map((i) => i.name) };
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "MenuItem" WHERE id=$1`, item.id).catch(() => {});
+  return { ok: true, deleted: item.name };
+}
+async function tool_list_menu(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const cat = String(args?.category || '').trim();
+  const rows: any[] = cat
+    ? await (prisma as any).$queryRawUnsafe(`SELECT name, category, price, available FROM "MenuItem" WHERE category ILIKE $1 ORDER BY name LIMIT 100`, `%${cat}%`).catch(() => [])
+    : await (prisma as any).$queryRawUnsafe(`SELECT name, category, price, available FROM "MenuItem" ORDER BY category, name LIMIT 200`).catch(() => []);
+  return { count: rows.length, unavailable: rows.filter((r) => r.available === false).map((r) => r.name), items: rows.slice(0, 60).map((r) => ({ name: r.name, category: r.category, price: r.price, available: r.available !== false })) };
+}
+
+// ── Deliveries (manager) ───────────────────────────────────────────────────
+async function tool_list_deliveries(_args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const today = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' }) + 'T00:00:00.000Z');
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT customer_name, customer_phone, address, neighborhood, courier_name, delivery_status, total_delivery_amount FROM "Delivery" WHERE date >= $1 OR COALESCE(delivery_status,'pending') NOT IN ('delivered','cancelled') ORDER BY date DESC LIMIT 40`, today,
+  ).catch(() => []);
+  const open = rows.filter((r) => !['delivered', 'cancelled'].includes(String(r.delivery_status || 'pending')));
+  return { total: rows.length, open: open.length, deliveries: rows.slice(0, 25).map((r) => ({ customer: r.customer_name, address: r.address, area: r.neighborhood, courier: r.courier_name, status: r.delivery_status || 'pending', amount: r.total_delivery_amount })) };
+}
+async function tool_update_delivery(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const q = String(args?.customer || '').trim(); const digits = q.replace(/[^\d]/g, '');
+  let rows: any[] = [];
+  if (digits.length >= 7) rows = await (prisma as any).$queryRawUnsafe(`SELECT id, customer_name, address, delivery_status FROM "Delivery" WHERE customer_phone LIKE $1 AND COALESCE(delivery_status,'pending') NOT IN ('delivered','cancelled') ORDER BY date DESC LIMIT 3`, `%${digits.slice(-9)}%`).catch(() => []);
+  if (!rows.length && q) rows = await (prisma as any).$queryRawUnsafe(`SELECT id, customer_name, address, delivery_status FROM "Delivery" WHERE (customer_name ILIKE $1 OR address ILIKE $1) AND COALESCE(delivery_status,'pending') NOT IN ('delivered','cancelled') ORDER BY date DESC LIMIT 3`, `%${q}%`).catch(() => []);
+  if (rows.length !== 1) return rows.length ? { need_clarification: true, suggestions: rows.map((r) => `${r.customer_name || ''} · ${r.address}`) } : { error: 'לא נמצא משלוח פתוח תואם.' };
+  const d = rows[0];
+  const statusMap: Record<string, string> = { picked_up: 'picked_up', out: 'picked_up', delivered: 'delivered', cancelled: 'cancelled', canceled: 'cancelled' };
+  const st = statusMap[String(args?.status || '').toLowerCase()] || null;
+  const sets: string[] = []; const vals: any[] = [];
+  // Placeholders are numbered by VALS position; NOW() sets carry no value.
+  if (st) { vals.push(st); sets.push(`delivery_status=$${vals.length}`); if (st === 'picked_up') sets.push(`picked_up_at=NOW()`); if (st === 'delivered') sets.push(`delivered_at=NOW()`); }
+  if (args?.courier) { vals.push(String(args.courier).slice(0, 80)); sets.push(`courier_name=$${vals.length}`); }
+  if (!sets.length) return { error: 'לא צוין מה לעדכן (סטטוס/שליח).' };
+  vals.push(d.id);
+  await (prisma as any).$executeRawUnsafe(`UPDATE "Delivery" SET ${sets.join(', ')} WHERE id=$${vals.length}`, ...vals).catch(() => {});
+  return { ok: true, delivery: `${d.customer_name || ''} · ${d.address}`, status: st || d.delivery_status, courier: args?.courier || undefined };
+}
+
 const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> = {
   build_schedule_now: tool_build_schedule_now,
   add_scheduling_rule: tool_add_scheduling_rule,
@@ -2527,6 +2662,13 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   my_branch_tasks: tool_my_branch_tasks,
   mark_branch_task: tool_mark_branch_task,
   propose_customer_campaign: tool_propose_customer_campaign,
+  add_menu_item: tool_add_menu_item,
+  set_menu_item_availability: tool_set_menu_item_availability,
+  update_menu_item: tool_update_menu_item,
+  remove_menu_item: tool_remove_menu_item,
+  list_menu: tool_list_menu,
+  list_deliveries: tool_list_deliveries,
+  update_delivery: tool_update_delivery,
   list_today_schedule: tool_list_today_schedule,
   list_today_events: tool_list_today_events,
   list_open_tasks: tool_list_open_tasks,
@@ -2725,6 +2867,8 @@ const TOOL_GROUPS: Record<string, string[]> = {
   tasks: ['propose_task_add', 'propose_task_done', 'list_open_tasks', 'propose_task_add_batch', 'propose_remind_me', 'list_today_events', 'update_scheduled_event', 'cancel_scheduled_event', 'my_branch_tasks', 'mark_branch_task'],
   invoices: ['get_unpaid_invoices', 'search_invoice', 'propose_invoice_mark_paid'],
   team: ['propose_team_broadcast', 'search_employee', 'list_today_schedule', 'add_employee_note', 'add_employee_task', 'list_hr_gaps', 'employee_summary', 'log_employee_meeting', 'set_onboarding_step', 'issue_club_benefit', 'propose_customer_campaign'],
+  menu: ['list_menu', 'add_menu_item', 'set_menu_item_availability', 'update_menu_item', 'remove_menu_item', 'propose_set_dish_price', 'get_recipe_cost'],
+  deliveries: ['list_deliveries', 'update_delivery'],
 };
 // When the intent is unclear, a modest common set (still far smaller than 54).
 const GENERAL_TOOLS = ['get_today_revenue', 'daily_status', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'propose_create_reservation', 'list_order_needs', 'list_incidents', 'propose_open_incident', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee', 'issue_club_benefit'];
@@ -2736,6 +2880,8 @@ const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_
 const INTENT_KEYWORDS: Array<[string, RegExp]> = [
   ['team', /תגיד לכל|תודיע לכל|שלח לכל|הודעה לכל|תעדכן את (כל|ה)|לכל העובדים|לכל הצוות|תגיד למלצרים|תגיד לטבחים|תגיד למטבח/],
   ['team', /הערה על|תעד ש|מחמאה|מי חסר (לו )?טפסים|מי צריך לחתום|חסר.{0,6}(הסכם|טופס|101)|ספר לי על|מה המצב עם|כרטיס עובד|כרטיס של|שיחת משוב|שיחת אזהרה|שימוע|העלאת שכר|קמפיין|לכל הלקוחות|הטבה ל/],
+  ['deliveries', /משלוח|משלוחים|שליח|נמסר|יצא לדרך|מי קיבל.{0,10}משלוח/],
+  ['menu', /תפריט|הוסף מנה|מנה חדשה|תוריד.{0,12}(מהתפריט|מנה)|נגמר ה|מחק.{0,6}מנה|מה (יש )?בתפריט|תעדכן.{0,6}מנה|86 ל/],
   ['reservations', /יש מקום|מקום פנוי|(תזמין|להזמין|תרשום|תכניס).{0,12}(שולחן|מקום|הזמנה)|שולחן ל|סועדים|לשבת|רזרב|בטל.{0,10}הזמנה/],
   ['orders', /ירקן|ספק|מה חסר|מה צריך להזמין|צריך להזמין|מלאי|הזמנתי מ|סמן שהזמנתי|מהבשר|מהאלכוהול/],
   ['incidents', /תקלה|תקלות|התקלקל|נשבר|לא עובד|לא עובדת|מה פתוח|אירוע חריג|קלקול|דליפה|סגור.{0,10}תקלה/],
@@ -2766,7 +2912,9 @@ async function classifyIntent(message: string): Promise<string> {
     `events = אירוע פרטי/ליד/הצעת מחיר/אשר אירוע\n` +
     `tasks = משימה/תזכורת/יומן/פגישה/תזכיר לי\n` +
     `invoices = חשבונית ספק/סמן ששולמה/חפש חשבונית\n` +
-    `team = תגיד לכל העובדים/תודיע לצוות/שלח הודעה למלצרים · או ניהול עובד ספציפי: רשום הערה על עובד/תעד שעובד איחר/מחמאה/תזכורת לעובד/מי חסר לו טפסים/מי צריך לחתום/ספר לי על עובד/כרטיס עובד\n` +
+    `team = תגיד לכל העובדים/תודיע לצוות/שלח הודעה למלצרים · או ניהול עובד ספציפי: רשום הערה על עובד/תעד שעובד איחר/מחמאה/תזכורת לעובד/מי חסר לו טפסים/מי צריך לחתום/ספר לי על עובד/כרטיס עובד · או קמפיין ללקוחות/הטבה ללקוח\n` +
+    `menu = תפריט/מנה/הוסף מנה/תוריד מהתפריט/נגמר/86/שנה מחיר מנה/מחק מנה/מה בתפריט/קטגוריה\n` +
+    `deliveries = משלוח/משלוחים/שליח/יצא/נמסר/מי קיבל/כתובת\n` +
     `general = ברכה/שאלה כללית/לא ברור\n` +
     `בקשה: "${String(message).slice(0, 300)}"`;
   try {
@@ -2779,7 +2927,7 @@ async function classifyIntent(message: string): Promise<string> {
     });
     const data: any = await res.json().catch(() => ({}));
     const raw = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('').toLowerCase();
-    const cat = (raw.match(/finance|schedule|reservations|orders|incidents|events|tasks|invoices|team|general/) || ['general'])[0];
+    const cat = (raw.match(/finance|schedule|reservations|orders|incidents|events|tasks|invoices|team|menu|deliveries|general/) || ['general'])[0];
     return cat;
   } catch { return 'general'; }
 }
