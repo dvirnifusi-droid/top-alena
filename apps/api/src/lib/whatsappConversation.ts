@@ -142,7 +142,7 @@ const TOOL_DECLARATIONS = [
   },
   {
     name: 'propose_event_add',
-    description: 'Propose adding a personal calendar event. The user must reply "כן" to confirm. Time format: "מחר 14:00" / "ראשון 09:30" / ISO.',
+    description: 'Propose adding a PERSONAL calendar reminder for the owner (a meeting, a personal appointment, "תזכיר לי פגישה עם קובי מחר"). NOT for restaurant private-events/bookings — those with a guest count (חתונה/יום הולדת/גיבוש/אירוע פרטי ל-X איש) go to propose_add_event_lead. The user must reply "כן" to confirm. Time format: "מחר 14:00" / "ראשון 09:30" / ISO.',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -589,6 +589,33 @@ const TOOL_DECLARATIONS = [
     },
   },
   {
+    name: 'list_reservations',
+    description: 'רשימת/ספירת הזמנות השולחן לתאריך (ברירת מחדל: היום). קריאה בלבד. השתמש כשהמשתמש שואל "כמה הזמנות יש היום?", "מי מגיע היום?", "אילו הזמנות יש מחר?", "כמה סועדים מוזמנים בשבת?". מחזיר ספירה + סך הסועדים + רשימת ההזמנות (שעה, שם, כמות). זה על הזמנות שולחן רגילות — לא אירועים פרטיים.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        date: { type: 'STRING', description: 'YYYY-MM-DD או ביטוי עברי: היום/מחר/שבת/ראשון. ברירת מחדל היום.' },
+      },
+    },
+  },
+  {
+    name: 'propose_add_event_lead',
+    description: 'הוספת אירוע פרטי/הזמנת אירוע במסעדה למערכת האירועים (חתונה, יום הולדת, גיבוש, אירוע חברה, אירוע פרטי). השתמש בכל פעם שהמשתמש אומר "תוסיף אירוע פרטי", "יש לנו אירוע ל-X איש בתאריך", "תרשום ליד לאירוע", "הזמינו את המסעדה לאירוע". יוצר EventLead בלוח האירועים. חובה מספר טלפון של הלקוח — אם המשתמש לא נתן, בקש ממנו את הטלפון לפני שתקרא לכלי. אל תשתמש ב-propose_event_add (זה תזכורת יומן אישית, לא אירוע במסעדה!).',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        contact_name: { type: 'STRING', description: 'שם הלקוח/מזמין האירוע' },
+        contact_phone: { type: 'STRING', description: 'טלפון הלקוח — חובה. אם חסר, בקש מהמשתמש.' },
+        event_date: { type: 'STRING', description: 'תאריך האירוע YYYY-MM-DD או ביטוי עברי (12.8 / שבת / מחר)' },
+        event_type: { type: 'STRING', description: 'סוג האירוע: חתונה/יום הולדת/גיבוש/ברית/אירוע חברה/אירוע פרטי וכו׳' },
+        guest_count: { type: 'INTEGER', description: 'מספר האורחים' },
+        event_time: { type: 'STRING', description: 'שעה/חלון שעות (אופציונלי) — "בערב", "20:00", "צהריים"' },
+        notes: { type: 'STRING', description: 'פרטים נוספים (אופציונלי)' },
+      },
+      required: ['contact_phone'],
+    },
+  },
+  {
     name: 'propose_cancel_reservation',
     description: 'הצעת ביטול הזמנת שולחן קיימת. השתמש כשהמשתמש אומר "תבטל את ההזמנה של כהן", "בטל את השולחן ל-8 של מחר", "תבטל את ההזמנה מחר בערב". חפש לפי שם לקוח ו/או תאריך. אם יש כמה התאמות — המערכת תחזיר רשימה ותצטרך לשאול איזו. המערכת תבקש אישור "כן" לפני הביטול.',
     parameters: {
@@ -782,6 +809,41 @@ async function tool_check_availability(args: any, phone: string): Promise<any> {
   };
 }
 
+// Read-only — list table reservations for a date (default today) so the owner
+// can ask "כמה הזמנות יש היום?" / "מי מגיע מחר?". Returns count + total guests
+// + a compact per-reservation list, ordered by time.
+async function tool_list_reservations(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+
+  const dateStr = resolveDate(String(args.date || 'היום')) || resolveDate('היום');
+  const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
+  const dayNext = new Date(dayStart); dayNext.setUTCDate(dayNext.getUTCDate() + 1);
+  const rows: any[] = await (prisma as any).reservation.findMany({
+    where: { date: { gte: dayStart, lt: dayNext } },
+    take: 200,
+  });
+  const active = rows.filter((r: any) => r.status !== 'cancelled' && r.status !== 'no_show');
+  active.sort((a: any, b: any) => String(a.time || '').localeCompare(String(b.time || '')));
+  const totalGuests = active.reduce((s: number, r: any) => s + (r.party_size || 0), 0);
+  const list = active.slice(0, 20).map((r: any) => ({
+    time: r.time || '—',
+    name: r.customer_name || 'ללא שם',
+    party_size: r.party_size || 0,
+    phone: r.customer_phone || undefined,
+  }));
+  return {
+    date: dateStr,
+    reservation_count: active.length,
+    total_guests: totalGuests,
+    reservations: list,
+    note_for_agent: active.length === 0
+      ? `אין הזמנות שולחן ל-${dateStr}.`
+      : `${active.length} הזמנות ל-${dateStr}, סה"כ ${totalGuests} סועדים. פרט בקצרה שעה+שם+כמות.`,
+  };
+}
+
 async function tool_propose_create_reservation(args: any, phone: string): Promise<any> {
   const { resolveAccessScope } = await import('./whatsappPermissions.js');
   const scope = await resolveAccessScope(phone);
@@ -895,6 +957,51 @@ async function tool_propose_cancel_reservation(args: any, phone: string): Promis
   });
   return {
     proposal: `❌ ביטול הזמנה: ${r.customer_name} · ${r.party_size} סועדים · ${dStr} ${r.time}`,
+    awaiting_confirmation: true,
+  };
+}
+
+// Propose a restaurant private-event lead (חתונה/יום הולדת/גיבוש/אירוע פרטי).
+// Creates an EventLead in the events pipeline on confirm — NOT a personal
+// calendar reminder. Phone is mandatory (the events board is a callback list).
+async function tool_propose_add_event_lead(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+
+  const contact_phone = String(args.contact_phone || '').replace(/[^\d+]/g, '').trim();
+  if (!contact_phone) return { need_phone: true, message: 'מה מספר הטלפון של הלקוח לאירוע?' };
+
+  const contact_name = args.contact_name ? String(args.contact_name).trim() : null;
+  const event_date = args.event_date ? (resolveDate(String(args.event_date)) || String(args.event_date).trim()) : null;
+  const event_type = args.event_type ? String(args.event_type).trim() : null;
+  const gc = parseInt(String(args.guest_count ?? '').replace(/[^\d]/g, ''), 10);
+  const guest_count = Number.isFinite(gc) && gc > 0 ? gc : null;
+  const event_time = args.event_time ? String(args.event_time).trim() : null;
+  const notes = args.notes ? String(args.notes).trim() : null;
+
+  await stashPendingAction(phone, {
+    type: 'add_event_lead',
+    contact_name,
+    contact_phone,
+    event_date,
+    event_type,
+    guest_count,
+    event_time,
+    notes,
+    target_phone: phone,
+  });
+
+  const bits = [
+    contact_name ? `👤 ${contact_name}` : null,
+    `📞 ${contact_phone}`,
+    event_type ? `🎉 ${event_type}` : null,
+    guest_count ? `${guest_count} איש` : null,
+    event_date ? `📅 ${event_date}` : null,
+    event_time ? `🕐 ${event_time}` : null,
+  ].filter(Boolean).join(' · ');
+  return {
+    proposal: `אירוע חדש למערכת האירועים:\n${bits}`,
     awaiting_confirmation: true,
   };
 }
@@ -2824,8 +2931,10 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   propose_employee_shifts_batch: tool_propose_employee_shifts_batch,
   // ─── Owner-agent action pack (10 capabilities) ───────────────────────────
   check_availability: tool_check_availability,
+  list_reservations: tool_list_reservations,
   propose_create_reservation: tool_propose_create_reservation,
   propose_cancel_reservation: tool_propose_cancel_reservation,
+  propose_add_event_lead: tool_propose_add_event_lead,
   get_today_revenue: tool_get_today_revenue,
   list_order_needs: tool_list_order_needs,
   propose_mark_supplier_ordered: tool_propose_mark_supplier_ordered,
@@ -2988,10 +3097,10 @@ const UNIVERSAL_TOOLS = ['list_pending_proposals', 'modify_pending_proposal', 'c
 const TOOL_GROUPS: Record<string, string[]> = {
   finance: ['get_today_revenue', 'get_cash_balance', 'list_unpaid_expenses', 'list_expected_income', 'get_recent_tips', 'propose_mark_expense_paid', 'propose_lock_tips', 'get_recipe_cost', 'list_high_food_cost', 'update_ingredient_price', 'get_my_recipe_summary', 'propose_set_dish_price', 'daily_status'],
   schedule: ['list_today_schedule', 'build_schedule_now', 'add_scheduling_rule', 'list_scheduling_rules', 'propose_shift_assign', 'propose_employee_shifts_batch', 'propose_remove_from_shift', 'propose_publish_schedule', 'search_employee', 'propose_invite_employee', 'propose_mark_sick', 'find_replacements', 'submit_availability'],
-  reservations: ['check_availability', 'propose_create_reservation', 'propose_cancel_reservation'],
+  reservations: ['check_availability', 'list_reservations', 'propose_create_reservation', 'propose_cancel_reservation'],
   orders: ['list_order_needs', 'propose_mark_supplier_ordered'],
   incidents: ['propose_open_incident', 'list_incidents', 'propose_resolve_incident'],
-  events: ['propose_approve_event', 'list_open_leads', 'search_lead', 'propose_lead_set_stage', 'propose_event_add', 'propose_event_add_batch'],
+  events: ['propose_approve_event', 'propose_add_event_lead', 'list_open_leads', 'search_lead', 'propose_lead_set_stage', 'propose_event_add', 'propose_event_add_batch'],
   tasks: ['propose_task_add', 'propose_task_done', 'list_open_tasks', 'propose_task_add_batch', 'propose_remind_me', 'list_today_events', 'update_scheduled_event', 'cancel_scheduled_event', 'my_branch_tasks', 'mark_branch_task'],
   invoices: ['get_unpaid_invoices', 'search_invoice', 'propose_invoice_mark_paid'],
   team: ['propose_team_broadcast', 'search_employee', 'list_today_schedule', 'add_employee_note', 'add_employee_task', 'list_hr_gaps', 'employee_summary', 'log_employee_meeting', 'set_onboarding_step', 'issue_club_benefit', 'propose_customer_campaign'],
@@ -3012,7 +3121,7 @@ const INTENT_KEYWORDS: Array<[string, RegExp]> = [
   ['deliveries', /משלוח|משלוחים|שליח|נמסר|יצא לדרך|מי קיבל.{0,10}משלוח/],
   ['menu', /תפריט|הוסף מנה|מנה חדשה|תוריד.{0,12}(מהתפריט|מנה)|נגמר ה|מחק.{0,6}מנה|מה (יש )?בתפריט|תעדכן.{0,6}מנה|86 ל/],
   ['recruitment', /מועמד|מועמדים|גיוס|תזמן ראיון|קישור לגיוס|מי הגיש מועמדות|תפסול.{0,6}מועמד|קיבלנו.{0,10}לעבודה|ראיון עם/],
-  ['reservations', /יש מקום|מקום פנוי|(תזמין|להזמין|תרשום|תכניס).{0,12}(שולחן|מקום|הזמנה)|שולחן ל|סועדים|לשבת|רזרב|בטל.{0,10}הזמנה/],
+  ['reservations', /יש מקום|מקום פנוי|(תזמין|להזמין|תרשום|תכניס).{0,12}(שולחן|מקום|הזמנה)|שולחן ל|סועדים|לשבת|רזרב|בטל.{0,10}הזמנה|כמה הזמנות|אילו הזמנות|רשימת הזמנות|הזמנות (של )?(היום|מחר|שבת|הערב)|מי מגיע/],
   ['orders', /ירקן|ספק|מה חסר|מה צריך להזמין|צריך להזמין|מלאי|הזמנתי מ|סמן שהזמנתי|מהבשר|מהאלכוהול/],
   ['incidents', /תקלה|תקלות|התקלקל|נשבר|לא עובד|לא עובדת|מה פתוח|אירוע חריג|קלקול|דליפה|סגור.{0,10}תקלה/],
   ['invoices', /חשבונית|חשבוניות|חשבונית ספק/],

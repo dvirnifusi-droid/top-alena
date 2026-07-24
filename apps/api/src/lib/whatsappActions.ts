@@ -985,6 +985,33 @@ async function executeAction(exec: any): Promise<string> {
       });
       return `✅ ההזמנה של *${exec.customer_name || ''}* (${exec.date || ''} ${exec.time || ''}) בוטלה.`;
     }
+    case 'add_event_lead': {
+      // Restaurant private-event lead — routes through the real createEventLead fn
+      // so it lands on the events callback board with all the ---META--- markers.
+      const { functionHandlers } = await import('../functions/index.js');
+      const res: any = await functionHandlers['createEventLead']({
+        user: { id: 'wa-owner', role: 'owner', email: 'whatsapp' },
+        body: {
+          contact_name: exec.contact_name || null,
+          contact_phone: exec.contact_phone,
+          event_date: exec.event_date || null,
+          event_type: exec.event_type || null,
+          guest_count: exec.guest_count ?? null,
+          event_time: exec.event_time || null,
+          notes: exec.notes || null,
+          source: 'whatsapp',
+        },
+        req: {},
+      } as any).catch((e: any) => ({ error: String(e?.message || e) }));
+      if (res?.error) return `⚠️ האירוע לא נשמר: ${res.error}`;
+      const parts = [
+        exec.contact_name ? `*${exec.contact_name}*` : null,
+        exec.event_type || null,
+        exec.guest_count ? `${exec.guest_count} איש` : null,
+        exec.event_date || null,
+      ].filter(Boolean).join(' · ');
+      return `✅ האירוע נוסף למערכת האירועים${parts ? `: ${parts}` : ''}. תוכל לנהל אותו במסך האירועים.`;
+    }
     case 'lock_tips': {
       // Mirror the Tips.jsx lock write (status/locked_by/locked_at), scoped to the
       // UTC day (+ optional shift_type); skips reports already locked.
