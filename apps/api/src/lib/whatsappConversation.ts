@@ -340,7 +340,7 @@ const TOOL_DECLARATIONS = [
   // ─── Cash flow tools (admin / manager) ────────────────────────────────────
   {
     name: 'get_cash_balance',
-    description: 'Project cash balance N days forward. Use for "מה היתרה?", "כמה כסף נכנס/יוצא השבוע?", "מה התזרים הצפוי?". Defaults to 14 days.',
+    description: 'FORWARD cash-flow PROJECTION N days ahead (a forecast, not the money in the register right now). Use ONLY for future-looking questions: "מה התזרים הצפוי?", "כמה כסף ייכנס/ייצא השבועיים הקרובים?", "איך ייראה התזרים עד סוף החודש?". Do NOT use for "כמה מזומן בקופה עכשיו?" / "יתרת מזומן היום" — that is get_today_revenue. Defaults to 14 days.',
     parameters: { type: 'OBJECT', properties: { days: { type: 'NUMBER' } } },
   },
   {
@@ -428,6 +428,11 @@ const TOOL_DECLARATIONS = [
     name: 'employee_summary',
     description: 'A 360° snapshot of ONE employee — status, which required forms are signed, recent notes, open tasks. Use for "ספר לי על יוסי", "מה המצב עם ליאור?", "כרטיס של דנה".',
     parameters: { type: 'OBJECT', properties: { employee_name: { type: 'STRING' } }, required: ['employee_name'] },
+  },
+  {
+    name: 'count_staff',
+    description: 'Headcount of ACTIVE employees, optionally filtered by role/department. Use for "כמה עובדים יש לנו?", "כמה עובדים פעילים?", "כמה טבחים/מלצרים/ברמנים יש?". Returns the total plus a breakdown by position.',
+    parameters: { type: 'OBJECT', properties: { role: { type: 'STRING', description: 'Optional position/department filter, e.g. "טבח", "מלצר", "בר".' } } },
   },
   {
     name: 'log_employee_meeting',
@@ -629,7 +634,7 @@ const TOOL_DECLARATIONS = [
   // ─── Revenue / ordering / tips (manager-level) ─────────────────────────────
   {
     name: 'get_today_revenue',
-    description: 'הכנסות ומצב המכירות של היום עכשיו (Beecomm בית-עסק + Gomiley משלוחים). טריגרים: "כמה מכרנו היום?", "מה המצב עכשיו?", "כמה כסף נכנס היום?", "כמה מזומן בקופה?".',
+    description: 'הכנסות, מצב המכירות והמזומן בקופה של היום עכשיו (Beecomm בית-עסק + Gomiley משלוחים). טריגרים: "כמה מכרנו היום?", "מה המצב עכשיו?", "כמה כסף נכנס היום?", "כמה מזומן בקופה?", "יתרת מזומן", "כמה מזומן יש עכשיו?". זה המזומן בפועל היום — לא תחזית.',
     parameters: { type: 'OBJECT', properties: {} },
   },
   {
@@ -1452,6 +1457,32 @@ async function tool_get_unpaid_invoices(_args: any, _phone: string): Promise<any
   return { count: inv.length, total: Math.round(total), recent: recent.map((i: any) => ({
     invoice_number: i.invoice_number, supplier: sups[i.supplier_id] || '?', amount: i.total_amount, date: dbDate(i.invoice_date),
   })) };
+}
+
+// Read-only headcount of active employees, with a per-position breakdown and an
+// optional role/department filter ("כמה טבחים יש?").
+async function tool_count_staff(args: any, _phone: string): Promise<any> {
+  const emps: any[] = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 1000 });
+  const roleQ = String(args?.role || '').trim().toLowerCase();
+  const posOf = (e: any) => (e.positions || []).map((p: any) => (p?.position_name || p || '')).filter(Boolean);
+  const filtered = roleQ
+    ? emps.filter((e) => posOf(e).some((p: string) => String(p).toLowerCase().includes(roleQ)) || String(e.department || '').toLowerCase().includes(roleQ))
+    : emps;
+  const byPos: Record<string, number> = {};
+  for (const e of emps) {
+    for (const p of posOf(e)) byPos[p] = (byPos[p] || 0) + 1;
+  }
+  const breakdown = Object.entries(byPos).sort((a, b) => b[1] - a[1]).slice(0, 12)
+    .map(([position, count]) => ({ position, count }));
+  return {
+    total_active: emps.length,
+    filtered_count: roleQ ? filtered.length : undefined,
+    filter: roleQ || undefined,
+    by_position: breakdown,
+    note_for_agent: roleQ
+      ? `${filtered.length} עובדים פעילים בתפקיד "${args.role}" (מתוך ${emps.length} סה"כ).`
+      : `${emps.length} עובדים פעילים בסך הכל. פרט בקצרה לפי תפקיד.`,
+  };
 }
 
 async function tool_search_employee(args: any, _phone: string): Promise<any> {
@@ -2915,6 +2946,7 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   get_recent_tips: tool_get_recent_tips,
   get_unpaid_invoices: tool_get_unpaid_invoices,
   search_employee: tool_search_employee,
+  count_staff: tool_count_staff,
   search_lead: tool_search_lead,
   find_replacements: tool_find_replacements,
   search_invoice: tool_search_invoice,
@@ -3107,7 +3139,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
   events: ['propose_approve_event', 'propose_add_event_lead', 'list_open_leads', 'search_lead', 'propose_lead_set_stage', 'propose_event_add', 'propose_event_add_batch'],
   tasks: ['propose_task_add', 'propose_task_done', 'list_open_tasks', 'propose_task_add_batch', 'propose_remind_me', 'list_today_events', 'update_scheduled_event', 'cancel_scheduled_event', 'my_branch_tasks', 'mark_branch_task'],
   invoices: ['get_unpaid_invoices', 'search_invoice', 'propose_invoice_mark_paid'],
-  team: ['propose_team_broadcast', 'search_employee', 'list_today_schedule', 'add_employee_note', 'add_employee_task', 'list_hr_gaps', 'employee_summary', 'log_employee_meeting', 'set_onboarding_step', 'issue_club_benefit', 'propose_customer_campaign'],
+  team: ['propose_team_broadcast', 'search_employee', 'count_staff', 'list_today_schedule', 'add_employee_note', 'add_employee_task', 'list_hr_gaps', 'employee_summary', 'log_employee_meeting', 'set_onboarding_step', 'issue_club_benefit', 'propose_customer_campaign'],
   menu: ['list_menu', 'add_menu_item', 'set_menu_item_availability', 'update_menu_item', 'remove_menu_item', 'propose_set_dish_price', 'get_recipe_cost'],
   deliveries: ['list_deliveries', 'update_delivery'],
   recruitment: ['list_candidates', 'candidate_summary', 'schedule_interview', 'update_candidate_status', 'recruitment_link'],
@@ -3121,7 +3153,7 @@ const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_
 // only a fallback for wording the keywords miss.
 const INTENT_KEYWORDS: Array<[string, RegExp]> = [
   ['team', /תגיד לכל|תודיע לכל|שלח לכל|הודעה לכל|תעדכן את (כל|ה)|לכל העובדים|לכל הצוות|תגיד למלצרים|תגיד לטבחים|תגיד למטבח/],
-  ['team', /הערה על|תעד ש|מחמאה|מי חסר (לו )?טפסים|מי צריך לחתום|חסר.{0,6}(הסכם|טופס|101)|ספר לי על|מה המצב עם|כרטיס עובד|כרטיס של|שיחת משוב|שיחת אזהרה|שימוע|העלאת שכר|קמפיין|לכל הלקוחות|הטבה ל/],
+  ['team', /הערה על|תעד ש|מחמאה|מי חסר (לו )?טפסים|מי צריך לחתום|חסר.{0,6}(הסכם|טופס|101)|ספר לי על|מה המצב עם|כרטיס עובד|כרטיס של|שיחת משוב|שיחת אזהרה|שימוע|העלאת שכר|קמפיין|לכל הלקוחות|הטבה ל|כמה עובדים|כמה טבחים|כמה מלצרים|כמה ברמנים|כמות עובדים|כמה אנשי צוות/],
   // Reminders/personal-calendar must win early — "תזכיר לי להתקשר לספק" otherwise
   // gets hijacked by the orders rule ("ספק") and the model hallucinates an order/incident.
   ['tasks', /תזכיר|תזכורת|תזכיר לי/],
