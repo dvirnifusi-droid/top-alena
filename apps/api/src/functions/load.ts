@@ -9039,8 +9039,22 @@ registerFn('deleteEmployeeDocument', async ({ user, body }: any) => {
   return { ok: true };
 });
 
+// Operational notes/tasks about staff — back-office (owner/admin/manager) OR a
+// department/shift manager may ADD them (a shift lead logging "יוסי איחר").
+// Plain staff cannot; deletion stays back-office only.
+async function requireStaffNoteAccess(user: any, _fnName: string): Promise<void> {
+  if (!user?.id) throw new Error('unauthorized');
+  let liveRole = String(user?.role || '').toLowerCase();
+  try { const row: any = await (prisma as any).user.findUnique({ where: { id: user.id }, select: { role: true } }); if (row?.role) liveRole = String(row.role).toLowerCase(); } catch { /* */ }
+  if (['owner', 'admin', 'manager'].includes(liveRole)) return;
+  if (user.managed_department) return;
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT role, managed_department FROM "Employee" WHERE lower(email)=lower($1) LIMIT 1`, String(user.email || '')).catch(() => []);
+  const er = String(rows[0]?.role || '').toLowerCase();
+  if (rows[0]?.managed_department || /manager|shift|מנהל/.test(er)) return;
+  throw new Error('forbidden');
+}
 registerFn('addEmployeeNote', async ({ user, body }: any) => {
-  await requireBackOffice(user, 'addEmployeeNote');
+  await requireStaffNoteAccess(user, 'addEmployeeNote');
   await ensureEmployee360();
   const b = (body || {}) as any;
   const employeeId = String(b.employee_id || ''); if (!employeeId) throw new Error('missing_employee');
@@ -9060,7 +9074,7 @@ registerFn('deleteEmployeeNote', async ({ user, body }: any) => {
 });
 
 registerFn('addEmployeeTask', async ({ user, body }: any) => {
-  await requireBackOffice(user, 'addEmployeeTask');
+  await requireStaffNoteAccess(user, 'addEmployeeTask');
   await ensureEmployee360();
   const b = (body || {}) as any;
   const employeeId = String(b.employee_id || ''); if (!employeeId) throw new Error('missing_employee');
@@ -12221,9 +12235,28 @@ async function buildCeoBriefContext() {
     safe(db.inventoryItem.findMany({ where: { current_quantity: { lt: 5 } as any } }), []),
   ]);
 
+  // HR gaps (unsigned work-agreement / 101) — a proactive nudge in the daily
+  // brief instead of a separate clock-based push ([[feedback_no_timezone_auto_behavior]]).
+  let hr_gaps_count = 0; const hr_gaps_names: string[] = [];
+  try {
+    let formsOk = true;
+    const forms: any[] = await (prisma as any).$queryRawUnsafe(`SELECT employee_id, form_type FROM "EmployeeForm" WHERE signed=true`).catch(() => { formsOk = false; return []; });
+    if (formsOk) {
+      const emps: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, full_name FROM "Employee" WHERE COALESCE(status,'active') <> 'terminated'`).catch(() => []);
+      const signed: Record<string, Set<string>> = {};
+      for (const f of forms) (signed[f.employee_id] = signed[f.employee_id] || new Set()).add(f.form_type);
+      for (const e of emps) {
+        const sg = signed[e.id] || new Set();
+        if (!sg.has('work_agreement') || !sg.has('101')) { hr_gaps_count++; if (hr_gaps_names.length < 4) hr_gaps_names.push(e.full_name); }
+      }
+    }
+  } catch { /* additive — never block the brief */ }
+
   return {
     date: today,
     yesterday,
+    hr_gaps_count,
+    hr_gaps_names,
     reservations_today_count: reservationsToday.length,
     reservations_today_people: reservationsToday.reduce((s: number, r: any) => s + (r.party_size || 0), 0),
     reservations_next_7_count: reservationsNext7.length,
@@ -12247,7 +12280,7 @@ You will receive a JSON snapshot of today's operational state. Write a SHORT, AC
 Structure the brief as:
 🌅 פתיחה — מה הכי חשוב היום בשורה אחת
 📊 מצב נוכחי — הזמנות, הכנסות אתמול, טיפים (מספרים קצרים)
-🚨 התראות — אם יש תקריות פתוחות / מלאי נמוך / ראיונות קרובים — תציין במפורש
+🚨 התראות — אם יש תקריות פתוחות / מלאי נמוך / ראיונות קרובים / עובדים חסרי טפסים (hr_gaps_count>0 — ציין כמה וכמה שמות) — תציין במפורש
 🎯 המלצה אחת — פעולה אחת קונקרטית שכדאי שיעשה היום (לא יותר!)
 
 חוקים:
