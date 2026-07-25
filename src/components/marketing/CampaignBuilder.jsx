@@ -148,8 +148,9 @@ export default function CampaignBuilder() {
             <textarea
               value={designInstruction} onChange={(e) => setDesignInstruction(e.target.value)}
               rows={2}
-              placeholder='מה שה-AI יסדר בתמונה? למשל: "הבלט את המנה, רקע נקי ואלגנטי, הוסף פס אדום עם המחיר 59₪, תאורה חמה"'
+              placeholder='מה שה-AI יסדר בתמונה? למשל: "הבלט את המנה, רקע נקי ואלגנטי, תאורה חמה, זווית מהחיתוך"'
               className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm bg-white resize-none" />
+            <p className="text-[11px] text-slate-400">💡 טקסט ומחיר לא נכתבים על התמונה (יוצא מגובב) — הם באים בקופי בנפרד.</p>
           </div>
         )}
 

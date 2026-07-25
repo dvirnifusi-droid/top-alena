@@ -29208,14 +29208,14 @@ registerFn('buildCampaign', async ({ body, user }) => {
   const creativeMeta: any = {};
   if (providedImage && designInstruction) {
     const instruction = [
-      'You are a professional social-media designer for a restaurant.',
-      `Turn THIS EXACT photo into a polished, scroll-stopping ad creative for the goal: "${goal}".`,
+      'You are a professional food-photography retoucher for a restaurant social ad.',
+      `Enhance THIS EXACT photo into a polished, scroll-stopping ad creative for the goal: "${goal}".`,
       `The owner asked specifically: ${designInstruction}`,
       pd.concept ? `Brand concept / vibe: ${pd.concept}.` : '',
-      'You may improve lighting, colour, composition, background and framing, and add tasteful design elements as the owner requested.',
+      'Improve ONLY the photo itself: lighting, white balance, colour vibrancy, sharpness, plating arrangement, cleaner/less-distracting background, and appetising composition.',
+      'ABSOLUTELY NO TEXT: do NOT write, print, overlay or render ANY text, words, letters, prices, numbers, badges, stickers or logos onto the image. You cannot render Hebrew and it always comes out as gibberish. The promotional text is added separately as copy — the image must be clean of any writing.',
       'CRITICAL — authenticity: keep the SAME dish/product EXACTLY as photographed. Do NOT invent, replace, restyle or add different food. It is a real item a paying customer will receive.',
-      'If you add any text, keep it minimal and legible; the main promotional copy is delivered separately.',
-      'Output a single photorealistic, social-media-ready image.',
+      'Output a single clean, photorealistic, social-media-ready image with NO text on it.',
     ].filter(Boolean).join('\n');
     try {
       const out = await editImage({ imageUrl: providedImage, instruction });
