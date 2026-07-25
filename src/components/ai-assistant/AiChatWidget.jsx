@@ -15,6 +15,15 @@ import { useTenantBranding } from "@/hooks/useTenantBranding";
 
 const DVIR_ICON_URL = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/68ac71d972dff18b98e30a21/5d2c4834a_17.png";
 
+// Natural Hebrew Wavenet voices (Google Cloud TTS). Owner picks the tone; the
+// choice is saved as GOOGLE_TTS_VOICE and used for everyone's Dvir.
+const TTS_VOICES = [
+    { value: 'he-IL-Wavenet-D', label: '🧔 גברי — עמוק' },
+    { value: 'he-IL-Wavenet-B', label: '🧔 גברי — רגיל' },
+    { value: 'he-IL-Wavenet-A', label: '👩 נשי — רגיל' },
+    { value: 'he-IL-Wavenet-C', label: '👩 נשי — חם' },
+];
+
 export default function AiChatWidget() {
     const branding = useTenantBranding();
     const [isOpen, setIsOpen] = useState(false);
@@ -37,6 +46,8 @@ export default function AiChatWidget() {
     const [feedbackGiven, setFeedbackGiven] = useState({});
     const [isListening, setIsListening] = useState(false);
     const [ttsEnabled, setTtsEnabled] = useState(true);
+    const [ttsVoice, setTtsVoice] = useState(() => { try { return localStorage.getItem('dvir_tts_voice') || ''; } catch { return ''; } });
+    const [savingVoice, setSavingVoice] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [loadingAudioId, setLoadingAudioId] = useState(null);
     const [audioCountdown, setAudioCountdown] = useState(0);
@@ -116,7 +127,7 @@ export default function AiChatWidget() {
         } catch { return false; }
     };
 
-    const speak = async (text, messageId) => {
+    const speak = async (text, messageId, voiceOverride) => {
         if (!ttsEnabled) return;
         stopSpeaking();
 
@@ -132,7 +143,7 @@ export default function AiChatWidget() {
             try {
                 let objUrl = messageId && audioCacheRef.current[messageId];
                 if (!objUrl) {
-                    const res = await googleTts({ text: clean });
+                    const res = await googleTts(voiceOverride ? { text: clean, voice: voiceOverride } : { text: clean });
                     const data = res?.data || res;
                     if (data?.fallback) {
                         googleTtsUnavailableRef.current = true;
@@ -166,6 +177,19 @@ export default function AiChatWidget() {
         }
         try { window.speechSynthesis?.cancel(); } catch { /* ignore */ }
         setIsSpeaking(false);
+    };
+
+    // Owner-only: switch Dvir's voice tone. Saves GOOGLE_TTS_VOICE (applies to
+    // everyone's Dvir) and plays a live preview in the chosen voice.
+    const changeVoice = async (v) => {
+        if (!v) return;
+        setTtsVoice(v);
+        try { localStorage.setItem('dvir_tts_voice', v); } catch { /* ignore */ }
+        audioCacheRef.current = {}; // cached clips used the previous voice
+        setSavingVoice(true);
+        try { await base44.functions.setIntegrationSecret({ key: 'GOOGLE_TTS_VOICE', value: v }); } catch { /* ignore */ }
+        setSavingVoice(false);
+        speak('שלום, זה הקול החדש שלי. ככה אני אשמע מעכשיו.', 'voice-preview', v);
     };
 
     const startListening = () => {
@@ -643,6 +667,18 @@ export default function AiChatWidget() {
                         <CardTitle className="text-xs sm:text-sm">דביר - עוזר פנימי</CardTitle>
                     </div>
                     <div className="flex items-center gap-2">
+                        {(user?.role === 'owner' || user?.role === 'admin') && ttsEnabled && (
+                            <select
+                                value={ttsVoice}
+                                onChange={(e) => changeVoice(e.target.value)}
+                                disabled={savingVoice}
+                                title="בחר גוון קול לדביר"
+                                className="bg-white/20 hover:bg-white/30 text-white text-xs rounded-lg px-2 h-8 border-0 outline-none cursor-pointer max-w-[130px] disabled:opacity-50"
+                            >
+                                <option value="" className="text-slate-800">🎙️ קול…</option>
+                                {TTS_VOICES.map(v => <option key={v.value} value={v.value} className="text-slate-800">{v.label}</option>)}
+                            </select>
+                        )}
                         <Button variant="ghost" size="sm" onClick={() => { setTtsEnabled(p => { if (p) stopSpeaking(); return !p; }); }} className="bg-white/30 hover:bg-white/50 text-white h-8 w-8 p-0 rounded-full" title={ttsEnabled ? 'השתק קול' : 'הפעל קול'}>
                             {ttsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                         </Button>
