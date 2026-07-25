@@ -7,7 +7,7 @@ import { User } from "@/entities/User";
 import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { askGemini } from "@/functions/askGemini";
-import { elevenLabsTts } from "@/functions/elevenLabsTts";
+import { googleTts } from "@/functions/googleTts";
 import { pushoverOnMenuTrainingComplete } from "@/functions/pushoverOnMenuTrainingComplete";
 import { base44 } from "@/api/base44Client";
 import { MenuTrainingResult } from "@/entities/all";
@@ -49,6 +49,8 @@ export default function AiChatWidget() {
     const recognitionRef = useRef(null);
     const currentAudioRef = useRef(null);
     const audioCacheRef = useRef({}); // messageId -> objectURL
+    const googleTtsUnavailableRef = useRef(false); // once Google TTS says "no key"/error, stop asking this session
+    const voicesRef = useRef([]); // browser speech-synthesis voices (load async)
     const cleanForTts = (text) => text
         .replace(/[*_#`~\[\]]/g, '')
         .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
@@ -66,19 +68,36 @@ export default function AiChatWidget() {
         return URL.createObjectURL(blob);
     };
 
+    // Prefetch the natural Google Cloud voice for a message so pressing play is
+    // instant. Silently no-ops when Google TTS isn't configured (browser voice used).
     const prefetchAudio = async (messageId, text) => {
-        if (audioCacheRef.current[messageId]) return;
+        if (audioCacheRef.current[messageId] || googleTtsUnavailableRef.current) return;
         const clean = cleanForTts(text);
         if (!clean) return;
         try {
-            const res = await elevenLabsTts({ text: clean });
-            const base64 = res?.data?.audio_base64 || res?.audio_base64;
-            if (base64) audioCacheRef.current[messageId] = base64ToObjUrl(base64);
-        } catch (e) { console.error('Prefetch error:', e); }
+            const res = await googleTts({ text: clean });
+            const data = res?.data || res;
+            if (data?.fallback) { googleTtsUnavailableRef.current = true; return; }
+            if (data?.audio_base64) audioCacheRef.current[messageId] = base64ToObjUrl(data.audio_base64);
+        } catch { /* ignore — browser voice will cover it */ }
     };
 
-    // Free, unlimited Hebrew TTS via the browser's built-in speech engine.
-    // Used by default (no cost); ElevenLabs is only used when PREMIUM_VOICE is on.
+    // Pick the BEST Hebrew voice the device offers: Google (Chrome/Android),
+    // then an enhanced/premium/neural system voice (modern iOS), then any Hebrew.
+    const pickHebrewVoice = () => {
+        const voices = (voicesRef.current && voicesRef.current.length)
+            ? voicesRef.current
+            : (window.speechSynthesis?.getVoices() || []);
+        const he = voices.filter(v => /he|iw/i.test(v.lang));
+        return he.find(v => /google/i.test(v.name))
+            || he.find(v => /(enhanced|premium|neural|siri)/i.test(v.name))
+            || he[0]
+            || null;
+    };
+
+    // Free, unlimited Hebrew TTS via the browser's built-in speech engine — the
+    // fallback when Google Cloud TTS isn't configured or fails. Picks the nicest
+    // Hebrew voice available on the device.
     const speakBrowser = (text) => {
         try {
             const synth = window.speechSynthesis;
@@ -86,9 +105,9 @@ export default function AiChatWidget() {
             synth.cancel();
             const u = new SpeechSynthesisUtterance(text);
             u.lang = 'he-IL';
-            const voices = synth.getVoices() || [];
-            const he = voices.find(v => /he|iw/i.test(v.lang));
-            if (he) u.voice = he;
+            const v = pickHebrewVoice();
+            if (v) u.voice = v;
+            u.rate = 1.0;
             u.onstart = () => { setLoadingAudioId(null); setAudioCountdown(0); setIsSpeaking(true); };
             u.onend = () => setIsSpeaking(false);
             u.onerror = () => setIsSpeaking(false);
@@ -104,56 +123,40 @@ export default function AiChatWidget() {
         const clean = cleanForTts(text);
         if (!clean) return;
 
-        setLoadingAudioId(messageId || null);
-        const estimatedSeconds = Math.max(3, Math.round(clean.length / 100));
-        setAudioCountdown(estimatedSeconds);
-        if (audioTimerRef.current) clearInterval(audioTimerRef.current);
-        audioTimerRef.current = setInterval(() => {
-            setAudioCountdown(prev => prev <= 1 ? 0 : prev - 1);
-        }, 1000);
-
-        // Default: free browser voice (no cost, never runs out). Flip to true for ElevenLabs.
-        const PREMIUM_VOICE = false;
-        if (!PREMIUM_VOICE) {
-            clearInterval(audioTimerRef.current);
-            if (speakBrowser(clean)) return;
-            // browser TTS unavailable -> fall through to ElevenLabs below
+        // 1) Google Cloud TTS — natural, identical on every device. Skipped once we
+        //    learn it isn't configured; on {fallback}/error we drop to the browser voice
+        //    so audio NEVER stops working and never costs money unexpectedly.
+        if (!googleTtsUnavailableRef.current) {
+            setLoadingAudioId(messageId || null);
+            setAudioCountdown(0);
+            try {
+                let objUrl = messageId && audioCacheRef.current[messageId];
+                if (!objUrl) {
+                    const res = await googleTts({ text: clean });
+                    const data = res?.data || res;
+                    if (data?.fallback) {
+                        googleTtsUnavailableRef.current = true;
+                    } else if (data?.audio_base64) {
+                        objUrl = base64ToObjUrl(data.audio_base64);
+                        if (messageId) audioCacheRef.current[messageId] = objUrl;
+                    }
+                }
+                if (objUrl) {
+                    setLoadingAudioId(null);
+                    setIsSpeaking(true);
+                    const audio = new Audio(objUrl);
+                    currentAudioRef.current = audio;
+                    audio.onended = () => setIsSpeaking(false);
+                    audio.onerror = () => { setIsSpeaking(false); speakBrowser(clean); };
+                    await audio.play().catch(() => { setIsSpeaking(false); speakBrowser(clean); });
+                    return;
+                }
+            } catch { /* fall through to the free browser voice */ }
+            setLoadingAudioId(null);
         }
 
-        try {
-            let objUrl = messageId && audioCacheRef.current[messageId];
-            if (!objUrl) {
-                const res = await elevenLabsTts({ text: clean });
-                console.log('TTS Response:', res);
-                const base64 = res?.data?.audio_base64 || res?.audio_base64;
-                console.log('Base64 extracted:', !!base64);
-                if (!base64) throw new Error('No audio in response: ' + JSON.stringify(res));
-                objUrl = base64ToObjUrl(base64);
-                if (messageId) audioCacheRef.current[messageId] = objUrl;
-            }
-            clearInterval(audioTimerRef.current);
-            setLoadingAudioId(null);
-            setAudioCountdown(0);
-            setIsSpeaking(true);
-            const audio = new Audio(objUrl);
-            currentAudioRef.current = audio;
-            audio.onended = () => { setIsSpeaking(false); };
-            audio.onerror = (err) => { 
-                console.error('Audio error:', err);
-                setIsSpeaking(false); 
-            };
-            audio.play().catch(err => {
-                console.error('Play error:', err);
-                setIsSpeaking(false);
-            });
-        } catch (e) {
-            console.error('TTS error (falling back to free browser voice):', e);
-            clearInterval(audioTimerRef.current);
-            setLoadingAudioId(null);
-            setAudioCountdown(0);
-            // ElevenLabs failed/quota exhausted -> free browser voice so audio never stops
-            if (!speakBrowser(clean)) setIsSpeaking(false);
-        }
+        // 2) Free browser voice (Google on Chrome/Android, natural system voice on iOS).
+        if (!speakBrowser(clean)) setIsSpeaking(false);
     };
 
     const stopSpeaking = () => {
@@ -222,6 +225,18 @@ export default function AiChatWidget() {
 
     useEffect(() => {
         User.me().then(setUser).catch(() => setUser(null));
+    }, []);
+
+    // Browser speech voices load asynchronously — getVoices() is often empty on the
+    // first call until 'voiceschanged' fires. Cache them so speakBrowser always has
+    // the full list (and can pick the best Hebrew voice) even on the first click.
+    useEffect(() => {
+        const synth = window.speechSynthesis;
+        if (!synth) return;
+        const load = () => { voicesRef.current = synth.getVoices() || []; };
+        load();
+        synth.addEventListener?.('voiceschanged', load);
+        return () => { try { synth.removeEventListener?.('voiceschanged', load); } catch { /* noop */ } };
     }, []);
 
     const searchInternalKnowledge = (question, knowledgeBase) => {

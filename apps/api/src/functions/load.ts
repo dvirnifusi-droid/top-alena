@@ -5887,6 +5887,37 @@ registerFn('warmDvirFileText', async ({ user }) => {
   return { total: queue.length, warmed: results.filter((r) => r.ok).length, results };
 });
 
+// Natural Hebrew TTS via Google Cloud Text-to-Speech (Wavenet) — the same voice
+// on every device (iPhone included). Returns MP3 base64. When no key is configured,
+// the call fails, or the quota is hit, it returns { fallback:true } so the client
+// uses the FREE browser voice — the app never breaks and never costs money
+// unexpectedly. Owner supplies GOOGLE_TTS_API_KEY (integration secret or env).
+registerFn('googleTts', async ({ body }) => {
+  const text = String((body as any)?.text || '').replace(/\s+/g, ' ').trim().slice(0, 5000);
+  if (!text) throw new Error('text required');
+  const key = await getSecret('GOOGLE_TTS_API_KEY');
+  if (!key) return { fallback: true, reason: 'no_key' };
+  const voice = String((body as any)?.voice || '').trim() || (await getSecret('GOOGLE_TTS_VOICE')) || 'he-IL-Wavenet-D';
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    let d: any;
+    try {
+      const r = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${key}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+        body: JSON.stringify({
+          input: { text },
+          voice: { languageCode: 'he-IL', name: voice },
+          audioConfig: { audioEncoding: 'MP3', speakingRate: 1.02 },
+        }),
+      });
+      d = await r.json();
+      if (!r.ok || !d?.audioContent) { console.warn('[googleTts]', r.status, JSON.stringify(d?.error || '').slice(0, 160)); return { fallback: true, reason: 'error' }; }
+    } finally { clearTimeout(timer); }
+    return { audio_base64: d.audioContent };
+  } catch (e: any) { console.warn('[googleTts] failed:', e?.message); return { fallback: true, reason: 'error' }; }
+});
+
 registerFn('aiAnalyzeIncident', async ({ body }) => {
   const { incident_id } = body as any;
   const incident = await db.incident.findUnique({ where: { id: incident_id } });
