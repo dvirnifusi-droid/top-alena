@@ -139,6 +139,28 @@ export async function alertEmailInvoicesImported(count: number): Promise<void> {
   await broadcastToAdmins(await notifText('invoices_imported_alert', fallback, { count }));
 }
 
+// Transparency for the automatic invoice→dish-cost update: whenever the scan
+// applied SAFE ingredient price changes, tell the owner what moved so an
+// automatic price mutation is never silent. Gated by the same setting as the
+// import alert (turning off import alerts turns this off too).
+export async function alertIngredientPricesAutoUpdated(
+  applied: Array<{ ingredient: string; from: number | null; to: number; change_pct: number | null }>,
+): Promise<void> {
+  if (!applied?.length) return;
+  if (!(await isNotifEnabled('invoices_imported_alert'))) return;
+  const line = (a: { ingredient: string; from: number | null; to: number; change_pct: number | null }) =>
+    `• ${a.ingredient}: ₪${a.from ?? '—'} → ₪${a.to}` +
+    (a.change_pct != null ? ` (${a.change_pct > 0 ? '+' : ''}${a.change_pct}%)` : '');
+  const top = applied.slice(0, 6).map(line);
+  const more = applied.length > 6 ? `\n…ועוד ${applied.length - 6}` : '';
+  const msg = [
+    `🧮 *${applied.length} מחירי חומר גלם עודכנו אוטומטית מחשבוניות*`,
+    'עלויות המנות המושפעות חושבו מחדש. לצפייה ועריכה: /Recipes',
+    ...top,
+  ].join('\n') + more;
+  await broadcastToAdmins(msg);
+}
+
 export async function alertEmailAccountDisconnected(email: string): Promise<void> {
   if (!(await isNotifEnabled('email_disconnected_alert'))) return;
   const fallback = [

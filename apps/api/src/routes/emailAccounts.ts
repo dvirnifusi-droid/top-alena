@@ -7,6 +7,7 @@ import { encryptToken } from '../lib/emailCrypto.js';
 import { testConnection } from '../lib/emailFetch.js';
 import { scanEmailInvoices } from '../lib/emailInvoiceScan.js';
 import { autoApplyInvoiceIngredientPrices } from '../functions/load.js';
+import { alertIngredientPricesAutoUpdated } from '../lib/whatsappAlerts.js';
 
 export const emailAccountsRoutes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', requireAuth);
@@ -64,8 +65,10 @@ export const emailAccountsRoutes: FastifyPluginAsync = async (app) => {
     void scanEmailInvoices(opts)
       .then(async (res) => {
         if (res?.imported > 0) {
-          await autoApplyInvoiceIngredientPrices({ reason: 'scan-now' }).catch((e: any) =>
-            console.warn('[scan-now] ingredient auto-price failed', e?.message));
+          try {
+            const priced = await autoApplyInvoiceIngredientPrices({ reason: 'scan-now' });
+            await alertIngredientPricesAutoUpdated(priced.applied);
+          } catch (e: any) { console.warn('[scan-now] ingredient auto-price failed', e?.message); }
         }
       })
       .catch((e: any) => console.error('[scan-now] background scan failed', e?.message));

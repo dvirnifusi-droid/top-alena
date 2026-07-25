@@ -7,6 +7,7 @@ import { sendWeeklyInsights, buildWeeklyInsights } from '../lib/weeklyInsights.j
 import { pullAllConnectedCalendars } from '../lib/googleSync.js';
 import { scanEmailInvoices } from '../lib/emailInvoiceScan.js';
 import { runInvoiceGapsDigest } from '../lib/invoiceGaps.js';
+import { alertIngredientPricesAutoUpdated } from '../lib/whatsappAlerts.js';
 
 // Internal cron endpoints, guarded by a shared secret (x-cron-secret header or
 // ?secret=). Called by the server crontab — never by end users.
@@ -148,8 +149,10 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   app.post('/email-invoice-scan', async () => {
     const res = await scanEmailInvoices();
     if (res.imported > 0) {
-      try { await autoApplyInvoiceIngredientPrices({ reason: 'email-scan' }); }
-      catch (e: any) { console.warn('[email-invoice-scan] ingredient auto-price failed', e?.message); }
+      try {
+        const priced = await autoApplyInvoiceIngredientPrices({ reason: 'email-scan' });
+        await alertIngredientPricesAutoUpdated(priced.applied);
+      } catch (e: any) { console.warn('[email-invoice-scan] ingredient auto-price failed', e?.message); }
     }
     return res;
   });
@@ -160,8 +163,10 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
     const days = Math.min(365, Math.max(1, Number((req.query as any)?.days) || 30));
     const res = await scanEmailInvoices({ backfillDays: days });
     if (res.imported > 0) {
-      try { await autoApplyInvoiceIngredientPrices({ reason: 'email-backfill' }); }
-      catch (e: any) { console.warn('[email-invoice-backfill] ingredient auto-price failed', e?.message); }
+      try {
+        const priced = await autoApplyInvoiceIngredientPrices({ reason: 'email-backfill' });
+        await alertIngredientPricesAutoUpdated(priced.applied);
+      } catch (e: any) { console.warn('[email-invoice-backfill] ingredient auto-price failed', e?.message); }
     }
     return res;
   });
