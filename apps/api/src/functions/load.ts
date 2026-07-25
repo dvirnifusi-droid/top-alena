@@ -28863,11 +28863,21 @@ registerFn('proposeMarketingActions', async ({ body, user }) => {
               message: { type: 'string' },
               reason: { type: 'string' },
             },
+            required: ['segment_key', 'channel', 'message'],
           },
         },
       },
     },
   });
+  // Never hand the owner an empty message — fall back to a sane per-segment draft.
+  const FALLBACK_MSG: Record<string, string> = {
+    lapsed_60: 'התגעגענו אליך! חזרו אלינו החודש ותיהנו מחוויה מיוחדת 🙌',
+    birthdays_month: 'מזל טוב! חוגגים החודש? בואו לחגוג איתנו 🎂',
+    vip: 'כלקוח מועדף שלנו — שמרנו לך משהו מיוחד. נשמח לראותך!',
+    coins_holders: 'יש לך מטבעות שמחכים לך! בואו לממש אותם אצלנו 🪙',
+    new_30: 'שמחים שהצטרפת! הנה סיבה מצוינת לחזור בקרוב 😊',
+    all_consented: 'יש לנו חדשות טובות עבורך — בואו לגלות!',
+  };
   const actions: any[] = [];
   for (const a of (Array.isArray(result?.actions) ? result.actions : [])) {
     const key = MARKETING_SEGMENTS[a?.segment_key] ? a.segment_key : 'all_consented';
@@ -28876,7 +28886,7 @@ registerFn('proposeMarketingActions', async ({ body, user }) => {
       segment_key: key,
       segment_label: MARKETING_SEGMENTS[key].label,
       channel: ['sms', 'whatsapp'].includes(a?.channel) ? a.channel : 'sms',
-      message: String(a?.message || '').slice(0, 600),
+      message: (String(a?.message || '').trim() || FALLBACK_MSG[key] || 'יש לנו משהו בשבילך — בואו אלינו!').slice(0, 600),
       reason: String(a?.reason || ''),
       recipient_count: ids.length,
     });
