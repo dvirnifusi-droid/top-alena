@@ -29162,7 +29162,12 @@ registerFn('buildCampaign', async ({ body, user }) => {
   const b = (body || {}) as any;
   const goal = String(b.goal || '').trim() || 'להגדיל הכנסה השבוע';
   const providedImage = String(b.image_url || '').trim() || null;
-  const wantImage = b.generate_image !== false && !providedImage;
+  const designInstruction = String(b.design_instruction || '').trim();
+  // Text-to-image generation ("invent a scene") is now OPT-IN only — it produced
+  // fake, off-brand images. The AI-design path conditions on the owner's REAL
+  // photo instead (editImage). Legacy from-scratch fires only if explicitly asked
+  // AND no photo was provided.
+  const wantImage = b.generate_image === true && !providedImage;
   const baseContext = await customerBaseContext();
   const profile: any = await db.businessProfile.findFirst().catch(() => null);
   const pd: any = profile?.profile_data || {};
@@ -29193,9 +29198,38 @@ registerFn('buildCampaign', async ({ body, user }) => {
     },
   });
 
-  // 2) Creative: use the provided image, else design one from the brief (Imagen).
+  // 2) Creative. Priority:
+  //   (a) real photo + design instruction → editImage designs ON the owner's
+  //       actual photo (the dish stays real — this is what the owner wants);
+  //   (b) legacy opt-in from-scratch generation (only if explicitly requested
+  //       with no photo);
+  //   (c) provided photo with no instruction → pass through unchanged.
   let creative_image_base64: string | null = null;
-  if (wantImage) {
+  const creativeMeta: any = {};
+  if (providedImage && designInstruction) {
+    const instruction = [
+      'You are a professional social-media designer for a restaurant.',
+      `Turn THIS EXACT photo into a polished, scroll-stopping ad creative for the goal: "${goal}".`,
+      `The owner asked specifically: ${designInstruction}`,
+      pd.concept ? `Brand concept / vibe: ${pd.concept}.` : '',
+      'You may improve lighting, colour, composition, background and framing, and add tasteful design elements as the owner requested.',
+      'CRITICAL — authenticity: keep the SAME dish/product EXACTLY as photographed. Do NOT invent, replace, restyle or add different food. It is a real item a paying customer will receive.',
+      'If you add any text, keep it minimal and legible; the main promotional copy is delivered separately.',
+      'Output a single photorealistic, social-media-ready image.',
+    ].filter(Boolean).join('\n');
+    try {
+      const out = await editImage({ imageUrl: providedImage, instruction });
+      creative_image_base64 = out.image_base64;
+      creativeMeta.designed = true;
+      creativeMeta.model = out.model;
+      void writeAiUsage({ fn_name: 'buildCampaign.design', model: out.model, tokens_in: 0, tokens_out: 0 }).catch(() => {});
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      creativeMeta.design_error = /40[13]/.test(msg)
+        ? 'עיצוב ה-AI לא זמין על החשבון כרגע — התמונה שלך תשמש כמו שהיא.'
+        : 'עיצוב ה-AI לא הצליח — נסה שוב או השתמש בתמונה כמו שהיא.';
+    }
+  } else if (wantImage) {
     const brief = String(plan?.image_brief || goal);
     const img: any = await generateImage({ prompt: `${brief}. ${pd.concept || ''}. Professional, appetizing food photography for ${brand}. Hyper-realistic, social-media ready, natural light.` }).catch(() => ({}));
     creative_image_base64 = img?.image_base64 || null;
@@ -29214,7 +29248,7 @@ registerFn('buildCampaign', async ({ body, user }) => {
       channel: String(plan?.channel || 'whatsapp'),
       daily_budget: Math.max(0, Math.round(Number(plan?.daily_budget) || 0)),
     },
-    creative: { image_url: providedImage, image_base64: creative_image_base64, image_brief: String(plan?.image_brief || '') },
+    creative: { image_url: providedImage, image_base64: creative_image_base64, image_brief: String(plan?.image_brief || ''), ...creativeMeta },
   };
 });
 
