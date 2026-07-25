@@ -46,6 +46,15 @@ export type AccessScope = {
   is_owner: boolean;
 };
 
+// In-app Dvir chat sessions (a logged-in USER, no phone) register their resolved
+// scope here keyed by an `app:<userId>` session key, so the same phone-centric
+// conversation agent + all its tools work unchanged for a web user. Populated by
+// dvirAgentChat before each run; resolveAccessScope returns it for `app:` keys.
+const _appScopes = new Map<string, AccessScope>();
+export function registerAppScope(sessionKey: string, scope: AccessScope): void {
+  _appScopes.set(sessionKey, scope);
+}
+
 // === Position → department mapping ====================================
 const POSITION_TO_DEPT: Array<{ test: RegExp; dept: Department }> = [
   { test: /(טבח|שטיפה|שף|מטבח|פיצריה|גריל|סלטים)/, dept: 'kitchen' },
@@ -151,6 +160,15 @@ async function isCoOwnerRecipient(phoneDigits: string): Promise<boolean> {
 
 export async function resolveAccessScope(rawPhone: string): Promise<AccessScope> {
   const phone = String(rawPhone || '').trim();
+
+  // ── 0. In-app Dvir chat session (`app:<userId>`) → its registered scope ──────
+  if (phone.startsWith('app:')) {
+    const s = _appScopes.get(phone);
+    if (s) return s;
+    // Unknown/expired app session → safe read-only fallback.
+    return { role: 'staff', employee_id: null, employee_name: 'משתמש', phone, can_write: false, visible_departments: 'all', visible_employee_ids: [], role_label_he: 'עובד', is_owner: false };
+  }
+
   const phoneDigits = normalizePhone(phone);
 
   // ── 1. Admin numbers from env → owner scope ─────────────────────────

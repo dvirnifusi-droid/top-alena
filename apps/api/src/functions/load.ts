@@ -5943,6 +5943,42 @@ registerFn('googleTts', async ({ body }) => {
   } catch (e: any) { console.warn('[googleTts] failed:', e?.message); return { fallback: true, reason: 'error' }; }
 });
 
+// ── Dvir as a full agent (in-app) ───────────────────────────────────────────
+// Brings the WhatsApp conversation agent (live data + ~82 actions, permission
+// scoping, "כן" confirm flow) into the in-app Dvir chat for the LOGGED-IN user.
+// Builds their scope, registers it under an `app:<userId>` session key, handles a
+// pending-action confirmation first, else runs the agent. Actions still require
+// the user's "כן". Knowledge from uploaded files stays in askGemini (the widget
+// uses this for operational asks + actions).
+registerFn('dvirAgentChat', async ({ body, user }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const message = String((body as any)?.message || '').trim();
+  if (!message) throw new Error('message required');
+  const role = (user as any).role;
+  const sessionKey = `app:${user.id}`;
+  let scope: any;
+  if (role === 'owner') {
+    scope = { role: 'owner', employee_id: null, employee_name: 'בעלים', phone: sessionKey, can_write: true, visible_departments: 'all', visible_employee_ids: 'all', role_label_he: 'בעלים', is_owner: true };
+  } else if (role === 'admin' || (user as any).managed_department) {
+    scope = { role: 'restaurant_manager', employee_id: null, employee_name: String((user as any).full_name || 'מנהל'), phone: sessionKey, can_write: true, visible_departments: 'all', visible_employee_ids: 'all', role_label_he: 'מנהל', is_owner: false };
+  } else {
+    let empId: string | null = null; let empName = String((user as any).full_name || 'עובד');
+    try {
+      const em = String((user as any).email || '').toLowerCase();
+      if (em) { const r: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, full_name FROM "Employee" WHERE lower(email)=$1 LIMIT 1`, em); if (r[0]) { empId = r[0].id; empName = r[0].full_name || empName; } }
+    } catch { /* best-effort */ }
+    scope = { role: 'staff', employee_id: empId, employee_name: empName, phone: sessionKey, can_write: false, visible_departments: 'all', visible_employee_ids: [], role_label_he: 'עובד', is_owner: false };
+  }
+  const { registerAppScope } = await import('../lib/whatsappPermissions.js');
+  registerAppScope(sessionKey, scope);
+  const { tryConfirmPendingAction } = await import('../lib/whatsappActions.js');
+  const { runConversationAgent } = await import('../lib/whatsappConversation.js');
+  const confirmed = await tryConfirmPendingAction(sessionKey, message).catch(() => null);
+  if (confirmed) return { reply: confirmed };
+  const reply = await runConversationAgent(sessionKey, message);
+  return { reply };
+});
+
 registerFn('aiAnalyzeIncident', async ({ body }) => {
   const { incident_id } = body as any;
   const incident = await db.incident.findUnique({ where: { id: incident_id } });
