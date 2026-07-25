@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runWeeklyScheduleOpen, runWeeklyScheduleReminder, runWeeklyScheduleFinalReminder, runWeeklyScheduleBuild, runNoShowWatcher, runInvoiceClassifier, runCrisisAgent, runContentGenerator, runCashFlowAgent, sendReservationReminders, runSupplierOrderAlerts } from '../functions/load.js';
+import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runWeeklyScheduleOpen, runWeeklyScheduleReminder, runWeeklyScheduleFinalReminder, runWeeklyScheduleBuild, runNoShowWatcher, runInvoiceClassifier, runCrisisAgent, runContentGenerator, runCashFlowAgent, sendReservationReminders, runSupplierOrderAlerts, autoApplyInvoiceIngredientPrices } from '../functions/load.js';
 import { sendMorningBrief, buildMorningBrief, sendEndOfDayBrief, buildEndOfDayBrief } from '../lib/morningBrief.js';
 import { sendDailyHoursReport, checkDailyHoursReportSchedule } from '../lib/dailyHoursReport.js';
 import { dispatchDueReminders } from '../lib/reminders.js';
@@ -143,14 +143,27 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   // Every 10 min — checks for crisis incidents.
   app.post('/crisis-agent', async () => runCrisisAgent());
 
-  // Every 10 min — pull supplier invoices from connected Gmail inboxes.
-  app.post('/email-invoice-scan', async () => scanEmailInvoices());
+  // Every 10 min — pull supplier invoices from connected Gmail inboxes, then push
+  // any new supplier prices into the recipe cost engine so dish food-cost stays live.
+  app.post('/email-invoice-scan', async () => {
+    const res = await scanEmailInvoices();
+    if (res.imported > 0) {
+      try { await autoApplyInvoiceIngredientPrices({ reason: 'email-scan' }); }
+      catch (e: any) { console.warn('[email-invoice-scan] ingredient auto-price failed', e?.message); }
+    }
+    return res;
+  });
 
   // On-demand historical backfill — pull invoices from further back than the
   // default 30-day window. e.g. POST /email-invoice-backfill?days=60
   app.post('/email-invoice-backfill', async (req) => {
     const days = Math.min(365, Math.max(1, Number((req.query as any)?.days) || 30));
-    return scanEmailInvoices({ backfillDays: days });
+    const res = await scanEmailInvoices({ backfillDays: days });
+    if (res.imported > 0) {
+      try { await autoApplyInvoiceIngredientPrices({ reason: 'email-backfill' }); }
+      catch (e: any) { console.warn('[email-invoice-backfill] ingredient auto-price failed', e?.message); }
+    }
+    return res;
   });
 
   // Weekly (Sun ~09:00 IL) — WhatsApp a gaps digest: pending-review invoices,

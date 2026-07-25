@@ -15365,8 +15365,11 @@ registerFn('updateIngredientPrice', async ({ body, user }) => {
 // name → fuzzy). Approving one re-prices every affected dish's food_cost_percent
 // through the existing engine. This is the link Maor asked for: supplier price
 // change → the product tree updates.
-registerFn('getIngredientPriceUpdates', async ({ user }: any) => {
-  await requireBackOffice(user, 'getIngredientPriceUpdates', 'Recipes');
+// Shared computation: match recent invoice line-items → Ingredient (raw material),
+// newest price per product wins, return only MATERIAL changes (≥2% and ≥₪0.05).
+// Used by the manual review UI (getIngredientPriceUpdates) AND the automatic
+// post-invoice updater (autoApplyInvoiceIngredientPrices) so both stay consistent.
+async function computeIngredientPriceUpdates(): Promise<{ updates: any[]; unmatched: any[]; ingredients: any[] }> {
   await ensureInventoryTables();
   const dbx = prisma as any;
   const norm = (s: any) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -15424,6 +15427,59 @@ registerFn('getIngredientPriceUpdates', async ({ user }: any) => {
   }
   updates.sort((a, b) => Math.abs(b.change_pct ?? 999) - Math.abs(a.change_pct ?? 999));
   return { updates, unmatched: unmatched.slice(0, 40), ingredients: ings.map((i: any) => ({ id: String(i.id), name: i.name })) };
+}
+
+registerFn('getIngredientPriceUpdates', async ({ user }: any) => {
+  await requireBackOffice(user, 'getIngredientPriceUpdates', 'Recipes');
+  return computeIngredientPriceUpdates();
+});
+
+// Automatically apply the SAFE subset of invoice→ingredient price updates so dish
+// costs stay accurate without the owner opening a screen. "Safe" = an alias match
+// (a product→ingredient mapping the owner already confirmed once) OR an exact-name
+// match, AND the new price is within a sane band of the old one (⅓×–3×) — a wild
+// swing is almost always a mis-scanned line, so it's LEFT for manual review on the
+// Recipes bridge along with every fuzzy match. Idempotent: once prices converge
+// nothing is "material", so re-running after each scan is a cheap no-op.
+export async function autoApplyInvoiceIngredientPrices(_opts: { reason?: string } = {}): Promise<{
+  applied: Array<{ ingredient: string; from: number | null; to: number; change_pct: number | null; product: string; via: string }>;
+  held: number;
+  dishes_repriced: number;
+}> {
+  const { updates } = await computeIngredientPriceUpdates();
+  const applied: any[] = [];
+  let held = 0;
+  const changedIngredientIds = new Set<string>();
+  for (const u of updates) {
+    const highConf = u.confidence === 'exact' || u.confidence === 'name';
+    const cur: number | null = u.current_price;
+    const np: number = u.new_price;
+    const saneMagnitude = cur == null || cur <= 0 || (np <= cur * 3 && np >= cur / 3);
+    if (!highConf || !saneMagnitude) { held++; continue; }
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "Ingredient" SET price_per_unit = $1, "updatedAt" = NOW() WHERE id = $2`, np, u.ingredient_id).catch(() => {});
+    // Exact-name match with no alias yet → learn it, so next time it's an alias hit.
+    if (u.confidence === 'name' && u.product_name) {
+      const pn = String(u.product_name).trim().toLowerCase().replace(/\s+/g, ' ');
+      if (pn) await (prisma as any).$executeRawUnsafe(
+        `INSERT INTO "IngredientAlias"("id","alias","ingredient_id") VALUES ($1,$2,$3)
+         ON CONFLICT (alias) DO UPDATE SET ingredient_id = EXCLUDED.ingredient_id`,
+        randomUUID(), pn, u.ingredient_id).catch(() => {});
+    }
+    changedIngredientIds.add(String(u.ingredient_id));
+    applied.push({ ingredient: u.ingredient_name, from: cur, to: np, change_pct: u.change_pct, product: u.product_name, via: u.confidence });
+  }
+  let dishes_repriced = 0;
+  for (const ingId of changedIngredientIds) {
+    dishes_repriced += await recomputeAffectedRecipes([], ingId).catch(() => 0);
+  }
+  if (applied.length) console.log('[ingredient-auto-price]', _opts.reason || 'auto', '→ applied', applied.length, 'held', held, 'recipes recomputed', dishes_repriced);
+  return { applied, held, dishes_repriced };
+}
+
+registerFn('autoApplyInvoiceIngredientPrices', async ({ user }: any) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  return autoApplyInvoiceIngredientPrices({ reason: 'manual' });
 });
 
 // Apply one ingredient price (from an invoice), learn the product→ingredient
