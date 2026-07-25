@@ -28836,20 +28836,41 @@ async function resolveSegmentCustomerIds(key: string): Promise<string[]> {
   return rows.map((r) => r.id);
 }
 
-// Advisor proposes 1-3 sendable actions, each bound to a real segment with its
-// live recipient count. Nothing is sent here — this is the "propose" half.
+// Rough per-recipient send costs (₪, IL) so the owner sees what an action costs
+// before launching. Approximate — labelled "משוער" in the UI.
+const MKT_SMS_RATE = 0.14;
+const MKT_WA_RATE = 0.04;
+
+// Advisor proposes 1-3 concrete actions of DIFFERENT types (a plain club message,
+// a message with a real offer, or a paid-ad idea) — each bound to a real segment,
+// personalised to THIS business's dishes/brand, with its live recipient count AND
+// an estimated cost. Nothing is executed here — this is the "propose" half.
 registerFn('proposeMarketingActions', async ({ body, user }) => {
   await requireBackOffice(user, 'proposeMarketingActions');
   const goal = String((body as any)?.goal || '').trim();
   const baseContext = await customerBaseContext();
   const segList = Object.entries(MARKETING_SEGMENTS).map(([k, v]) => `${k} (${v.label})`).join(' · ');
+  // Personalise to the owner's real business so copy names real dishes/offers.
+  const profile: any = await db.businessProfile.findFirst().catch(() => null);
+  const pd: any = profile?.profile_data || {};
+  const brand = await getBrandName();
+  const bizBlock =
+    `\n--- העסק שלך (התאם את ההצעות אליו, השתמש בשמות אמיתיים) ---\n` +
+    `שם: ${pd.business_name || brand}${pd.concept ? ` · קונספט: ${pd.concept}` : ''}\n` +
+    (pd.flagship_products ? `מנות דגל: ${String(pd.flagship_products).replace(/\n/g, ', ')}\n` : '') +
+    (pd.high_margin_items ? `מנות רווחיות (עדיף לדחוף): ${String(pd.high_margin_items).replace(/\n/g, ', ')}\n` : '') +
+    (pd.avg_order_value ? `שווי קנייה ממוצע: ₪${pd.avg_order_value}\n` : '');
   const result: any = await invokeLLM({
     prompt:
       MARKETING_ADVISOR_PERSONA +
-      `\n\nהבעלים רוצה: "${goal || 'להגדיל הכנסה השבוע דרך המועדון'}".\n${baseContext}\n` +
-      `הצע 1-3 פעולות שיווק קונקרטיות שאפשר לשגר עכשיו למועדון. לכל פעולה בחר סגמנט אמיתי מהרשימה — רק כאלה עם מסה קריטית מהמספרים למעלה: ${segList}.\n` +
-      `כתוב הודעה קצרה (מתאימה ל-SMS, עד ~300 תווים), בעברית, עם קריאה ברורה לפעולה. אל תבטיח הטבה שלא קיימת במערכת.\n` +
-      `החזר JSON בלבד: { actions: [{ segment_key, channel, message, reason }] } כאשר channel הוא "sms" או "whatsapp".`,
+      `\n\nהבעלים רוצה: "${goal || 'להגדיל הכנסה השבוע'}".\n${baseContext}${bizBlock}\n` +
+      `הצע 2-4 פעולות שיווק קונקרטיות ומגוונות (לא כולן שליחה!). לכל פעולה בחר סוג (type):\n` +
+      `• "club_blast" = הודעת שיווק רגילה למועדון.\n` +
+      `• "club_benefit" = הודעה עם הטבה/קופון קונקרטי (למשל "20% על <מנת דגל>", "מנה שנייה חינם") — מושך ביקור בפועל.\n` +
+      `• "meta_ad" = רעיון למודעה ממומנת בפייסבוק/אינסטגרם עם תקציב יומי מומלץ (daily_budget בשקלים).\n` +
+      `לפעולות מועדון (blast/benefit): בחר סגמנט אמיתי — רק כאלה עם מסה קריטית: ${segList}.\n` +
+      `כתוב הודעה קצרה (SMS, עד ~300 תווים), עברית, עם קריאה ברורה לפעולה, ותשלב שם מנה/הטבה אמיתית של העסק. אל תבטיח הטבה בלתי-אפשרית.\n` +
+      `החזר JSON בלבד: { actions: [{ type, segment_key, channel, message, daily_budget, reason }] } כאשר channel ∈ "sms"|"whatsapp".`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -28858,18 +28879,19 @@ registerFn('proposeMarketingActions', async ({ body, user }) => {
           items: {
             type: 'object',
             properties: {
+              type: { type: 'string' },
               segment_key: { type: 'string' },
               channel: { type: 'string' },
               message: { type: 'string' },
+              daily_budget: { type: 'number' },
               reason: { type: 'string' },
             },
-            required: ['segment_key', 'channel', 'message'],
+            required: ['type', 'message'],
           },
         },
       },
     },
   });
-  // Never hand the owner an empty message — fall back to a sane per-segment draft.
   const FALLBACK_MSG: Record<string, string> = {
     lapsed_60: 'התגעגענו אליך! חזרו אלינו החודש ותיהנו מחוויה מיוחדת 🙌',
     birthdays_month: 'מזל טוב! חוגגים החודש? בואו לחגוג איתנו 🎂',
@@ -28880,15 +28902,27 @@ registerFn('proposeMarketingActions', async ({ body, user }) => {
   };
   const actions: any[] = [];
   for (const a of (Array.isArray(result?.actions) ? result.actions : [])) {
+    const type = ['club_blast', 'club_benefit', 'meta_ad'].includes(a?.type) ? a.type : 'club_blast';
+    const channel = ['sms', 'whatsapp'].includes(a?.channel) ? a.channel : 'sms';
+    const message = (String(a?.message || '').trim() || FALLBACK_MSG[a?.segment_key] || 'יש לנו משהו בשבילך — בואו אלינו!').slice(0, 600);
+    if (type === 'meta_ad') {
+      const budget = Math.max(20, Math.round(Number(a?.daily_budget) || 50));
+      actions.push({
+        type, segment_label: 'מודעה ממומנת (Meta)', channel: 'meta', message,
+        reason: String(a?.reason || ''), recipient_count: null,
+        estimated_cost: budget, cost_note: `כ-₪${budget} ליום · דורש חיבור Meta`,
+      });
+      continue;
+    }
     const key = MARKETING_SEGMENTS[a?.segment_key] ? a.segment_key : 'all_consented';
     const ids = await resolveSegmentCustomerIds(key);
+    const rate = channel === 'whatsapp' ? MKT_WA_RATE : MKT_SMS_RATE;
+    const cost = Math.round(ids.length * rate * 100) / 100;
     actions.push({
-      segment_key: key,
-      segment_label: MARKETING_SEGMENTS[key].label,
-      channel: ['sms', 'whatsapp'].includes(a?.channel) ? a.channel : 'sms',
-      message: (String(a?.message || '').trim() || FALLBACK_MSG[key] || 'יש לנו משהו בשבילך — בואו אלינו!').slice(0, 600),
-      reason: String(a?.reason || ''),
-      recipient_count: ids.length,
+      type, segment_key: key, segment_label: MARKETING_SEGMENTS[key].label, channel, message,
+      reason: String(a?.reason || ''), recipient_count: ids.length,
+      estimated_cost: cost,
+      cost_note: `כ-₪${cost} משוער (${ids.length} × ₪${rate}/${channel === 'whatsapp' ? 'וואטסאפ' : 'SMS'})`,
     });
   }
   return { actions };

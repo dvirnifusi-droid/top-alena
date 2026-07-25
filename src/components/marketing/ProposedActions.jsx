@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Loader2, Send, Sparkles, Users2, AlertTriangle, Check } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import { Loader2, Send, Sparkles, Users2, AlertTriangle, Check, MessageSquare, Gift, Megaphone, Coins } from 'lucide-react';
+
+const TYPE_META = {
+  club_blast:   { label: 'הודעת מועדון', icon: MessageSquare, tone: '#0f766e' },
+  club_benefit: { label: 'הטבה למועדון', icon: Gift, tone: '#9333ea' },
+  meta_ad:      { label: 'מודעה ממומנת', icon: Megaphone, tone: '#c2410c' },
+};
 
 // Advisor → Action bridge: the advisor proposes concrete club blasts (bound to a
 // real segment with its live recipient count); the owner reviews + edits the copy
@@ -83,16 +91,27 @@ export default function ProposedActions() {
 
       {(actions || []).map((a, i) => {
         const r = results[i];
+        const isMeta = a.type === 'meta_ad';
         return (
           <div key={i} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {(() => { const tm = TYPE_META[a.type] || TYPE_META.club_blast; const TI = tm.icon; return (
+                  <span className="inline-flex items-center gap-1 text-xs font-bold rounded-full px-2.5 py-1" style={{ background: tm.tone + '18', color: tm.tone }}>
+                    <TI className="w-3.5 h-3.5" /> {tm.label}
+                  </span>
+                ); })()}
                 <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-full px-2.5 py-1">
                   <Users2 className="w-3.5 h-3.5" /> {a.segment_label}
                 </span>
-                <span className="text-xs font-bold text-emerald-700">→ {a.recipient_count.toLocaleString()} נמענים</span>
-                <span className="text-[11px] uppercase text-slate-400 font-mono">{a.channel}</span>
+                {!isMeta && <span className="text-xs font-bold text-emerald-700">→ {(a.recipient_count || 0).toLocaleString()} נמענים</span>}
+                {!isMeta && <span className="text-[11px] uppercase text-slate-400 font-mono">{a.channel}</span>}
               </div>
+              {a.cost_note && (
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1">
+                  <Coins className="w-3.5 h-3.5" /> {a.cost_note}
+                </span>
+              )}
             </div>
             {a.reason && <p className="text-xs text-slate-500">{a.reason}</p>}
             <textarea
@@ -101,7 +120,14 @@ export default function ProposedActions() {
               rows={3}
               className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm"
             />
-            {r ? (
+            {isMeta ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                <Link to={createPageUrl('MarketingAgentsHub')} className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold px-4 py-2 rounded-xl">
+                  <Megaphone className="w-4 h-4" /> פתח מנהל קמפיינים
+                </Link>
+                <span className="text-xs text-slate-400">מודעה ממומנת מתנהלת בדף הקמפיינים (דורש חיבור Meta).</span>
+              </div>
+            ) : r ? (
               r.error ? (
                 <div className="text-rose-600 text-sm flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> {r.error}</div>
               ) : (
@@ -110,8 +136,8 @@ export default function ProposedActions() {
                 </div>
               )
             ) : confirmIdx === i ? (
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl p-2">
-                <span className="text-sm text-amber-800 flex-1">לשלוח ל-{a.recipient_count.toLocaleString()} נמענים ({a.segment_label})?</span>
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl p-2 flex-wrap">
+                <span className="text-sm text-amber-800 flex-1">לשלוח ל-{(a.recipient_count || 0).toLocaleString()} נמענים ({a.segment_label})? עלות {a.cost_note}</span>
                 <button onClick={() => send(i)} disabled={sendingIdx === i} className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold px-3 py-1.5 rounded-lg disabled:opacity-60">
                   {sendingIdx === i ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} כן, שלח
                 </button>
@@ -123,7 +149,7 @@ export default function ProposedActions() {
                 disabled={!a.message.trim() || !a.recipient_count}
                 className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold px-4 py-2 rounded-xl disabled:opacity-50"
               >
-                <Send className="w-4 h-4" /> שלח עכשיו
+                <Send className="w-4 h-4" /> {a.type === 'club_benefit' ? 'הנפק ושלח' : 'שלח עכשיו'}
               </button>
             )}
           </div>
