@@ -5662,6 +5662,68 @@ async function getCachedBusinessContext(): Promise<string> {
   }
 }
 
+// ── Dvir file text cache ────────────────────────────────────────────────────
+// Gemini re-renders every attached PDF (vision) on EVERY chat turn — measured
+// ~20s on alena (20 small docs) vs ~0.6s on a 1-file tenant. The docs are only
+// ~24k tokens total, so feeding their EXTRACTED TEXT instead of the PDFs cuts the
+// turn to a few seconds with no quality loss. We extract each file's text ONCE
+// (Gemini), persist it (self-healing table, survives restarts), and thereafter
+// feed text. Until a file is warmed we still send the PDF, so answers never wait
+// on extraction — the chat just gets faster as the cache fills.
+let _aiFileTextReady = false;
+async function ensureAiFileTextTable(): Promise<void> {
+  if (_aiFileTextReady) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "AiFileText" ("uri" TEXT PRIMARY KEY, "text" TEXT, "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`).catch(() => {});
+  _aiFileTextReady = true;
+}
+const _fileTextMem = new Map<string, string>();
+const _extractingText = new Set<string>();
+async function loadFileText(uri: string): Promise<string | null> {
+  if (_fileTextMem.has(uri)) return _fileTextMem.get(uri)!;
+  try {
+    await ensureAiFileTextTable();
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT text FROM "AiFileText" WHERE uri=$1`, uri).catch(() => []);
+    const t = rows?.[0]?.text;
+    if (t) { _fileTextMem.set(uri, t); return t; }
+  } catch { /* table drift — treat as not-cached */ }
+  return null;
+}
+async function extractFileText(f: any, apiKey: string): Promise<string | null> {
+  const uri = f.gemini_file_uri;
+  if (!uri) return null;
+  const existing = await loadFileText(uri);
+  if (existing) return existing;
+  if (_extractingText.has(uri)) return null; // another turn is already extracting it
+  _extractingText.add(uri);
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 60_000);
+    let text: string | undefined;
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ file_data: { mime_type: f.mime_type, file_uri: uri } }, { text: 'חלץ את כל הטקסט מהמסמך הזה מילה במילה, שמור על מבנה וכותרות. החזר אך ורק את הטקסט המחולץ, בלי הערות ובלי הקדמה.' }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 0 } },
+        }),
+      });
+      const d: any = await r.json();
+      if (r.ok) text = d?.candidates?.[0]?.content?.parts?.[0]?.text;
+      else console.warn('[askGemini] extract HTTP', r.status, JSON.stringify(d?.error || '').slice(0, 120));
+    } finally { clearTimeout(timer); }
+    if (text && text.trim()) {
+      _fileTextMem.set(uri, text);
+      await ensureAiFileTextTable();
+      await (prisma as any).$executeRawUnsafe(
+        `INSERT INTO "AiFileText"("uri","text","at") VALUES ($1,$2,NOW()) ON CONFLICT ("uri") DO UPDATE SET text=EXCLUDED.text, at=NOW()`, uri, text).catch(() => {});
+      return text;
+    }
+  } catch (e: any) { console.warn('[askGemini] text extract failed:', f.file_name, e?.message); }
+  finally { _extractingText.delete(uri); }
+  return null;
+}
+
 registerFn('askGemini', async ({ body }) => {
   const { message, history, systemPrompt, prompt } = body as any;
   const apiKey = process.env.GEMINI_API_KEY;
@@ -5705,7 +5767,14 @@ registerFn('askGemini', async ({ body }) => {
         }
       } catch (e: any) { console.warn('[askGemini] file refresh failed:', f.file_name, e?.message); }
     }
-    return uri ? { file_data: { mime_type: f.mime_type, file_uri: uri } } : null;
+    if (!uri) return null;
+    // FAST PATH: if this file's text is already extracted, feed TEXT (a few seconds)
+    // instead of the PDF (~1s of vision rendering each, ×20 = ~20s). Otherwise send
+    // the PDF this turn and warm the text in the background for next time.
+    const cachedText = await loadFileText(uri);
+    if (cachedText) return { text: `\n### מסמך: ${f.file_name}\n${cachedText}` };
+    void extractFileText({ id: f.id, file_name: f.file_name, mime_type: f.mime_type, gemini_file_uri: uri }, apiKey);
+    return { file_data: { mime_type: f.mime_type, file_uri: uri } };
   }))).filter(Boolean);
 
   // Fallback (until everyone's migrated): files still only in GeminiFileCache.
@@ -5791,6 +5860,31 @@ registerFn('askGemini', async ({ body }) => {
     throw new Error(`Gemini returned empty reply (finishReason: ${finish})`);
   }
   return { reply };
+});
+
+// Pre-extract text for all of Dvir's active files so the first chats are already
+// fast (rather than warming lazily over the first few messages). Admin-triggered;
+// safe to re-run (skips files already cached). Bounded concurrency to stay under
+// Gemini rate limits.
+registerFn('warmDvirFileText', async ({ user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+  const supported = new Set(['application/pdf', 'text/plain', 'text/html', 'text/csv', 'text/markdown', 'image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+  let files: any[] = [];
+  try { files = await db.aiAssistantFile.findMany({ where: { is_active: true } }); } catch { /* table drift */ }
+  const queue = files.filter((f: any) => supported.has(f.mime_type) && f.gemini_file_uri);
+  const results: any[] = [];
+  let i = 0;
+  const worker = async () => {
+    while (i < queue.length) {
+      const f = queue[i++];
+      const t = await extractFileText(f, apiKey).catch(() => null);
+      results.push({ file: f.file_name, ok: !!t, chars: t ? t.length : 0 });
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+  return { total: queue.length, warmed: results.filter((r) => r.ok).length, results };
 });
 
 registerFn('aiAnalyzeIncident', async ({ body }) => {
