@@ -2305,6 +2305,11 @@ model ShiftTracking {
   last_location_at             DateTime?
   auto_close_reason            String?
   auto_close_seen_at           DateTime?
+  // Marks when the "employee forgot to clock out" admin reminder was sent, so it
+  // fires once (not every cron tick). Column added via ALTER on all schemas; must
+  // be in the model or shiftTracking.update({end_reminder_sent_at}) throws and the
+  // reminder is silently never sent.
+  end_reminder_sent_at         DateTime?
   // Origin marker: 'tips' rows are the manager-verified actual hours pushed from
   // a locked TipReport (end-of-day reconciliation). Lets the tip-lock sync find
   // and overwrite the same row on re-lock instead of duplicating labor hours.
