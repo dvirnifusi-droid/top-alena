@@ -3503,10 +3503,12 @@ async function routedToolDeclarations(role: string, message: string, phone: stri
   return { decls: TOOL_DECLARATIONS.filter((d: any) => names.has(d.name)), group: cat };
 }
 
-export async function runConversationAgent(phone: string, userMessage: string): Promise<string> {
+export async function runConversationAgent(phone: string, userMessage: string, historyOverride?: Array<{ role: string; text: string }>): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return '⚠️ עוזר ה-AI לא מוגדר (GEMINI_API_KEY חסר).';
-  const history = await loadHistory(phone);
+  // In-app Dvir sessions (`app:<userId>`) have no WhatsApp history — the caller
+  // passes the chat's own recent turns so the agent has multi-turn memory.
+  const history = historyOverride && historyOverride.length ? historyOverride : await loadHistory(phone);
 
   // Build contents array
   const contents: any[] = [];

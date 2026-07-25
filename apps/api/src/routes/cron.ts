@@ -8,6 +8,7 @@ import { pullAllConnectedCalendars } from '../lib/googleSync.js';
 import { scanEmailInvoices } from '../lib/emailInvoiceScan.js';
 import { runInvoiceGapsDigest } from '../lib/invoiceGaps.js';
 import { alertIngredientPricesAutoUpdated } from '../lib/whatsappAlerts.js';
+import { runMarketingOptimizer } from '../functions/load.js';
 
 // Internal cron endpoints, guarded by a shared secret (x-cron-secret header or
 // ?secret=). Called by the server crontab — never by end users.
@@ -89,8 +90,15 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   // Daily ~08:00 IL — send admin numbers a WhatsApp summary (sidur today,
   // tips yesterday, open leads, unpaid invoices, missing availability).
   app.post('/morning-brief', async () => {
-    return sendMorningBrief();
+    const res = await sendMorningBrief();
+    // Piggyback the proactive marketing optimizer (daily; dedup'd + Meta-gated
+    // internally, alerts only on real ad waste).
+    try { await runMarketingOptimizer(); } catch (e: any) { console.warn('[morning-brief] marketing optimizer failed', e?.message); }
+    return res;
   });
+
+  // Manual/preview trigger for the proactive marketing optimizer.
+  app.post('/marketing-optimizer', async () => runMarketingOptimizer());
 
   // Daily staff-hours report. The in-process timer is primary; this endpoint is
   // a backup/manual trigger. '/daily-hours-report' respects the slot+dedup;

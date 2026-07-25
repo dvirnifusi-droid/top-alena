@@ -444,7 +444,7 @@ export default function AiChatWidget() {
                         try {
                             const res = isTraining
                                 ? await askGemini({ message: currentInput, history: conversationHistory, systemPrompt })
-                                : await dvirAgentChat({ message: currentInput });
+                                : await dvirAgentChat({ message: currentInput, history: conversationHistory });
                             return res;
                         } catch (e) {
                             lastErr = e;

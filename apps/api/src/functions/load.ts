@@ -5221,6 +5221,43 @@ registerFn('reviewMarketingPerformance', async ({ user }) => {
   return { summary: String(review?.summary || ''), recommendations: (Array.isArray(review?.recommendations) ? review.recommendations : []).slice(0, 6), recent, meta };
 });
 
+// Proactive optimization agent: scan live Meta ad performance and WhatsApp the
+// owner about clear waste — a campaign spending with ZERO leads, or a high cost
+// per lead. Once per day (dedup table), sends only when there's something real.
+// Called daily from the morning-brief cron.
+let _mktOptReady = false;
+export async function runMarketingOptimizer(): Promise<any> {
+  try {
+    if (!_mktOptReady) {
+      await (prisma as any).$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "MarketingOptimizerLog" ("day" DATE PRIMARY KEY, "at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`).catch(() => {});
+      _mktOptReady = true;
+    }
+    const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+    const affected: any = await (prisma as any).$executeRawUnsafe(`INSERT INTO "MarketingOptimizerLog"("day") VALUES ($1::date) ON CONFLICT ("day") DO NOTHING`, day).catch(() => 1);
+    if (!affected) return { skipped: 'already_ran_today' };
+  } catch { /* dedup best-effort */ }
+  if (!(await META_TOKEN())) return { skipped: 'no_meta' };
+  let camp: any;
+  try { camp = await metaApi(`/act_${META_AD_ACCOUNT_ID}/campaigns?fields=name,effective_status,insights.date_preset(last_7d){spend,ctr,actions}&limit=25`); }
+  catch { return { skipped: 'meta_error' }; }
+  const rows = (camp?.data || []).map((c: any) => {
+    const i = c?.insights?.data?.[0] || {};
+    const leads = (i.actions || []).find((a: any) => a.action_type === 'lead')?.value || '0';
+    return { name: c.name, status: c.effective_status, spend: Math.round(parseFloat(i.spend || '0')), leads: parseInt(leads, 10) || 0 };
+  });
+  const active = rows.filter((r: any) => r.status === 'ACTIVE');
+  const wasteful = active.filter((r: any) => r.spend >= 100 && r.leads === 0);
+  const expensive = active.filter((r: any) => r.leads > 0 && r.spend / r.leads >= 120);
+  if (!wasteful.length && !expensive.length) return { ok: true, alerted: false };
+  const lines = [
+    ...wasteful.map((r: any) => `🔴 "${r.name}" — ₪${r.spend} ב-7 ימים, *0 לידים* → שקול לעצור/לשנות.`),
+    ...expensive.map((r: any) => `🟠 "${r.name}" — כ-₪${Math.round(r.spend / r.leads)} לליד (₪${r.spend}, ${r.leads} לידים) → יקר.`),
+  ];
+  const msg = `📊 *אופטימיזציה — בזבוז בקמפיינים הממומנים (7 ימים)*\n${lines.join('\n')}\n\nלטיפול: פתח את בנה-קמפיין / מנהל הקמפיינים.`;
+  try { const { broadcastToAdmins } = await import('../lib/whatsappAlerts.js'); await broadcastToAdmins(msg); } catch { /* ignore */ }
+  return { ok: true, alerted: true, wasteful: wasteful.length, expensive: expensive.length };
+}
+
 // Update a customer's birthday — used by the admin UI + by reservation form
 registerFn('setCustomerBirthday', async ({ body, user }) => {
   await requireBackOffice(user, 'setCustomerBirthday');
@@ -5992,7 +6029,13 @@ registerFn('dvirAgentChat', async ({ body, user }) => {
   const { runConversationAgent } = await import('../lib/whatsappConversation.js');
   const confirmed = await tryConfirmPendingAction(sessionKey, message).catch(() => null);
   if (confirmed) return { reply: confirmed };
-  const reply = await runConversationAgent(sessionKey, message);
+  // Multi-turn memory: the chat passes its recent turns (no WhatsApp history for
+  // app sessions). Normalize to the agent's {role:'user'|'model', text} shape.
+  const rawHist = Array.isArray((body as any)?.history) ? (body as any).history : [];
+  const history = rawHist.slice(-12)
+    .map((m: any) => ({ role: (m?.role === 'assistant' || m?.role === 'ai' || m?.role === 'model') ? 'model' : 'user', text: String(m?.content ?? m?.text ?? '').slice(0, 2000) }))
+    .filter((m: any) => m.text);
+  const reply = await runConversationAgent(sessionKey, message, history);
   return { reply };
 });
 
