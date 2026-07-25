@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { Loader2, Send, Sparkles, Users2, AlertTriangle, Check, MessageSquare, Gift, Megaphone, Coins } from 'lucide-react';
+import { Loader2, Send, Sparkles, Users2, AlertTriangle, Check, MessageSquare, Gift, Megaphone, Coins, Instagram, Lightbulb } from 'lucide-react';
 
 const TYPE_META = {
   club_blast:   { label: 'הודעת מועדון', icon: MessageSquare, tone: '#0f766e' },
   club_benefit: { label: 'הטבה למועדון', icon: Gift, tone: '#9333ea' },
+  social_post:  { label: 'פוסט אורגני', icon: Instagram, tone: '#db2777' },
   meta_ad:      { label: 'מודעה ממומנת', icon: Megaphone, tone: '#c2410c' },
+  guerrilla:    { label: 'שיווק גרילה', icon: Lightbulb, tone: '#0369a1' },
 };
 
 // Advisor → Action bridge: the advisor proposes concrete club blasts (bound to a
@@ -22,6 +24,8 @@ export default function ProposedActions() {
   const [confirmIdx, setConfirmIdx] = useState(null);
   const [sendingIdx, setSendingIdx] = useState(null);
   const [results, setResults] = useState({});
+  const [agentIdx, setAgentIdx] = useState(null); // which action is generating via an agent
+  const [agentOut, setAgentOut] = useState({}); // index → generated post variants
 
   const propose = async () => {
     setLoading(true); setError(''); setActions(null); setResults({}); setConfirmIdx(null);
@@ -48,6 +52,20 @@ export default function ProposedActions() {
     } catch (e) {
       setResults(prev => ({ ...prev, [i]: { error: e?.message || 'שליחה נכשלה' } }));
     } finally { setSendingIdx(null); setConfirmIdx(null); }
+  };
+
+  // Hand a social-post action to the existing copywriter agent to produce a
+  // ready-to-publish post (3 variants). This is the bridge into the marketing agents.
+  const runAgent = async (i) => {
+    const a = actions[i];
+    setAgentIdx(i);
+    try {
+      const res = await base44.functions.runMarketingAgent({ agent_type: 'copywriter', input: { topic: a.message, channel: 'instagram', length: 'short' } });
+      const out = (res?.data || res)?.run?.output || {};
+      setAgentOut(prev => ({ ...prev, [i]: out.variants || [] }));
+    } catch (e) {
+      setAgentOut(prev => ({ ...prev, [i]: { error: e?.message || 'שגיאה' } }));
+    } finally { setAgentIdx(null); }
   };
 
   return (
@@ -92,6 +110,9 @@ export default function ProposedActions() {
       {(actions || []).map((a, i) => {
         const r = results[i];
         const isMeta = a.type === 'meta_ad';
+        const isSocial = a.type === 'social_post';
+        const isGuerrilla = a.type === 'guerrilla';
+        const isClub = a.type === 'club_blast' || a.type === 'club_benefit';
         return (
           <div key={i} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -104,8 +125,8 @@ export default function ProposedActions() {
                 <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 text-xs font-bold rounded-full px-2.5 py-1">
                   <Users2 className="w-3.5 h-3.5" /> {a.segment_label}
                 </span>
-                {!isMeta && <span className="text-xs font-bold text-emerald-700">→ {(a.recipient_count || 0).toLocaleString()} נמענים</span>}
-                {!isMeta && <span className="text-[11px] uppercase text-slate-400 font-mono">{a.channel}</span>}
+                {isClub && <span className="text-xs font-bold text-emerald-700">→ {(a.recipient_count || 0).toLocaleString()} נמענים</span>}
+                {isClub && <span className="text-[11px] uppercase text-slate-400 font-mono">{a.channel}</span>}
               </div>
               {a.cost_note && (
                 <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1">
@@ -127,6 +148,28 @@ export default function ProposedActions() {
                 </Link>
                 <span className="text-xs text-slate-400">מודעה ממומנת מתנהלת בדף הקמפיינים (דורש חיבור Meta).</span>
               </div>
+            ) : isSocial ? (
+              <div className="space-y-2">
+                <button onClick={() => runAgent(i)} disabled={agentIdx === i} className="inline-flex items-center gap-2 bg-pink-600 hover:bg-pink-500 text-white text-sm font-bold px-4 py-2 rounded-xl disabled:opacity-60">
+                  {agentIdx === i ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} צור פוסט מלא (סוכן קופירייטינג)
+                </button>
+                {agentOut[i] && (agentOut[i].error ? (
+                  <div className="text-rose-600 text-sm">{agentOut[i].error}</div>
+                ) : (
+                  <div className="space-y-2">
+                    {(agentOut[i] || []).map((v, vi) => (
+                      <div key={vi} className="bg-pink-50 border border-pink-200 rounded-xl p-3 text-sm text-slate-800">
+                        {v.hook && <div className="font-bold">{v.hook}</div>}
+                        <div className="whitespace-pre-wrap">{v.body}</div>
+                        {Array.isArray(v.hashtags) && v.hashtags.length > 0 && <div className="text-pink-600 text-xs mt-1">{v.hashtags.map(h => (h.startsWith('#') ? h : '#' + h)).join(' ')}</div>}
+                      </div>
+                    ))}
+                    <div className="text-[11px] text-slate-400">העתק את הגרסה שאהבת ופרסם באינסטגרם/פייסבוק. ליצירת תמונה: דף הסוכנים.</div>
+                  </div>
+                ))}
+              </div>
+            ) : isGuerrilla ? (
+              <div className="text-xs text-slate-500 bg-sky-50 border border-sky-200 rounded-xl p-2">💡 רעיון גרילה לביצוע בשטח — הטקסט למעלה כולל את הצעדים.</div>
             ) : r ? (
               r.error ? (
                 <div className="text-rose-600 text-sm flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> {r.error}</div>

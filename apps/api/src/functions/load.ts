@@ -28864,11 +28864,13 @@ registerFn('proposeMarketingActions', async ({ body, user }) => {
     prompt:
       MARKETING_ADVISOR_PERSONA +
       `\n\nהבעלים רוצה: "${goal || 'להגדיל הכנסה השבוע'}".\n${baseContext}${bizBlock}\n` +
-      `הצע 2-4 פעולות שיווק קונקרטיות ומגוונות (לא כולן שליחה!). לכל פעולה בחר סוג (type):\n` +
+      `הצע 3-5 פעולות שיווק קונקרטיות ומגוונות (לא כולן שליחה!), מותאמות לסיטואציה. לכל פעולה בחר סוג (type):\n` +
       `• "club_blast" = הודעת שיווק רגילה למועדון.\n` +
       `• "club_benefit" = הודעה עם הטבה/קופון קונקרטי (למשל "20% על <מנת דגל>", "מנה שנייה חינם") — מושך ביקור בפועל.\n` +
-      `• "meta_ad" = רעיון למודעה ממומנת בפייסבוק/אינסטגרם עם תקציב יומי מומלץ (daily_budget בשקלים).\n` +
-      `לפעולות מועדון (blast/benefit): בחר סגמנט אמיתי — רק כאלה עם מסה קריטית: ${segList}.\n` +
+      `• "social_post" = פוסט אורגני לאינסטגרם/פייסבוק (חינם). ה-message = רעיון + כיתוב לפוסט.\n` +
+      `• "meta_ad" = מודעה ממומנת בפייסבוק/אינסטגרם עם תקציב יומי מומלץ (daily_budget בשקלים).\n` +
+      `• "guerrilla" = שיווק גרילה/יצירתי בשטח (מדבקות, שת"פ עם עסק שכן, דגימות ברחוב, מיצג). ה-message = הרעיון + צעדי ביצוע קצרים.\n` +
+      `שלב סוגים שונים — לפחות אחד אורגני/גרילה שאינו שליחה. לפעולות מועדון (blast/benefit): בחר סגמנט אמיתי — רק כאלה עם מסה קריטית: ${segList}.\n` +
       `כתוב הודעה קצרה (SMS, עד ~300 תווים), עברית, עם קריאה ברורה לפעולה, ותשלב שם מנה/הטבה אמיתית של העסק. אל תבטיח הטבה בלתי-אפשרית.\n` +
       `החזר JSON בלבד: { actions: [{ type, segment_key, channel, message, daily_budget, reason }] } כאשר channel ∈ "sms"|"whatsapp".`,
     responseSchema: {
@@ -28902,15 +28904,32 @@ registerFn('proposeMarketingActions', async ({ body, user }) => {
   };
   const actions: any[] = [];
   for (const a of (Array.isArray(result?.actions) ? result.actions : [])) {
-    const type = ['club_blast', 'club_benefit', 'meta_ad'].includes(a?.type) ? a.type : 'club_blast';
+    const type = ['club_blast', 'club_benefit', 'meta_ad', 'social_post', 'guerrilla'].includes(a?.type) ? a.type : 'club_blast';
     const channel = ['sms', 'whatsapp'].includes(a?.channel) ? a.channel : 'sms';
-    const message = (String(a?.message || '').trim() || FALLBACK_MSG[a?.segment_key] || 'יש לנו משהו בשבילך — בואו אלינו!').slice(0, 600);
+    const message = (String(a?.message || '').trim() || FALLBACK_MSG[a?.segment_key] || 'יש לנו משהו בשבילך — בואו אלינו!').slice(0, 1000);
     if (type === 'meta_ad') {
       const budget = Math.max(20, Math.round(Number(a?.daily_budget) || 50));
       actions.push({
         type, segment_label: 'מודעה ממומנת (Meta)', channel: 'meta', message,
         reason: String(a?.reason || ''), recipient_count: null,
         estimated_cost: budget, cost_note: `כ-₪${budget} ליום · דורש חיבור Meta`,
+      });
+      continue;
+    }
+    if (type === 'social_post') {
+      actions.push({
+        type, segment_label: 'פוסט אורגני (IG/FB)', channel: 'social', message,
+        reason: String(a?.reason || ''), recipient_count: null,
+        estimated_cost: 0, cost_note: 'חינם (אורגני)',
+      });
+      continue;
+    }
+    if (type === 'guerrilla') {
+      const budget = Math.max(0, Math.round(Number(a?.daily_budget) || 0));
+      actions.push({
+        type, segment_label: 'שיווק גרילה', channel: 'offline', message,
+        reason: String(a?.reason || ''), recipient_count: null,
+        estimated_cost: budget, cost_note: budget ? `כ-₪${budget} חד-פעמי (משוער)` : 'עלות נמוכה / יצירתית',
       });
       continue;
     }
