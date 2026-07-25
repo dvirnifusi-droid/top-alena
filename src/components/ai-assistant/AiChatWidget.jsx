@@ -7,6 +7,7 @@ import { User } from "@/entities/User";
 import { Send, ThumbsUp, ThumbsDown, X, Minimize2, Maximize2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { askGemini } from "@/functions/askGemini";
+import { dvirAgentChat } from "@/functions/dvirAgentChat";
 import { googleTts } from "@/functions/googleTts";
 import { pushoverOnMenuTrainingComplete } from "@/functions/pushoverOnMenuTrainingComplete";
 import { base44 } from "@/api/base44Client";
@@ -432,16 +433,18 @@ export default function AiChatWidget() {
                 // Retry helper — handles iOS Safari's habit of dropping long fetches
                 // ('Load failed' / 'Failed to fetch') by trying up to 3 times with
                 // exponential backoff. Gives users on mobile a much better experience.
+                // Route: menu-TRAINING stays on askGemini (guided flow + file knowledge).
+                // Everything else goes to the full agent (live data + ~82 actions);
+                // the agent taps the files itself via its ask_knowledge tool.
+                const isTraining = trainingMode || /לימוד תפריט|למד אותי|תלמד אותי|הדרכה|רוצה ללמוד|קוויז/i.test(currentInput);
                 const callGeminiWithRetry = async () => {
                     const NETWORK_ERR = /Load failed|Failed to fetch|NetworkError|network request failed|aborted|timeout/i;
                     let lastErr;
                     for (let attempt = 0; attempt < 3; attempt++) {
                         try {
-                            const res = await askGemini({
-                                message: currentInput,
-                                history: conversationHistory,
-                                systemPrompt,
-                            });
+                            const res = isTraining
+                                ? await askGemini({ message: currentInput, history: conversationHistory, systemPrompt })
+                                : await dvirAgentChat({ message: currentInput });
                             return res;
                         } catch (e) {
                             lastErr = e;

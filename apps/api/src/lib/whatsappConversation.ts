@@ -483,6 +483,11 @@ const TOOL_DECLARATIONS = [
     parameters: { type: 'OBJECT', properties: { customer: { type: 'STRING', description: 'Customer name or phone.' }, benefit: { type: 'STRING', description: 'The benefit text, e.g. "קפה חינם".' } }, required: ['customer', 'benefit'] },
   },
   {
+    name: 'ask_knowledge',
+    description: 'Answer a question from the restaurant\'s KNOWLEDGE FILES — menu details, ingredients/allergens, recipes, prep, procedures, training material. Use for "מה יש במנה X", "האם יש גלוטן ב-", "איך מכינים את", "מה הנוהל ל", or any menu/recipe/procedure knowledge question. Returns the answer from the uploaded files.',
+    parameters: { type: 'OBJECT', properties: { question: { type: 'STRING', description: 'The knowledge question, in the user\'s own words.' } }, required: ['question'] },
+  },
+  {
     name: 'my_branch_tasks',
     description: 'THIS branch\'s tasks from network HQ (for a branch in a chain). Use for "מה המשימות מהמטה?", "מה הרשת ביקשה?".',
     parameters: { type: 'OBJECT', properties: {} },
@@ -2900,6 +2905,22 @@ async function tool_issue_club_benefit(args: any, phone: string): Promise<any> {
   };
 }
 
+// Knowledge from the uploaded files (menu/recipes/procedures) — lets the agent
+// answer training/ingredient/allergen questions by tapping askGemini, so the
+// in-app Dvir keeps its file-knowledge alongside live data + actions.
+async function tool_ask_knowledge(args: any): Promise<any> {
+  const q = String(args?.question || '').trim();
+  if (!q) return { error: 'no_question' };
+  try {
+    const { functionHandlers } = await import('../functions/index.js');
+    const r: any = await functionHandlers['askGemini']({
+      body: { message: q, systemPrompt: 'ענה על שאלת ידע מהקבצים של המסעדה (תפריט/מרכיבים/אלרגנים/מתכונים/נהלים). קצר, מדויק, מהמקורות בלבד.' },
+      user: { id: 'wa-knowledge', role: 'owner', email: '' }, req: {},
+    } as any);
+    return { answer: r?.reply || 'לא נמצא מידע רלוונטי בקבצים.' };
+  } catch (e: any) { return { error: e?.message || 'knowledge_error' }; }
+}
+
 // This branch's network tasks (from HQ) + mark one done.
 async function tool_my_branch_tasks(_args: any, phone: string): Promise<any> {
   const { resolveAccessScope } = await import('./whatsappPermissions.js');
@@ -3152,6 +3173,7 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   log_employee_meeting: tool_log_employee_meeting,
   set_onboarding_step: tool_set_onboarding_step,
   issue_club_benefit: tool_issue_club_benefit,
+  ask_knowledge: tool_ask_knowledge,
   my_branch_tasks: tool_my_branch_tasks,
   mark_branch_task: tool_mark_branch_task,
   propose_customer_campaign: tool_propose_customer_campaign,
@@ -3358,7 +3380,7 @@ type=${exec.type || '?'} · נשלח לפני ${Math.round((Date.now() - new Dat
 // first classify the message into ONE intent group with a cheap LLM call and
 // expose only that group's tools (6-12) plus a few universal ones. A short,
 // focused list makes tool selection accurate for almost any wording.
-const UNIVERSAL_TOOLS = ['list_pending_proposals', 'modify_pending_proposal', 'cancel_pending_proposal'];
+const UNIVERSAL_TOOLS = ['list_pending_proposals', 'modify_pending_proposal', 'cancel_pending_proposal', 'ask_knowledge'];
 const TOOL_GROUPS: Record<string, string[]> = {
   finance: ['get_today_revenue', 'get_cash_balance', 'list_unpaid_expenses', 'list_expected_income', 'get_recent_tips', 'propose_mark_expense_paid', 'propose_lock_tips', 'get_recipe_cost', 'list_high_food_cost', 'update_ingredient_price', 'get_my_recipe_summary', 'propose_set_dish_price', 'daily_status'],
   schedule: ['list_today_schedule', 'build_schedule_now', 'add_scheduling_rule', 'list_scheduling_rules', 'propose_shift_assign', 'propose_employee_shifts_batch', 'propose_remove_from_shift', 'propose_publish_schedule', 'search_employee', 'propose_invite_employee', 'propose_mark_sick', 'find_replacements', 'submit_availability', 'request_availability_reopen', 'approve_availability_reopen', 'reset_availability'],
