@@ -92,7 +92,12 @@ ${SUBDOMAIN} {
   tls /etc/caddy/certs/wildcard.crt /etc/caddy/certs/wildcard.key
   @api path /api/*
   handle @api {
-    reverse_proxy ${CONTAINER}:3001
+    # Zero-downtime deploys — retry the upstream through the container-restart gap
+    # instead of 502ing (see main Caddyfile for the full rationale).
+    reverse_proxy ${CONTAINER}:3001 {
+      lb_try_duration 12s
+      lb_try_interval 300ms
+    }
   }
   handle {
     reverse_proxy top-alena-web-1:80

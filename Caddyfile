@@ -13,7 +13,15 @@
     tls /etc/caddy/certs/wildcard.crt /etc/caddy/certs/wildcard.key
     @api path /api/*
     handle @api {
-        reverse_proxy api:3001
+        # Zero-downtime deploys: during an api rebuild the container restarts for a
+        # few seconds. Without this, requests in that window get a 502. lb_try_duration
+        # makes Caddy keep retrying the upstream (a dial failure = request body not yet
+        # sent, so it's safe to retry incl. POST) until the fresh container is listening
+        # — the restart becomes an extra second of latency, not an error.
+        reverse_proxy api:3001 {
+            lb_try_duration 12s
+            lb_try_interval 300ms
+        }
     }
     handle {
         reverse_proxy web:80
