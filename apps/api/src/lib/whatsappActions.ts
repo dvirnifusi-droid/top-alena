@@ -1179,6 +1179,25 @@ async function executeAction(exec: any): Promise<string> {
       return `📢 ההודעה נשלחה אישית ל-${r.sent}/${r.total} עובדים.\n${names}${r.total > 10 ? ` ועוד ${r.total - 10}` : ''}${r.sent < r.total ? `\n⚠️ ${r.total - r.sent} לא נשלחו בוואטסאפ (כנראה בלי שיחה פתוחה מול הסוכן) — קיבלו התראת אפליקציה.` : ''}`;
     }
 
+    case 'send_customer_benefit': {
+      // Grant a club benefit to ONE customer and send it to them. The message goes
+      // through the same consent-enforced blast path (lib/marketingBlast), so a
+      // customer without marketing consent is skipped — reported honestly.
+      const { grantBenefit } = await import('./clubCore.js');
+      const b: any = await grantBenefit({
+        customerId: String(exec.customer_id), description: String(exec.benefit).slice(0, 200),
+        source: `wa_manual_${Date.now()}`, validDays: 30,
+      }).catch(() => null);
+      if (!b) return `⚠️ ההטבה לא נוצרה. נסה שוב.`;
+      const code = b.code ? `\nקוד מימוש: ${b.code}` : '';
+      const msg = `🎁 מתנה מיוחדת בשבילך: ${exec.benefit}${code}\nתקף 30 יום. נשמח לראותך! 🙌`;
+      const { sendMarketingBlast } = await import('./marketingBlast.js');
+      const res: any = await sendMarketingBlast({ customerIds: [String(exec.customer_id)], channel: 'whatsapp', message: msg }).catch(() => null);
+      const sent = res?.sent || 0;
+      return sent
+        ? `🎁 ההטבה "${exec.benefit}" ניתנה ל-*${exec.customer_name}* ונשלחה אליו/ה.${b.code ? ` (קוד: ${b.code})` : ''}`
+        : `🎁 ההטבה ניתנה ל-*${exec.customer_name}*${b.code ? ` (קוד: ${b.code})` : ''}, אך ההודעה לא נשלחה (כנראה ללא הסכמת דיוור / בלי טלפון). אפשר למסור לו/ה את הקוד ידנית.`;
+    }
     case 'customer_campaign': {
       // Mass customer campaign — send through the real sendCustomerCampaign fn so
       // consent, the 24h throttle and opt-outs are all enforced. Owner-synthesized

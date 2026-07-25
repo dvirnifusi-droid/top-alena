@@ -479,7 +479,7 @@ const TOOL_DECLARATIONS = [
   },
   {
     name: 'issue_club_benefit',
-    description: 'Issue a club benefit / coupon to a customer (resolved by phone or name). Use for "תן לדנה כהן קפה חינם", "הטבה של 20% ללקוח 0501234567". benefit = the reward text.',
+    description: 'Issue a club benefit / coupon to a SPECIFIC customer (resolved by phone or name) AND send it to them. Use for "תן לדנה כהן קפה חינם", "שלח הטבה של 20% ללקוח 0501234567", "תשלח לרונית מנה שנייה חינם". benefit = the reward text. ALWAYS requires the owner to confirm with "כן" before it is granted + sent.',
     parameters: { type: 'OBJECT', properties: { customer: { type: 'STRING', description: 'Customer name or phone.' }, benefit: { type: 'STRING', description: 'The benefit text, e.g. "קפה חינם".' } }, required: ['customer', 'benefit'] },
   },
   {
@@ -2888,10 +2888,16 @@ async function tool_issue_club_benefit(args: any, phone: string): Promise<any> {
   if (digits.length >= 7) { const r: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, name, phone FROM "Customer" WHERE phone LIKE $1 LIMIT 2`, `%${digits.slice(-9)}%`).catch(() => []); cust = r.length === 1 ? r[0] : null; if (r.length > 1) return { need_clarification: true, note: 'כמה לקוחות עם הטלפון הזה' }; }
   if (!cust && q) { const r: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, name, phone FROM "Customer" WHERE name ILIKE $1 LIMIT 4`, `%${q}%`).catch(() => []); if (r.length === 1) cust = r[0]; else if (r.length > 1) return { need_clarification: true, suggestions: r.map((c) => `${c.name} (${c.phone || '—'})`) }; }
   if (!cust) return { error: 'customer_not_found', note: 'לא נמצא לקוח — נסה טלפון מלא או שם מדויק.' };
-  const { grantBenefit } = await import('./clubCore.js');
-  const b = await grantBenefit({ customerId: cust.id, description: desc.slice(0, 200), source: `wa_manual_${Date.now()}`, validDays: 30 }).catch(() => null);
-  if (!b) return { error: 'grant_failed' };
-  return { ok: true, customer: cust.name, benefit: desc, code: (b as any).code || null };
+  // Grant + SEND the benefit to the customer. External send → require "כן" first.
+  await stashPendingAction(phone, {
+    type: 'send_customer_benefit',
+    customer_id: cust.id, customer_name: cust.name, customer_phone: cust.phone || '',
+    benefit: desc.slice(0, 200), target_phone: phone,
+  });
+  return {
+    proposal: `🎁 להעניק ולשלוח ל-*${cust.name}* הטבה:\n"${desc}"\n\nההטבה תירשם עם קוד מימוש ותישלח אליו/ה (אם נתן/ה הסכמת דיוור). לאשר?`,
+    awaiting_confirmation: true,
+  };
 }
 
 // This branch's network tasks (from HQ) + mark one done.
