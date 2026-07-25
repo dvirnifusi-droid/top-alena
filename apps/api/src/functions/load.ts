@@ -28815,6 +28815,100 @@ registerFn('sendMarketingBlast', async ({ user, body }) => {
   return res;
 });
 
+// ── Advisor → Action bridge ─────────────────────────────────────────────────
+// The marketing advisor could only ADVISE. These let it propose a concrete blast
+// to a REAL segment, show the owner the recipient count + editable copy, and — on
+// the owner's click — send it through the SAME consent-enforced path as any blast.
+const MARKETING_SEGMENTS: Record<string, { label: string; where: () => any }> = {
+  all_consented:   { label: 'כל המועדון (עם הסכמה)', where: () => ({}) },
+  lapsed_60:       { label: 'נוטשים (מעל 60 יום)', where: () => ({ last_visit: { lt: new Date(Date.now() - 60 * 86400000) } }) },
+  birthdays_month: { label: 'ימי הולדת החודש', where: () => ({ birthday_mmdd: { startsWith: String(new Date().getMonth() + 1).padStart(2, '0') + '-' } }) },
+  vip:             { label: 'VIP', where: () => ({ loyalty_tier: 'vip' }) },
+  coins_holders:   { label: 'מחזיקי מטבעות', where: () => ({ coin_balance: { gt: 0 } }) },
+  new_30:          { label: 'לקוחות חדשים (30 יום)', where: () => ({ createdAt: { gte: new Date(Date.now() - 30 * 86400000) } }) },
+};
+async function resolveSegmentCustomerIds(key: string): Promise<string[]> {
+  const seg = MARKETING_SEGMENTS[key] || MARKETING_SEGMENTS.all_consented;
+  const rows: any[] = await db.customer.findMany({
+    where: { marketing_consent: true, marketing_unsubscribed_at: null, ...seg.where() },
+    select: { id: true },
+  }).catch(() => []);
+  return rows.map((r) => r.id);
+}
+
+// Advisor proposes 1-3 sendable actions, each bound to a real segment with its
+// live recipient count. Nothing is sent here — this is the "propose" half.
+registerFn('proposeMarketingActions', async ({ body, user }) => {
+  await requireBackOffice(user, 'proposeMarketingActions');
+  const goal = String((body as any)?.goal || '').trim();
+  const baseContext = await customerBaseContext();
+  const segList = Object.entries(MARKETING_SEGMENTS).map(([k, v]) => `${k} (${v.label})`).join(' · ');
+  const result: any = await invokeLLM({
+    prompt:
+      MARKETING_ADVISOR_PERSONA +
+      `\n\nהבעלים רוצה: "${goal || 'להגדיל הכנסה השבוע דרך המועדון'}".\n${baseContext}\n` +
+      `הצע 1-3 פעולות שיווק קונקרטיות שאפשר לשגר עכשיו למועדון. לכל פעולה בחר סגמנט אמיתי מהרשימה — רק כאלה עם מסה קריטית מהמספרים למעלה: ${segList}.\n` +
+      `כתוב הודעה קצרה (מתאימה ל-SMS, עד ~300 תווים), בעברית, עם קריאה ברורה לפעולה. אל תבטיח הטבה שלא קיימת במערכת.\n` +
+      `החזר JSON בלבד: { actions: [{ segment_key, channel, message, reason }] } כאשר channel הוא "sms" או "whatsapp".`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        actions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              segment_key: { type: 'string' },
+              channel: { type: 'string' },
+              message: { type: 'string' },
+              reason: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+  });
+  const actions: any[] = [];
+  for (const a of (Array.isArray(result?.actions) ? result.actions : [])) {
+    const key = MARKETING_SEGMENTS[a?.segment_key] ? a.segment_key : 'all_consented';
+    const ids = await resolveSegmentCustomerIds(key);
+    actions.push({
+      segment_key: key,
+      segment_label: MARKETING_SEGMENTS[key].label,
+      channel: ['sms', 'whatsapp'].includes(a?.channel) ? a.channel : 'sms',
+      message: String(a?.message || '').slice(0, 600),
+      reason: String(a?.reason || ''),
+      recipient_count: ids.length,
+    });
+  }
+  return { actions };
+});
+
+// The "act" half: the owner reviewed the segment + copy and pressed send. Resolves
+// the segment to consent-filtered ids server-side and sends via the shared blast
+// path (which ALSO enforces consent per-recipient — defense in depth).
+registerFn('sendSegmentBlast', async ({ body, user }) => {
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const b = (body || {}) as any;
+  const key = MARKETING_SEGMENTS[b.segment_key] ? b.segment_key : null;
+  if (!key) throw new Error('segment required');
+  const channel = ['sms', 'whatsapp', 'email'].includes(b.channel) ? b.channel : 'sms';
+  const message = String(b.message || '').trim();
+  if (!message) throw new Error('message required');
+  const customerIds = await resolveSegmentCustomerIds(key);
+  if (!customerIds.length) {
+    return { sent: 0, failed: 0, recipients: 0, segment: MARKETING_SEGMENTS[key].label, note: 'אין נמענים עם הסכמה בסגמנט הזה' };
+  }
+  const { sendMarketingBlast } = await import('../lib/marketingBlast.js');
+  const res = await sendMarketingBlast({ customerIds, channel, message, subject: b.subject ? String(b.subject) : undefined });
+  try {
+    await (prisma as any).campaignLog.create({
+      data: { type_: channel, channel, subject: null, body_preview: message.slice(0, 100), recipients_count: res.sent + res.failed, sent_count: res.sent, failed_count: res.failed, sent_at: new Date() },
+    });
+  } catch { /* logging must never fail a completed send */ }
+  return { ...res, segment: MARKETING_SEGMENTS[key].label };
+});
+
 // PUBLIC — the page a customer reaches from the link in a marketing message.
 // The signature is verified so a guessed id cannot unsubscribe a stranger; the
 // two older club endpoints take a raw cid and should be brought up to this.

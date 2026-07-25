@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import PageHeader from '@/components/shared/PageHeader';
 import { Lightbulb } from 'lucide-react';
+import ProposedActions from '@/components/marketing/ProposedActions';
 
 // ─── The questionnaire — grouped into sections so the owner answers in batches ───
 const QUESTIONS = [
@@ -176,6 +177,7 @@ export default function MarketingAdvisor() {
         {[
           { k: 'profile',  label: '🏪 פרופיל' },
           { k: 'strategy', label: '🎯 אסטרטגיה' },
+          { k: 'actions',  label: '⚡ פעולות' },
           { k: 'tasks',    label: '📋 משימות' },
           { k: 'chat',     label: '💬 שאל את היועץ' },
           { k: 'progress', label: '📈 התקדמות' },
@@ -212,6 +214,9 @@ export default function MarketingAdvisor() {
             } finally { setGenerating(false); }
           }}
         />
+      )}
+      {!loading && tab === 'actions' && (
+        <ProposedActions />
       )}
       {!loading && tab === 'tasks' && (
         <TasksView tasks={tasks} strategy={strategy} onChange={loadAll} hasProfile={!!profile?.completed} />
