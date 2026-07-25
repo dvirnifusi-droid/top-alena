@@ -614,13 +614,14 @@ registerFn('expandMarketingTask', async ({ body, user }) => {
   const task = await db.marketingTask.findUnique({ where: { id: task_id } });
   if (!task) throw new Error('task_not_found');
   const profile = await db.businessProfile.findFirst();
+  const baseContext = await customerBaseContext();
 
   const result: any = await invokeLLM({
     prompt:
       MARKETING_ADVISOR_PERSONA +
-      `\n\nהמשתמש לחץ "הסבר לי בפירוט איך לעשות את המשימה הזו".\nכתוב מדריך מעשי, צעד אחר צעד, מאוד קונקרטי. אם זה ממומן — כלול הצעות לקהל יעד מדויק, ניסוח מודעה, ותקציב מומלץ.\n\n` +
+      `\n\nהמשתמש לחץ "הסבר לי בפירוט איך לעשות את המשימה הזו".\nכתוב מדריך מעשי, צעד אחר צעד, מאוד קונקרטי. אם זה ממומן — כלול הצעות לקהל יעד מדויק (התבסס על סגמנטים אמיתיים מהמאגר למטה), ניסוח מודעה, ותקציב מומלץ.\n\n` +
       `--- משימה ---\n${JSON.stringify({ title: task.title, description: task.description, platform: task.platform, task_type: task.task_type, ai_reasoning: task.ai_reasoning })}\n` +
-      `--- פרופיל ---\n${JSON.stringify(profile?.profile_data || {})}\n\n` +
+      `--- פרופיל ---\n${JSON.stringify(profile?.profile_data || {})}\n${baseContext}\n` +
       `החזר JSON: { steps: ["צעד 1...", "צעד 2..."], copy: "הצעת ניסוח/קופי אם רלוונטי", warnings: ["אזהרות חשובות"], success_metric: "איך נדע שהצלחנו" }`,
     responseSchema: {
       type: 'object',
@@ -17090,8 +17091,9 @@ const META_AGENTS = new Set(['main_media_buyer', 'event_campaigns', 'lunch_campa
 async function runCopywriter(input: any) {
   const { topic, channel = 'instagram', length = 'short', cta } = input || {};
   if (!topic) throw new Error('topic required');
+  const baseContext = await customerBaseContext();
   const result: any = await invokeLLM({
-    prompt: `${await getAlinaBrandVoice()}\n\nכתוב 3 וריאציות קופי ל-${channel} בנושא: "${topic}".\nאורך: ${length}. ${cta ? `Call-to-action: ${cta}.` : ''}\nהחזר JSON: { variants: [{ hook, body, hashtags: [..] }, ...] }`,
+    prompt: `${await getAlinaBrandVoice()}${baseContext}\n\nכתוב 3 וריאציות קופי ל-${channel} בנושא: "${topic}".\nאורך: ${length}. ${cta ? `Call-to-action: ${cta}.` : ''}\nאם רלוונטי, כוון את הניסוח לסגמנט אמיתי מהמאגר (למשל נוטשים, ימי הולדת החודש, VIP).\nהחזר JSON: { variants: [{ hook, body, hashtags: [..] }, ...] }`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -17113,8 +17115,9 @@ async function runCopywriter(input: any) {
 
 async function runStoryteller(input: any) {
   const { period = 'week', highlights = '' } = input || {};
+  const baseContext = await customerBaseContext();
   const result: any = await invokeLLM({
-    prompt: `${await getAlinaBrandVoice()}\n\nכתוב טיוטה לניוזלטר ${period === 'month' ? 'חודשי' : 'שבועי'} ללקוחות המועדון של ${await getBrandName()}. נקודות בולטות מהשטח: ${highlights || '(אין — בחר זוויות מעניינות בעצמך: מנות עונתיות, סיפורי שף, אירועי החודש)'}.\nהחזר JSON: { subject, intro, sections: [{ heading, body }], closing }`,
+    prompt: `${await getAlinaBrandVoice()}${baseContext}\n\nכתוב טיוטה לניוזלטר ${period === 'month' ? 'חודשי' : 'שבועי'} ללקוחות המועדון של ${await getBrandName()}. הניוזלטר נשלח למאגר החברים למעלה — דבר אליהם. נקודות בולטות מהשטח: ${highlights || '(אין — בחר זוויות מעניינות בעצמך: מנות עונתיות, סיפורי שף, אירועי החודש)'}.\nהחזר JSON: { subject, intro, sections: [{ heading, body }], closing }`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -17136,8 +17139,9 @@ async function runStoryteller(input: any) {
 
 async function runTrendSpotter(input: any) {
   const { niche = 'restaurant_jerusalem' } = input || {};
+  const baseContext = await customerBaseContext();
   const result: any = await invokeLLM({
-    prompt: `${await getAlinaBrandVoice()}\n\nאתה Trend-Spotter. צור 5 זוויות תוכן טרנדיות שמתאימות ל${await getBrandName()} על בסיס דפוסים שראית ב-TikTok/Instagram Reels בקטגוריית ${niche}. לכל זווית — תאר רעיון לסרטון/פוסט ולמה זה ידבר. החזר JSON: { trends: [{ title, hook, why_it_works, suggested_format }] }`,
+    prompt: `${await getAlinaBrandVoice()}${baseContext}\n\nאתה Trend-Spotter. צור 5 זוויות תוכן טרנדיות שמתאימות ל${await getBrandName()} על בסיס דפוסים שראית ב-TikTok/Instagram Reels בקטגוריית ${niche}. העדף זוויות שידברו לסגמנטים האמיתיים במאגר הלקוחות למעלה. לכל זווית — תאר רעיון לסרטון/פוסט ולמה זה ידבר. החזר JSON: { trends: [{ title, hook, why_it_works, suggested_format }] }`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -17519,6 +17523,7 @@ async function runVpMarketing(input: any) {
     .map(([k, v]) => `- ${k}: ${v.label}`)
     .join('\n');
 
+  const baseContext = await customerBaseContext();
   const result: any = await invokeLLM({
     timeoutMs: 90_000,
     prompt: `אתה VP Marketing של מסעדת ${await getBrandName()}. הבעלים נתן לך יעד עסקי, ויש לך 11 סוכנים תחת אחריותך. תפקידך: לנתח את היעד, להעריך את המצב הנוכחי, ולבנות תוכנית פעולה ברורה שמחלקת את העבודה בין הסוכנים בסדר הנכון.
@@ -17527,7 +17532,7 @@ async function runVpMarketing(input: any) {
 
 מצב נוכחי במדיה (7 ימים אחרונים):
 ${metaSnapshot ? JSON.stringify(metaSnapshot, null, 2) : '(אין חיבור ל-Meta — אתכנן ללא קונטקסט קמפיינים)'}
-
+${baseContext}
 הסוכנים הזמינים תחת אחריותך:
 ${agentMenu}
 
