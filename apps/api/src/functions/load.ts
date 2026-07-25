@@ -24117,52 +24117,31 @@ export async function shiftEndReminderAndClose() {
       take: 200,
     }).catch(() => []);
     const now = Date.now();
-    let reminders = 0, closed = 0;
+    // AUTO-CLOSE DISABLED 7/6/2026 (owner directive: manual close only). We only
+    // ALERT — and, per owner 2026-07-25, in ONE consolidated message (not one
+    // WhatsApp per employee, which flooded the owner). Each shift is included once
+    // (end_reminder_sent_at), so the list only carries the newly-overdue employees.
+    const pending: Array<{ name: string; hhmm: string; long: boolean }> = [];
     for (const t of active) {
       const clockIn = new Date(t.shift_start);
       const scheduled = await findEmployeeScheduledEnd(t.employee_id, clockIn);
       if (!scheduled) continue; // no schedule found → the 16h safety-net cron handles it
       const minsPast = (now - scheduled.getTime()) / 60000;
-
-      // === AUTO-CLOSE DISABLED 7/6/2026 (owner directive: manual close only) ===
-      // Previously closed at 4h past scheduled end. Now we only send a louder
-      // reminder so admin can poke the employee — no automatic state change.
-      if (minsPast >= 240 && !t.end_reminder_sent_at) {
-        try {
-          await (prisma as any).shiftTracking.update({
-            where: { id: t.id },
-            data: { end_reminder_sent_at: new Date() },
-          });
-          const hhmm = `${String(scheduled.getUTCHours() + 3).padStart(2,'0')}:${String(scheduled.getUTCMinutes()).padStart(2,'0')}`;
-          await pushoverToAdmins(
-            '⚠️ עובד עם משמרת פתוחה 4h+ אחרי הסיום',
-            `${t.employee_name} הייתה אמורה לסיים ב-${hhmm} ועדיין במשמרת פעילה.\nסגירה ידנית בלבד — צריך לעדכן את הטופס שלה.`,
-          ).catch(() => {});
-          reminders++;
-        } catch { /* ignore */ }
-        continue;
-      }
-
-      // Reminder push: 30 min past scheduled end, only if we haven't already pinged.
       if (minsPast >= 30 && !t.end_reminder_sent_at) {
         try {
-          await (prisma as any).shiftTracking.update({
-            where: { id: t.id },
-            data: { end_reminder_sent_at: new Date() },
-          });
-          const hhmm = `${String(scheduled.getUTCHours() + 3).padStart(2,'0')}:${String(scheduled.getUTCMinutes()).padStart(2,'0')}`;
-          // Admin gets notified — they can poke the employee. The employee themselves
-          // sees the pulsing red banner in the app the moment they open ShiftClockWidget.
-          await pushoverToAdmins(
-            '⏰ עובד שכח לסיים משמרת',
-            `${t.employee_name} הייתה אמורה לסיים ב-${hhmm} ועדיין מסומנת במשמרת.\nאם לא תסיים, הקרון יסגור אוטומטית בעוד כ-3.5 שעות.`,
-          ).catch(() => {});
-          reminders++;
+          await (prisma as any).shiftTracking.update({ where: { id: t.id }, data: { end_reminder_sent_at: new Date() } });
+          const hhmm = `${String(scheduled.getUTCHours() + 3).padStart(2, '0')}:${String(scheduled.getUTCMinutes()).padStart(2, '0')}`;
+          pending.push({ name: t.employee_name, hhmm, long: minsPast >= 240 });
         } catch { /* ignore individual failures */ }
       }
     }
-    if (reminders > 0 || closed > 0) {
-      console.log(`[shift-end-reminder] ${reminders} reminders sent, ${closed} auto-closed`);
+    if (pending.length) {
+      const lines = pending.map((p) => `• ${p.name} (סיום מתוכנן ${p.hhmm})${p.long ? ' — פתוח 4ש\'+!' : ''}`).join('\n');
+      await pushoverToAdmins(
+        `⏰ ${pending.length} עובדים עדיין במשמרת פתוחה`,
+        `העובדים הבאים עדיין מסומנים במשמרת אחרי שעת הסיום המתוכננת — בדוק וסגור ידנית במידת הצורך (אין סגירה אוטומטית):\n${lines}`,
+      ).catch(() => {});
+      console.log(`[shift-end-reminder] alerted admin about ${pending.length} open shifts (consolidated)`);
     }
   } catch (e: any) {
     console.error('[shift-end-reminder] failed:', e?.message);
