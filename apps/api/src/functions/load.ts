@@ -18018,6 +18018,15 @@ const INTEGRATIONS_CATALOG = [
     help_url: 'https://support.google.com/drive/answer/2494822',
   },
   {
+    key: 'google_tts',
+    name_he: 'Google Text-to-Speech (קול הדביר)',
+    description_he: 'קול Wavenet טבעי לדביר AI, זהה בכל מכשיר. הדבק מפתח API של Cloud Text-to-Speech. בלי מפתח — נעשה שימוש בקול החינמי של הדפדפן.',
+    icon: 'Volume2',
+    secret_keys: ['GOOGLE_TTS_API_KEY'],
+    optional_keys: ['GOOGLE_TTS_VOICE'],
+    help_url: 'https://console.cloud.google.com/apis/library/texttospeech.googleapis.com',
+  },
+  {
     key: 'telegram',
     name_he: 'Telegram (אופציונלי)',
     description_he: 'התראות נוספות ב-Telegram — לצד WhatsApp. bot token + chat id.',
