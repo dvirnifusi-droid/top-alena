@@ -75,6 +75,28 @@ async function http(path, { method = 'GET', body, headers = {}, formData } = {})
   return data;
 }
 
+// Retry transient failures (server briefly overloaded, a DB-pool blip, a dropped
+// connection) with exponential backoff. A real client answer — 401/403/404/422 —
+// is NOT retried; it means the request itself won't succeed on a repeat. This is
+// what stops a single momentary /auth/me hiccup from nuking the whole app to the
+// "שגיאה בטעינת המשתמש" card.
+async function httpWithRetry(path, opts = {}, { retries = 3, baseDelay = 300 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await http(path, opts);
+    } catch (err) {
+      lastErr = err;
+      const s = err?.status;
+      // 4xx (except 408 timeout / 429 too-many) = definitive answer, don't retry.
+      if (typeof s === 'number' && s >= 400 && s < 500 && s !== 408 && s !== 429) throw err;
+      if (attempt === retries) throw err;
+      await new Promise((r) => setTimeout(r, baseDelay * Math.pow(2, attempt)));
+    }
+  }
+  throw lastErr;
+}
+
 function buildQuery(params) {
   if (!params || !Object.keys(params).length) return '';
   const qs = new URLSearchParams();
@@ -189,8 +211,17 @@ const Core = {
     }),
 };
 
+// Many components call auth.me() independently on mount, producing bursts of 5-6
+// identical /auth/me requests in the same tick. Share one in-flight request so
+// they collapse to a single round-trip (less server/DB pressure = fewer blips),
+// and retry transient failures so a momentary hiccup never surfaces as an error.
+let _meInflight = null;
 const auth = {
-  me: () => http('/auth/me'),
+  me: () => {
+    if (_meInflight) return _meInflight;
+    _meInflight = httpWithRetry('/auth/me', {}, { retries: 3 }).finally(() => { _meInflight = null; });
+    return _meInflight;
+  },
   login: async (email, password) => {
     const res = await http('/auth/login', { method: 'POST', body: { email, password } });
     setToken(res.token);

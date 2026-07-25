@@ -5644,6 +5644,24 @@ registerFn('getDvirKnowledgeSources', async ({ user }) => {
   return { live: { profile, menu, employees, suppliers, checklists, orderLists }, files };
 });
 
+// Short-TTL cache for the live business context (menu/employees/suppliers/…). The
+// data is tenant-global and the API process is per-tenant, so one 60s cache serves
+// every chat turn without rebuilding the whole snapshot each time. Never throws —
+// on failure it returns the last good text, or empty, so the chat keeps working.
+let _bizCtxCache: { text: string; at: number } | null = null;
+async function getCachedBusinessContext(): Promise<string> {
+  const now = Date.now();
+  if (_bizCtxCache && now - _bizCtxCache.at < 60_000) return _bizCtxCache.text;
+  try {
+    const text = await buildLiveBusinessContext();
+    _bizCtxCache = { text, at: now };
+    return text;
+  } catch (e: any) {
+    console.warn('[askGemini] businessContext build failed:', e?.message);
+    return _bizCtxCache?.text || '';
+  }
+}
+
 registerFn('askGemini', async ({ body }) => {
   const { message, history, systemPrompt, prompt } = body as any;
   const apiKey = process.env.GEMINI_API_KEY;
@@ -5664,26 +5682,31 @@ registerFn('askGemini', async ({ body }) => {
     if (!/does not exist|Unknown arg/i.test(String(e?.message))) throw e;
   }
   const now = Date.now();
-  const fileParts: any[] = [];
-  for (const f of aiFiles) {
-    if (!supported.has(f.mime_type)) continue;
+  // Refresh/upload every stale file CONCURRENTLY. Doing this in a sequential loop
+  // made the first chat after a cache expiry take tens of seconds (the endless
+  // "..." the owner saw). Each file resolves to a Gemini file-part or null, and a
+  // single bad file no longer aborts the whole chat.
+  const fileParts: any[] = (await Promise.all(aiFiles.map(async (f) => {
+    if (!supported.has(f.mime_type)) return null;
     const cachedAt = f.gemini_uploaded_at ? new Date(f.gemini_uploaded_at).getTime() : 0;
     const fresh = f.gemini_file_uri && now - cachedAt < GEMINI_FILE_REFRESH_MS;
     let uri = fresh ? f.gemini_file_uri : null;
     if (!uri) {
-      const buf = await fetchMinioBuffer(f.file_url);
-      if (buf) {
-        uri = await uploadBufferToGemini(buf, f.mime_type);
-        if (uri) {
-          await db.aiAssistantFile.update({
-            where: { id: f.id },
-            data: { gemini_file_uri: uri, gemini_uploaded_at: new Date().toISOString(), updated_date: new Date().toISOString() },
-          });
+      try {
+        const buf = await fetchMinioBuffer(f.file_url);
+        if (buf) {
+          uri = await uploadBufferToGemini(buf, f.mime_type);
+          if (uri) {
+            await db.aiAssistantFile.update({
+              where: { id: f.id },
+              data: { gemini_file_uri: uri, gemini_uploaded_at: new Date().toISOString(), updated_date: new Date().toISOString() },
+            });
+          }
         }
-      }
+      } catch (e: any) { console.warn('[askGemini] file refresh failed:', f.file_name, e?.message); }
     }
-    if (uri) fileParts.push({ file_data: { mime_type: f.mime_type, file_uri: uri } });
-  }
+    return uri ? { file_data: { mime_type: f.mime_type, file_uri: uri } } : null;
+  }))).filter(Boolean);
 
   // Fallback (until everyone's migrated): files still only in GeminiFileCache.
   // Skip names already covered by aiFiles to avoid duplicates.
@@ -5721,17 +5744,28 @@ registerFn('askGemini', async ({ body }) => {
   // Always reply in the user's language (staff may be non-Hebrew speakers).
   const LANG_DIRECTIVE = 'IMPORTANT: Reply in the SAME language the user writes in — Hebrew, English, or Spanish. Match the language of their latest message.';
   // Inject the live app data so the assistant "knows" whatever the owner entered
-  // (menu/employees/suppliers/checklists/orders) without any file upload.
-  const businessContext = await buildLiveBusinessContext();
+  // (menu/employees/suppliers/checklists/orders) without any file upload. Cached
+  // 60s + guarded: rebuilding this (many DB queries) on every keystroke-fast reply
+  // added latency and DB-pool pressure, and a transient failure must not kill the
+  // chat — fall back to the last good context, else none.
+  const businessContext = await getCachedBusinessContext();
   reqBody.system_instruction = { parts: [{ text: (systemPrompt ? systemPrompt + '\n\n' : '') + LANG_DIRECTIVE + businessContext }] };
 
+  // 45s timeout so a hung Gemini call fails fast (→ the client's own retry kicks
+  // in) instead of leaving the user staring at the "..." bubble forever.
   const callGemini = async (body: any) => {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
-    );
-    const d: any = await r.json();
-    return { ok: r.ok, status: r.status, data: d };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45_000);
+    try {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal },
+      );
+      const d: any = await r.json();
+      return { ok: r.ok, status: r.status, data: d };
+    } finally {
+      clearTimeout(timer);
+    }
   };
 
   let res = await callGemini(reqBody);
