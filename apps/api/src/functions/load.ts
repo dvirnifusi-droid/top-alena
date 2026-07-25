@@ -15067,8 +15067,8 @@ registerFn('importRecipesFromJson', async ({ body, user }) => {
       if (rec.kind !== pass) continue;
       const newId = randomUUID();
       await (prisma as any).$executeRawUnsafe(
-        `INSERT INTO "Recipe"("id","kind","name","total_cost","sale_price","yield_qty","yield_unit","category")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        `INSERT INTO "Recipe"("id","kind","name","total_cost","sale_price","yield_qty","yield_unit","category","updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
         newId, rec.kind, rec.name, rec.total_cost ?? null, rec.sale_price ?? null,
         rec.yield_qty ?? 1, rec.yield_unit || 'unit', rec.category || null,
       );
