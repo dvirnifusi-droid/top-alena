@@ -140,6 +140,9 @@ export default function PageGuard({ pageName, pageTitle, children }) {
   // page itself handles scoping to their department.
   const isDepartmentManager = !!user?.managed_department;
   const isDeptManagedPage = ["WorkScheduling", "AvailabilityRequests", "Employees"].includes(pageName);
+  // Self-service pages any authenticated staff may see — their OWN data only, so
+  // they must never be locked out by a tier allowlist (the page/back-end scopes it).
+  const isSelfServicePage = ["MyCard"].includes(pageName);
 
   // Access resolution, in priority order:
   //  1. Owner  → always in (can never lock yourself out).
@@ -149,7 +152,7 @@ export default function PageGuard({ pageName, pageTitle, children }) {
   //  3. No tier configured → legacy coarse role behaviour, unchanged.
   const hasAccess = permsLoading
     ? true
-    : isOwner
+    : (isOwner || isSelfServicePage)
       ? true
       : allowedPages
         ? permCan(pageName)

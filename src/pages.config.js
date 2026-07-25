@@ -53,6 +53,7 @@ import ApparelManagement from './pages/ApparelManagement';
 import AvailabilityForm from './pages/AvailabilityForm';
 import AvailabilityFormSettings from './pages/AvailabilityFormSettings';
 import AvailabilityRequests from './pages/AvailabilityRequests';
+import MyCard from './pages/MyCard';
 import BeecommIntegration from './pages/BeecommIntegration';
 import BriefingManagement from './pages/BriefingManagement';
 import CharacterLounge from './pages/CharacterLounge';
@@ -200,6 +201,7 @@ export const PAGES = {
     "AvailabilityForm": AvailabilityForm,
     "AvailabilityFormSettings": AvailabilityFormSettings,
     "AvailabilityRequests": AvailabilityRequests,
+    "MyCard": MyCard,
     "BeecommIntegration": BeecommIntegration,
     "BriefingManagement": BriefingManagement,
     "CharacterLounge": CharacterLounge,

@@ -116,6 +116,7 @@ export const adminLinks = [
 // Employee menu — full brand palette (cinnamon/olive/gold/espresso).
 export const employeeLinks = [
   { title: "בית", url: createPageUrl("EmployeeHome"), icon: LayoutGrid, color: "cinnamon" },
+  { title: "🪪 הכרטיס שלי", url: createPageUrl("MyCard"), icon: Users, color: "cinnamon" },
 
   { title: "כלי עבודה יומיים", url: "#", icon: Zap, isCategory: true, color: "cinnamon" },
   { title: "דאשבורד תור", url: createPageUrl("QueueDashboard"), icon: Users, isSubItem: true, color: "cinnamon" },

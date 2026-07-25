@@ -8882,6 +8882,23 @@ async function resolveCrmScope(user: any, targetId: string): Promise<any> {
   throw new Error('forbidden');
 }
 
+// Employee self-service — resolve the logged-in user's OWN employee card id +
+// basic identity. Pairs with getEmployeeCRM / getEmployeeShiftHistory (both
+// self-scoped + server-redacted via resolveCrmScope), so an employee can view
+// their own card with zero management permission. found:false when the login
+// isn't linked to an Employee row.
+registerFn('getMyEmployeeCard', async ({ user }: any) => {
+  if (!user?.id || !user?.email) return { found: false };
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, full_name, phone, department, positions, hire_date, status, employment_type
+     FROM "Employee" WHERE lower(email)=lower($1) AND (status IS NULL OR status <> 'terminated') LIMIT 1`,
+    String(user.email),
+  ).catch(() => []);
+  const emp = rows[0];
+  if (!emp) return { found: false, message: 'המשתמש שלך עדיין לא מקושר לכרטיס עובד. פנה למנהל שיקשר את המייל שלך.' };
+  return { found: true, employee: emp };
+});
+
 // Aggregated CRM view: core personal details + meetings + salary history +
 // derived alerts. (Forms + timeline come from getEmployee360.) Scoped per viewer.
 registerFn('getEmployeeCRM', async ({ user, body }: any) => {
