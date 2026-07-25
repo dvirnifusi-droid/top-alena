@@ -5179,6 +5179,31 @@ registerFn('getCampaignHistory', async ({ body, user }) => {
   return { rows };
 });
 
+// The optimization loop: read the campaigns actually launched (campaignLog) and
+// have the "optimization agent" review delivery/timing/channel and recommend the
+// next move. Works for club/organic without Meta; paid gets a note to connect Meta.
+registerFn('reviewMarketingPerformance', async ({ user }) => {
+  await requireBackOffice(user, 'reviewMarketingPerformance', 'MarketingAdvisor');
+  const logs: any[] = await (prisma as any).campaignLog.findMany({ orderBy: { sent_at: 'desc' }, take: 12 }).catch(() => []);
+  const recent = logs.map((l: any) => ({
+    channel: l.channel, recipients: l.recipients_count, sent: l.sent_count, failed: l.failed_count,
+    preview: String(l.body_preview || '').slice(0, 80), at: l.sent_at,
+  }));
+  if (!recent.length) {
+    return { summary: 'עוד לא שוגרו קמפיינים דרך המערכת — אחרי הקמפיין הראשון תופיע כאן סקירת ביצועים והמלצה לפעולה הבאה.', recommendations: [], recent: [] };
+  }
+  const baseContext = await customerBaseContext();
+  const review: any = await invokeLLM({
+    prompt:
+      MARKETING_ADVISOR_PERSONA +
+      `\n\nאתה סוכן האופטימיזציה. להלן הקמפיינים האחרונים ששוגרו למועדון (נשלחו/נכשלו/ערוץ/תצוגה מקדימה של הטקסט):\n${JSON.stringify(recent)}\n${baseContext}\n` +
+      `נתח: מה עבד (delivery rate, ערוץ, timing), מה כדאי לשפר, ומה הפעולה הבאה המומלצת הכי משתלמת. עברית, קונקרטי, בלי מים.\n` +
+      `החזר JSON: { summary, recommendations: ["המלצה קונקרטית", ...] }`,
+    responseSchema: { type: 'object', properties: { summary: { type: 'string' }, recommendations: { type: 'array', items: { type: 'string' } } } },
+  });
+  return { summary: String(review?.summary || ''), recommendations: (Array.isArray(review?.recommendations) ? review.recommendations : []).slice(0, 5), recent };
+});
+
 // Update a customer's birthday — used by the admin UI + by reservation form
 registerFn('setCustomerBirthday', async ({ body, user }) => {
   await requireBackOffice(user, 'setCustomerBirthday');
@@ -28970,6 +28995,72 @@ registerFn('sendSegmentBlast', async ({ body, user }) => {
     });
   } catch { /* logging must never fail a completed send */ }
   return { ...res, segment: MARKETING_SEGMENTS[key].label };
+});
+
+// ── Unified campaign builder (engine) ───────────────────────────────────────
+// One goal (+ optional uploaded/Drive image) → a full campaign: designed creative,
+// copy variants, a real target segment with its count, an audience description for
+// paid, a recommended channel + budget. Orchestrates the agents' capabilities
+// (copywriter + visual-designer/Imagen) into one place instead of separate cards.
+registerFn('buildCampaign', async ({ body, user }) => {
+  await requireBackOffice(user, 'buildCampaign', 'MarketingAdvisor');
+  const b = (body || {}) as any;
+  const goal = String(b.goal || '').trim() || 'להגדיל הכנסה השבוע';
+  const providedImage = String(b.image_url || '').trim() || null;
+  const wantImage = b.generate_image !== false && !providedImage;
+  const baseContext = await customerBaseContext();
+  const profile: any = await db.businessProfile.findFirst().catch(() => null);
+  const pd: any = profile?.profile_data || {};
+  const brand = await getBrandName();
+  const bizBlock =
+    `\n--- העסק שלך ---\nשם: ${pd.business_name || brand}${pd.concept ? ` · קונספט: ${pd.concept}` : ''}\n` +
+    (pd.flagship_products ? `מנות דגל: ${String(pd.flagship_products).replace(/\n/g, ', ')}\n` : '') +
+    (pd.high_margin_items ? `מנות רווחיות: ${String(pd.high_margin_items).replace(/\n/g, ', ')}\n` : '');
+  const segList = Object.entries(MARKETING_SEGMENTS).map(([k, v]) => `${k} (${v.label})`).join(' · ');
+
+  // 1) Copy + targeting + channel + image brief — one structured call.
+  const plan: any = await invokeLLM({
+    prompt:
+      MARKETING_ADVISOR_PERSONA +
+      `\n\nבנה קמפיין שלם ומגובש למטרה: "${goal}".\n${baseContext}${bizBlock}\n` +
+      `החזר: 3 גרסאות קופי (כל אחת hook קצר + body + hashtags), סגמנט יעד למועדון (segment_key מהרשימה: ${segList}), תיאור קהל מדויק לפרסום ממומן (audience_description — גיל/תחומי עניין/מיקום), ערוץ מומלץ (channel: whatsapp/sms/instagram/facebook/meta_ad), תקציב יומי מומלץ בשקלים אם ממומן (daily_budget), והנחיית עיצוב לתמונה בהקשר המטרה והמנות (image_brief).\n` +
+      `שלב שם מנה אמיתי. החזר JSON בלבד: { copy_variants:[{hook,body,hashtags:[]}], segment_key, audience_description, channel, daily_budget, image_brief }`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        copy_variants: { type: 'array', items: { type: 'object', properties: { hook: { type: 'string' }, body: { type: 'string' }, hashtags: { type: 'array', items: { type: 'string' } } } } },
+        segment_key: { type: 'string' },
+        audience_description: { type: 'string' },
+        channel: { type: 'string' },
+        daily_budget: { type: 'number' },
+        image_brief: { type: 'string' },
+      },
+    },
+  });
+
+  // 2) Creative: use the provided image, else design one from the brief (Imagen).
+  let creative_image_base64: string | null = null;
+  if (wantImage) {
+    const brief = String(plan?.image_brief || goal);
+    const img: any = await generateImage({ prompt: `${brief}. ${pd.concept || ''}. Professional, appetizing food photography for ${brand}. Hyper-realistic, social-media ready, natural light.` }).catch(() => ({}));
+    creative_image_base64 = img?.image_base64 || null;
+  }
+
+  // 3) Resolve the target segment's live count.
+  const segKey = MARKETING_SEGMENTS[plan?.segment_key] ? plan.segment_key : 'all_consented';
+  const ids = await resolveSegmentCustomerIds(segKey);
+
+  return {
+    goal,
+    copy_variants: (Array.isArray(plan?.copy_variants) ? plan.copy_variants : []).slice(0, 3),
+    targeting: {
+      segment_key: segKey, segment_label: MARKETING_SEGMENTS[segKey].label, recipient_count: ids.length,
+      audience_description: String(plan?.audience_description || ''),
+      channel: String(plan?.channel || 'whatsapp'),
+      daily_budget: Math.max(0, Math.round(Number(plan?.daily_budget) || 0)),
+    },
+    creative: { image_url: providedImage, image_base64: creative_image_base64, image_brief: String(plan?.image_brief || '') },
+  };
 });
 
 // PUBLIC — the page a customer reaches from the link in a marketing message.
