@@ -5,6 +5,7 @@ import { Lightbulb } from 'lucide-react';
 import ProposedActions from '@/components/marketing/ProposedActions';
 import CampaignBuilder from '@/components/marketing/CampaignBuilder';
 import PerformanceReview from '@/components/marketing/PerformanceReview';
+import LiveCampaigns from '@/components/marketing/LiveCampaigns';
 
 // ─── The questionnaire — grouped into sections so the owner answers in batches ───
 const QUESTIONS = [
@@ -225,6 +226,7 @@ export default function MarketingAdvisor() {
             <ProposedActions />
           </div>
           <PerformanceReview />
+          <LiveCampaigns />
         </div>
       )}
       {!loading && tab === 'tasks' && (

@@ -1213,6 +1213,33 @@ async function executeAction(exec: any): Promise<string> {
       const matched = res?.total_matched ?? sent;
       return `📣 הקמפיין נשלח ל-*${sent}* לקוחות${matched > sent ? ` (${matched - sent} דולגו — כבר קיבלו ב-24ש' או לא מסכימים)` : ''}.`;
     }
+    case 'pause_meta_campaign': {
+      const { functionHandlers } = await import('../functions/index.js');
+      const res: any = await functionHandlers['pauseMetaCampaign']({
+        user: { id: 'wa-owner', role: 'owner', email: '' },
+        body: { campaign_id: String(exec.campaign_id) }, req: {},
+      } as any).catch((e: any) => ({ error: String(e?.message || e) }));
+      if (res?.error) return `⚠️ לא הצלחתי להשהות את הקמפיין: ${res.error}`;
+      return `⏸️ הקמפיין "${exec.campaign_name || ''}" הושהה — לא ייגבה עוד תקציב.`;
+    }
+    case 'resume_meta_campaign': {
+      const { functionHandlers } = await import('../functions/index.js');
+      const res: any = await functionHandlers['resumeMetaCampaign']({
+        user: { id: 'wa-owner', role: 'owner', email: '' },
+        body: { campaign_id: String(exec.campaign_id) }, req: {},
+      } as any).catch((e: any) => ({ error: String(e?.message || e) }));
+      if (res?.error) return `⚠️ לא הצלחתי להפעיל את הקמפיין: ${res.error}`;
+      return `▶️ הקמפיין "${exec.campaign_name || ''}" הופעל מחדש.`;
+    }
+    case 'set_meta_budget': {
+      const { functionHandlers } = await import('../functions/index.js');
+      const res: any = await functionHandlers['setMetaCampaignDailyBudget']({
+        user: { id: 'wa-owner', role: 'owner', email: '' },
+        body: { campaign_id: String(exec.campaign_id), daily_budget_ils: Number(exec.daily_budget_ils) }, req: {},
+      } as any).catch((e: any) => ({ error: String(e?.message || e) }));
+      if (res?.error) return `⚠️ לא הצלחתי לעדכן תקציב: ${res.error}`;
+      return `💰 התקציב היומי של "${exec.campaign_name || ''}" עודכן ל-₪${exec.daily_budget_ils}.`;
+    }
     case 'invite_employee': {
       // Mirror inviteEmployeeViaWhatsApp (load.ts:23268): token + PendingInvitation
       // row + WhatsApp link to /EmployeeComplete.

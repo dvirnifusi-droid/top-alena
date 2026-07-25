@@ -483,6 +483,26 @@ const TOOL_DECLARATIONS = [
     parameters: { type: 'OBJECT', properties: { customer: { type: 'STRING', description: 'Customer name or phone.' }, benefit: { type: 'STRING', description: 'The benefit text, e.g. "קפה חינם".' } }, required: ['customer', 'benefit'] },
   },
   {
+    name: 'list_live_campaigns',
+    description: 'List the LIVE Meta (Facebook/Instagram) ad campaigns with their last-7-day spend, leads and cost-per-lead. Use for "מה מצב הקמפיינים", "כמה הוצאתי על פרסום", "אילו קמפיינים פעילים", "איזה קמפיין מבזבז לי כסף".',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'pause_meta_campaign',
+    description: 'Pause a LIVE Meta ad campaign so it stops spending immediately. Use for "עצור את הקמפיין X", "תשהה את הקמפיין של קיץ", "תפסיק את הפרסום של Y", or replying to a waste alert. Resolve the campaign by name. ALWAYS requires the owner to confirm with "כן".',
+    parameters: { type: 'OBJECT', properties: { campaign: { type: 'STRING', description: 'Campaign name or part of it.' } }, required: ['campaign'] },
+  },
+  {
+    name: 'resume_meta_campaign',
+    description: 'Resume/activate a PAUSED Meta ad campaign. Use for "תפעיל מחדש את הקמפיין X", "תחזיר את הפרסום של Y". Resolve the campaign by name. ALWAYS requires the owner to confirm with "כן".',
+    parameters: { type: 'OBJECT', properties: { campaign: { type: 'STRING', description: 'Campaign name or part of it.' } }, required: ['campaign'] },
+  },
+  {
+    name: 'set_meta_budget',
+    description: 'Change the DAILY budget (in ₪) of a Meta ad campaign. Use for "הורד את התקציב של X ל-40", "תעלה את התקציב היומי של Y ל-100 שקל". Resolve the campaign by name. ALWAYS requires the owner to confirm with "כן".',
+    parameters: { type: 'OBJECT', properties: { campaign: { type: 'STRING', description: 'Campaign name or part of it.' }, daily_budget_ils: { type: 'NUMBER', description: 'New daily budget in shekels (₪).' } }, required: ['campaign', 'daily_budget_ils'] },
+  },
+  {
     name: 'ask_knowledge',
     description: 'Answer a question from the restaurant\'s KNOWLEDGE FILES — menu details, ingredients/allergens, recipes, prep, procedures, training material. Use for "מה יש במנה X", "האם יש גלוטן ב-", "איך מכינים את", "מה הנוהל ל", or any menu/recipe/procedure knowledge question. Returns the answer from the uploaded files.',
     parameters: { type: 'OBJECT', properties: { question: { type: 'STRING', description: 'The knowledge question, in the user\'s own words.' } }, required: ['question'] },
@@ -3143,7 +3163,84 @@ async function tool_recruitment_link(_args: any, phone: string): Promise<any> {
   return { link: `${origin}/JobApplication`, note: 'שתף את הקישור עם מועמדים — הם ימלאו טופס והמערכת תדרג אותם אוטומטית.' };
 }
 
+// ─── Meta ad-campaign controls (owner-only) ────────────────────────────────
+// Let the owner see and act on live Meta campaigns from WhatsApp — closes the
+// loop the optimizer opens (its waste alert names a campaign; the owner replies
+// "עצור את X" and, after "כן", it stops). Ad spend is owner-scoped.
+async function listLiveMetaCampaigns(): Promise<any[]> {
+  const { functionHandlers } = await import('../functions/index.js');
+  const res: any = await functionHandlers['listMetaCampaigns']({
+    user: { id: 'wa-owner', role: 'owner', email: '' }, body: {}, req: {},
+  } as any).catch(() => null);
+  return (res?.campaigns || []) as any[];
+}
+
+function matchMetaCampaign(list: any[], query: string): any | null {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return null;
+  return list.find((c) => String(c.name || '').toLowerCase() === q)
+    || list.find((c) => String(c.name || '').toLowerCase().includes(q))
+    || list.find((c) => q.includes(String(c.name || '').toLowerCase()))
+    || null;
+}
+
+async function requireOwnerForAds(phone: string): Promise<string | null> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  return scope.is_owner ? null : 'ניהול תקציבי פרסום זמין לבעלים בלבד.';
+}
+
+async function tool_list_live_campaigns(_args: any, phone: string): Promise<any> {
+  const deny = await requireOwnerForAds(phone);
+  if (deny) return { error: deny };
+  const list = await listLiveMetaCampaigns();
+  if (!list.length) return { message: 'לא נמצאו קמפיינים בחשבון המודעות (או שמטא לא מחובר).' };
+  const lines = list.slice(0, 12).map((c) => {
+    const st = (c.effective_status || c.status) === 'ACTIVE' ? '🟢' : '⚪';
+    const cpl = c.cost_per_lead != null ? ` · ₪${c.cost_per_lead}/ליד` : '';
+    const waste = c.wasteful ? ' ⚠️מבזבז' : '';
+    return `${st} ${c.name} — ₪${c.spend_7d || 0}/7ימ׳ · ${c.leads_7d || 0} לידים${cpl}${waste}`;
+  });
+  return { message: `📣 קמפיינים חיים (7 ימים):\n${lines.join('\n')}` };
+}
+
+async function tool_pause_meta_campaign(args: any, phone: string): Promise<any> {
+  const deny = await requireOwnerForAds(phone);
+  if (deny) return { error: deny };
+  const list = await listLiveMetaCampaigns();
+  const c = matchMetaCampaign(list, args.campaign);
+  if (!c) return { error: `לא מצאתי קמפיין בשם "${args.campaign}". קמפיינים קיימים: ${list.map((x) => x.name).slice(0, 8).join(', ') || '—'}` };
+  await stashPendingAction(phone, { type: 'pause_meta_campaign', campaign_id: c.id, campaign_name: c.name, target_phone: phone });
+  return { proposal: `⏸️ השהיית הקמפיין "${c.name}" (₪${c.spend_7d || 0} הוצאה ב-7 ימים, ${c.leads_7d || 0} לידים)`, awaiting_confirmation: true };
+}
+
+async function tool_resume_meta_campaign(args: any, phone: string): Promise<any> {
+  const deny = await requireOwnerForAds(phone);
+  if (deny) return { error: deny };
+  const list = await listLiveMetaCampaigns();
+  const c = matchMetaCampaign(list, args.campaign);
+  if (!c) return { error: `לא מצאתי קמפיין בשם "${args.campaign}".` };
+  await stashPendingAction(phone, { type: 'resume_meta_campaign', campaign_id: c.id, campaign_name: c.name, target_phone: phone });
+  return { proposal: `▶️ הפעלת הקמפיין "${c.name}" מחדש`, awaiting_confirmation: true };
+}
+
+async function tool_set_meta_budget(args: any, phone: string): Promise<any> {
+  const deny = await requireOwnerForAds(phone);
+  if (deny) return { error: deny };
+  const ils = Number(args.daily_budget_ils);
+  if (!Number.isFinite(ils) || ils < 5) return { error: 'תקציב יומי חייב להיות לפחות ₪5.' };
+  const list = await listLiveMetaCampaigns();
+  const c = matchMetaCampaign(list, args.campaign);
+  if (!c) return { error: `לא מצאתי קמפיין בשם "${args.campaign}".` };
+  await stashPendingAction(phone, { type: 'set_meta_budget', campaign_id: c.id, campaign_name: c.name, daily_budget_ils: ils, target_phone: phone });
+  return { proposal: `💰 שינוי התקציב היומי של "${c.name}" ל-₪${ils}${c.daily_budget_ils ? ` (כרגע ₪${c.daily_budget_ils})` : ''}`, awaiting_confirmation: true };
+}
+
 const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> = {
+  list_live_campaigns: tool_list_live_campaigns,
+  pause_meta_campaign: tool_pause_meta_campaign,
+  resume_meta_campaign: tool_resume_meta_campaign,
+  set_meta_budget: tool_set_meta_budget,
   build_schedule_now: tool_build_schedule_now,
   add_scheduling_rule: tool_add_scheduling_rule,
   list_scheduling_rules: tool_list_scheduling_rules,
@@ -3390,19 +3487,22 @@ const TOOL_GROUPS: Record<string, string[]> = {
   events: ['propose_approve_event', 'propose_add_event_lead', 'propose_update_event', 'list_open_leads', 'search_lead', 'propose_lead_set_stage', 'propose_event_add', 'propose_event_add_batch'],
   tasks: ['propose_task_add', 'propose_task_done', 'list_open_tasks', 'propose_task_add_batch', 'propose_remind_me', 'list_today_events', 'update_scheduled_event', 'cancel_scheduled_event', 'my_branch_tasks', 'mark_branch_task'],
   invoices: ['get_unpaid_invoices', 'search_invoice', 'propose_invoice_mark_paid'],
-  team: ['propose_team_broadcast', 'search_employee', 'count_staff', 'list_today_schedule', 'add_employee_note', 'add_employee_task', 'list_hr_gaps', 'employee_summary', 'log_employee_meeting', 'set_onboarding_step', 'issue_club_benefit', 'propose_customer_campaign'],
+  team: ['propose_team_broadcast', 'search_employee', 'count_staff', 'list_today_schedule', 'add_employee_note', 'add_employee_task', 'list_hr_gaps', 'employee_summary', 'log_employee_meeting', 'set_onboarding_step', 'issue_club_benefit', 'propose_customer_campaign', 'list_live_campaigns', 'pause_meta_campaign', 'resume_meta_campaign', 'set_meta_budget'],
   menu: ['list_menu', 'add_menu_item', 'set_menu_item_availability', 'update_menu_item', 'remove_menu_item', 'propose_set_dish_price', 'get_recipe_cost'],
   deliveries: ['list_deliveries', 'update_delivery'],
   recruitment: ['list_candidates', 'candidate_summary', 'schedule_interview', 'update_candidate_status', 'recruitment_link'],
 };
 // When the intent is unclear, a modest common set (still far smaller than 54).
-const GENERAL_TOOLS = ['get_today_revenue', 'daily_status', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'propose_create_reservation', 'list_order_needs', 'list_incidents', 'propose_open_incident', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee', 'issue_club_benefit'];
+const GENERAL_TOOLS = ['get_today_revenue', 'daily_status', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'propose_create_reservation', 'list_order_needs', 'list_incidents', 'propose_open_incident', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee', 'issue_club_benefit', 'list_live_campaigns', 'pause_meta_campaign', 'resume_meta_campaign', 'set_meta_budget'];
 const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_mark_sick', 'submit_availability'];
 
 // Deterministic keyword routing — covers the vast majority of phrasings without
 // an LLM call. Order matters: more specific intents first. The LLM classifier is
 // only a fallback for wording the keywords miss.
 const INTENT_KEYWORDS: Array<[string, RegExp]> = [
+  // Meta ad-campaign control — pause/resume/budget on live campaigns. Kept early
+  // so budget phrasing ("הורד תקציב") doesn't get grabbed by finance/other rules.
+  ['team', /קמפיינ?ים|תקציב יומי|הורד.{0,6}תקציב|תוריד.{0,6}תקציב|העלה.{0,6}תקציב|תעלה.{0,6}תקציב|(עצור|תעצור|השהה|תשהה|תפסיק|תפעיל|תחזיר).{0,12}(קמפיין|פרסום|מודעה|מודעות)|מבזבז|כמה הוצאתי על (פרסום|מודעות)/],
   ['team', /תגיד לכל|תודיע לכל|שלח לכל|הודעה לכל|תעדכן את (כל|ה)|לכל העובדים|לכל הצוות|תגיד למלצרים|תגיד לטבחים|תגיד למטבח/],
   ['team', /הערה על|תעד ש|מחמאה|מי חסר (לו )?טפסים|מי צריך לחתום|חסר.{0,6}(הסכם|טופס|101)|ספר לי על|מה המצב עם|כרטיס עובד|כרטיס של|שיחת משוב|שיחת אזהרה|שימוע|העלאת שכר|קמפיין|לכל הלקוחות|הטבה ל|כמה עובדים|כמה טבחים|כמה מלצרים|כמה ברמנים|כמות עובדים|כמה אנשי צוות/],
   // Reminders/personal-calendar must win early — "תזכיר לי להתקשר לספק" otherwise

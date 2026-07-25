@@ -5253,7 +5253,7 @@ export async function runMarketingOptimizer(): Promise<any> {
     ...wasteful.map((r: any) => `🔴 "${r.name}" — ₪${r.spend} ב-7 ימים, *0 לידים* → שקול לעצור/לשנות.`),
     ...expensive.map((r: any) => `🟠 "${r.name}" — כ-₪${Math.round(r.spend / r.leads)} לליד (₪${r.spend}, ${r.leads} לידים) → יקר.`),
   ];
-  const msg = `📊 *אופטימיזציה — בזבוז בקמפיינים הממומנים (7 ימים)*\n${lines.join('\n')}\n\nלטיפול: פתח את בנה-קמפיין / מנהל הקמפיינים.`;
+  const msg = `📊 *אופטימיזציה — בזבוז בקמפיינים הממומנים (7 ימים)*\n${lines.join('\n')}\n\n💬 לפעולה מיידית — השב לי כאן: "עצור את הקמפיין <שם>" או "הורד תקציב של <שם> ל-40", ואבצע אחרי אישור. או פתח את "קמפיינים חיים" בעמוד השיווק.`;
   try { const { broadcastToAdmins } = await import('../lib/whatsappAlerts.js'); await broadcastToAdmins(msg); } catch { /* ignore */ }
   return { ok: true, alerted: true, wasteful: wasteful.length, expensive: expensive.length };
 }
@@ -18650,6 +18650,86 @@ registerFn('approveAndLaunchCampaignBrief', async ({ body, user }) => {
     data: { status: 'approved', approved_at: new Date() },
   });
   return (functionHandlers as any).launchCampaignBrief({ body: { id, active: true } });
+});
+
+// ---- Live Meta campaign controls -------------------------------------------
+// Let the owner ACT on the optimizer's waste alerts (and on any live campaign)
+// without opening Meta Ads Manager. Pausing saves money immediately; resume and
+// budget changes are always explicit owner actions with explicit values, so the
+// same safety model as launchCampaignBrief applies.
+
+// Normalize a Meta insights `actions` array into a single lead-like count.
+function metaLeadCount(actions: any[]): number {
+  return (actions || [])
+    .filter((a: any) => /lead|purchase|complete_registration|contact|submit_application|schedule/i.test(a?.action_type || ''))
+    .reduce((s: number, a: any) => s + (parseInt(a?.value || '0') || 0), 0);
+}
+
+// Live snapshot of the account's campaigns — status, daily budget, and last-7d
+// spend/leads/cost-per-lead — the data a pause/budget decision needs.
+registerFn('listMetaCampaigns', async ({ user }) => {
+  await requireBackOffice(user, 'listMetaCampaigns');
+  const token = await META_TOKEN();
+  if (!token) return { configured: false, campaigns: [] };
+  const res = await metaApi(
+    `/act_${META_AD_ACCOUNT_ID}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget,insights.date_preset(last_7d){spend,clicks,ctr,actions}&limit=50`,
+  );
+  const campaigns = (res?.data || []).map((c: any) => {
+    const ins = c?.insights?.data?.[0] || {};
+    const spend = parseFloat(ins.spend || '0');
+    const leads = metaLeadCount(ins.actions || []);
+    return {
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      effective_status: c.effective_status,
+      objective: c.objective,
+      daily_budget_ils: c.daily_budget ? Math.round(Number(c.daily_budget) / 100) : null,
+      spend_7d: Math.round(spend),
+      leads_7d: leads,
+      cost_per_lead: leads > 0 ? Math.round(spend / leads) : null,
+      wasteful: c.effective_status === 'ACTIVE' && spend >= 100 && leads === 0,
+    };
+  });
+  return { configured: true, campaigns };
+});
+
+registerFn('pauseMetaCampaign', async ({ body, user }) => {
+  await requireBackOffice(user, 'pauseMetaCampaign');
+  const { campaign_id } = (body || {}) as any;
+  if (!campaign_id) throw new Error('campaign_id required');
+  await metaApi(`/${campaign_id}`, 'POST', { status: 'PAUSED' });
+  return { ok: true, status: 'PAUSED', message: 'הקמפיין הושהה — לא ייגבה עוד תקציב.' };
+});
+
+registerFn('resumeMetaCampaign', async ({ body, user }) => {
+  await requireBackOffice(user, 'resumeMetaCampaign');
+  const { campaign_id } = (body || {}) as any;
+  if (!campaign_id) throw new Error('campaign_id required');
+  await metaApi(`/${campaign_id}`, 'POST', { status: 'ACTIVE' });
+  return { ok: true, status: 'ACTIVE', message: 'הקמפיין הופעל מחדש.' };
+});
+
+// Set the daily budget. Budget can live on the campaign (CBO) or on its ad sets;
+// try the campaign first and fall back to updating each ad set (our own launches
+// keep the budget on the ad set).
+registerFn('setMetaCampaignDailyBudget', async ({ body, user }) => {
+  await requireBackOffice(user, 'setMetaCampaignDailyBudget');
+  const { campaign_id, daily_budget_ils } = (body || {}) as any;
+  if (!campaign_id) throw new Error('campaign_id required');
+  const ils = Number(daily_budget_ils);
+  if (!Number.isFinite(ils) || ils < 5) throw new Error('תקציב יומי חייב להיות לפחות ₪5');
+  const minor = Math.round(ils * 100);
+  try {
+    await metaApi(`/${campaign_id}`, 'POST', { daily_budget: minor });
+    return { ok: true, level: 'campaign', daily_budget_ils: ils, message: `התקציב היומי עודכן ל-₪${ils}.` };
+  } catch (e: any) {
+    const adsets = await metaApi(`/${campaign_id}/adsets?fields=id&limit=25`);
+    const ids = (adsets?.data || []).map((a: any) => a.id);
+    if (!ids.length) throw new Error(`לא נמצאו AdSets לקמפיין. שגיאת Meta: ${String(e?.message || e).slice(0, 120)}`);
+    for (const asid of ids) await metaApi(`/${asid}`, 'POST', { daily_budget: minor });
+    return { ok: true, level: 'adset', adsets: ids.length, daily_budget_ils: ils, message: `התקציב היומי עודכן ל-₪${ils} (על ${ids.length} AdSets).` };
+  }
 });
 
 // Pick the best photo for a goal out of a Google Drive folder. Owner stores
