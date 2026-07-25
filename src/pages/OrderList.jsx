@@ -123,6 +123,8 @@ function OrderListInner() {
   };
   const setPar = (it, v) => { lastInteractionRef.current = Date.now(); patchItem(it.id, { target: v }); };
   const commitPar = async (it) => { try { await base44.functions.updatePrepItem({ id: it.id, target: it.target ?? '' }); } catch { /* ignore */ } };
+  const setPrice = (it, v) => { lastInteractionRef.current = Date.now(); patchItem(it.id, { price: v }); };
+  const commitPrice = async (it) => { try { await base44.functions.updatePrepItem({ id: it.id, price: it.price ?? '' }); } catch { /* ignore */ } };
   const setCur = (it, v) => { lastInteractionRef.current = Date.now(); patchItem(it.id, { have: v }); };
   const commitCur = async (it) => { try { await base44.functions.updatePrepItem({ id: it.id, have: it.have ?? '' }); } catch { /* ignore */ } };
 
@@ -324,6 +326,12 @@ function OrderListInner() {
                               <input type="number" inputMode="decimal" value={it.have ?? ''}
                                 onChange={e => setCur(it, e.target.value)} onBlur={() => commitCur(it)}
                                 className="w-14 h-7 rounded-md border px-1 text-center text-sm" style={{ borderColor: W.border, background: '#fff' }} />
+                            </label>
+                            <label className="flex items-center gap-1 text-[11px]" style={{ color: W.muted }} title="מחיר ליחידה — לחישוב סה״כ ומינימום הזמנה לספק">
+                              ₪
+                              <input type="number" inputMode="decimal" value={it.price ?? ''}
+                                onChange={e => setPrice(it, e.target.value)} onBlur={() => commitPrice(it)}
+                                placeholder="מחיר" className="w-16 h-7 rounded-md border px-1 text-center text-sm" style={{ borderColor: W.border, background: '#fff' }} />
                             </label>
                           </div>
                         </div>

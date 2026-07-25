@@ -7547,6 +7547,8 @@ async function ensurePrepItems(): Promise<void> {
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "to_prep" BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
   // Which supplier each order item is bought from (for supplier auto-split).
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "supplier_name" TEXT`).catch(() => {});
+  // Unit price (₪) — lets the split compute an order TOTAL and enforce the ₪ minimum.
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "price" DOUBLE PRECISION`).catch(() => {});
   // Supplier order minimums (₪ / units) — alert before sending if not met.
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "min_order_amount" DOUBLE PRECISION`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "min_order_units" DOUBLE PRECISION`).catch(() => {});
@@ -8176,14 +8178,15 @@ registerFn('savePrepItems', async ({ user, body }: any) => {
     const name = String(it.name || '').trim();
     if (!name) continue;
     await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO "PrepItem" ("id","name","category","unit","target","have","prep","to_prep","done","note","list_id","sort","supplier_name","updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())`,
+      `INSERT INTO "PrepItem" ("id","name","category","unit","target","have","prep","to_prep","done","note","list_id","sort","supplier_name","price","updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())`,
       it.id && String(it.id).length > 8 ? String(it.id) : randomUUID(),
       name.slice(0, 200), it.category ? String(it.category).slice(0, 80) : null,
       it.unit ? String(it.unit).slice(0, 40) : null, it.target != null ? String(it.target).slice(0, 40) : null,
       it.have != null ? String(it.have).slice(0, 40) : null, it.prep != null ? String(it.prep).slice(0, 40) : null,
       !!it.to_prep, !!it.done, it.note != null ? String(it.note).slice(0, 300) : null, listId, Number.isFinite(+it.sort) ? Math.floor(+it.sort) : i,
       it.supplier_name ? String(it.supplier_name).slice(0, 160) : null,
+      (it.price != null && it.price !== '' && Number.isFinite(+it.price)) ? +it.price : null,
     ).then(() => { n++; }).catch((e: any) => console.warn('[prep] insert', e?.message));
   }
   return { ok: true, count: n };
@@ -8209,6 +8212,8 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
   const noteV = has('note') ? String(b.note).slice(0, 300) : null;
   const photoV = has('photo_url') ? String(b.photo_url).slice(0, 500) : null;
   const supplierV = has('supplier_name') ? String(b.supplier_name).slice(0, 160) : null;
+  const priceProvided = b.price !== undefined;
+  const priceV = (b.price != null && b.price !== '' && Number.isFinite(+b.price)) ? +b.price : null;
   const toPrepProvided = b.to_prep !== undefined;
   const doneProvided = b.done !== undefined;
   await (prisma as any).$executeRawUnsafe(
@@ -8219,6 +8224,7 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
        note = COALESCE($4, note),
        photo_url = COALESCE($5, photo_url),
        supplier_name = CASE WHEN $12 THEN $13 ELSE supplier_name END,
+       price = CASE WHEN $14 THEN $15 ELSE price END,
        to_prep = CASE WHEN $6 THEN $7 ELSE to_prep END,
        done = CASE WHEN $8 THEN $9 ELSE done END,
        done_by = CASE WHEN $8 THEN (CASE WHEN $9 THEN COALESCE(done_by, $10) ELSE NULL END) ELSE done_by END,
@@ -8230,6 +8236,7 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
     doneProvided, !!b.done, name,
     String(b.id),
     b.supplier_name !== undefined, supplierV,
+    priceProvided, priceV,
   );
   return { ok: true };
 });
@@ -8319,8 +8326,8 @@ registerFn('getOrderSupplierSplit', async ({ user, body }: any) => {
   const norm = (s: any) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
   const listId = (body || {}).list_id ? String((body as any).list_id) : null;
   const rows: any[] = listId
-    ? await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, prep, supplier_name FROM "PrepItem" WHERE to_prep=true AND list_id=$1`, listId).catch(() => [])
-    : await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, prep, supplier_name FROM "PrepItem" WHERE to_prep=true`).catch(() => []);
+    ? await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, prep, price, supplier_name FROM "PrepItem" WHERE to_prep=true AND list_id=$1`, listId).catch(() => [])
+    : await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, prep, price, supplier_name FROM "PrepItem" WHERE to_prep=true`).catch(() => []);
   const sups: any[] = await (prisma as any).$queryRawUnsafe(`SELECT company_name, phone, min_order_amount, min_order_units FROM "Supplier"`).catch(() => []);
   const supByName = new Map(sups.map((s) => [norm(s.company_name), s]));
   const groups = new Map<string, any>();
@@ -8328,16 +8335,19 @@ registerFn('getOrderSupplierSplit', async ({ user, body }: any) => {
     const key = r.supplier_name || 'לא משויך';
     if (!groups.has(key)) {
       const s: any = supByName.get(norm(key));
-      groups.set(key, { supplier: key, phone: s?.phone || null, min_order_amount: s?.min_order_amount ?? null, min_order_units: s?.min_order_units ?? null, items: [], total_units: 0, unassigned: key === 'לא משויך' });
+      groups.set(key, { supplier: key, phone: s?.phone || null, min_order_amount: s?.min_order_amount ?? null, min_order_units: s?.min_order_units ?? null, items: [], total_units: 0, total_amount: 0, unassigned: key === 'לא משויך' });
     }
     const g = groups.get(key);
     const qty = parseFloat(String(r.prep || '').replace(/[^\d.]/g, '')) || 0;
-    g.items.push({ name: r.name, qty: r.prep || '', unit: r.unit || '' });
+    const price = Number(r.price) || 0;
+    g.items.push({ name: r.name, qty: r.prep || '', unit: r.unit || '', price: price || null, line_total: price && qty ? Math.round(price * qty) : null });
     g.total_units += qty;
+    g.total_amount += price * qty;
   }
   const out = [...groups.values()].map((g) => ({
-    ...g, total_units: Math.round(g.total_units * 100) / 100, item_count: g.items.length,
+    ...g, total_units: Math.round(g.total_units * 100) / 100, total_amount: Math.round(g.total_amount), item_count: g.items.length,
     below_min_units: g.min_order_units != null && g.total_units < Number(g.min_order_units),
+    below_min_amount: g.min_order_amount != null && g.total_amount < Number(g.min_order_amount),
   })).sort((a, b) => (a.unassigned ? 1 : 0) - (b.unassigned ? 1 : 0) || b.item_count - a.item_count);
   return { groups: out };
 });

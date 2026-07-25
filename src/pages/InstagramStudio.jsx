@@ -95,7 +95,9 @@ export default function InstagramStudio() {
     setImageLoading(true);
     try {
       const result = await base44.integrations.Core.GenerateImage({ prompt: imagePrompt });
-      setGeneratedImageUrl(result.url);
+      // generateImage returns { image_base64 } (raw base64), not a URL.
+      const b64 = result?.image_base64 || result?.data?.image_base64;
+      setGeneratedImageUrl(b64 ? `data:image/png;base64,${b64}` : (result?.url || ''));
     } catch (e) {
       toast.error('שגיאה ביצירת התמונה');
     }

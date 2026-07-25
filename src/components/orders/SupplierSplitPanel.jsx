@@ -109,12 +109,13 @@ export default function SupplierSplitPanel({ listId }) {
                 {groups.map((g) => (
                   <div key={g.supplier} className={`rounded-lg border p-3 ${g.unassigned ? 'border-slate-200 bg-slate-50' : 'border-amber-200 bg-amber-50/40'}`}>
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <div className="font-bold text-sm">{g.unassigned ? '❓ לא משויך לספק' : `🏪 ${g.supplier}`}<span className="text-slate-500 font-normal text-xs"> · {g.item_count} פריטים{g.total_units ? ` · ${g.total_units} יח'` : ''}</span></div>
+                      <div className="font-bold text-sm">{g.unassigned ? '❓ לא משויך לספק' : `🏪 ${g.supplier}`}<span className="text-slate-500 font-normal text-xs"> · {g.item_count} פריטים{g.total_units ? ` · ${g.total_units} יח'` : ''}{g.total_amount ? ` · ₪${Number(g.total_amount).toLocaleString()}` : ''}</span></div>
                       {!g.unassigned && (g.phone
                         ? <Button size="sm" disabled={busy === g.supplier} onClick={() => sendGroup(g)} className="bg-emerald-600 hover:bg-emerald-700 gap-1 h-8"><Send className="w-3.5 h-3.5" /> שלח</Button>
                         : <span className="text-[11px] text-amber-600">אין טלפון ↓</span>)}
                     </div>
                     {g.below_min_units && <div className="text-[11px] text-red-600 flex items-center gap-1 mb-1"><AlertTriangle className="w-3.5 h-3.5" /> מתחת למינימום ({g.total_units}/{g.min_order_units} יח') — ייתכן שהספק לא יקבל</div>}
+                    {g.below_min_amount && <div className="text-[11px] text-red-600 flex items-center gap-1 mb-1"><AlertTriangle className="w-3.5 h-3.5" /> מתחת למינימום ₪ (₪{Number(g.total_amount).toLocaleString()}/₪{Number(g.min_order_amount).toLocaleString()}) — ייתכן שהספק לא יקבל</div>}
                     <div className="space-y-1">
                       {g.items.map((it, i) => (
                         <div key={it.id || i} className="flex items-center justify-between gap-2 text-sm">
