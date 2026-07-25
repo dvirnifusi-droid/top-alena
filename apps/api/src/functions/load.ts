@@ -9417,6 +9417,56 @@ registerFn('resetChecklistDay', async ({ user }: any) => {
       }
     } catch (e: any) { console.warn('[insights] menu:', e?.message); }
 
+    // ── KPI trend capture (write-through) ──────────────────────────────────────
+    // Snapshot today's headline numbers so the dashboard shows DIRECTION, not just
+    // a single point-in-time value. Self-populating: every dashboard load upserts
+    // today's row (last-write-wins), and history accrues day by day. Best-effort —
+    // never blocks the insights response. Israel calendar day = the owner's "today".
+    try {
+      const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+      await dbx.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "KpiSnapshot" (
+          "id" TEXT PRIMARY KEY,
+          "metric" TEXT NOT NULL,
+          "day" DATE NOT NULL,
+          "value" DOUBLE PRECISION,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "KpiSnapshot_metric_day_key" UNIQUE ("metric","day")
+        )`);
+      // Each metric mirrors the headline number of its card; `good` = which
+      // direction is desirable (drives the delta colour on the client).
+      const metrics: Array<{ key: string; value: any; good: 'lower' | 'higher' }> = [
+        { key: 'labor_pct',      value: out.labor?.pct,              good: 'lower' },
+        { key: 'cashflow_net',   value: out.cashflow?.net,           good: 'higher' },
+        { key: 'churn_count',    value: out.churn?.count,            good: 'lower' },
+        { key: 'price_drift',    value: out.price_drift?.count,      good: 'lower' },
+        { key: 'demand_covers',  value: out.demand?.covers,          good: 'higher' },
+        { key: 'food_cost_pct',  value: out.menu?.avg_food_cost_pct, good: 'lower' },
+      ];
+      for (const mm of metrics) {
+        if (mm.value == null || !Number.isFinite(Number(mm.value))) continue;
+        await dbx.$executeRawUnsafe(
+          `INSERT INTO "KpiSnapshot"("id","metric","day","value") VALUES ($1,$2,$3::date,$4)
+           ON CONFLICT ("metric","day") DO UPDATE SET "value"=EXCLUDED."value"`,
+          randomUUID(), mm.key, day, Number(mm.value));
+      }
+      const hist: any[] = await dbx.$queryRawUnsafe(
+        `SELECT metric, to_char("day",'YYYY-MM-DD') AS day, value
+         FROM "KpiSnapshot" WHERE "day" >= (CURRENT_DATE - INTERVAL '30 days')
+         ORDER BY "day" ASC`).catch(() => []);
+      const trends: any = {};
+      for (const mm of metrics) {
+        const pts = hist.filter((h) => h.metric === mm.key).map((h) => Number(h.value));
+        if (!pts.length) continue;
+        const cur = pts[pts.length - 1];
+        const prev = pts.length > 7 ? pts[pts.length - 8] : pts[0]; // ~7 days ago, else earliest
+        const delta_pct = (pts.length > 1 && prev != null && prev !== 0)
+          ? Math.round(((cur - prev) / Math.abs(prev)) * 100) : null;
+        trends[mm.key] = { series: pts, current: cur, prev, delta_pct, good: mm.good, points: pts.length };
+      }
+      out._trends = trends;
+    } catch (e: any) { console.warn('[insights] trend capture:', e?.message); }
+
     return out;
   });
 }

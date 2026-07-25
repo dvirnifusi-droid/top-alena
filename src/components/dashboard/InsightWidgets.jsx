@@ -34,6 +34,43 @@ function Shell({ to, icon: Icon, tone, title, children, cta }) {
 const Big = ({ children, color }) => <div className="text-2xl font-black tabular-nums leading-none" style={{ color: color || '#1F1B17' }}>{children}</div>;
 const Sub = ({ children }) => <div className="text-xs text-slate-500 mt-1 leading-snug">{children}</div>;
 
+// A trend has {series:[numbers], delta_pct, good:'higher'|'lower', points}. The
+// delta colour reflects DESIRABILITY, not sign: a rising food-cost% is red even
+// though it went "up". Both sparkline and badge appear only once ≥2 days exist.
+const isGoodMove = (t) => t?.delta_pct == null ? null : (t.good === 'higher' ? t.delta_pct > 0 : t.delta_pct < 0);
+
+function Sparkline({ trend }) {
+  if (!trend || !Array.isArray(trend.series) || trend.series.length < 2) return null;
+  const s = trend.series, w = 66, h = 20, pad = 2;
+  const min = Math.min(...s), max = Math.max(...s), span = (max - min) || 1;
+  const step = (w - pad * 2) / (s.length - 1);
+  const xy = (v, i) => [pad + i * step, pad + (h - pad * 2) * (1 - (v - min) / span)];
+  const pts = s.map((v, i) => xy(v, i).map((n) => n.toFixed(1)).join(',')).join(' ');
+  const good = isGoodMove(trend);
+  const stroke = good == null ? '#94a3b8' : good ? '#16a34a' : '#ef4444';
+  const [lx, ly] = xy(s[s.length - 1], s.length - 1);
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
+      <polyline points={pts} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={lx} cy={ly} r="1.8" fill={stroke} />
+    </svg>
+  );
+}
+
+function TrendRow({ trend }) {
+  if (!trend || !(trend.points >= 2) || trend.delta_pct == null) return null;
+  const d = trend.delta_pct, good = isGoodMove(trend);
+  const color = d === 0 ? '#94a3b8' : good ? '#15803d' : '#dc2626';
+  const arrow = d === 0 ? '→' : d > 0 ? '▲' : '▼';
+  return (
+    <div className="flex items-center gap-2 mt-2">
+      <Sparkline trend={trend} />
+      <span className="text-[11px] font-bold tabular-nums" style={{ color }}>{arrow} {d > 0 ? '+' : ''}{d}%</span>
+      <span className="text-[10px] text-slate-400">מ-7 ימים</span>
+    </div>
+  );
+}
+
 export default function InsightWidgets() {
   const { data, loading } = useOwnerInsights();
 
@@ -46,6 +83,7 @@ export default function InsightWidgets() {
   }
 
   const { labor, cashflow, churn, demand, price_drift: drift, menu } = data;
+  const trends = data._trends || {};
 
   return (
     <section>
@@ -64,7 +102,8 @@ export default function InsightWidgets() {
           {cashflow?.net == null
             ? <><Big color="#94a3b8">—</Big><Sub>אין עדיין נתוני תזרים</Sub></>
             : <><Big color={cashflow.net < 0 ? '#dc2626' : '#0f766e'}>{ils(cashflow.net)}</Big>
-                <Sub>{ils(cashflow.income)} נכנס · {ils(cashflow.expense)} יוצא{cashflow.alerts ? ` · ⚠️ ${cashflow.alerts} התראות` : ''}</Sub></>}
+                <Sub>{ils(cashflow.income)} נכנס · {ils(cashflow.expense)} יוצא{cashflow.alerts ? ` · ⚠️ ${cashflow.alerts} התראות` : ''}</Sub>
+                <TrendRow trend={trends.cashflow_net} /></>}
         </Shell>
 
         {/* Churn risk */}
@@ -76,7 +115,8 @@ export default function InsightWidgets() {
             : churn.count === 0
               ? <><Big color="#4b7a2b">0</Big><Sub>אף עובד לא בסיכון גבוה 👍</Sub></>
               : <><Big color={churn.critical ? '#dc2626' : '#d97706'}>{churn.count}</Big>
-                  <Sub>עובדים בסיכון גבוה{churn.critical ? ` · ${churn.critical} קריטי` : ''}</Sub></>}
+                  <Sub>עובדים בסיכון גבוה{churn.critical ? ` · ${churn.critical} קריטי` : ''}</Sub>
+                  <TrendRow trend={trends.churn_count} /></>}
         </Shell>
 
         {/* Tomorrow demand */}
@@ -86,7 +126,8 @@ export default function InsightWidgets() {
           {demand?.covers == null
             ? <><Big color="#94a3b8">—</Big><Sub>אין מספיק היסטוריית קופה</Sub></>
             : <><Big color="#2563eb">~{demand.covers}</Big>
-                <Sub>סועדים צפויים · ~{ils(demand.revenue)}{demand.based_on_days ? ` (מ-${demand.based_on_days} ימים)` : ''}</Sub></>}
+                <Sub>סועדים צפויים · ~{ils(demand.revenue)}{demand.based_on_days ? ` (מ-${demand.based_on_days} ימים)` : ''}</Sub>
+                <TrendRow trend={trends.demand_covers} /></>}
         </Shell>
 
         {/* Supplier price drift */}
@@ -98,7 +139,8 @@ export default function InsightWidgets() {
             : drift.count === 0
               ? <><Big color="#4b7a2b">0</Big><Sub>לא זוהתה התייקרות מהותית</Sub></>
               : <><Big color="#c2410c">{drift.count}</Big>
-                  <Sub>מוצרים התייקרו{drift.top ? ` · ${drift.top.product} +${drift.top.drift_pct}%` : ''}</Sub></>}
+                  <Sub>מוצרים התייקרו{drift.top ? ` · ${drift.top.product} +${drift.top.drift_pct}%` : ''}</Sub>
+                  <TrendRow trend={trends.price_drift} /></>}
         </Shell>
 
         {/* Menu profitability — from the owner's REAL recipe food-costs
@@ -112,7 +154,8 @@ export default function InsightWidgets() {
               ? <><Big color={menu.avg_food_cost_pct > 32 ? '#e11d48' : '#15803d'}>{menu.avg_food_cost_pct}%</Big>
                   <div className="text-xs font-bold text-emerald-700 truncate">⬆ {menu.best} · {menu.best_pct}% פוד-קוסט</div>
                   <div className="text-xs font-bold text-rose-600 truncate">⬇ {menu.bottom} · {menu.bottom_pct}%</div>
-                  <Sub>פוד-קוסט ממוצע · {menu.analyzed} מנות מתומחרות{menu.high_cost_count ? ` · ${menu.high_cost_count} מעל 35%` : ''}{menu.suspect ? ` · ⚠${menu.suspect} עלות חריגה` : ''}</Sub></>
+                  <Sub>פוד-קוסט ממוצע · {menu.analyzed} מנות מתומחרות{menu.high_cost_count ? ` · ${menu.high_cost_count} מעל 35%` : ''}{menu.suspect ? ` · ⚠${menu.suspect} עלות חריגה` : ''}</Sub>
+                  <TrendRow trend={trends.food_cost_pct} /></>
               : <><div className="text-sm font-bold text-emerald-700 truncate">⬆ {menu.top || '—'}</div>
                   <div className="text-sm font-bold text-rose-600 truncate mt-0.5">⬇ {menu.bottom || '—'}</div>
                   <Sub>הכי / הכי פחות רווחית ({menu.analyzed} מנות)</Sub></>}
