@@ -5189,19 +5189,36 @@ registerFn('reviewMarketingPerformance', async ({ user }) => {
     channel: l.channel, recipients: l.recipients_count, sent: l.sent_count, failed: l.failed_count,
     preview: String(l.body_preview || '').slice(0, 80), at: l.sent_at,
   }));
-  if (!recent.length) {
-    return { summary: 'עוד לא שוגרו קמפיינים דרך המערכת — אחרי הקמפיין הראשון תופיע כאן סקירת ביצועים והמלצה לפעולה הבאה.', recommendations: [], recent: [] };
+  // Live PAID performance from Meta (the ads_management token is connected) — so
+  // the optimization agent responds to REAL spend/CTR/leads, not only club sends.
+  let meta: any = null;
+  try {
+    if (await META_TOKEN()) {
+      const camp: any = await metaApi(`/act_${META_AD_ACCOUNT_ID}/campaigns?fields=name,effective_status,daily_budget,insights.date_preset(last_7d){spend,clicks,ctr,actions}&limit=25`);
+      const rows = (camp?.data || []).map((c: any) => {
+        const ins = c?.insights?.data?.[0] || {};
+        const leads = (ins.actions || []).find((a: any) => a.action_type === 'lead')?.value || '0';
+        return { name: c.name, status: c.effective_status, daily_budget_ils: c.daily_budget ? Math.round(Number(c.daily_budget) / 100) : null, spend_7d: Math.round(parseFloat(ins.spend || '0')), ctr: Math.round(parseFloat(ins.ctr || '0') * 100) / 100, leads_7d: parseInt(leads, 10) || 0 };
+      });
+      meta = { campaigns: rows, total_spend_7d: rows.reduce((s: number, c: any) => s + c.spend_7d, 0), total_leads_7d: rows.reduce((s: number, c: any) => s + c.leads_7d, 0), active: rows.filter((c: any) => c.status === 'ACTIVE').length };
+    }
+  } catch { meta = { error: 'meta_unavailable' }; }
+
+  if (!recent.length && !(meta?.campaigns?.length)) {
+    return { summary: 'עוד לא שוגרו קמפיינים — אחרי הקמפיין הראשון (מועדון או ממומן) תופיע כאן סקירה והמלצות.', recommendations: [], recent: [], meta };
   }
   const baseContext = await customerBaseContext();
   const review: any = await invokeLLM({
     prompt:
       MARKETING_ADVISOR_PERSONA +
-      `\n\nאתה סוכן האופטימיזציה. להלן הקמפיינים האחרונים ששוגרו למועדון (נשלחו/נכשלו/ערוץ/תצוגה מקדימה של הטקסט):\n${JSON.stringify(recent)}\n${baseContext}\n` +
-      `נתח: מה עבד (delivery rate, ערוץ, timing), מה כדאי לשפר, ומה הפעולה הבאה המומלצת הכי משתלמת. עברית, קונקרטי, בלי מים.\n` +
+      `\n\nאתה סוכן האופטימיזציה. נתח את הביצועים והמלץ על הפעולה הבאה.\n` +
+      `--- דיוורי מועדון אחרונים ---\n${JSON.stringify(recent)}\n` +
+      `--- קמפיינים ממומנים חיים (Meta, 7 ימים; spend בשקלים, leads=לידים) ---\n${JSON.stringify(meta?.campaigns || [])}\n${baseContext}\n` +
+      `נתח: מה עובד (מועדון + ממומן), איזה קמפיין ממומן מבזבז בלי לידים (סמן לעצירה/שינוי), מה להגביר או לשכפל, ומה הפעולה הבאה הכי משתלמת. עברית, קונקרטי, בלי מים.\n` +
       `החזר JSON: { summary, recommendations: ["המלצה קונקרטית", ...] }`,
     responseSchema: { type: 'object', properties: { summary: { type: 'string' }, recommendations: { type: 'array', items: { type: 'string' } } } },
   });
-  return { summary: String(review?.summary || ''), recommendations: (Array.isArray(review?.recommendations) ? review.recommendations : []).slice(0, 5), recent };
+  return { summary: String(review?.summary || ''), recommendations: (Array.isArray(review?.recommendations) ? review.recommendations : []).slice(0, 6), recent, meta };
 });
 
 // Update a customer's birthday — used by the admin UI + by reservation form

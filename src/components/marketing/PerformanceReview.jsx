@@ -33,6 +33,27 @@ export default function PerformanceReview() {
         <p className="text-sm text-slate-500">אחרי ששיגרת קמפיינים, סוכן האופטימיזציה סוקר מה עבד וממליץ על הפעולה הבאה.</p>
       ) : (
         <div className="space-y-3">
+          {data.meta && !data.meta.error && (data.meta.campaigns || []).length > 0 && (
+            <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
+              <div className="flex items-center gap-2 flex-wrap text-xs font-bold text-orange-800 mb-1.5">
+                <span>📣 מודעות ממומנות (Meta · 7 ימים)</span>
+                <span className="text-slate-600">· ₪{(data.meta.total_spend_7d || 0).toLocaleString()} הוצאה</span>
+                <span className="text-emerald-700">· {data.meta.total_leads_7d || 0} לידים</span>
+                <span className="text-slate-500">· {data.meta.active} פעילים</span>
+              </div>
+              <div className="space-y-1">
+                {(data.meta.campaigns || []).filter(c => c.spend_7d > 0 || c.status === 'ACTIVE').slice(0, 6).map((c, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
+                    <span className={`w-1.5 h-1.5 rounded-full ${c.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                    <span className="truncate flex-1">{c.name}</span>
+                    <span className="tabular-nums">₪{c.spend_7d}</span>
+                    <span className="tabular-nums text-emerald-700">{c.leads_7d} לידים</span>
+                    <span className="tabular-nums text-slate-400">CTR {c.ctr}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {data.summary && <p className="text-sm text-slate-700">{data.summary}</p>}
           {(data.recommendations || []).length > 0 && (
             <ul className="space-y-1.5">
