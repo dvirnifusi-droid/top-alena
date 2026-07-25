@@ -5644,39 +5644,6 @@ registerFn('getDvirKnowledgeSources', async ({ user }) => {
   return { live: { profile, menu, employees, suppliers, checklists, orderLists }, files };
 });
 
-// Gemini "context caching" for the assistant's uploaded files. The menu/drink/
-// recipe PDFs are stable for ~47h, but Gemini re-reads them on EVERY chat turn —
-// measured ~23s on a file-heavy tenant (alena) vs ~0.6s on a 1-file tenant. Caching
-// the files as a pre-processed cachedContent and referencing the handle each turn
-// lets the model skip re-reading them. Fully optional: any failure returns null and
-// the caller sends the files inline (slower but always correct).
-let _geminiCtxCache: { sig: string; name: string; at: number } | null = null;
-const GEMINI_CTX_TTL_SEC = 3600; // 1h server-side; refreshed on demand
-async function getGeminiCachedContent(fileParts: any[], apiKey: string): Promise<string | null> {
-  if (!fileParts.length) return null;
-  const sig = fileParts.map((p) => p?.file_data?.file_uri).filter(Boolean).sort().join('|');
-  if (!sig) return null;
-  const now = Date.now();
-  if (_geminiCtxCache && _geminiCtxCache.sig === sig && now - _geminiCtxCache.at < (GEMINI_CTX_TTL_SEC - 300) * 1000) {
-    return _geminiCtxCache.name;
-  }
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30_000);
-    let d: any;
-    try {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/cachedContents?key=${apiKey}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-        body: JSON.stringify({ model: 'models/gemini-2.5-flash', contents: [{ role: 'user', parts: fileParts }], ttl: `${GEMINI_CTX_TTL_SEC}s` }),
-      });
-      d = await r.json();
-      if (!r.ok || !d?.name) { console.warn('[askGemini] cachedContent create failed:', JSON.stringify(d?.error || d).slice(0, 160)); return null; }
-    } finally { clearTimeout(timer); }
-    _geminiCtxCache = { sig, name: d.name, at: now };
-    return d.name;
-  } catch (e: any) { console.warn('[askGemini] cachedContent error:', e?.message); return null; }
-}
-
 // Short-TTL cache for the live business context (menu/employees/suppliers/…). The
 // data is tenant-global and the API process is per-tenant, so one 60s cache serves
 // every chat turn without rebuilding the whole snapshot each time. Never throws —
@@ -5782,8 +5749,7 @@ registerFn('askGemini', async ({ body }) => {
   // added latency and DB-pool pressure, and a transient failure must not kill the
   // chat — fall back to the last good context, else none.
   const businessContext = await getCachedBusinessContext();
-  const systemText = (systemPrompt ? systemPrompt + '\n\n' : '') + LANG_DIRECTIVE + businessContext;
-  reqBody.system_instruction = { parts: [{ text: systemText }] };
+  reqBody.system_instruction = { parts: [{ text: (systemPrompt ? systemPrompt + '\n\n' : '') + LANG_DIRECTIVE + businessContext }] };
 
   // 45s timeout so a hung Gemini call fails fast (→ the client's own retry kicks
   // in) instead of leaving the user staring at the "..." bubble forever.
@@ -5802,26 +5768,7 @@ registerFn('askGemini', async ({ body }) => {
     }
   };
 
-  // FAST PATH: if the files are cached server-side (context caching), reference the
-  // handle and send only the conversation — Gemini skips re-reading the PDFs. The
-  // (variable) system text rides at the front of the user turn, since the cache
-  // holds files only. Any failure clears the cache and falls through to inline.
-  let res: any = null;
-  const cacheName = fileParts.length ? await getGeminiCachedContent(fileParts, apiKey) : null;
-  if (cacheName) {
-    const convo: any[] = [];
-    if (Array.isArray(history)) for (const m of history) convo.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
-    convo.push({ role: 'user', parts: [{ text: systemText + '\n\n' + userMessage }] });
-    const cachedReq: any = {
-      cachedContent: cacheName,
-      contents: convo,
-      generationConfig: { temperature: 0.2, maxOutputTokens: 8192, thinkingConfig: { thinkingBudget: 0 } },
-    };
-    res = await callGemini(cachedReq);
-    if (!res.ok) { _geminiCtxCache = null; res = null; } // cache stale/rejected → inline below
-  }
-
-  if (!res) res = await callGemini(reqBody);
+  let res = await callGemini(reqBody);
 
   // Files in GeminiFileCache expire after 48h on Gemini's side. When that
   // happens, every chat call returns 403 PERMISSION_DENIED for the missing
