@@ -20,6 +20,9 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/package.json ./package.json
 EXPOSE 3001
-# Apply additive schema changes to Supabase on start (idempotent; non-fatal so
-# a transient DB hiccup never blocks boot), then run the server.
-CMD ["sh", "-c", "npx prisma db push --skip-generate || echo 'prisma db push skipped/failed, continuing'; node dist/index.js"]
+# Just run the server. Schema changes on prod are applied via explicit additive
+# SQL (never `prisma db push`, which drifts against the live schema and here only
+# ever "failed, continuing" anyway). Dropping it also lets the app boot over the
+# Supabase transaction pooler (port 6543), where `db push` would HANG forever on
+# an advisory lock it can't hold through pgbouncer.
+CMD ["node", "dist/index.js"]
