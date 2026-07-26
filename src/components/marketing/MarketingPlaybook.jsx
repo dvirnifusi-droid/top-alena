@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Loader2, Lightbulb, Sparkles, Target, Check, Plus, Copy, ChevronDown, ChevronUp, Coins, Gauge, TrendingUp } from 'lucide-react';
+import { Loader2, Lightbulb, Sparkles, Target, Check, Plus, Copy, ChevronDown, ChevronUp, Coins, Gauge, TrendingUp, Download } from 'lucide-react';
 
 const EFFORT = { low: { t: 'מאמץ נמוך', c: 'bg-emerald-100 text-emerald-700' }, medium: { t: 'מאמץ בינוני', c: 'bg-amber-100 text-amber-700' }, high: { t: 'מאמץ גבוה', c: 'bg-rose-100 text-rose-700' } };
 const IMPACT = { low: { t: 'אימפקט נמוך', c: 'text-slate-400' }, medium: { t: 'אימפקט בינוני', c: 'text-sky-600' }, high: { t: 'אימפקט גבוה', c: 'text-emerald-600' } };
@@ -11,6 +11,57 @@ const ACTION_HINT = {
   partner: '🤝 פנייה לשיתוף פעולה',
   manual: '',
 };
+
+// Draw wrapped, centered lines; returns the y after the block.
+function wrapText(ctx, text, cx, y, maxW, lineH) {
+  const words = String(text || '').split(/\s+/);
+  let line = '';
+  const lines = [];
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = w; } else line = test;
+  }
+  if (line) lines.push(line);
+  for (const l of lines) { ctx.fillText(l, cx, y); y += lineH; }
+  return y;
+}
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+// Composite the clean Hebrew text ONTO the AI background → a finished, download-
+// ready graphic (canvas renders Hebrew correctly, unlike the image model).
+function composeDesign(imgB64, tc) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const W = img.naturalWidth || 1080, H = img.naturalHeight || 1080;
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, W, H);
+      const grad = ctx.createLinearGradient(0, H * 0.4, 0, H);
+      grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.75)');
+      ctx.fillStyle = grad; ctx.fillRect(0, H * 0.4, W, H * 0.6);
+      ctx.textAlign = 'center'; try { ctx.direction = 'rtl'; } catch { /* older browsers */ }
+      const cx = W / 2;
+      let y = H - H * 0.3;
+      ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = W * 0.012;
+      ctx.fillStyle = '#ffffff';
+      if (tc?.headline) { ctx.font = `bold ${Math.round(W * 0.075)}px Arial, sans-serif`; y = wrapText(ctx, tc.headline, cx, y, W * 0.86, W * 0.09) + W * 0.02; }
+      if (tc?.subtext) { ctx.font = `${Math.round(W * 0.04)}px Arial, sans-serif`; y = wrapText(ctx, tc.subtext, cx, y, W * 0.82, W * 0.055) + W * 0.03; }
+      if (tc?.cta) {
+        ctx.shadowBlur = 0; ctx.font = `bold ${Math.round(W * 0.04)}px Arial, sans-serif`;
+        const tw = ctx.measureText(tc.cta).width, pw = tw + W * 0.07, ph = W * 0.085;
+        ctx.fillStyle = '#f59e0b'; roundRect(ctx, cx - pw / 2, y, pw, ph, ph / 2); ctx.fill();
+        ctx.fillStyle = '#ffffff'; ctx.textBaseline = 'middle'; ctx.fillText(tc.cta, cx, y + ph / 2); ctx.textBaseline = 'alphabetic';
+      }
+      resolve(c.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(null);
+    img.src = `data:image/png;base64,${imgB64}`;
+  });
+}
 
 // Strategic marketing playbook: many diverse tactics (digital + real-world
 // guerrilla) grouped into a plan, each actionable — add any idea to the work
@@ -26,6 +77,8 @@ export default function MarketingPlaybook() {
   const [copiedKey, setCopiedKey] = useState(null);
   const [assistKey, setAssistKey] = useState(null);  // key currently generating help
   const [assistOut, setAssistOut] = useState({});    // key → assist result
+  const [finished, setFinished] = useState({});      // key → finished design dataURL
+  const [composingKey, setComposingKey] = useState(null);
 
   const build = async () => {
     setLoading(true); setError(''); setPlan(null); setAdded({});
@@ -57,6 +110,15 @@ export default function MarketingPlaybook() {
       setAssistOut(o => ({ ...o, [key]: (res?.data || res) || null }));
     } catch (e) { setAssistOut(o => ({ ...o, [key]: { error: e?.message || 'לא הצלחתי' } })); }
     finally { setAssistKey(null); }
+  };
+
+  const makeFinished = async (key, imgB64, tc) => {
+    setComposingKey(key);
+    try {
+      const url = await composeDesign(imgB64, tc);
+      if (url) setFinished(f => ({ ...f, [key]: url }));
+    } catch { /* noop */ }
+    finally { setComposingKey(null); }
   };
 
   const copyText = (txt) => { try { navigator.clipboard?.writeText(txt || ''); } catch { /* noop */ } };
@@ -182,15 +244,30 @@ export default function MarketingPlaybook() {
                             </div>
                           ) : assistOut[key].kind === 'design' ? (
                             <div className="space-y-2">
-                              <div className="font-bold text-sky-800">🎨 קונספט לעיצוב</div>
-                              {assistOut[key].image_base64 && <img src={`data:image/png;base64,${assistOut[key].image_base64}`} alt="concept" className="w-full max-h-56 object-contain rounded-lg border bg-white" />}
-                              <div className="bg-white border rounded-lg p-2 space-y-0.5 text-slate-700">
-                                {assistOut[key].text_content?.headline && <div><b>כותרת:</b> {assistOut[key].text_content.headline}</div>}
-                                {assistOut[key].text_content?.subtext && <div><b>משנה:</b> {assistOut[key].text_content.subtext}</div>}
-                                {assistOut[key].text_content?.cta && <div><b>קריאה לפעולה:</b> {assistOut[key].text_content.cta}</div>}
-                                <button onClick={() => copyText([assistOut[key].text_content?.headline, assistOut[key].text_content?.subtext, assistOut[key].text_content?.cta].filter(Boolean).join('\n'))} className="mt-1 inline-flex items-center gap-1 font-semibold text-sky-700"><Copy className="w-3 h-3" /> העתק טקסט</button>
-                              </div>
-                              {assistOut[key].note && <p className="text-[11px] text-slate-500">{assistOut[key].note}</p>}
+                              {finished[key] ? (
+                                <div>
+                                  <div className="font-bold text-emerald-700 mb-1">✅ העיצוב מוכן</div>
+                                  <img src={finished[key]} alt="finished" className="w-full max-h-72 object-contain rounded-lg border bg-white" />
+                                  <a href={finished[key]} download={`design-${key}.png`} className="mt-1.5 inline-flex items-center gap-1 font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-lg"><Download className="w-3.5 h-3.5" /> הורד עיצוב</a>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="font-bold text-sky-800">🎨 קונספט + טקסט</div>
+                                  {assistOut[key].image_base64 && <img src={`data:image/png;base64,${assistOut[key].image_base64}`} alt="concept" className="w-full max-h-56 object-contain rounded-lg border bg-white" />}
+                                  <div className="bg-white border rounded-lg p-2 space-y-0.5 text-slate-700">
+                                    {assistOut[key].text_content?.headline && <div><b>כותרת:</b> {assistOut[key].text_content.headline}</div>}
+                                    {assistOut[key].text_content?.subtext && <div><b>משנה:</b> {assistOut[key].text_content.subtext}</div>}
+                                    {assistOut[key].text_content?.cta && <div><b>קריאה לפעולה:</b> {assistOut[key].text_content.cta}</div>}
+                                  </div>
+                                  {assistOut[key].image_base64 && (
+                                    <button onClick={() => makeFinished(key, assistOut[key].image_base64, assistOut[key].text_content)} disabled={composingKey === key}
+                                      className="inline-flex items-center gap-1 font-bold text-white bg-sky-600 hover:bg-sky-500 px-3 py-1.5 rounded-lg disabled:opacity-60">
+                                      {composingKey === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} הרכב עיצוב מוכן (עם הטקסט)
+                                    </button>
+                                  )}
+                                  <p className="text-[11px] text-slate-500">העיצוב מרכיב את הטקסט העברי על הרקע — מוכן להורדה והדפסה.</p>
+                                </>
+                              )}
                             </div>
                           ) : assistOut[key].kind === 'ad' ? (
                             <div className="text-slate-700">📣 {assistOut[key].note || 'פתח את "בנה קמפיין מלא" למעלה עם המטרה הזו.'}</div>

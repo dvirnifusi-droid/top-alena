@@ -18999,7 +18999,17 @@ registerFn('assistTactic', async ({ body, user }) => {
   const title = String(b.title || '').trim();
   if (!title) throw new Error('title required');
   const why = String(b.why || '');
-  const action_type = String(b.action_type || 'manual');
+  // The playbook's action_type label is unreliable — infer from the wording so a
+  // signage/flyer idea actually reaches the design path instead of falling to steps.
+  let action_type = String(b.action_type || '').trim();
+  if (!['design', 'club_blast', 'partner', 'ad'].includes(action_type)) {
+    const hay = `${title} ${why}`;
+    if (/שילוט|שלט|רול.?אפ|באנר|פלייר|פליירים|מדבק|סטיקר|כרזה|עיצוב|הדפס|חלון|תפריט|מגנט|קופון|print|flyer|banner|sign/i.test(hay)) action_type = 'design';
+    else if (/מודעה|ממומן|קמפיין|פייסבוק|אינסטגרם|meta|facebook|instagram|\bads?\b/i.test(hay)) action_type = 'ad';
+    else if (/שת.?פ|שיתוף פעולה|פנייה|partner|collab/i.test(hay)) action_type = 'partner';
+    else if (/מועדון|וואטסאפ|הודעה|דיוור|ניוזלטר|sms|whatsapp/i.test(hay)) action_type = 'club_blast';
+    else action_type = 'design'; // most real-world guerrilla tactics have a visual deliverable
+  }
   const brand = await getBrandName();
   const profile: any = await db.businessProfile.findFirst().catch(() => null);
   const pd: any = profile?.profile_data || {};
