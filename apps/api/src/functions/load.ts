@@ -18762,6 +18762,27 @@ async function setPlainSecret(key: string, value: string): Promise<void> {
   else await db.integrationSecret.create({ data: { key, value, note: 'Meta audience', updated_at: new Date() } });
 }
 
+// Scrub LLM copy: strip any HTML/markup tags, template placeholders, and invented
+// contact numbers the model sometimes leaks into ad copy. Keeps it clean text.
+function cleanCopyText(s: any): string {
+  return String(s || '')
+    .replace(/<[^>]*>/g, ' ')                 // HTML tags (<p style=…>, </p>, <br>)
+    .replace(/\{\{[^}]*\}\}/g, '')            // {{placeholder}}
+    .replace(/\b1[-\s]?700(?:[-\s]?\d{2}){3}\b/g, '') // fake 1-700-00-00-00 numbers
+    .replace(/\b0(?:[-\s]?0){6,}\b/g, '')     // 00-00-00-00 placeholder phones
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+function sanitizeCopyVariants(arr: any): any[] {
+  return (Array.isArray(arr) ? arr : []).slice(0, 3).map((v: any) => ({
+    hook: cleanCopyText(v?.hook),
+    body: cleanCopyText(v?.body),
+    hashtags: Array.isArray(v?.hashtags) ? v.hashtags.map((h: any) => cleanCopyText(h)).filter(Boolean) : [],
+  }));
+}
+const COPY_CLEAN_RULE = 'כתוב טקסט נקי בלבד: בלי תגיות HTML או עיצוב, בלי מספרי טלפון/כתובות/קישורים מומצאים, ובלי הערות משפטיות/אותיות קטנות. אל תמציא פרטי קשר — הקריאה לפעולה מסתמכת על הקישור בלבד.';
+
 // Normalise an IL phone to E.164 digits (972…) and SHA-256 hash it — the format
 // Meta Custom Audiences require for phone matching.
 async function metaHashPhone(raw: string): Promise<string | null> {
@@ -18931,7 +18952,7 @@ registerFn('createAutoCampaign', async ({ body, user }) => {
       MARKETING_ADVISOR_PERSONA +
       `\n\nכתוב קופי לקמפיין ממומן בפייסבוק/אינסטגרם עבור "${brand}" למטרה: "${goal}".\n${baseContext}\n` +
       (pd.concept ? `קונספט: ${pd.concept}. ` : '') + (pd.flagship_products ? `מנות דגל: ${String(pd.flagship_products).replace(/\n/g, ', ')}.` : '') +
-      `\nהחזר 3 גרסאות קופי (כל אחת: hook קצר וקולע + body של 1-2 משפטים + hashtags), וכן "landing_kind" — אחד מ: delivery (משלוחים) / reservation (שמירת מקום) / event (אירועים) / general — לפי מה שהכי מניע לפעולה למטרה הזו. JSON בלבד: { copy_variants:[{hook,body,hashtags:[]}], landing_kind }`,
+      `\n${COPY_CLEAN_RULE}\nהחזר 3 גרסאות קופי (כל אחת: hook קצר וקולע + body של 1-2 משפטים + hashtags), וכן "landing_kind" — אחד מ: delivery (משלוחים) / reservation (שמירת מקום) / event (אירועים) / general — לפי מה שהכי מניע לפעולה למטרה הזו. JSON בלבד: { copy_variants:[{hook,body,hashtags:[]}], landing_kind }`,
     responseSchema: {
       type: 'object',
       properties: {
@@ -18940,7 +18961,7 @@ registerFn('createAutoCampaign', async ({ body, user }) => {
       },
     },
   }).catch(() => ({}));
-  const copy_variants = (Array.isArray(plan?.copy_variants) ? plan.copy_variants : []).slice(0, 3);
+  const copy_variants = sanitizeCopyVariants(plan?.copy_variants).filter((v: any) => v.hook || v.body);
   steps.push({ step: 'copy', ok: copy_variants.length > 0, label: 'כתיבת קופי' });
 
   // 3) Landing link — owner override wins; else map the goal to the right page.
@@ -29449,7 +29470,7 @@ registerFn('buildCampaign', async ({ body, user }) => {
     prompt:
       MARKETING_ADVISOR_PERSONA +
       `\n\nבנה קמפיין שלם ומגובש למטרה: "${goal}".\n${baseContext}${bizBlock}\n` +
-      `החזר: 3 גרסאות קופי (כל אחת hook קצר + body + hashtags), סגמנט יעד למועדון (segment_key מהרשימה: ${segList}), תיאור קהל מדויק לפרסום ממומן (audience_description — גיל/תחומי עניין/מיקום), ערוץ מומלץ (channel: whatsapp/sms/instagram/facebook/meta_ad), תקציב יומי מומלץ בשקלים אם ממומן (daily_budget), והנחיית עיצוב לתמונה בהקשר המטרה והמנות (image_brief).\n` +
+      COPY_CLEAN_RULE + `\nהחזר: 3 גרסאות קופי (כל אחת hook קצר + body + hashtags), סגמנט יעד למועדון (segment_key מהרשימה: ${segList}), תיאור קהל מדויק לפרסום ממומן (audience_description — גיל/תחומי עניין/מיקום), ערוץ מומלץ (channel: whatsapp/sms/instagram/facebook/meta_ad), תקציב יומי מומלץ בשקלים אם ממומן (daily_budget), והנחיית עיצוב לתמונה בהקשר המטרה והמנות (image_brief).\n` +
       `שלב שם מנה אמיתי. החזר JSON בלבד: { copy_variants:[{hook,body,hashtags:[]}], segment_key, audience_description, channel, daily_budget, image_brief }`,
     responseSchema: {
       type: 'object',
@@ -29507,7 +29528,7 @@ registerFn('buildCampaign', async ({ body, user }) => {
 
   return {
     goal,
-    copy_variants: (Array.isArray(plan?.copy_variants) ? plan.copy_variants : []).slice(0, 3),
+    copy_variants: sanitizeCopyVariants(plan?.copy_variants),
     targeting: {
       segment_key: segKey, segment_label: MARKETING_SEGMENTS[segKey].label, recipient_count: ids.length,
       audience_description: String(plan?.audience_description || ''),
