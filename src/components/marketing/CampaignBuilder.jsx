@@ -18,6 +18,8 @@ export default function CampaignBuilder() {
   const [drive, setDrive] = useState(null);            // { images, folders } or null
   const [driveOpen, setDriveOpen] = useState(false);
   const [driveLoading, setDriveLoading] = useState(false);
+  const [driveFolderUrl, setDriveFolderUrl] = useState('');  // pasted Drive folder link
+  const [driveSaEmail, setDriveSaEmail] = useState('');       // service-account email to share with
   const [building, setBuilding] = useState(false);
   const [campaign, setCampaign] = useState(null);
   const [error, setError] = useState('');
@@ -47,10 +49,15 @@ export default function CampaignBuilder() {
   const loadDrive = async () => {
     setDriveOpen(true); setDriveLoading(true); setError('');
     try {
-      const res = await base44.functions.getDriveImages({});
-      setDrive((res?.data || res) || { images: [], folders: [] });
-    } catch (err) { setError('לא הצלחתי לטעון את הדרייב — ודא שחיברת תיקיית Drive באינטגרציות.'); }
+      const res = await base44.functions.getDriveImages({ folder_url: driveFolderUrl || undefined });
+      const d = (res?.data || res) || { images: [], folders: [] };
+      setDrive(d);
+      if (d.folder_id && !driveFolderUrl) setDriveFolderUrl(`https://drive.google.com/drive/folders/${d.folder_id}`);
+    } catch (err) { setError('לא הצלחתי לטעון את הדרייב — ודא ששיתפת את התיקייה עם חשבון השירות (המייל למטה).'); }
     finally { setDriveLoading(false); }
+    if (!driveSaEmail) {
+      try { const r = await base44.functions.getDriveServiceAccountEmail({}); const e = (r?.data || r)?.client_email; if (e) setDriveSaEmail(e); } catch { /* optional hint */ }
+    }
   };
 
   const pickDrive = async (fileId) => {
@@ -196,17 +203,29 @@ export default function CampaignBuilder() {
         {imageUrl && <img src={imageUrl} alt="" className="h-24 rounded-xl object-cover mb-3 border" />}
 
         {driveOpen && (
-          <div className="mb-3 border border-slate-200 rounded-xl p-2 max-h-44 overflow-y-auto">
-            {driveLoading ? <div className="text-center py-3"><Loader2 className="w-5 h-5 animate-spin text-amber-500 mx-auto" /></div> : (
+          <div className="mb-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <input type="url" dir="ltr" value={driveFolderUrl} onChange={(e) => setDriveFolderUrl(e.target.value)}
+                placeholder="https://drive.google.com/drive/folders/…"
+                className="flex-1 min-w-0 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              <button type="button" onClick={loadDrive} disabled={driveLoading}
+                className="bg-slate-700 hover:bg-slate-600 text-white text-sm font-bold px-3 py-2 rounded-lg disabled:opacity-60 shrink-0">טען</button>
+            </div>
+            {driveSaEmail && (
+              <p className="text-[11px] text-slate-400">📩 שתף את התיקייה עם: <span dir="ltr" className="font-mono text-slate-500">{driveSaEmail}</span> (הרשאת "צופה"), ואז לחץ "טען".</p>
+            )}
+            <div className="border border-slate-200 rounded-xl p-2 max-h-44 overflow-y-auto">
+              {driveLoading ? <div className="text-center py-3"><Loader2 className="w-5 h-5 animate-spin text-amber-500 mx-auto" /></div> : (
               <div className="grid grid-cols-4 gap-2">
                 {(drive?.images || []).map(im => (
                   <button key={im.id} onClick={() => pickDrive(im.id)} title={im.name} className="rounded-lg overflow-hidden border hover:border-amber-400">
                     <img src={im.thumbnailLink} alt={im.name} className="w-full h-16 object-cover" />
                   </button>
                 ))}
-                {!(drive?.images || []).length && <div className="col-span-4 text-xs text-slate-400 text-center py-3">אין תמונות בתיקייה.</div>}
+                {!(drive?.images || []).length && <div className="col-span-4 text-xs text-slate-400 text-center py-3">אין תמונות בתיקייה, או שהתיקייה לא שותפה עם חשבון השירות.</div>}
               </div>
             )}
+            </div>
           </div>
         )}
 

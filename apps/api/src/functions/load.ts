@@ -6945,7 +6945,18 @@ export async function sendRestroomReminder() {
 
 // List image files + subfolders inside a Drive folder the service account can see.
 registerFn('getDriveImages', async ({ body }) => {
-  const folderId = (body as any)?.folder_id || 'root';
+  const b = (body || {}) as any;
+  // Accept a pasted Drive folder URL, an explicit folder_id, or fall back to the
+  // saved folder (then 'root'). A newly-provided folder is remembered per tenant
+  // so next time it's pre-filled.
+  let folderId = String(b.folder_id || '').trim();
+  const url = String(b.folder_url || '').trim();
+  if (!folderId && url) {
+    const m = url.match(/\/folders\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (m) folderId = m[1];
+  }
+  if (folderId) { try { await setPlainSecret('DRIVE_AD_PHOTOS_FOLDER_ID', folderId); } catch { /* best-effort */ } }
+  else folderId = (await getSecret('DRIVE_AD_PHOTOS_FOLDER_ID')) || 'root';
   const token = await driveAccessToken();
 
   const imgUrl =
@@ -6964,7 +6975,7 @@ registerFn('getDriveImages', async ({ body }) => {
   const folderRes = await fetch(folderUrl, { headers: { Authorization: `Bearer ${token}` } });
   const folderData: any = folderRes.ok ? await folderRes.json() : { files: [] };
 
-  return { images: imgData.files || [], folders: folderData.files || [] };
+  return { images: imgData.files || [], folders: folderData.files || [], folder_id: folderId };
 });
 
 // Download a Drive image and re-host it in our own storage; return the public URL.
