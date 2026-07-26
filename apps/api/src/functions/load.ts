@@ -59,6 +59,8 @@ import {
   distanceMeters,
   GEOFENCE_IN_RADIUS_M,
   GEOFENCE_OUT_RADIUS_M,
+  GEOFENCE_MONITOR_RADIUS_M,
+  GEOFENCE_AWAY_ALERT_MINUTES,
   GEOFENCE_WARMUP_SECONDS,
   HEARTBEAT_INTERVAL_SECONDS,
 } from '../lib/geofence.js';
@@ -20013,6 +20015,17 @@ registerFn('syncTipHoursToEndOfDay', async ({ user, body }) => {
 // Authed — heartbeat from the active shift widget. Debounce: requires
 // (a) past warm-up window AND (b) previous reading was also over threshold
 // before auto-closing. Kills GPS jitter false positives.
+// Per-shift geofence-away state (owner presence monitoring). Kept in its own tiny
+// table so we never touch the drift-prone ShiftTracking Prisma model. Self-healing.
+let _shiftGeoReady = false;
+async function ensureShiftGeoTable(): Promise<void> {
+  if (_shiftGeoReady) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "ShiftGeoState" ("shift_id" TEXT PRIMARY KEY, "away_since" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "alerted" BOOLEAN NOT NULL DEFAULT false)`,
+  ).catch(() => {});
+  _shiftGeoReady = true;
+}
+
 registerFn('shiftHeartbeat', async ({ user, body }) => {
   if (!user?.id) throw new Error('unauthorized');
   const { shift_id, lat, lng } = body as any;
@@ -20061,6 +20074,30 @@ registerFn('shiftHeartbeat', async ({ user, body }) => {
       where: { id: shift_id },
       data: { last_lat: lat, last_lng: lng, last_location_at: now },
     });
+    // Presence monitoring (owner directive 2026-07-27): if the employee is past the
+    // MONITOR radius (200m) for 15+ min while still clocked in, WhatsApp the owner
+    // ONCE. Never auto-closes. Gated on the tenant enabling location tracking.
+    if (trackingOn && profile?.restaurant_lat != null && profile?.restaurant_lng != null && ageSeconds > GEOFENCE_WARMUP_SECONDS) {
+      try {
+        const dist = distanceMeters({ lat, lng }, { lat: profile.restaurant_lat as number, lng: profile.restaurant_lng as number });
+        await ensureShiftGeoTable();
+        const dbx: any = prisma as any;
+        if (dist > GEOFENCE_MONITOR_RADIUS_M) {
+          await dbx.$executeRawUnsafe(`INSERT INTO "ShiftGeoState"("shift_id","away_since","alerted") VALUES ($1,$2,false) ON CONFLICT ("shift_id") DO NOTHING`, shift_id, now);
+          const st: any[] = await dbx.$queryRawUnsafe(`SELECT "away_since","alerted" FROM "ShiftGeoState" WHERE "shift_id"=$1`, shift_id);
+          const awaySince = st?.[0]?.away_since ? new Date(st[0].away_since) : now;
+          const awayMin = (now.getTime() - awaySince.getTime()) / 60000;
+          if (!st?.[0]?.alerted && awayMin >= GEOFENCE_AWAY_ALERT_MINUTES) {
+            await dbx.$executeRawUnsafe(`UPDATE "ShiftGeoState" SET "alerted"=true WHERE "shift_id"=$1`, shift_id);
+            const name = shift.employee_name || emp?.full_name || 'עובד';
+            const { broadcastToAdmins } = await import('../lib/whatsappAlerts.js');
+            await broadcastToAdmins(`📍 *${name}* לא נמצא/ת בקרבת העסק כבר ${Math.round(awayMin)} דק' (כ-${Math.round(dist)}מ' מהמסעדה) ועדיין בשעון. כדאי לבדוק — לא סגרתי אוטומטית.`).catch(() => {});
+          }
+        } else {
+          await dbx.$executeRawUnsafe(`DELETE FROM "ShiftGeoState" WHERE "shift_id"=$1`, shift_id);
+        }
+      } catch { /* monitoring must never break the heartbeat */ }
+    }
     return { closed: false };
   }
 

@@ -2,7 +2,17 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { base44 } from '@/api/base44Client';
-import { Clock, User, MessageCircle, AlertTriangle, Coffee, LogOut, Edit3 } from 'lucide-react';
+import { Clock, User, MessageCircle, AlertTriangle, Coffee, LogOut, Edit3, MapPin, MapPinOff } from 'lucide-react';
+
+// Haversine distance in meters (client-side, for the presence marker).
+function distM(a, b) {
+  if (a?.lat == null || a?.lng == null || b?.lat == null || b?.lng == null) return null;
+  const R = 6371000, toR = (d) => (d * Math.PI) / 180;
+  const dLat = toR(b.lat - a.lat), dLng = toR(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+const MONITOR_M = 200;
 
 // Detect dept from positions array / role / explicit department field.
 const KITCHEN_HINTS = ['מטבח', 'טבח', 'גריל', 'גרילמן', 'סלטים', 'שטיפה', 'עמדת מטבח'];
@@ -57,6 +67,7 @@ export default function ActiveEmployeesWidget() {
   const [now, setNow] = useState(() => new Date());
   const [user, setUser] = useState(null);
   const [busyShiftId, setBusyShiftId] = useState(null);
+  const [bizLoc, setBizLoc] = useState(null); // { lat, lng } of the business, for the presence marker
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => setUser(null));
@@ -109,10 +120,13 @@ export default function ActiveEmployeesWidget() {
     const load = async () => {
       try {
         const today = new Date().toISOString().split('T')[0];
-        const [shiftTracking, employees] = await Promise.all([
+        const [shiftTracking, employees, geoRes] = await Promise.all([
           base44.entities.ShiftTracking.filter({ date: today }),
           base44.entities.Employee.filter({ status: 'active' }).catch(() => []),
+          base44.functions.getGeofenceConfig({}).catch(() => null),
         ]);
+        const geo = geoRes?.data || geoRes || {};
+        setBizLoc(geo.restaurant_lat != null && geo.restaurant_lng != null ? { lat: geo.restaurant_lat, lng: geo.restaurant_lng } : null);
 
         const byEmail = {}, byId = {};
         for (const e of employees || []) {
@@ -159,6 +173,9 @@ export default function ActiveEmployeesWidget() {
             shiftType: tr.shift_type || 'general',
             totalBreakMinutes: Number(tr.total_break_minutes || 0),
             currentBreakMin,
+            lastLat: tr.last_lat ?? null,
+            lastLng: tr.last_lng ?? null,
+            lastLocAt: tr.last_location_at ?? null,
           });
         }
 
@@ -254,6 +271,14 @@ export default function ActiveEmployeesWidget() {
               const phone = normalizePhoneIL(emp.phone);
               const deptInfo = DEPT_LABEL[emp.dept];
 
+              // Presence marker: distance of the employee's last reported location
+              // from the business (200m threshold). No auto-close — informational.
+              const gd = bizLoc ? distM({ lat: emp.lastLat, lng: emp.lastLng }, bizLoc) : null;
+              const noLoc = emp.lastLat == null || emp.lastLng == null;
+              const away = gd != null && gd > MONITOR_M;
+              const locAgeMin = emp.lastLocAt ? Math.round((now.getTime() - new Date(emp.lastLocAt).getTime()) / 60000) : null;
+              const stale = locAgeMin != null && locAgeMin > 10;
+
               const cardClass = onBreak
                 ? 'bg-[#FAF5E8] border-[#D9BD83]'
                 : isCritical
@@ -298,6 +323,21 @@ export default function ActiveEmployeesWidget() {
                           <span className="text-yellow-700 font-bold">
                             💤 {emp.currentBreakMin} דק' מההפסקה
                           </span>
+                        )}
+                        {bizLoc && (
+                          noLoc ? (
+                            <span className="flex items-center gap-0.5 text-slate-400" title="אין מיקום — האפליקציה סגורה אצל העובד או שלא אושרה הרשאת מיקום">
+                              <MapPinOff className="w-3 h-3" /> אין מיקום
+                            </span>
+                          ) : away ? (
+                            <span className="flex items-center gap-0.5 text-red-600 font-bold" title={`כ-${Math.round(gd)}מ' מהעסק${locAgeMin != null ? ` · עודכן לפני ${locAgeMin} דק'` : ''}`}>
+                              <MapPinOff className="w-3 h-3" /> ✗ לא בעסק ({Math.round(gd)}מ'){stale ? ` · ישן ${locAgeMin}ד'` : ''}
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-0.5 text-emerald-600" title={locAgeMin != null ? `עודכן לפני ${locAgeMin} דק'` : ''}>
+                              <MapPin className="w-3 h-3" /> בעסק{stale ? ` · ישן ${locAgeMin}ד'` : ''}
+                            </span>
+                          )
                         )}
                         {isOvertime && !isCritical && (
                           <span className="flex items-center gap-0.5 text-orange-700 font-bold">
