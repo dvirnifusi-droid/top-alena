@@ -195,6 +195,10 @@ type InvokeArgs = {
   model?: string;
   provider?: 'gemini' | 'anthropic';
   maxOutputTokens?: number;
+  // Gemini thinking budget. 0 disables reasoning (fast + all tokens go to output) —
+  // use for large structured JSON where a thinking model otherwise truncates. Only
+  // valid on models that allow it (e.g. gemini-2.5-flash).
+  thinkingBudget?: number;
   timeoutMs?: number;
   // D5 — usage metering context. Optional so old callers keep working;
   // passed through to writeAiUsage after each successful LLM response.
@@ -218,14 +222,16 @@ async function geminiInvoke(args: InvokeArgs) {
   }
 
   const body: any = { contents: [{ role: 'user', parts }] };
+  const thinkingCfg = args.thinkingBudget !== undefined ? { thinkingConfig: { thinkingBudget: args.thinkingBudget } } : {};
   if (responseSchema) {
     body.generationConfig = {
       responseMimeType: 'application/json',
       responseSchema: sanitizeSchemaForGemini(responseSchema),
       maxOutputTokens: args.maxOutputTokens || 8192,
+      ...thinkingCfg,
     };
-  } else if (args.maxOutputTokens) {
-    body.generationConfig = { maxOutputTokens: args.maxOutputTokens };
+  } else if (args.maxOutputTokens || args.thinkingBudget !== undefined) {
+    body.generationConfig = { ...(args.maxOutputTokens ? { maxOutputTokens: args.maxOutputTokens } : {}), ...thinkingCfg };
   }
 
   // Hard timeout — Cloudflare drops requests at 100s. We give up at 60s and surface a clean

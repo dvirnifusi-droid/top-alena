@@ -18936,7 +18936,12 @@ registerFn('generateMarketingPlaybook', async ({ body, user }) => {
         },
       },
     },
-    maxOutputTokens: 5000,
+    // Flash + no thinking: fast, and every token goes to the (large) JSON so the
+    // categories aren't truncated the way gemini-2.5-pro's reasoning budget did.
+    model: 'gemini-2.5-flash',
+    thinkingBudget: 0,
+    maxOutputTokens: 8192,
+    timeoutMs: 90_000,
   }).catch((e: any) => ({ error: String(e?.message || e) }));
 
   if (result?.error || !result) return { strategy: '', focus_this_week: [], categories: [], error: result?.error };
