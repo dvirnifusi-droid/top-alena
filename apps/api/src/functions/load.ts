@@ -18823,6 +18823,32 @@ async function ensureClubLookalikeAudience(): Promise<{ lookalike_id: string | n
   return { lookalike_id: null, ready: false, matched, note: 'הקהל בהכנה' };
 }
 
+// Campaign landing links — each tenant sets its own (delivery / reservation /
+// events / general) so auto-campaigns drive to the right place. Self-serve.
+const MKT_LINK_KEYS: Record<string, string> = {
+  delivery: 'MKT_LINK_DELIVERY', reservation: 'MKT_LINK_RESERVATION',
+  events: 'MKT_LINK_EVENTS', general: 'MKT_LINK_GENERAL',
+};
+registerFn('getMarketingLinks', async ({ user }) => {
+  await requireBackOffice(user, 'getMarketingLinks', 'MarketingAdvisor');
+  const out: any = {};
+  for (const [k, sk] of Object.entries(MKT_LINK_KEYS)) out[k] = (await getSecret(sk)) || '';
+  return out;
+});
+registerFn('setMarketingLinks', async ({ body, user }) => {
+  await requireBackOffice(user, 'setMarketingLinks', 'MarketingAdvisor');
+  const b = (body || {}) as any;
+  const saved: string[] = [];
+  for (const [k, sk] of Object.entries(MKT_LINK_KEYS)) {
+    if (b[k] === undefined) continue;
+    const v = String(b[k] || '').trim();
+    if (v && !/^https?:\/\//i.test(v)) throw new Error(`הקישור ל"${k}" חייב להתחיל ב-http:// או https://`);
+    await setPlainSecret(sk, v);
+    saved.push(k);
+  }
+  return { ok: true, saved };
+});
+
 // Manual trigger so the owner can build the club audience ahead of time.
 registerFn('buildClubLookalikeAudience', async ({ user }) => {
   await requireBackOffice(user, 'buildClubLookalikeAudience', 'MarketingAdvisor');

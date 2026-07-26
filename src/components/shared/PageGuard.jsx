@@ -142,7 +142,10 @@ export default function PageGuard({ pageName, pageTitle, children }) {
   const isDeptManagedPage = ["WorkScheduling", "AvailabilityRequests", "Employees"].includes(pageName);
   // Self-service pages any authenticated staff may see — their OWN data only, so
   // they must never be locked out by a tier allowlist (the page/back-end scopes it).
-  const isSelfServicePage = ["MyCard"].includes(pageName);
+  // EmployeeReports self-scopes non-admins to their own personal report
+  // (selectedEmployeeId = own record; manager controls are isAdmin-gated), so it
+  // is safe to let any employee open it and see just themselves.
+  const isSelfServicePage = ["MyCard", "EmployeeReports"].includes(pageName);
 
   // Access resolution, in priority order:
   //  1. Owner  → always in (can never lock yourself out).

@@ -95,6 +95,7 @@ export const adminLinks = [
   { title: "ספקים", url: createPageUrl("Suppliers"), icon: Building, isSubItem: true, color: "olive" },
 
   { title: "👥 עובדים וסידור", url: createPageUrl("EmployeesHub"), icon: Users, color: "olive" },
+  { title: "📊 דוחות עובדים", url: createPageUrl("EmployeeReports"), icon: BarChart3, color: "olive" },
   { title: "🎓 גיוס והכשרה", url: createPageUrl("RecruitmentHub"), icon: GraduationCap, color: "gold" },
   { title: "🌿 אירועים פרטיים", url: createPageUrl("EventsHub"), icon: CalendarHeart, color: "cinnamon" },
   { title: "🤝 ספקי אירועים", url: createPageUrl("EventVendors"), icon: Users, color: "cinnamon" },
