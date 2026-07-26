@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Loader2, Lightbulb, Sparkles, Target, Check, Plus, Copy, ChevronDown, ChevronUp, Coins, Gauge, TrendingUp, Download } from 'lucide-react';
+import { Loader2, Lightbulb, Sparkles, Target, Check, Plus, Copy, ChevronDown, ChevronUp, Coins, Gauge, TrendingUp, Download, Send } from 'lucide-react';
 
 const EFFORT = { low: { t: 'מאמץ נמוך', c: 'bg-emerald-100 text-emerald-700' }, medium: { t: 'מאמץ בינוני', c: 'bg-amber-100 text-amber-700' }, high: { t: 'מאמץ גבוה', c: 'bg-rose-100 text-rose-700' } };
 const IMPACT = { low: { t: 'אימפקט נמוך', c: 'text-slate-400' }, medium: { t: 'אימפקט בינוני', c: 'text-sky-600' }, high: { t: 'אימפקט גבוה', c: 'text-emerald-600' } };
@@ -32,14 +32,18 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 // Composite the clean Hebrew text ONTO the AI background → a finished, download-
 // ready graphic (canvas renders Hebrew correctly, unlike the image model).
-function composeDesign(imgB64, tc) {
+function composeDesign(imgB64, tc, opts = {}) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
-      const W = img.naturalWidth || 1080, H = img.naturalHeight || 1080;
+      const W = opts.w || img.naturalWidth || 1080, H = opts.h || img.naturalHeight || 1080;
+      const accent = opts.accent || '#f59e0b';
       const c = document.createElement('canvas'); c.width = W; c.height = H;
       const ctx = c.getContext('2d');
-      ctx.drawImage(img, 0, 0, W, H);
+      // Cover-draw the background into the target format ratio (no distortion).
+      const s = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+      const dw = img.naturalWidth * s, dh = img.naturalHeight * s;
+      ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
       const grad = ctx.createLinearGradient(0, H * 0.4, 0, H);
       grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.75)');
       ctx.fillStyle = grad; ctx.fillRect(0, H * 0.4, W, H * 0.6);
@@ -53,7 +57,7 @@ function composeDesign(imgB64, tc) {
       if (tc?.cta) {
         ctx.shadowBlur = 0; ctx.font = `bold ${Math.round(W * 0.04)}px Arial, sans-serif`;
         const tw = ctx.measureText(tc.cta).width, pw = tw + W * 0.07, ph = W * 0.085;
-        ctx.fillStyle = '#f59e0b'; roundRect(ctx, cx - pw / 2, y, pw, ph, ph / 2); ctx.fill();
+        ctx.fillStyle = accent; roundRect(ctx, cx - pw / 2, y, pw, ph, ph / 2); ctx.fill();
         ctx.fillStyle = '#ffffff'; ctx.textBaseline = 'middle'; ctx.fillText(tc.cta, cx, y + ph / 2); ctx.textBaseline = 'alphabetic';
       }
       resolve(c.toDataURL('image/png'));
@@ -79,6 +83,9 @@ export default function MarketingPlaybook() {
   const [assistOut, setAssistOut] = useState({});    // key → assist result
   const [finished, setFinished] = useState({});      // key → finished design dataURL
   const [composingKey, setComposingKey] = useState(null);
+  const [designOpts, setDesignOpts] = useState({});  // key → { format, vibe }
+  const [publishKey, setPublishKey] = useState(null);
+  const [publishOut, setPublishOut] = useState({});  // key → publish result
 
   const build = async () => {
     setLoading(true); setError(''); setPlan(null); setAdded({});
@@ -103,22 +110,34 @@ export default function MarketingPlaybook() {
     finally { setAddingKey(null); }
   };
 
-  const assist = async (t, key) => {
+  const assist = async (t, key, extra = {}) => {
     setAssistKey(key);
+    setFinished(f => { const n = { ...f }; delete n[key]; return n; }); // reset finished on re-design
     try {
-      const res = await base44.functions.assistTactic({ title: t.title, why: t.why, action_type: t.action_type, steps: t.steps || [] });
+      const res = await base44.functions.assistTactic({ title: t.title, why: t.why, action_type: t.action_type, steps: t.steps || [], ...extra });
       setAssistOut(o => ({ ...o, [key]: (res?.data || res) || null }));
     } catch (e) { setAssistOut(o => ({ ...o, [key]: { error: e?.message || 'לא הצלחתי' } })); }
     finally { setAssistKey(null); }
   };
 
-  const makeFinished = async (key, imgB64, tc) => {
+  const makeFinished = async (key, imgB64, tc, out) => {
     setComposingKey(key);
     try {
-      const url = await composeDesign(imgB64, tc);
+      const url = await composeDesign(imgB64, tc, { w: out?.canvas?.w, h: out?.canvas?.h, accent: out?.accent_color });
       if (url) setFinished(f => ({ ...f, [key]: url }));
     } catch { /* noop */ }
     finally { setComposingKey(null); }
+  };
+
+  const publish = async (key, message, dataUrl) => {
+    if (!window.confirm('לפרסם את הפוסט הזה בפייסבוק ובאינסטגרם של העסק עכשיו?')) return;
+    setPublishKey(key); setPublishOut(o => ({ ...o, [key]: null }));
+    try {
+      const b64 = String(dataUrl || '').split(',')[1] || undefined;
+      const res = await base44.functions.postToSocial({ message, image_base64: b64, platforms: ['facebook', 'instagram'] });
+      setPublishOut(o => ({ ...o, [key]: (res?.data || res) || null }));
+    } catch (e) { setPublishOut(o => ({ ...o, [key]: { error: e?.message || 'הפרסום נכשל' } })); }
+    finally { setPublishKey(null); }
   };
 
   const copyText = (txt) => { try { navigator.clipboard?.writeText(txt || ''); } catch { /* noop */ } };
@@ -244,15 +263,41 @@ export default function MarketingPlaybook() {
                             </div>
                           ) : assistOut[key].kind === 'design' ? (
                             <div className="space-y-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <select value={designOpts[key]?.format || assistOut[key].format || ''}
+                                  onChange={(e) => setDesignOpts(d => ({ ...d, [key]: { ...d[key], format: e.target.value } }))}
+                                  className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white">
+                                  {(assistOut[key].formats || []).map(f => <option key={f.key} value={f.key}>{f.label} · {f.dims}</option>)}
+                                </select>
+                                <input value={designOpts[key]?.vibe || ''} onChange={(e) => setDesignOpts(d => ({ ...d, [key]: { ...d[key], vibe: e.target.value } }))}
+                                  placeholder="וייב/סגנון (לא חובה)" className="flex-1 min-w-[110px] text-xs border border-slate-300 rounded-lg px-2 py-1.5" />
+                                <button onClick={() => assist(t, key, { format: designOpts[key]?.format || assistOut[key].format, vibe_note: designOpts[key]?.vibe || '' })} disabled={assistKey === key}
+                                  className="text-xs font-bold text-sky-700 bg-sky-100 hover:bg-sky-200 px-2.5 py-1.5 rounded-lg disabled:opacity-60">
+                                  {assistKey === key ? '…' : 'עצב מחדש'}
+                                </button>
+                              </div>
+
                               {finished[key] ? (
-                                <div>
-                                  <div className="font-bold text-emerald-700 mb-1">✅ העיצוב מוכן</div>
-                                  <img src={finished[key]} alt="finished" className="w-full max-h-72 object-contain rounded-lg border bg-white" />
-                                  <a href={finished[key]} download={`design-${key}.png`} className="mt-1.5 inline-flex items-center gap-1 font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-lg"><Download className="w-3.5 h-3.5" /> הורד עיצוב</a>
+                                <div className="space-y-1.5">
+                                  <div className="font-bold text-emerald-700">✅ העיצוב מוכן — {assistOut[key].format_label} · {assistOut[key].format_dims}</div>
+                                  <img src={finished[key]} alt="finished" className="w-full max-h-80 object-contain rounded-lg border bg-white" />
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <a href={finished[key]} download={`design-${key}.png`} className="inline-flex items-center gap-1 font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-lg"><Download className="w-3.5 h-3.5" /> הורד</a>
+                                    <button onClick={() => publish(key, [assistOut[key].text_content?.headline, assistOut[key].text_content?.subtext, assistOut[key].text_content?.cta].filter(Boolean).join('\n'), finished[key])} disabled={publishKey === key}
+                                      className="inline-flex items-center gap-1 font-bold text-white bg-fuchsia-600 hover:bg-fuchsia-500 px-3 py-1.5 rounded-lg disabled:opacity-60">
+                                      {publishKey === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} פרסם בפייסבוק+אינסטגרם
+                                    </button>
+                                  </div>
+                                  {publishOut[key] && (
+                                    publishOut[key].error ? <div className="text-red-600 text-xs">{publishOut[key].error}</div>
+                                      : <div className="text-xs space-y-0.5">
+                                          <div className={publishOut[key].results?.facebook?.ok ? 'text-emerald-700' : 'text-amber-700'}>פייסבוק: {publishOut[key].results?.facebook?.ok ? '✅ פורסם' : (publishOut[key].results?.facebook?.error || '—')}</div>
+                                          <div className={publishOut[key].results?.instagram?.ok ? 'text-emerald-700' : 'text-amber-700'}>אינסטגרם: {publishOut[key].results?.instagram?.ok ? '✅ פורסם' : (publishOut[key].results?.instagram?.error || '—')}</div>
+                                        </div>
+                                  )}
                                 </div>
                               ) : (
                                 <>
-                                  <div className="font-bold text-sky-800">🎨 קונספט + טקסט</div>
                                   {assistOut[key].image_base64 && <img src={`data:image/png;base64,${assistOut[key].image_base64}`} alt="concept" className="w-full max-h-56 object-contain rounded-lg border bg-white" />}
                                   <div className="bg-white border rounded-lg p-2 space-y-0.5 text-slate-700">
                                     {assistOut[key].text_content?.headline && <div><b>כותרת:</b> {assistOut[key].text_content.headline}</div>}
@@ -260,12 +305,12 @@ export default function MarketingPlaybook() {
                                     {assistOut[key].text_content?.cta && <div><b>קריאה לפעולה:</b> {assistOut[key].text_content.cta}</div>}
                                   </div>
                                   {assistOut[key].image_base64 && (
-                                    <button onClick={() => makeFinished(key, assistOut[key].image_base64, assistOut[key].text_content)} disabled={composingKey === key}
+                                    <button onClick={() => makeFinished(key, assistOut[key].image_base64, assistOut[key].text_content, assistOut[key])} disabled={composingKey === key}
                                       className="inline-flex items-center gap-1 font-bold text-white bg-sky-600 hover:bg-sky-500 px-3 py-1.5 rounded-lg disabled:opacity-60">
                                       {composingKey === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} הרכב עיצוב מוכן (עם הטקסט)
                                     </button>
                                   )}
-                                  <p className="text-[11px] text-slate-500">העיצוב מרכיב את הטקסט העברי על הרקע — מוכן להורדה והדפסה.</p>
+                                  <p className="text-[11px] text-slate-500">{assistOut[key].note}</p>
                                 </>
                               )}
                             </div>

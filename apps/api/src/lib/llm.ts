@@ -395,7 +395,7 @@ export async function invokeLLM(args: InvokeArgs) {
   throw lastErr;
 }
 
-export async function generateImage({ prompt }: { prompt: string }) {
+export async function generateImage({ prompt, aspectRatio }: { prompt: string; aspectRatio?: string }) {
   // Imagen via Gemini API. Google rotates model IDs — try the env override
   // first, then a list of currently-known model IDs in order.
   const candidates = [
@@ -406,6 +406,10 @@ export async function generateImage({ prompt }: { prompt: string }) {
     'imagen-3.0-generate-001',
   ].filter(Boolean) as string[];
 
+  // Imagen accepts aspectRatio ∈ 1:1 | 3:4 | 4:3 | 9:16 | 16:9 in parameters —
+  // lets a roll-up come out portrait and an IG post square.
+  const ar = ['1:1', '3:4', '4:3', '9:16', '16:9'].includes(String(aspectRatio)) ? String(aspectRatio) : undefined;
+
   // Google AI Studio (generativelanguage.googleapis.com) serves Imagen via
   // the :predict endpoint with instances/parameters shape — NOT the older
   // :generateImages variant. Try a list of (model, endpoint, body) recipes
@@ -413,7 +417,7 @@ export async function generateImage({ prompt }: { prompt: string }) {
   const recipes = candidates.flatMap((model) => [
     {
       url: `${GEMINI_BASE}/models/${model}:predict?key=${geminiKey()}`,
-      body: { instances: [{ prompt }], parameters: { sampleCount: 1 } },
+      body: { instances: [{ prompt }], parameters: { sampleCount: 1, ...(ar ? { aspectRatio: ar } : {}) } },
       extract: (d: any) =>
         d?.predictions?.[0]?.bytesBase64Encoded ||
         d?.predictions?.[0]?.image?.bytesBase64Encoded ||

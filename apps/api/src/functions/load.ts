@@ -19028,28 +19028,129 @@ registerFn('assistTactic', async ({ body, user }) => {
     return { kind: 'ad', goal: title, note: 'העתקתי את המטרה — פתח למעלה את "בנה קמפיין מלא", הדבק אותה, ובחר תמונה.' };
   }
 
-  // design (and anything visual): concept image + the real Hebrew text to add.
+  // design (and anything visual): a concept background AT THE RIGHT SIZE + the real
+  // Hebrew text to overlay, matched to the business's vibe.
   if (action_type === 'design') {
+    const FORMATS: Record<string, { label: string; dims: string; ar: string; w: number; h: number }> = {
+      roll_up:    { label: 'רול-אפ', dims: '85×200 ס״מ', ar: '9:16', w: 900, h: 2000 },
+      flyer_a5:   { label: 'פלייר A5', dims: '14.8×21 ס״מ', ar: '3:4', w: 1480, h: 2100 },
+      ig_post:    { label: 'פוסט אינסטגרם', dims: '1080×1080', ar: '1:1', w: 1080, h: 1080 },
+      ig_story:   { label: 'סטורי', dims: '1080×1920', ar: '9:16', w: 1080, h: 1920 },
+      window:     { label: 'מדבקת חלון', dims: '50×70 ס״מ', ar: '3:4', w: 1000, h: 1400 },
+      table_tent: { label: 'תצוגת שולחן A6', dims: '10.5×14.8 ס״מ', ar: '3:4', w: 1050, h: 1480 },
+    };
+    let fmt = String(b.format || '').trim();
+    if (!FORMATS[fmt]) {
+      const hay = `${title} ${why}`;
+      fmt = /רול.?אפ|באנר|roll|banner/i.test(hay) ? 'roll_up'
+        : /סטורי|story/i.test(hay) ? 'ig_story'
+        : /פוסט|אינסטגרם|instagram|\bpost\b/i.test(hay) ? 'ig_post'
+        : /חלון|מדבק|window|sticker/i.test(hay) ? 'window'
+        : /שולחן|table|tent|תפריט/i.test(hay) ? 'table_tent'
+        : 'flyer_a5';
+    }
+    const F = FORMATS[fmt];
+    const vibeNote = String(b.vibe_note || '').trim();
+    const brandColor = String(pd.brand_color || pd.primary_color || '').trim();
+    const vibe = [pd.concept ? `קונספט: ${pd.concept}` : '', pd.style ? `סגנון: ${pd.style}` : '', pd.target_audience ? `קהל: ${pd.target_audience}` : '', brandColor ? `צבע מותג: ${brandColor}` : '', vibeNote ? `בקשת הבעלים: ${vibeNote}` : ''].filter(Boolean).join('; ');
+
     const textRes: any = await invokeLLM({
-      prompt: MARKETING_ADVISOR_PERSONA + `\nעבור חומר שיווקי מודפס (${title}) של "${brand}" — הצע כותרת ראשית קצרה (עד 5 מילים), כותרת משנה קצרה, ו-CTA. ${COPY_CLEAN_RULE}\nהחזר JSON: { headline, subtext, cta }`,
+      prompt: MARKETING_ADVISOR_PERSONA + `\nעבור ${F.label} (${F.dims}) של "${brand}" בנושא "${title}" — הצע כותרת ראשית קצרה (עד 5 מילים), כותרת משנה קצרה, ו-CTA. ${vibe ? 'התאם לוייב של העסק: ' + vibe + '. ' : ''}${COPY_CLEAN_RULE}\nהחזר JSON: { headline, subtext, cta }`,
       responseSchema: { type: 'object', properties: { headline: { type: 'string' }, subtext: { type: 'string' }, cta: { type: 'string' } } },
       model: 'gemini-2.5-flash', thinkingBudget: 256, maxOutputTokens: 512,
     }).catch(() => ({}));
+
     let image_base64: string | null = null;
     try {
-      const img: any = await generateImage({ prompt: `Professional marketing design concept / background for a restaurant sign or flyer about "${title}". ${pd.concept || ''}. Elegant, modern, appetizing, clean composition with generous empty space for text. Absolutely NO text, NO words, NO letters anywhere in the image.` });
+      const orient = F.ar === '1:1' ? 'square' : 'tall vertical portrait';
+      const img: any = await generateImage({
+        aspectRatio: F.ar,
+        prompt: `Professional ${F.label} marketing background for the restaurant "${brand}" about "${title}". ${vibe}. ${pd.concept || ''}. ${orient} composition, elegant, modern, appetising, strongly on-brand, with generous empty space (especially the lower half) reserved for a text overlay. Absolutely NO text, NO words, NO letters, NO numbers anywhere in the image.`,
+      });
       image_base64 = img?.image_base64 || null;
       void writeAiUsage({ fn_name: 'assistTactic.design', model: img?.model || 'imagen', tokens_in: 0, tokens_out: 0 }).catch(() => {});
     } catch { /* concept image is best-effort */ }
+
     return {
       kind: 'design',
+      format: fmt, format_label: F.label, format_dims: F.dims,
+      canvas: { w: F.w, h: F.h },
+      accent_color: brandColor || '#f59e0b',
+      formats: Object.entries(FORMATS).map(([key, v]) => ({ key, label: v.label, dims: v.dims })),
       text_content: { headline: cleanCopyText(textRes?.headline || ''), subtext: cleanCopyText(textRes?.subtext || ''), cta: cleanCopyText(textRes?.cta || '') },
       image_base64,
-      note: 'הרקע נוצר ב-AI (בלי טקסט — מודל תמונה לא כותב עברית תקין). את הטקסט למעלה מוסיפים בהדפסה/Canva, או מוסרים למעצב/מדפיס יחד עם הרקע.',
+      note: `מידות מומלצות ל${F.label}: ${F.dims}. הרקע בגודל הנכון; הטקסט העברי מולבש בעיצוב המוכן (מודל תמונה לא כותב עברית).`,
     };
   }
 
   return { kind: 'steps', steps: Array.isArray(b.steps) ? b.steps : [] };
+});
+
+// Publish an organic post to the restaurant's Facebook Page and/or Instagram.
+// Uses the connected Page's own token (from /me/accounts). Needs the Meta token to
+// carry pages_manage_posts (+ instagram_content_publish for IG) — surfaces a clear
+// error if a scope/link is missing so the owner knows exactly what to enable.
+async function graphPost(path: string, params: any, token: string): Promise<any> {
+  const res = await fetch(`https://graph.facebook.com/v21.0${path}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...params, access_token: token }),
+  });
+  const data: any = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`${res.status}: ${JSON.stringify(data?.error || data).slice(0, 180)}`);
+  return data;
+}
+registerFn('postToSocial', async ({ body, user }) => {
+  await requireBackOffice(user, 'postToSocial', 'MarketingAdvisor');
+  const b = (body || {}) as any;
+  const message = String(b.message || '').trim();
+  const platforms: string[] = Array.isArray(b.platforms) && b.platforms.length ? b.platforms : ['facebook', 'instagram'];
+  if (!message && !b.image_base64 && !b.image_url) throw new Error('צריך טקסט או תמונה לפרסום');
+  if (!(await META_TOKEN())) throw new Error('מטא לא מחובר — הגדר META_ADS_ACCESS_TOKEN במסך מפתחות ה-API.');
+
+  // IG (and FB-by-url) need a PUBLIC image URL — host the base64 in our storage.
+  let imageUrl: string | null = String(b.image_url || '').trim() || null;
+  if (!imageUrl && b.image_base64) {
+    try {
+      const buf = Buffer.from(String(b.image_base64), 'base64');
+      const up = await uploadStreamToS3(`social-${randomUUID()}.png`, 'image/png', Readable.from(buf));
+      imageUrl = up.url;
+    } catch { /* fall back to text-only */ }
+  }
+
+  // Resolve the Page (+ its own token + linked IG business account).
+  let page: any = null, igId: string | null = null;
+  try {
+    const pages: any = await metaApi(`/me/accounts?fields=id,name,access_token,instagram_business_account&limit=10`);
+    page = pages?.data?.[0] || null;
+    igId = page?.instagram_business_account?.id || null;
+  } catch (e: any) {
+    throw new Error(`אין גישה לדפי הפייסבוק. הענק לטוקן הרשאות pages_manage_posts + pages_read_engagement (ולאינסטגרם: instagram_basic + instagram_content_publish), ושייך את המשתמש לדף. (${String(e?.message || e).slice(0, 90)})`);
+  }
+  if (!page) throw new Error('לא נמצא דף פייסבוק מחובר — שייך את המשתמש לדף שלך ב-Business Manager.');
+  const pageToken = page.access_token || (await META_TOKEN());
+
+  const results: any = {};
+  if (platforms.includes('facebook')) {
+    try {
+      const r = imageUrl
+        ? await graphPost(`/${page.id}/photos`, { url: imageUrl, caption: message }, pageToken)
+        : await graphPost(`/${page.id}/feed`, { message }, pageToken);
+      results.facebook = { ok: true, id: r?.post_id || r?.id };
+    } catch (e: any) { results.facebook = { ok: false, error: String(e?.message || e) }; }
+  }
+  if (platforms.includes('instagram')) {
+    if (!igId) results.instagram = { ok: false, error: 'אין חשבון אינסטגרם עסקי מקושר לדף (קשר אותו ב-Business Manager).' };
+    else if (!imageUrl) results.instagram = { ok: false, error: 'אינסטגרם דורש תמונה לפוסט.' };
+    else {
+      try {
+        const c = await graphPost(`/${igId}/media`, { image_url: imageUrl, caption: message }, pageToken);
+        if (!c?.id) throw new Error('לא התקבל media container');
+        const pub = await graphPost(`/${igId}/media_publish`, { creation_id: c.id }, pageToken);
+        results.instagram = { ok: true, id: pub?.id };
+      } catch (e: any) { results.instagram = { ok: false, error: String(e?.message || e) }; }
+    }
+  }
+  return { ok: Object.values(results).some((r: any) => r?.ok), results, image_url: imageUrl, page: page?.name };
 });
 
 // Manual trigger so the owner can build the club audience ahead of time.
