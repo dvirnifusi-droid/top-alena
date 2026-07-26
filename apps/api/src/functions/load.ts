@@ -18597,7 +18597,9 @@ registerFn('launchCampaignBrief', async ({ body, user }) => {
               ...(imageHash ? { image_hash: imageHash } : {}),
             },
           },
-          degrees_of_freedom_spec: { creative_features_spec: { standard_enhancements: { enroll_status: 'OPT_OUT' } } },
+          // NOTE: no degrees_of_freedom_spec / standard_enhancements — Meta now
+          // rejects an explicit opt-out here (error_subcode 3858504: "the creative
+          // shouldn't include standard enhancements"). Let the account default apply.
         };
         const creativeRes = await metaApi(`/act_${META_AD_ACCOUNT_ID}/adcreatives`, 'POST', creativePayload);
         creativeId = creativeRes?.id || null;
