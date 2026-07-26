@@ -19060,15 +19060,34 @@ registerFn('assistTactic', async ({ body, user }) => {
       model: 'gemini-2.5-flash', thinkingBudget: 256, maxOutputTokens: 512,
     }).catch(() => ({}));
 
+    const baseImg = String(b.image_url || '').trim();
     let image_base64: string | null = null;
     try {
-      const orient = F.ar === '1:1' ? 'square' : 'tall vertical portrait';
-      const img: any = await generateImage({
-        aspectRatio: F.ar,
-        prompt: `Professional ${F.label} marketing background for the restaurant "${brand}" about "${title}". ${vibe}. ${pd.concept || ''}. ${orient} composition, elegant, modern, appetising, strongly on-brand, with generous empty space (especially the lower half) reserved for a text overlay. Absolutely NO text, NO words, NO letters, NO numbers anywhere in the image.`,
-      });
-      image_base64 = img?.image_base64 || null;
-      void writeAiUsage({ fn_name: 'assistTactic.design', model: img?.model || 'imagen', tokens_in: 0, tokens_out: 0 }).catch(() => {});
+      if (baseImg) {
+        // The winning path — design ON the owner's REAL photo (keeps the real dish).
+        const out = await editImage({
+          imageUrl: baseImg,
+          instruction: [
+            `Turn THIS EXACT photo into a clean, professional ${F.label} background for the restaurant "${brand}" (theme: "${title}").`,
+            vibe ? `Match this vibe: ${vibe}.` : '',
+            'Improve lighting, colour and composition; keep the SAME food exactly as shown; leave generous empty space (especially the lower half) for a text overlay.',
+            'Absolutely NO text, words, letters or numbers in the image.',
+          ].filter(Boolean).join('\n'),
+        });
+        image_base64 = out.image_base64;
+        void writeAiUsage({ fn_name: 'assistTactic.design.edit', model: out.model, tokens_in: 0, tokens_out: 0 }).catch(() => {});
+      } else {
+        // Generated fallback — force appetising FOOD imagery, and hard-ban people so
+        // it never produces a random stock portrait.
+        const orient = F.ar === '1:1' ? 'square' : 'tall vertical portrait';
+        const food = pd.flagship_products ? String(pd.flagship_products).replace(/\n/g, ', ') : 'signature restaurant dishes';
+        const img: any = await generateImage({
+          aspectRatio: F.ar,
+          prompt: `Appetising professional FOOD photography for a ${F.label} for the restaurant "${brand}", theme "${title}". Show delicious plated food (${food}) and a warm inviting restaurant table setting. ${vibe}. ${pd.concept || ''}. ${orient} composition, elegant, modern, strongly on-brand, with generous empty space (especially the lower half) for a text overlay. STRICT: ONLY food, dishes, drinks, table and restaurant ambiance — absolutely NO people, NO faces, NO human figures, NO portraits, NO hands, and NO text, letters or numbers anywhere.`,
+        });
+        image_base64 = img?.image_base64 || null;
+        void writeAiUsage({ fn_name: 'assistTactic.design', model: img?.model || 'imagen', tokens_in: 0, tokens_out: 0 }).catch(() => {});
+      }
     } catch { /* concept image is best-effort */ }
 
     return {

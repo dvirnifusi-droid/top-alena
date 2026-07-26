@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Loader2, Lightbulb, Sparkles, Target, Check, Plus, Copy, ChevronDown, ChevronUp, Coins, Gauge, TrendingUp, Download, Send } from 'lucide-react';
+import { Loader2, Lightbulb, Sparkles, Target, Check, Plus, Copy, ChevronDown, ChevronUp, Coins, Gauge, TrendingUp, Download, Send, Upload, X } from 'lucide-react';
 
 const EFFORT = { low: { t: 'מאמץ נמוך', c: 'bg-emerald-100 text-emerald-700' }, medium: { t: 'מאמץ בינוני', c: 'bg-amber-100 text-amber-700' }, high: { t: 'מאמץ גבוה', c: 'bg-rose-100 text-rose-700' } };
 const IMPACT = { low: { t: 'אימפקט נמוך', c: 'text-slate-400' }, medium: { t: 'אימפקט בינוני', c: 'text-sky-600' }, high: { t: 'אימפקט גבוה', c: 'text-emerald-600' } };
@@ -11,6 +11,15 @@ const ACTION_HINT = {
   partner: '🤝 פנייה לשיתוף פעולה',
   manual: '',
 };
+const FONTS = [
+  { k: 'arial', label: 'אריאל', ff: 'Arial, sans-serif' },
+  { k: 'assistant', label: 'Assistant', ff: '"Assistant", Arial, sans-serif' },
+  { k: 'rubik', label: 'Rubik', ff: '"Rubik", Arial, sans-serif' },
+  { k: 'heebo', label: 'Heebo', ff: '"Heebo", Arial, sans-serif' },
+  { k: 'georgia', label: 'קלאסי', ff: 'Georgia, serif' },
+  { k: 'impact', label: 'בולט', ff: 'Impact, Arial, sans-serif' },
+];
+const fontFF = (k) => (FONTS.find(f => f.k === k) || FONTS[0]).ff;
 
 // Draw wrapped, centered lines; returns the y after the block.
 function wrapText(ctx, text, cx, y, maxW, lineH) {
@@ -38,6 +47,7 @@ function composeDesign(imgB64, tc, opts = {}) {
     img.onload = () => {
       const W = opts.w || img.naturalWidth || 1080, H = opts.h || img.naturalHeight || 1080;
       const accent = opts.accent || '#f59e0b';
+      const ff = opts.font || 'Arial, sans-serif';
       const c = document.createElement('canvas'); c.width = W; c.height = H;
       const ctx = c.getContext('2d');
       // Cover-draw the background into the target format ratio (no distortion).
@@ -52,10 +62,10 @@ function composeDesign(imgB64, tc, opts = {}) {
       let y = H - H * 0.3;
       ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = W * 0.012;
       ctx.fillStyle = '#ffffff';
-      if (tc?.headline) { ctx.font = `bold ${Math.round(W * 0.075)}px Arial, sans-serif`; y = wrapText(ctx, tc.headline, cx, y, W * 0.86, W * 0.09) + W * 0.02; }
-      if (tc?.subtext) { ctx.font = `${Math.round(W * 0.04)}px Arial, sans-serif`; y = wrapText(ctx, tc.subtext, cx, y, W * 0.82, W * 0.055) + W * 0.03; }
+      if (tc?.headline) { ctx.font = `bold ${Math.round(W * 0.075)}px ${ff}`; y = wrapText(ctx, tc.headline, cx, y, W * 0.86, W * 0.09) + W * 0.02; }
+      if (tc?.subtext) { ctx.font = `${Math.round(W * 0.04)}px ${ff}`; y = wrapText(ctx, tc.subtext, cx, y, W * 0.82, W * 0.055) + W * 0.03; }
       if (tc?.cta) {
-        ctx.shadowBlur = 0; ctx.font = `bold ${Math.round(W * 0.04)}px Arial, sans-serif`;
+        ctx.shadowBlur = 0; ctx.font = `bold ${Math.round(W * 0.04)}px ${ff}`;
         const tw = ctx.measureText(tc.cta).width, pw = tw + W * 0.07, ph = W * 0.085;
         ctx.fillStyle = accent; roundRect(ctx, cx - pw / 2, y, pw, ph, ph / 2); ctx.fill();
         ctx.fillStyle = '#ffffff'; ctx.textBaseline = 'middle'; ctx.fillText(tc.cta, cx, y + ph / 2); ctx.textBaseline = 'alphabetic';
@@ -86,6 +96,10 @@ export default function MarketingPlaybook() {
   const [designOpts, setDesignOpts] = useState({});  // key → { format, vibe }
   const [publishKey, setPublishKey] = useState(null);
   const [publishOut, setPublishOut] = useState({});  // key → publish result
+  const [uploadingKey, setUploadingKey] = useState(null);
+  const [lightbox, setLightbox] = useState(null);    // dataURL/src to show enlarged
+  const [editText, setEditText] = useState({});      // key → { headline, subtext, cta }
+  const [fontSel, setFontSel] = useState({});        // key → font key
 
   const build = async () => {
     setLoading(true); setError(''); setPlan(null); setAdded({});
@@ -120,13 +134,27 @@ export default function MarketingPlaybook() {
     finally { setAssistKey(null); }
   };
 
-  const makeFinished = async (key, imgB64, tc, out) => {
+  const makeFinished = async (key) => {
+    const out = assistOut[key];
+    if (!out?.image_base64) return;
     setComposingKey(key);
     try {
-      const url = await composeDesign(imgB64, tc, { w: out?.canvas?.w, h: out?.canvas?.h, accent: out?.accent_color });
+      const tc = editText[key] || out.text_content;
+      const url = await composeDesign(out.image_base64, tc, { w: out.canvas?.w, h: out.canvas?.h, accent: out.accent_color, font: fontFF(fontSel[key]) });
       if (url) setFinished(f => ({ ...f, [key]: url }));
     } catch { /* noop */ }
     finally { setComposingKey(null); }
+  };
+
+  // Base the design on the owner's REAL photo (uploaded) instead of a generated one.
+  const uploadBase = async (t, key, file) => {
+    if (!file) return;
+    setUploadingKey(key);
+    try {
+      const res = await base44.integrations.Core.UploadFile({ file });
+      const url = res?.file_url || res?.url || res?.data?.file_url;
+      if (url) await assist(t, key, { format: designOpts[key]?.format || assistOut[key]?.format, vibe_note: designOpts[key]?.vibe || '', image_url: url });
+    } catch { /* noop */ } finally { setUploadingKey(null); }
   };
 
   const publish = async (key, message, dataUrl) => {
@@ -273,17 +301,36 @@ export default function MarketingPlaybook() {
                                   placeholder="וייב/סגנון (לא חובה)" className="flex-1 min-w-[110px] text-xs border border-slate-300 rounded-lg px-2 py-1.5" />
                                 <button onClick={() => assist(t, key, { format: designOpts[key]?.format || assistOut[key].format, vibe_note: designOpts[key]?.vibe || '' })} disabled={assistKey === key}
                                   className="text-xs font-bold text-sky-700 bg-sky-100 hover:bg-sky-200 px-2.5 py-1.5 rounded-lg disabled:opacity-60">
-                                  {assistKey === key ? '…' : 'עצב מחדש'}
+                                  {assistKey === key ? '…' : '↻ עצב מחדש'}
                                 </button>
+                                <label className="text-xs font-bold text-white bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 rounded-lg cursor-pointer inline-flex items-center gap-1">
+                                  {uploadingKey === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} תמונה שלי
+                                  <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadBase(t, key, e.target.files?.[0])} />
+                                </label>
                               </div>
+                              <p className="text-[11px] text-slate-400">💡 לתוצאה הכי טובה — העלה תמונה אמיתית של המנה/העסק; היא תשמש בסיס לעיצוב (במקום תמונה שנוצרת).</p>
 
                               {finished[key] ? (
                                 <div className="space-y-1.5">
                                   <div className="font-bold text-emerald-700">✅ העיצוב מוכן — {assistOut[key].format_label} · {assistOut[key].format_dims}</div>
-                                  <img src={finished[key]} alt="finished" className="w-full max-h-80 object-contain rounded-lg border bg-white" />
+                                  <img src={finished[key]} alt="finished" onClick={() => setLightbox(finished[key])} className="w-full max-h-80 object-contain rounded-lg border bg-white cursor-zoom-in" />
+                                  {/* Edit text + font, then re-render */}
+                                  <div className="bg-white border rounded-lg p-2 space-y-1.5">
+                                    <input value={editText[key]?.headline ?? assistOut[key].text_content?.headline ?? ''} onChange={(e) => setEditText(t2 => ({ ...t2, [key]: { ...(t2[key] || assistOut[key].text_content), headline: e.target.value } }))} placeholder="כותרת" className="w-full text-xs border border-slate-300 rounded px-2 py-1" />
+                                    <input value={editText[key]?.subtext ?? assistOut[key].text_content?.subtext ?? ''} onChange={(e) => setEditText(t2 => ({ ...t2, [key]: { ...(t2[key] || assistOut[key].text_content), subtext: e.target.value } }))} placeholder="כותרת משנה" className="w-full text-xs border border-slate-300 rounded px-2 py-1" />
+                                    <input value={editText[key]?.cta ?? assistOut[key].text_content?.cta ?? ''} onChange={(e) => setEditText(t2 => ({ ...t2, [key]: { ...(t2[key] || assistOut[key].text_content), cta: e.target.value } }))} placeholder="קריאה לפעולה" className="w-full text-xs border border-slate-300 rounded px-2 py-1" />
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <select value={fontSel[key] || 'arial'} onChange={(e) => setFontSel(f => ({ ...f, [key]: e.target.value }))} className="text-xs border border-slate-300 rounded px-2 py-1 bg-white">
+                                        {FONTS.map(f => <option key={f.k} value={f.k}>גופן: {f.label}</option>)}
+                                      </select>
+                                      <button onClick={() => makeFinished(key)} disabled={composingKey === key} className="text-xs font-bold text-white bg-sky-600 hover:bg-sky-500 px-3 py-1.5 rounded-lg disabled:opacity-60 inline-flex items-center gap-1">
+                                        {composingKey === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} עדכן עיצוב
+                                      </button>
+                                    </div>
+                                  </div>
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <a href={finished[key]} download={`design-${key}.png`} className="inline-flex items-center gap-1 font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-lg"><Download className="w-3.5 h-3.5" /> הורד</a>
-                                    <button onClick={() => publish(key, [assistOut[key].text_content?.headline, assistOut[key].text_content?.subtext, assistOut[key].text_content?.cta].filter(Boolean).join('\n'), finished[key])} disabled={publishKey === key}
+                                    <button onClick={() => publish(key, [editText[key]?.headline ?? assistOut[key].text_content?.headline, editText[key]?.subtext ?? assistOut[key].text_content?.subtext, editText[key]?.cta ?? assistOut[key].text_content?.cta].filter(Boolean).join('\n'), finished[key])} disabled={publishKey === key}
                                       className="inline-flex items-center gap-1 font-bold text-white bg-fuchsia-600 hover:bg-fuchsia-500 px-3 py-1.5 rounded-lg disabled:opacity-60">
                                       {publishKey === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} פרסם בפייסבוק+אינסטגרם
                                     </button>
@@ -298,14 +345,14 @@ export default function MarketingPlaybook() {
                                 </div>
                               ) : (
                                 <>
-                                  {assistOut[key].image_base64 && <img src={`data:image/png;base64,${assistOut[key].image_base64}`} alt="concept" className="w-full max-h-56 object-contain rounded-lg border bg-white" />}
+                                  {assistOut[key].image_base64 && <img src={`data:image/png;base64,${assistOut[key].image_base64}`} alt="concept" onClick={() => setLightbox(`data:image/png;base64,${assistOut[key].image_base64}`)} className="w-full max-h-56 object-contain rounded-lg border bg-white cursor-zoom-in" />}
                                   <div className="bg-white border rounded-lg p-2 space-y-0.5 text-slate-700">
                                     {assistOut[key].text_content?.headline && <div><b>כותרת:</b> {assistOut[key].text_content.headline}</div>}
                                     {assistOut[key].text_content?.subtext && <div><b>משנה:</b> {assistOut[key].text_content.subtext}</div>}
                                     {assistOut[key].text_content?.cta && <div><b>קריאה לפעולה:</b> {assistOut[key].text_content.cta}</div>}
                                   </div>
                                   {assistOut[key].image_base64 && (
-                                    <button onClick={() => makeFinished(key, assistOut[key].image_base64, assistOut[key].text_content, assistOut[key])} disabled={composingKey === key}
+                                    <button onClick={() => makeFinished(key)} disabled={composingKey === key}
                                       className="inline-flex items-center gap-1 font-bold text-white bg-sky-600 hover:bg-sky-500 px-3 py-1.5 rounded-lg disabled:opacity-60">
                                       {composingKey === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} הרכב עיצוב מוכן (עם הטקסט)
                                     </button>
@@ -333,6 +380,13 @@ export default function MarketingPlaybook() {
           {(plan.categories || []).length > 0 && (
             <p className="text-[11px] text-slate-400">המשימות שתוסיף מופיעות בטאב "משימות" למעקב וביצוע.</p>
           )}
+        </div>
+      )}
+
+      {lightbox && (
+        <div onClick={() => setLightbox(null)} className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4 cursor-zoom-out">
+          <button onClick={() => setLightbox(null)} className="absolute top-4 left-4 text-white/80 hover:text-white"><X className="w-7 h-7" /></button>
+          <img src={lightbox} alt="preview" className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
     </div>
