@@ -39,9 +39,9 @@ const T = {
     club: { id: 'club', label: 'מועדון לקוחות', icon: Users, C: CustomerClub },
     templates: { id: 'templates', label: 'תבניות הודעה', icon: FileText, C: MessageTemplates },
     dashboard: { id: 'dashboard', label: 'דשבורד', icon: Megaphone, C: MarketingDashboard },
-    // Design / Organic
-    story: { id: 'story', label: 'סטודיו סטורי', icon: Wand2, C: StoryStudio },
-    instagram: { id: 'instagram', label: 'Instagram', icon: Image, C: InstagramStudio },
+    // Organic content (design → post)
+    story: { id: 'story', label: 'עיצוב + פרסום לאינסטגרם', icon: Wand2, C: StoryStudio },
+    instagram: { id: 'instagram', label: 'פרסום ותזמון (פיד)', icon: Image, C: InstagramStudio },
     // Insight & feedback
     social: { id: 'social', label: 'בוחן סושיאל', icon: Star, C: SocialReviewer },
     surveys: { id: 'surveys', label: 'סקרי לקוחות', icon: MessageSquare, C: CustomerSurveys },
@@ -54,8 +54,7 @@ const GROUPS = [
     { key: 'strategy', name: '🧠 אסטרטגיה', icon: Brain, tabs: [T.hq, T.playbook, T.actions] },
     { key: 'paid', name: '💰 ממומן (Meta)', icon: Megaphone, tabs: [T.builder, T.live, T.review, T.links] },
     { key: 'club', name: '📱 מועדון (WhatsApp/SMS)', icon: Users, tabs: [T.campaigns, T.club, T.templates, T.dashboard] },
-    { key: 'design', name: '🎨 עיצוב', icon: Palette, tabs: [T.story] },
-    { key: 'organic', name: '📢 אורגני', icon: Image, tabs: [T.instagram] },
+    { key: 'organic', name: '🎨 עיצוב ואורגני', icon: Palette, tabs: [T.story, T.instagram] },
     { key: 'insight', name: '🔎 בקרה ומשוב', icon: Star, tabs: [T.social, T.surveys, T.qr] },
 ];
 const ALL = Object.values(T);

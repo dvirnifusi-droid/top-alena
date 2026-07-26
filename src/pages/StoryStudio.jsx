@@ -7,7 +7,7 @@ import { UploadFile } from '@/integrations/Core';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Upload, X, Copy, Check, Download, Sparkles, Wand2, RotateCcw, Camera, Film } from 'lucide-react';
+import { Loader2, Upload, X, Copy, Check, Download, Sparkles, Wand2, RotateCcw, Camera, Film, Send } from 'lucide-react';
 
 const withHash = (tags) => (tags || []).map((h) => (String(h).startsWith('#') ? h : '#' + h)).join(' ');
 
@@ -45,6 +45,8 @@ export default function StoryStudio() {
   const [err, setErr] = useState('');
   const [copied, setCopied] = useState(false);
   const [rendered, setRendered] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishMsg, setPublishMsg] = useState('');
   const [videoSrc, setVideoSrc] = useState(''); // local object URL while picking a frame
   const canvasRef = useRef(null);
   const videoRef = useRef(null);
@@ -205,6 +207,21 @@ export default function StoryStudio() {
     } catch { setErr('ההורדה נכשלה — נסה שוב'); }
   };
 
+  // The designer IS the organic-Instagram creator: compose here → post straight to IG.
+  const publishIG = async () => {
+    if (!canvasRef.current) return;
+    if (!window.confirm('לפרסם את העיצוב הזה לאינסטגרם של העסק עכשיו?')) return;
+    setPublishing(true); setPublishMsg('');
+    try {
+      const b64 = canvasRef.current.toDataURL('image/jpeg', 0.92).split(',')[1];
+      const caption = [res?.caption, res?.cta, withHash(res?.hashtags || [])].filter(Boolean).join('\n\n');
+      const r = await base44.functions.postToSocial({ image_base64: b64, message: caption, platforms: ['instagram'] });
+      const d = r?.data || r || {};
+      setPublishMsg(d?.results?.instagram?.ok ? '✅ פורסם לאינסטגרם!' : (d?.results?.instagram?.error || d?.error || 'הפרסום נכשל'));
+    } catch (e) { setPublishMsg(e?.message || 'הפרסום נכשל'); }
+    finally { setPublishing(false); }
+  };
+
   return (
     <div dir="rtl" className="space-y-4 max-w-3xl">
       <div className="grid md:grid-cols-2 gap-4">
@@ -283,7 +300,13 @@ export default function StoryStudio() {
           <canvas ref={canvasRef} className={`w-[200px] rounded-lg border ${rendered ? '' : 'hidden'}`} style={{ aspectRatio: `${fmt.w}/${fmt.h}` }} />
           {!rendered && <div className="w-[200px] rounded-lg border border-dashed flex items-center justify-center text-xs text-slate-400 text-center p-4" style={{ aspectRatio: `${fmt.w}/${fmt.h}` }}>כאן יופיע העיצוב המוכן אחרי היצירה</div>}
           {rendered && (
-            <Button onClick={download} variant="outline" className="w-full"><Download className="w-4 h-4 ml-1" /> הורד ({fmt.label})</Button>
+            <div className="w-full space-y-2">
+              <Button onClick={publishIG} disabled={publishing} className="w-full bg-gradient-to-l from-fuchsia-600 to-orange-500 hover:opacity-90 text-white">
+                {publishing ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : <Send className="w-4 h-4 ml-1" />} פרסם לאינסטגרם
+              </Button>
+              <Button onClick={download} variant="outline" className="w-full"><Download className="w-4 h-4 ml-1" /> הורד ({fmt.label})</Button>
+              {publishMsg && <p className={`text-xs text-center ${publishMsg.startsWith('✅') ? 'text-emerald-600' : 'text-amber-700'}`}>{publishMsg}</p>}
+            </div>
           )}
         </Card>
       </div>
