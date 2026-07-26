@@ -4924,11 +4924,24 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
           out = await sendEmail({ to: (c as any).email, subject: campaign_label || `הודעה ממסעדת ${brand}`, html });
         }
       } else if (useWa) {
-        out = await sendWhatsApp(c.phone, rendered, {
-          mediaUrl: media_url,
-          statusCallback,
-          recipientId: recipient?.id,
-        });
+        if (media_url) {
+          // Image campaign — keep the session send so the photo is attached (its
+          // 24h-window limit still applies, but an image needs an image-header
+          // template we don't have approved yet).
+          out = await sendWhatsApp(c.phone, rendered, {
+            mediaUrl: media_url,
+            statusCallback,
+            recipientId: recipient?.id,
+          });
+        } else {
+          // Text club blast → approved marketing TEMPLATE (with SMS fallback) so it
+          // reaches members OUTSIDE the 24h window — the ~47% a plain session send
+          // silently drops (Twilio 63016). Same reliable path the consent-gated blast uses.
+          const { sendClubMessage } = await import('../lib/waTemplates.js');
+          const first = String((c as any).name || '').split(' ')[0];
+          const r: any = await sendClubMessage(c.phone, first, rendered, { brand });
+          out = r?.skipped ? { skipped: true, reason: 'wa_template_failed' } : { via: r?.via };
+        }
       } else {
         out = await sendSms(c.phone, rendered);
       }
@@ -4941,10 +4954,13 @@ registerFn('sendCustomerCampaign', async ({ body, user }) => {
       } else {
         successes.push(c.id);
         await db.customer.update({ where: { id: c.id }, data: { last_marketing_sent_at: new Date() } }).catch(() => {});
-        if (recipient && (out as any)?.sid) {
+        // Session sends carry a Twilio SID (the delivery webhook updates status
+        // live); template sends don't, so mark them sent here so the row isn't
+        // stuck on "queued".
+        if (recipient) {
           await db.campaignRecipient.update({
             where: { id: recipient.id },
-            data: { status: 'sent', twilio_sid: (out as any).sid },
+            data: { status: 'sent', ...((out as any)?.sid ? { twilio_sid: (out as any).sid } : {}) },
           }).catch(() => {});
         }
       }
