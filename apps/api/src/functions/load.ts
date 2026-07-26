@@ -18907,48 +18907,49 @@ registerFn('generateMarketingPlaybook', async ({ body, user }) => {
       `\n\nבנה תוכנית שיווק אסטרטגית, מגוונת ומעשית ל"${brand}"${goal ? ` סביב המטרה: "${goal}"` : ''}.\n${baseContext}${bizBlock}\n` +
       `תן הרבה אופציות — גם דיגיטל וגם "גרילה" בעולם האמיתי: רול-אפ/באנר בכניסה, שילוט חלון, טעימות ברחוב, פליירים ממוקדים, שיתופי פעולה עם עסקים בסביבה (חדרי כושר/משרדים/מספרות), הפצת ארוחות עסקיות למשרדים, קודי QR, לקוחות-שגרירים, אירועי שכונה, שת"פ עם משפיענים מקומיים ועוד. תתאים לעסק ולמיקום שלו.\n` +
       `לכל טקטיקה: כותרת, למה זה עובד, עלות משוערת בש"ח (מספר; 0 אם חינם), מאמץ (low/medium/high), אימפקט צפוי (low/medium/high), ו-2-4 צעדי ביצוע קונקרטיים. action_type = אחד מ: club_blast (הודעת מועדון) / ad (מודעה ממומנת) / design (עיצוב חומר) / partner (פנייה לשת"פ) / manual (ביצוע ידני).\n` +
-      `החזר JSON בלבד: { strategy: "סקירה אסטרטגית 2-3 משפטים", focus_this_week: ["3 מהלכים לביצוע כבר השבוע"], categories: [ { name, tactics: [ { title, why, cost_ils, effort, impact, steps:[], action_type } ] } ] }. לפחות 4 קטגוריות, 3-4 טקטיקות בכל אחת.`,
+      `החזר JSON בלבד: { strategy: "סקירה אסטרטגית 2-3 משפטים", focus_this_week: ["3 מהלכים לביצוע כבר השבוע"], tactics: [ { category, title, why, cost_ils, effort, impact, steps:[], action_type } ] }. תן 12-14 טקטיקות מגוונות; לכל טקטיקה שדה category (הקטגוריה שלה — למשל "בכניסה ובעסק" / "בשכונה וברחוב" / "מועדון ודיגיטל" / "שיתופי פעולה ואירועים"). steps = 2-4 צעדים.`,
+    // FLAT schema: a single tactics[] list. Deeply-nested arrays-of-arrays made
+    // Gemini fill only the strategy and leave the nested arrays empty; a flat list
+    // it populates reliably, and we group into categories below.
     responseSchema: {
       type: 'object',
       properties: {
         strategy: { type: 'string' },
         focus_this_week: { type: 'array', items: { type: 'string' } },
-        categories: {
+        tactics: {
           type: 'array',
           items: {
             type: 'object',
             properties: {
-              name: { type: 'string' },
-              tactics: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    title: { type: 'string' }, why: { type: 'string' },
-                    cost_ils: { type: 'number' }, effort: { type: 'string' }, impact: { type: 'string' },
-                    steps: { type: 'array', items: { type: 'string' } },
-                    action_type: { type: 'string' },
-                  },
-                },
-              },
+              category: { type: 'string' }, title: { type: 'string' }, why: { type: 'string' },
+              cost_ils: { type: 'number' }, effort: { type: 'string' }, impact: { type: 'string' },
+              steps: { type: 'array', items: { type: 'string' } },
+              action_type: { type: 'string' },
             },
           },
         },
       },
     },
-    // Flash + no thinking: fast, and every token goes to the (large) JSON so the
-    // categories aren't truncated the way gemini-2.5-pro's reasoning budget did.
     model: 'gemini-2.5-flash',
-    thinkingBudget: 0,
+    thinkingBudget: 1024,
     maxOutputTokens: 8192,
     timeoutMs: 90_000,
   }).catch((e: any) => ({ error: String(e?.message || e) }));
 
-  if (result?.error || !result) return { strategy: '', focus_this_week: [], categories: [], error: result?.error };
+  if (result?.error) return { strategy: '', focus_this_week: [], categories: [], error: result.error };
+  // Group the flat tactic list into categories for the UI, preserving order.
+  const tactics = Array.isArray(result?.tactics) ? result.tactics : [];
+  const order: string[] = [];
+  const byCat = new Map<string, any[]>();
+  for (const t of tactics) {
+    const k = (String(t?.category || 'כללי').trim()) || 'כללי';
+    if (!byCat.has(k)) { byCat.set(k, []); order.push(k); }
+    byCat.get(k)!.push(t);
+  }
   return {
-    strategy: String(result.strategy || ''),
-    focus_this_week: Array.isArray(result.focus_this_week) ? result.focus_this_week : [],
-    categories: Array.isArray(result.categories) ? result.categories : [],
+    strategy: String(result?.strategy || ''),
+    focus_this_week: Array.isArray(result?.focus_this_week) ? result.focus_this_week : [],
+    categories: order.map((name) => ({ name, tactics: byCat.get(name) || [] })),
   };
 });
 
