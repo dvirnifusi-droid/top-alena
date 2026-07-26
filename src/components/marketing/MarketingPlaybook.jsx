@@ -24,6 +24,8 @@ export default function MarketingPlaybook() {
   const [added, setAdded] = useState({});            // key → true once added as task
   const [addingKey, setAddingKey] = useState(null);
   const [copiedKey, setCopiedKey] = useState(null);
+  const [assistKey, setAssistKey] = useState(null);  // key currently generating help
+  const [assistOut, setAssistOut] = useState({});    // key → assist result
 
   const build = async () => {
     setLoading(true); setError(''); setPlan(null); setAdded({});
@@ -47,6 +49,17 @@ export default function MarketingPlaybook() {
     } catch { setError('הוספת המשימה נכשלה'); }
     finally { setAddingKey(null); }
   };
+
+  const assist = async (t, key) => {
+    setAssistKey(key);
+    try {
+      const res = await base44.functions.assistTactic({ title: t.title, why: t.why, action_type: t.action_type, steps: t.steps || [] });
+      setAssistOut(o => ({ ...o, [key]: (res?.data || res) || null }));
+    } catch (e) { setAssistOut(o => ({ ...o, [key]: { error: e?.message || 'לא הצלחתי' } })); }
+    finally { setAssistKey(null); }
+  };
+
+  const copyText = (txt) => { try { navigator.clipboard?.writeText(txt || ''); } catch { /* noop */ } };
 
   const copySteps = (t, key) => {
     const txt = `${t.title}\n${t.why || ''}\n\nצעדים:\n` + (t.steps || []).map((s, i) => `${i + 1}. ${s}`).join('\n');
@@ -139,19 +152,55 @@ export default function MarketingPlaybook() {
                         </ol>
                       )}
 
-                      <div className="flex items-center gap-2 mt-2.5">
+                      <div className="flex items-center gap-2 mt-2.5 flex-wrap">
                         {added[key] ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600"><Check className="w-3.5 h-3.5" /> נוסף לתוכנית העבודה</span>
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600"><Check className="w-3.5 h-3.5" /> נוסף — בטאב "משימות"</span>
                         ) : (
                           <button onClick={() => addTask(t, key)} disabled={addingKey === key}
                             className="inline-flex items-center gap-1 text-xs font-bold text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg disabled:opacity-60">
                             {addingKey === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} הוסף כמשימה
                           </button>
                         )}
+                        <button onClick={() => assist(t, key)} disabled={assistKey === key}
+                          className="inline-flex items-center gap-1 text-xs font-bold text-sky-700 bg-sky-100 hover:bg-sky-200 px-3 py-1.5 rounded-lg disabled:opacity-60">
+                          {assistKey === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} עזור לי לבצע
+                        </button>
                         <button onClick={() => copySteps(t, key)} className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700 px-2 py-1.5">
                           {copiedKey === key ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />} העתק
                         </button>
                       </div>
+
+                      {assistOut[key] && (
+                        <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 p-2.5 text-xs">
+                          {assistOut[key].error ? (
+                            <span className="text-red-600">{assistOut[key].error}</span>
+                          ) : assistOut[key].kind === 'message' ? (
+                            <div>
+                              <div className="font-bold text-sky-800 mb-1">✉️ הודעה מוכנה לשליחה</div>
+                              <div className="bg-white border rounded-lg p-2 whitespace-pre-wrap text-slate-700">{assistOut[key].message}</div>
+                              <button onClick={() => copyText(assistOut[key].message)} className="mt-1.5 inline-flex items-center gap-1 font-semibold text-sky-700"><Copy className="w-3 h-3" /> העתק הודעה</button>
+                            </div>
+                          ) : assistOut[key].kind === 'design' ? (
+                            <div className="space-y-2">
+                              <div className="font-bold text-sky-800">🎨 קונספט לעיצוב</div>
+                              {assistOut[key].image_base64 && <img src={`data:image/png;base64,${assistOut[key].image_base64}`} alt="concept" className="w-full max-h-56 object-contain rounded-lg border bg-white" />}
+                              <div className="bg-white border rounded-lg p-2 space-y-0.5 text-slate-700">
+                                {assistOut[key].text_content?.headline && <div><b>כותרת:</b> {assistOut[key].text_content.headline}</div>}
+                                {assistOut[key].text_content?.subtext && <div><b>משנה:</b> {assistOut[key].text_content.subtext}</div>}
+                                {assistOut[key].text_content?.cta && <div><b>קריאה לפעולה:</b> {assistOut[key].text_content.cta}</div>}
+                                <button onClick={() => copyText([assistOut[key].text_content?.headline, assistOut[key].text_content?.subtext, assistOut[key].text_content?.cta].filter(Boolean).join('\n'))} className="mt-1 inline-flex items-center gap-1 font-semibold text-sky-700"><Copy className="w-3 h-3" /> העתק טקסט</button>
+                              </div>
+                              {assistOut[key].note && <p className="text-[11px] text-slate-500">{assistOut[key].note}</p>}
+                            </div>
+                          ) : assistOut[key].kind === 'ad' ? (
+                            <div className="text-slate-700">📣 {assistOut[key].note || 'פתח את "בנה קמפיין מלא" למעלה עם המטרה הזו.'}</div>
+                          ) : (assistOut[key].steps || []).length ? (
+                            <ol className="space-y-1">{assistOut[key].steps.map((s, si) => <li key={si} className="text-slate-700">{si + 1}. {s}</li>)}</ol>
+                          ) : (
+                            <span className="text-slate-500">בצע לפי הצעדים למעלה.</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

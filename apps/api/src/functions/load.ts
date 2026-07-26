@@ -18966,14 +18966,80 @@ registerFn('addMarketingIdeaTask', async ({ body, user }) => {
     description: (String(b.why || '') + stepsText).slice(0, 2000),
     priority: ['low', 'medium', 'high'].includes(b.priority) ? b.priority : 'medium',
     budget_required: typeof b.cost_ils === 'number' ? b.cost_ils : null,
-    due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    // DateTime column — must be a real Date (a "YYYY-MM-DD" string is rejected).
+    due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     status: 'pending',
     ai_reasoning: String(b.why || '').slice(0, 500) || null,
   };
   let task: any;
-  try { task = await db.marketingTask.create({ data: base }); }
-  catch (e: any) { throw new Error('שמירת המשימה נכשלה: ' + String(e?.message || e).slice(0, 120)); }
+  try {
+    task = await db.marketingTask.create({ data: base });
+  } catch (e: any) {
+    // A drifted tenant may be missing an optional column — retry with the bare
+    // required set before giving up.
+    if (/unknown (arg|column)|Unknown/i.test(String(e?.message))) {
+      try {
+        task = await db.marketingTask.create({ data: { task_type: base.task_type, title: base.title, description: base.description, due_date: base.due_date, status: 'pending' } });
+      } catch (e2: any) { throw new Error('שמירת המשימה נכשלה: ' + String(e2?.message || e2).slice(0, 160)); }
+    } else {
+      throw new Error('שמירת המשימה נכשלה: ' + String(e?.message || e).slice(0, 160));
+    }
+  }
   return { ok: true, task };
+});
+
+// "Help me do it" — turns a playbook tactic into something ready to use, by type:
+//   design → a concept image (no text; models garble Hebrew) + the exact Hebrew
+//            headline/subtext/CTA to hand a printer/Canva;
+//   club_blast / partner → a ready-to-send message;
+//   ad → routes the owner to the campaign builder with the goal.
+registerFn('assistTactic', async ({ body, user }) => {
+  await requireBackOffice(user, 'assistTactic', 'MarketingAdvisor');
+  const b = (body || {}) as any;
+  const title = String(b.title || '').trim();
+  if (!title) throw new Error('title required');
+  const why = String(b.why || '');
+  const action_type = String(b.action_type || 'manual');
+  const brand = await getBrandName();
+  const profile: any = await db.businessProfile.findFirst().catch(() => null);
+  const pd: any = profile?.profile_data || {};
+
+  if (action_type === 'club_blast' || action_type === 'partner') {
+    const kind = action_type === 'club_blast' ? 'הודעת וואטסאפ קצרה ומזמינה ללקוחות המועדון' : 'הודעת פנייה מקצועית וחמה לשיתוף פעולה עם עסק סמוך';
+    const res: any = await invokeLLM({
+      prompt: MARKETING_ADVISOR_PERSONA + `\nכתוב ${kind} מוכנה לשליחה עבור "${brand}", עבור הרעיון: "${title}". ${why}\n${COPY_CLEAN_RULE}\nהחזר JSON: { message }`,
+      responseSchema: { type: 'object', properties: { message: { type: 'string' } } },
+      model: 'gemini-2.5-flash', thinkingBudget: 512, maxOutputTokens: 1024,
+    }).catch(() => ({}));
+    return { kind: 'message', message: cleanCopyText(res?.message || '') };
+  }
+
+  if (action_type === 'ad') {
+    return { kind: 'ad', goal: title, note: 'העתקתי את המטרה — פתח למעלה את "בנה קמפיין מלא", הדבק אותה, ובחר תמונה.' };
+  }
+
+  // design (and anything visual): concept image + the real Hebrew text to add.
+  if (action_type === 'design') {
+    const textRes: any = await invokeLLM({
+      prompt: MARKETING_ADVISOR_PERSONA + `\nעבור חומר שיווקי מודפס (${title}) של "${brand}" — הצע כותרת ראשית קצרה (עד 5 מילים), כותרת משנה קצרה, ו-CTA. ${COPY_CLEAN_RULE}\nהחזר JSON: { headline, subtext, cta }`,
+      responseSchema: { type: 'object', properties: { headline: { type: 'string' }, subtext: { type: 'string' }, cta: { type: 'string' } } },
+      model: 'gemini-2.5-flash', thinkingBudget: 256, maxOutputTokens: 512,
+    }).catch(() => ({}));
+    let image_base64: string | null = null;
+    try {
+      const img: any = await generateImage({ prompt: `Professional marketing design concept / background for a restaurant sign or flyer about "${title}". ${pd.concept || ''}. Elegant, modern, appetizing, clean composition with generous empty space for text. Absolutely NO text, NO words, NO letters anywhere in the image.` });
+      image_base64 = img?.image_base64 || null;
+      void writeAiUsage({ fn_name: 'assistTactic.design', model: img?.model || 'imagen', tokens_in: 0, tokens_out: 0 }).catch(() => {});
+    } catch { /* concept image is best-effort */ }
+    return {
+      kind: 'design',
+      text_content: { headline: cleanCopyText(textRes?.headline || ''), subtext: cleanCopyText(textRes?.subtext || ''), cta: cleanCopyText(textRes?.cta || '') },
+      image_base64,
+      note: 'הרקע נוצר ב-AI (בלי טקסט — מודל תמונה לא כותב עברית תקין). את הטקסט למעלה מוסיפים בהדפסה/Canva, או מוסרים למעצב/מדפיס יחד עם הרקע.',
+    };
+  }
+
+  return { kind: 'steps', steps: Array.isArray(b.steps) ? b.steps : [] };
 });
 
 // Manual trigger so the owner can build the club audience ahead of time.
