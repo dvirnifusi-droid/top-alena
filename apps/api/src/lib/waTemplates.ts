@@ -212,6 +212,134 @@ async function contentSid(kind: TemplateKind): Promise<string | null> {
   return /^HX[0-9a-fA-F]{32}$/.test(v) ? v : null;
 }
 
+// ── self-healing SID resolution ───────────────────────────────────────────────
+//
+// A stored SID rots. Learned the hard way: on 26 Jul the owner alerts stopped —
+// Twilio was returning 21656 (the ContentVariables don't match the template) on
+// every owner_notification send, then the free-form fallback died at the 24h
+// window (63016), so nothing arrived. The account HAD an approved
+// owner_notification template with the right 4 variables; the SID stored in the
+// secret simply pointed at a template of a DIFFERENT shape. isApproved() only
+// asks "is this SID approved?", not "does it have the variables this code
+// sends?", so a wrong-but-approved SID sails through the check and fails at send.
+//
+// The fix: stop trusting the stored SID blindly. Ask the account what it
+// actually has, and pick the approved template whose variable count matches what
+// this code will send. That can't produce a 21656 by construction. Each tenant
+// resolves against ITS OWN Twilio account (via twilioAuth), so it is correct for
+// every tenant regardless of which account they send from, and it needs no DB
+// write to work — the discovered SID is used from memory, and only best-effort
+// written back so the fast path and the setup screen catch up.
+
+// Friendly-name prefix Meta/Twilio holds for each shape. The club welcome is the
+// one alias: its template was submitted as `club_join_*`.
+const FRIENDLY_PREFIX: Record<TemplateKind, string> = {
+  club_welcome: 'club_join',
+  club_birthday: 'club_birthday',
+  staff_report: 'staff_report',
+  owner_notification: 'owner_notification',
+  staff_notice: 'staff_notice',
+  employee_invite: 'employee_invite',
+  guest_reservation: 'guest_reservation',
+  guest_table_ready: 'guest_table_ready',
+  club_message: 'club_message',
+};
+
+function tplBody(c: any): string {
+  const t = c?.types || {};
+  const first: any = Object.values(t)[0] || {};
+  return String(first?.body || '');
+}
+function tplVarCount(c: any): number {
+  return new Set((tplBody(c).match(/\{\{\s*\d+\s*\}\}/g) || []).map((x: string) => x.replace(/\D/g, ''))).size;
+}
+function tplStatus(c: any): string {
+  return c?.approval_requests?.status || c?.whatsapp?.status || 'none';
+}
+function normBody(b: string): string {
+  return String(b || '').replace(/\{\{\s*\d+\s*\}\}/g, '§').replace(/\s+/g, ' ').trim();
+}
+
+// The account's content-and-approvals list, fetched once and cached — approvals
+// change at most a couple of times in a template's life. Uses the SAME creds the
+// send uses (twilioAuth: per-tenant DB override, else env), so the list reflects
+// the account we actually send from. Env creds mean this survives a saturated DB.
+let _contentCache: { at: number; list: any[] } | null = null;
+async function twilioContentList(): Promise<any[]> {
+  if (_contentCache && Date.now() - _contentCache.at < APPROVAL_TTL_MS) return _contentCache.list;
+  try {
+    const { twilioAuth } = await import('./twilio.js');
+    const { sid, token } = await twilioAuth();
+    if (!sid || !token) return _contentCache?.list || [];
+    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+    const out: any[] = [];
+    let url: string | null = 'https://content.twilio.com/v1/ContentAndApprovals?PageSize=200';
+    for (let page = 0; page < 10 && url; page++) {
+      const res: any = await fetch(url, { headers: { Authorization: `Basic ${auth}` } });
+      const d: any = await res.json();
+      for (const c of (d?.contents || [])) out.push(c);
+      url = d?.meta?.next_page_url || null;
+    }
+    _contentCache = { at: Date.now(), list: out };
+    return out;
+  } catch {
+    // API down / no creds — keep whatever we had, never throw into a send.
+    return _contentCache?.list || [];
+  }
+}
+
+// Pick the SID this code should send through for `kind`: an approved template
+// whose variable count matches what the wrapper passes. Prefers the stored SID
+// when it already satisfies that (fast, no surprises), else discovers the right
+// one from the account and writes it back best-effort.
+const resolvedSidCache = new Map<TemplateKind, { sid: string | null; at: number }>();
+async function resolveApprovedSid(kind: TemplateKind): Promise<string | null> {
+  const hit = resolvedSidCache.get(kind);
+  if (hit && Date.now() - hit.at < APPROVAL_TTL_MS) return hit.sid;
+
+  const want = TEMPLATES[kind].vars.length;
+  const stored = await contentSid(kind);
+  const list = await twilioContentList();
+
+  let chosen: string | null = null;
+  if (!list.length) {
+    // Can't verify against the account — fall back to the stored SID unchanged
+    // (no worse than before this fix existed).
+    chosen = stored;
+  } else {
+    // 1) stored SID, but only if it is approved AND the right shape.
+    if (stored) {
+      const sc = list.find((c) => c.sid === stored);
+      if (sc && tplStatus(sc) === 'approved' && tplVarCount(sc) === want) chosen = stored;
+    }
+    // 2) otherwise the newest approved template of the right shape for this kind.
+    if (!chosen) {
+      const prefix = FRIENDLY_PREFIX[kind];
+      const wantBody = normBody(TEMPLATES[kind].body);
+      const byName = list
+        .filter((c) => tplStatus(c) === 'approved' && tplVarCount(c) === want && String(c.friendly_name || '').startsWith(prefix))
+        .sort((a, b) => String(b.friendly_name || '').localeCompare(String(a.friendly_name || '')));
+      const byBody = list.filter((c) => tplStatus(c) === 'approved' && tplVarCount(c) === want && normBody(tplBody(c)) === wantBody);
+      chosen = byName[0]?.sid || byBody[0]?.sid || null;
+      // Heal the stored secret so the fast path and the setup screen catch up.
+      // Best-effort and non-blocking: a saturated DB must not break the send.
+      const healSid = chosen;
+      if (healSid && healSid !== stored) {
+        void (async () => {
+          try {
+            const key = TEMPLATES[kind].secretKey;
+            const r: any = await dbx().integrationSecret.updateMany({ where: { key }, data: { value: healSid } });
+            if (!r?.count) await dbx().integrationSecret.create({ data: { key, value: healSid } });
+            console.warn(`[wa-template] healed ${kind} SID → …${healSid.slice(-6)}`);
+          } catch { /* stored SID stays wrong; in-memory choice still delivers */ }
+        })();
+      }
+    }
+  }
+  resolvedSidCache.set(kind, { sid: chosen, at: Date.now() });
+  return chosen;
+}
+
 /**
  * Is this template actually approved by WhatsApp right now?
  *
@@ -310,12 +438,20 @@ export async function sendTemplated(opts: {
 }): Promise<SendResult> {
   if (!opts.to) return { sent: false, via: 'none', reason: 'no_recipient' };
 
-  const sid = await contentSid(opts.kind);
-  if (sid && await isApproved(sid)) {
+  // Resolve to an approved template of the RIGHT shape (see resolveApprovedSid).
+  // This already guarantees approval + a matching variable count, so no separate
+  // isApproved() call is needed — and it can't emit a 21656 for a wrong shape.
+  const sid = await resolveApprovedSid(opts.kind);
+  if (sid) {
     try {
       const { sendWhatsAppTemplate } = await import('./twilio.js');
       const variables: Record<string, string> = {};
-      opts.vars.forEach((v, i) => { variables[String(i + 1)] = String(v ?? ''); });
+      // Never send an empty variable: WhatsApp/Twilio reject a blank placeholder
+      // (also a 21656). Fall back to a neutral dash so the template still sends.
+      opts.vars.forEach((v, i) => {
+        const s = String(v ?? '').trim();
+        variables[String(i + 1)] = s.length ? String(v) : '—';
+      });
       const out: any = await sendWhatsAppTemplate(opts.to, sid, variables);
       if (!out?.skipped) return { sent: true, via: 'template' };
     } catch (e: any) {
