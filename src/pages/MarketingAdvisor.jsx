@@ -7,6 +7,7 @@ import CampaignBuilder from '@/components/marketing/CampaignBuilder';
 import PerformanceReview from '@/components/marketing/PerformanceReview';
 import LiveCampaigns from '@/components/marketing/LiveCampaigns';
 import MarketingLinks from '@/components/marketing/MarketingLinks';
+import MarketingPlaybook from '@/components/marketing/MarketingPlaybook';
 
 // ─── The questionnaire — grouped into sections so the owner answers in batches ───
 const QUESTIONS = [
@@ -223,6 +224,7 @@ export default function MarketingAdvisor() {
         <div className="space-y-5">
           <MarketingLinks />
           <CampaignBuilder />
+          <MarketingPlaybook />
           <div className="border-t border-slate-200 pt-4">
             <h3 className="text-sm font-bold text-slate-500 mb-2">⚡ פעולות מהירות (בלי תמונה)</h3>
             <ProposedActions />

@@ -18883,6 +18883,93 @@ registerFn('setMarketingLinks', async ({ body, user }) => {
   return { ok: true, saved };
 });
 
+// Strategic marketing playbook — many DIVERSE tactics (digital + real-world
+// "guerrilla": roll-up at the door, window decals, sampling, flyers, local
+// partnerships, office-lunch drops, QR codes, ambassadors, neighbourhood events),
+// grouped into a plan with a this-week focus, each tactic actionable (steps +
+// cost + effort + impact). Personalised to THIS business + its customer base.
+registerFn('generateMarketingPlaybook', async ({ body, user }) => {
+  await requireBackOffice(user, 'generateMarketingPlaybook', 'MarketingAdvisor');
+  const goal = String((body as any)?.goal || '').trim();
+  const brand = await getBrandName();
+  const baseContext = await customerBaseContext().catch(() => '');
+  const profile: any = await db.businessProfile.findFirst().catch(() => null);
+  const pd: any = profile?.profile_data || {};
+  const bizBlock =
+    `\n--- העסק ---\nשם: ${pd.business_name || brand}${pd.concept ? ` · קונספט: ${pd.concept}` : ''}\n` +
+    (pd.flagship_products ? `מנות דגל: ${String(pd.flagship_products).replace(/\n/g, ', ')}\n` : '') +
+    (pd.location ? `מיקום: ${pd.location}\n` : '') +
+    (pd.target_audience ? `קהל יעד: ${pd.target_audience}\n` : '');
+
+  const result: any = await invokeLLM({
+    prompt:
+      MARKETING_ADVISOR_PERSONA +
+      `\n\nבנה תוכנית שיווק אסטרטגית, מגוונת ומעשית ל"${brand}"${goal ? ` סביב המטרה: "${goal}"` : ''}.\n${baseContext}${bizBlock}\n` +
+      `תן הרבה אופציות — גם דיגיטל וגם "גרילה" בעולם האמיתי: רול-אפ/באנר בכניסה, שילוט חלון, טעימות ברחוב, פליירים ממוקדים, שיתופי פעולה עם עסקים בסביבה (חדרי כושר/משרדים/מספרות), הפצת ארוחות עסקיות למשרדים, קודי QR, לקוחות-שגרירים, אירועי שכונה, שת"פ עם משפיענים מקומיים ועוד. תתאים לעסק ולמיקום שלו.\n` +
+      `לכל טקטיקה: כותרת, למה זה עובד, עלות משוערת בש"ח (מספר; 0 אם חינם), מאמץ (low/medium/high), אימפקט צפוי (low/medium/high), ו-2-4 צעדי ביצוע קונקרטיים. action_type = אחד מ: club_blast (הודעת מועדון) / ad (מודעה ממומנת) / design (עיצוב חומר) / partner (פנייה לשת"פ) / manual (ביצוע ידני).\n` +
+      `החזר JSON בלבד: { strategy: "סקירה אסטרטגית 2-3 משפטים", focus_this_week: ["3 מהלכים לביצוע כבר השבוע"], categories: [ { name, tactics: [ { title, why, cost_ils, effort, impact, steps:[], action_type } ] } ] }. לפחות 4 קטגוריות, 3-4 טקטיקות בכל אחת.`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        strategy: { type: 'string' },
+        focus_this_week: { type: 'array', items: { type: 'string' } },
+        categories: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              tactics: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    title: { type: 'string' }, why: { type: 'string' },
+                    cost_ils: { type: 'number' }, effort: { type: 'string' }, impact: { type: 'string' },
+                    steps: { type: 'array', items: { type: 'string' } },
+                    action_type: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    maxOutputTokens: 5000,
+  }).catch((e: any) => ({ error: String(e?.message || e) }));
+
+  if (result?.error || !result) return { strategy: '', focus_this_week: [], categories: [], error: result?.error };
+  return {
+    strategy: String(result.strategy || ''),
+    focus_this_week: Array.isArray(result.focus_this_week) ? result.focus_this_week : [],
+    categories: Array.isArray(result.categories) ? result.categories : [],
+  };
+});
+
+// Turn a playbook tactic into a tracked marketing task the owner can execute.
+registerFn('addMarketingIdeaTask', async ({ body, user }) => {
+  await requireBackOffice(user, 'addMarketingIdeaTask', 'MarketingAdvisor');
+  const b = (body || {}) as any;
+  const title = String(b.title || '').trim();
+  if (!title) throw new Error('title required');
+  const stepsText = Array.isArray(b.steps) && b.steps.length ? '\n\nצעדים:\n• ' + b.steps.map((s: any) => String(s)).join('\n• ') : '';
+  const base: any = {
+    task_type: b.action_type === 'ad' || b.action_type === 'club_blast' ? 'online' : 'offline',
+    title: title.slice(0, 200),
+    description: (String(b.why || '') + stepsText).slice(0, 2000),
+    priority: ['low', 'medium', 'high'].includes(b.priority) ? b.priority : 'medium',
+    budget_required: typeof b.cost_ils === 'number' ? b.cost_ils : null,
+    due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    status: 'pending',
+    ai_reasoning: String(b.why || '').slice(0, 500) || null,
+  };
+  let task: any;
+  try { task = await db.marketingTask.create({ data: base }); }
+  catch (e: any) { throw new Error('שמירת המשימה נכשלה: ' + String(e?.message || e).slice(0, 120)); }
+  return { ok: true, task };
+});
+
 // Manual trigger so the owner can build the club audience ahead of time.
 registerFn('buildClubLookalikeAudience', async ({ user }) => {
   await requireBackOffice(user, 'buildClubLookalikeAudience', 'MarketingAdvisor');
