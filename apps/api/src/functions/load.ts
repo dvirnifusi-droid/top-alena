@@ -18389,7 +18389,8 @@ registerFn('launchCampaignBrief', async ({ body, user }) => {
   await requireBackOffice(user, 'launchCampaignBrief');
 
   await ensureCampaignBriefTable();
-  const { id, active } = (body || {}) as any;
+  const { id, active, lookalike_audience_id } = (body || {}) as any;
+  const lookalikeId = String(lookalike_audience_id || '').trim() || null;
   // active=true makes all three entities (Campaign/AdSet/Ad) ACTIVE on
   // creation, so Meta moves them through review and starts spending as
   // soon as review passes (usually <24h). active=false keeps PAUSED.
@@ -18474,6 +18475,13 @@ registerFn('launchCampaignBrief', async ({ body, user }) => {
       const g = audience.genders.map((x: string) => (x === 'female' ? 2 : 1));
       // Meta wants targeting.genders only when filtering to one — both genders = omit.
       if (g.length === 1) targeting.genders = g;
+    }
+    // Lookalike (built from the club) — target people similar to the restaurant's
+    // real best customers. When present it's the primary audience, so turn off
+    // Advantage expansion which would otherwise override it.
+    if (lookalikeId) {
+      targeting.custom_audiences = [{ id: lookalikeId }];
+      targeting.targeting_automation = { advantage_audience: 0 };
     }
     // OUTCOME_LEADS requires a Lead Form (promoted_object). Until forms are
     // configured in this account, downgrade to OUTCOME_TRAFFIC so the launch
@@ -18730,6 +18738,227 @@ registerFn('setMetaCampaignDailyBudget', async ({ body, user }) => {
     for (const asid of ids) await metaApi(`/${asid}`, 'POST', { daily_budget: minor });
     return { ok: true, level: 'adset', adsets: ids.length, daily_budget_ils: ils, message: `התקציב היומי עודכן ל-₪${ils} (על ${ids.length} AdSets).` };
   }
+});
+
+// ─── Auto-campaign machine: photo → design → copy → audience → live campaign ──
+// One button. Turns the owner's real photo + a goal into a real Meta campaign
+// (created PAUSED, ready for one-tap go-live), with copy that matches, and — if
+// asked — a Lookalike audience built from the club's real customers.
+
+async function setPlainSecret(key: string, value: string): Promise<void> {
+  const existing = await db.integrationSecret.findFirst({ where: { key } }).catch(() => null);
+  if (existing) await db.integrationSecret.update({ where: { id: existing.id }, data: { value, updated_at: new Date() } });
+  else await db.integrationSecret.create({ data: { key, value, note: 'Meta audience', updated_at: new Date() } });
+}
+
+// Normalise an IL phone to E.164 digits (972…) and SHA-256 hash it — the format
+// Meta Custom Audiences require for phone matching.
+async function metaHashPhone(raw: string): Promise<string | null> {
+  const { createHash } = await import('node:crypto');
+  let d = String(raw || '').replace(/[^\d]/g, '');
+  if (!d) return null;
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.startsWith('0')) d = '972' + d.slice(1);
+  else if (!d.startsWith('972')) d = '972' + d;
+  if (d.length < 11 || d.length > 13) return null;
+  return createHash('sha256').update(d).digest('hex');
+}
+
+// Ensure the club Lookalike audience exists on Meta. Idempotent: reuses stored
+// ids, (re)builds the source Custom Audience from consented customers, and
+// creates the Lookalike. Never throws into the caller — returns readiness so the
+// campaign can fall back to interest targeting while Meta processes the list.
+async function ensureClubLookalikeAudience(): Promise<{ lookalike_id: string | null; ready: boolean; matched?: number; note: string }> {
+  if (!(await META_TOKEN())) return { lookalike_id: null, ready: false, note: 'מטא לא מחובר' };
+  // Already have a lookalike? Report readiness (operation_status.code 200 = ready).
+  const existingLa = await getSecret('META_CLUB_LOOKALIKE_ID');
+  if (existingLa) {
+    try {
+      const st: any = await metaApi(`/${existingLa}?fields=operation_status,approximate_count`);
+      const ready = st?.operation_status?.code === 200;
+      return { lookalike_id: existingLa, ready, note: ready ? 'קהל Lookalike מהמועדון מוכן' : 'קהל ה-Lookalike עדיין נבנה במטא' };
+    } catch { /* deleted on Meta side — rebuild below */ }
+  }
+  // Source Custom Audience.
+  let caId = await getSecret('META_CLUB_CUSTOM_AUDIENCE_ID');
+  if (!caId) {
+    try {
+      const ca: any = await metaApi(`/act_${META_AD_ACCOUNT_ID}/customaudiences`, 'POST', {
+        name: 'לקוחות מועדון TopAlena', subtype: 'CUSTOM', customer_file_source: 'USER_PROVIDED_ONLY',
+        description: 'לקוחות מסכימי דיוור — מקור לקהל Lookalike',
+      });
+      caId = ca?.id || null;
+      if (caId) await setPlainSecret('META_CLUB_CUSTOM_AUDIENCE_ID', caId);
+    } catch (e: any) { return { lookalike_id: null, ready: false, note: `יצירת קהל המקור נכשלה: ${String(e?.message || e).slice(0, 120)}` }; }
+  }
+  if (!caId) return { lookalike_id: null, ready: false, note: 'יצירת קהל המקור נכשלה' };
+  // Upload consented customers' hashed phones (batched).
+  const customers: any[] = await db.customer.findMany({
+    where: { marketing_consent: true, marketing_unsubscribed_at: null, phone: { not: null } },
+    select: { phone: true }, take: 50000,
+  }).catch(() => []);
+  const hashes: string[] = [];
+  for (const c of customers) { const h = await metaHashPhone(c.phone); if (h) hashes.push(h); }
+  let matched = 0;
+  for (let i = 0; i < hashes.length; i += 9000) {
+    const batch = hashes.slice(i, i + 9000).map((h) => [h]);
+    try { await metaApi(`/${caId}/users`, 'POST', { payload: { schema: ['PHONE'], data: batch } }); matched += batch.length; } catch { /* keep going */ }
+  }
+  if (matched < 100) {
+    return { lookalike_id: null, ready: false, matched, note: `נמצאו ${matched} לקוחות מסכימי דיוור עם טלפון — מטא דורש 100+ ליצירת Lookalike. הוסף לקוחות/הסכמות ונסה שוב.` };
+  }
+  // Create the Lookalike from the source (top ~3% similar in Israel).
+  try {
+    const la: any = await metaApi(`/act_${META_AD_ACCOUNT_ID}/customaudiences`, 'POST', {
+      name: 'Lookalike — מועדון TopAlena', subtype: 'LOOKALIKE', origin_audience_id: caId,
+      lookalike_spec: JSON.stringify({ type: 'similarity', country: 'IL', ratio: 0.03 }),
+    });
+    if (la?.id) {
+      await setPlainSecret('META_CLUB_LOOKALIKE_ID', la.id);
+      return { lookalike_id: la.id, ready: false, matched, note: `העליתי ${matched} לקוחות וקהל ה-Lookalike נבנה במטא (מוכן בד"כ תוך שעות). הקמפיין הבא ישתמש בו אוטומטית.` };
+    }
+  } catch (e: any) {
+    return { lookalike_id: null, ready: false, matched, note: `העליתי ${matched} לקוחות; קהל ה-Lookalike ייווצר אחרי שמטא יסיים לעבד את הרשימה. נסה שוב מאוחר יותר. (${String(e?.message || e).slice(0, 100)})` };
+  }
+  return { lookalike_id: null, ready: false, matched, note: 'הקהל בהכנה' };
+}
+
+// Manual trigger so the owner can build the club audience ahead of time.
+registerFn('buildClubLookalikeAudience', async ({ user }) => {
+  await requireBackOffice(user, 'buildClubLookalikeAudience', 'MarketingAdvisor');
+  return ensureClubLookalikeAudience();
+});
+
+// One-tap go-live for a campaign that was created PAUSED — flips the campaign,
+// its ad set and its ad to ACTIVE so Meta queues them for review and, once
+// approved, starts spending. This is the explicit owner action that lets money move.
+registerFn('activateCampaignBrief', async ({ body, user }) => {
+  await requireBackOffice(user, 'activateCampaignBrief');
+  await ensureCampaignBriefTable();
+  const { id } = (body || {}) as any;
+  if (!id) throw new Error('id required');
+  const brief: any = await db.campaignBrief.findUnique({ where: { id } });
+  if (!brief?.meta_campaign_id) throw new Error('הקמפיין עוד לא נוצר במטא');
+  const errors: string[] = [];
+  for (const mid of [brief.meta_ad_id, brief.meta_adset_id, brief.meta_campaign_id]) {
+    if (!mid) continue;
+    try { await metaApi(`/${mid}`, 'POST', { status: 'ACTIVE' }); }
+    catch (e: any) { errors.push(String(e?.message || e).slice(0, 120)); }
+  }
+  if (errors.length && !brief.meta_ad_id) {
+    return { ok: false, error: `לא ניתן להעלות לאוויר — למודעה חסר קריאייטיב. סיים אותו ב-Meta Ads Manager. (${errors[0]})` };
+  }
+  await db.campaignBrief.update({ where: { id }, data: { status: 'launched' } }).catch(() => {});
+  return { ok: true, message: 'הקמפיין הועלה לאוויר — יעבור בדיקת Meta ויתחיל להוציא תקציב אחרי אישור (בד"כ עד 24ש\').' };
+});
+
+registerFn('createAutoCampaign', async ({ body, user }) => {
+  await requireBackOffice(user, 'createAutoCampaign', 'MarketingAdvisor');
+  const b = (body || {}) as any;
+  const goal = String(b.goal || '').trim();
+  if (!goal) throw new Error('צריך מטרה לקמפיין');
+  const imageUrl = String(b.image_url || '').trim();
+  if (!imageUrl) throw new Error('בחר תמונת בסיס (העלאה או מהדרייב) — ה-AI מעצב על תמונה אמיתית שלך.');
+  const designInstruction = String(b.design_instruction || '').trim();
+  const audienceMode = b.audience_mode === 'lookalike' ? 'lookalike' : 'interest';
+  const steps: any[] = [];
+  const brand = await getBrandName();
+  const profile: any = await db.businessProfile.findFirst().catch(() => null);
+  const pd: any = profile?.profile_data || {};
+
+  // 1) Design the creative on the owner's REAL photo (never invents; no text).
+  let image_base64: string | null = null;
+  try {
+    const instruction = [
+      'You are a professional food-photography retoucher for a restaurant social ad.',
+      `Enhance THIS EXACT photo into a polished, scroll-stopping ad creative for the goal: "${goal}".`,
+      designInstruction ? `The owner asked specifically: ${designInstruction}` : '',
+      pd.concept ? `Brand concept / vibe: ${pd.concept}.` : '',
+      'Improve ONLY the photo itself: lighting, white balance, colour, sharpness, plating, cleaner background, appetising composition.',
+      'ABSOLUTELY NO TEXT: do NOT write, overlay or render any text, words, letters, prices, numbers, badges or logos — you cannot render Hebrew and it comes out gibberish. Promotional text is added separately.',
+      'CRITICAL: keep the SAME dish EXACTLY as photographed — do NOT invent, replace or restyle the food.',
+      'Output a single clean, photorealistic, social-ready image with NO text.',
+    ].filter(Boolean).join('\n');
+    const out = await editImage({ imageUrl, instruction });
+    image_base64 = out.image_base64;
+    void writeAiUsage({ fn_name: 'autoCampaign.design', model: out.model, tokens_in: 0, tokens_out: 0 }).catch(() => {});
+    steps.push({ step: 'design', ok: true, label: 'עיצוב התמונה שלך' });
+  } catch (e: any) {
+    steps.push({ step: 'design', ok: false, label: 'עיצוב התמונה', note: 'העיצוב לא הצליח — נשתמש בתמונה כמו שהיא.' });
+  }
+
+  // 2) Copy that matches the goal (and the dish), in the brand voice.
+  const baseContext = await customerBaseContext().catch(() => '');
+  const plan: any = await invokeLLM({
+    prompt:
+      MARKETING_ADVISOR_PERSONA +
+      `\n\nכתוב קופי לקמפיין ממומן בפייסבוק/אינסטגרם עבור "${brand}" למטרה: "${goal}".\n${baseContext}\n` +
+      (pd.concept ? `קונספט: ${pd.concept}. ` : '') + (pd.flagship_products ? `מנות דגל: ${String(pd.flagship_products).replace(/\n/g, ', ')}.` : '') +
+      `\nהחזר 3 גרסאות קופי (כל אחת: hook קצר וקולע + body של 1-2 משפטים + hashtags), וכן "landing_kind" — אחד מ: delivery (משלוחים) / reservation (שמירת מקום) / event (אירועים) / general — לפי מה שהכי מניע לפעולה למטרה הזו. JSON בלבד: { copy_variants:[{hook,body,hashtags:[]}], landing_kind }`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        copy_variants: { type: 'array', items: { type: 'object', properties: { hook: { type: 'string' }, body: { type: 'string' }, hashtags: { type: 'array', items: { type: 'string' } } } } },
+        landing_kind: { type: 'string' },
+      },
+    },
+  }).catch(() => ({}));
+  const copy_variants = (Array.isArray(plan?.copy_variants) ? plan.copy_variants : []).slice(0, 3);
+  steps.push({ step: 'copy', ok: copy_variants.length > 0, label: 'כתיבת קופי' });
+
+  // 3) Landing link — owner override wins; else map the goal to the right page.
+  const links: Record<string, string> = {
+    delivery: (await getSecret('MKT_LINK_DELIVERY')) || 'https://topalena.com/?utm_source=facebook',
+    reservation: (await getSecret('MKT_LINK_RESERVATION')) || 'https://topalena.com/PublicReservation?utm_source=facebook',
+    event: (await getSecret('MKT_LINK_EVENTS')) || ALINA_DEFAULT_LANDING_URL,
+    general: (await getSecret('MKT_LINK_GENERAL')) || 'https://topalena.com/?utm_source=facebook',
+  };
+  const landing = String(b.landing_url || '').trim() || links[String(plan?.landing_kind || 'general')] || links.general;
+
+  // 4) Create + approve the campaign brief (LLM fills audience/objective/budget).
+  const created: any = await (functionHandlers as any).createCampaignBrief({
+    user, req: {},
+    body: { goal, copy_variants, image_base64: image_base64 || undefined, image_url: image_base64 ? undefined : imageUrl, landing_url: landing, daily_budget_ils: b.daily_budget_ils },
+  }).catch((e: any) => ({ error: String(e?.message || e) }));
+  const briefId = created?.brief?.id;
+  if (!briefId) { steps.push({ step: 'brief', ok: false, label: 'תכנון קמפיין', note: created?.error }); return { goal, steps, error: created?.error || 'תכנון הקמפיין נכשל' }; }
+  await (functionHandlers as any).approveCampaignBrief({ user, req: {}, body: { id: briefId } }).catch(() => {});
+  steps.push({ step: 'brief', ok: true, label: 'תכנון קהל, מטרה ותקציב', note: created?.rationale });
+
+  // 5) Lookalike audience (optional; never blocks the launch).
+  let lookalike_audience_id: string | null = null;
+  let audience_note = '';
+  if (audienceMode === 'lookalike') {
+    const la = await ensureClubLookalikeAudience().catch((e: any) => ({ lookalike_id: null, ready: false, note: String(e?.message || e) } as any));
+    audience_note = la?.note || '';
+    if (la?.lookalike_id && la?.ready) lookalike_audience_id = la.lookalike_id;
+    steps.push({ step: 'audience', ok: !!lookalike_audience_id, label: 'קהל Lookalike מהמועדון', note: audience_note });
+  }
+
+  // 6) Launch — PAUSED, ready for the owner's one-tap go-live.
+  const launched: any = await (functionHandlers as any).launchCampaignBrief({
+    user, req: {}, body: { id: briefId, active: false, lookalike_audience_id },
+  }).catch((e: any) => ({ error: String(e?.message || e) }));
+  steps.push({ step: 'launch', ok: !launched?.error, label: 'יצירת הקמפיין במטא (מושהה)', note: launched?.error || launched?.message });
+
+  const brief: any = launched?.brief || created?.brief || {};
+  return {
+    goal,
+    creative: { image_base64, image_url: image_base64 ? null : imageUrl },
+    copy_variants,
+    landing_url: landing,
+    audience_mode: audienceMode,
+    audience_note,
+    campaign: {
+      brief_id: briefId,
+      meta_campaign_id: brief?.meta_campaign_id || null,
+      status: brief?.meta_campaign_id ? 'PAUSED' : 'not_created',
+      meta_url: launched?.meta_url || null,
+      message: launched?.message || null,
+      error: launched?.error || brief?.launch_error || null,
+    },
+    steps,
+  };
 });
 
 // Pick the best photo for a goal out of a Google Drive folder. Owner stores

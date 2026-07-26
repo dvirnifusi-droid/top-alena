@@ -25,6 +25,12 @@ export default function CampaignBuilder() {
   const [confirmSend, setConfirmSend] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState(null);
+  // Full auto-campaign (photo → design → copy → audience → paused Meta campaign)
+  const [audienceMode, setAudienceMode] = useState('lookalike');
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [autoResult, setAutoResult] = useState(null);
+  const [activating, setActivating] = useState(false);
+  const [liveMsg, setLiveMsg] = useState('');
 
   const onUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -73,6 +79,34 @@ export default function CampaignBuilder() {
       setChosenCopy(0);
     } catch (err) { setError(err?.message || 'בניית הקמפיין נכשלה'); }
     finally { setBuilding(false); }
+  };
+
+  const runAuto = async () => {
+    if (!goal.trim()) { setError('כתוב מטרה לקמפיין.'); return; }
+    if (!imageUrl) { setError('בחר תמונת בסיס (העלאה או מהדרייב) — ה-AI מעצב על תמונה אמיתית שלך.'); return; }
+    setAutoRunning(true); setError(''); setAutoResult(null); setLiveMsg(''); setCampaign(null);
+    try {
+      const res = await base44.functions.createAutoCampaign({
+        goal,
+        image_url: imageUrl,
+        design_instruction: imageMode === 'ai' ? designInstruction.trim() : undefined,
+        audience_mode: audienceMode,
+      });
+      setAutoResult((res?.data || res) || null);
+    } catch (err) { setError(err?.message || 'בניית הקמפיין האוטומטי נכשלה'); }
+    finally { setAutoRunning(false); }
+  };
+
+  const goLive = async () => {
+    const bid = autoResult?.campaign?.brief_id;
+    if (!bid) return;
+    setActivating(true); setLiveMsg('');
+    try {
+      const res = await base44.functions.activateCampaignBrief({ id: bid });
+      const d = res?.data || res;
+      setLiveMsg(d?.ok ? (d.message || 'הועלה לאוויר!') : (d?.error || 'ההעלאה נכשלה'));
+    } catch (e) { setLiveMsg(e?.message || 'ההעלאה נכשלה'); }
+    finally { setActivating(false); }
   };
 
   const launchClub = async () => {
@@ -176,14 +210,97 @@ export default function CampaignBuilder() {
           </div>
         )}
 
-        <button onClick={build} disabled={building || !goal.trim() || aiNeedsMore}
-          className="inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-white font-bold px-5 py-2.5 rounded-xl disabled:opacity-60 w-full sm:w-auto">
-          {building ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          {building ? 'בונה קמפיין…' : (imageMode === 'ai' ? 'עצב ובנה קמפיין' : 'בנה קמפיין')}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={build} disabled={building || autoRunning || !goal.trim() || aiNeedsMore}
+            className="inline-flex items-center justify-center gap-2 bg-white border border-amber-300 hover:bg-amber-50 text-amber-700 font-bold px-4 py-2.5 rounded-xl disabled:opacity-60">
+            {building ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {building ? 'בונה…' : 'תצוגה מקדימה (בלי להעלות)'}
+          </button>
+        </div>
+
+        {/* One-button full auto: design → copy → audience → live (paused) campaign. */}
+        <div className="mt-3 pt-3 border-t border-amber-200">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="text-xs font-bold text-slate-600">👥 קהל היעד:</span>
+            {[
+              { k: 'lookalike', label: 'דומה ללקוחות שלי (Lookalike)' },
+              { k: 'interest', label: 'לפי תחומי עניין' },
+            ].map(o => (
+              <button key={o.k} onClick={() => setAudienceMode(o.k)}
+                className={`text-xs font-semibold rounded-full px-3 py-1 border ${audienceMode === o.k ? 'bg-fuchsia-600 text-white border-fuchsia-600' : 'bg-white text-slate-600 border-slate-300'}`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={runAuto} disabled={autoRunning || building || !goal.trim() || !imageUrl}
+            className="inline-flex items-center justify-center gap-2 bg-gradient-to-l from-fuchsia-600 to-amber-500 hover:opacity-90 text-white font-bold px-5 py-2.5 rounded-xl disabled:opacity-60 w-full sm:w-auto shadow">
+            {autoRunning ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+            {autoRunning ? 'בונה קמפיין מלא…' : '🚀 בנה קמפיין מלא והעלה למטא (מושהה)'}
+          </button>
+          {!imageUrl && <p className="text-[11px] text-slate-400 mt-1">בחר תמונת בסיס כדי להפעיל.</p>}
+        </div>
       </div>
 
       {error && <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> {error}</div>}
+
+      {autoResult && (
+        <div className="bg-white border-2 border-fuchsia-200 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-fuchsia-500" />
+            <h3 className="font-bold text-slate-800">🚀 קמפיין אוטומטי</h3>
+          </div>
+
+          <div className="space-y-1">
+            {(autoResult.steps || []).map((s, i) => (
+              <div key={i} className="flex items-start gap-2 text-sm">
+                {s.ok ? <Check className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" /> : <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />}
+                <div><span className={s.ok ? 'text-slate-700 font-semibold' : 'text-amber-700 font-semibold'}>{s.label}</span>{s.note && <span className="text-xs text-slate-400"> — {s.note}</span>}</div>
+              </div>
+            ))}
+          </div>
+
+          {(autoResult.creative?.image_base64 || autoResult.creative?.image_url) && (
+            <img src={autoResult.creative.image_base64 ? `data:image/png;base64,${autoResult.creative.image_base64}` : autoResult.creative.image_url}
+              alt="creative" className="w-full max-h-72 object-contain rounded-xl border bg-slate-50" />
+          )}
+
+          {(autoResult.copy_variants || []).length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-xs font-bold text-slate-500">✍️ קופי</div>
+              {autoResult.copy_variants.map((v, i) => (
+                <div key={i} className="rounded-xl p-2.5 border border-slate-200 bg-slate-50">
+                  {v.hook && <div className="font-bold text-sm text-slate-800">{v.hook}</div>}
+                  <div className="text-sm text-slate-700 whitespace-pre-wrap">{v.body}</div>
+                  {Array.isArray(v.hashtags) && v.hashtags.length > 0 && <div className="text-amber-600 text-xs mt-1">{v.hashtags.map(h => (String(h).startsWith('#') ? h : '#' + h)).join(' ')}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {autoResult.audience_note && <p className="text-xs text-slate-500">👥 {autoResult.audience_note}</p>}
+
+          {autoResult.campaign?.error ? (
+            <div className="text-rose-600 text-sm flex items-start gap-1"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /> {autoResult.campaign.error}</div>
+          ) : autoResult.campaign?.meta_campaign_id ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+              <div className="text-sm text-emerald-800 font-semibold flex items-center gap-1"><Check className="w-4 h-4" /> הקמפיין נוצר במטא במצב <u>מושהה</u> — מוכן לעלות לאוויר.</div>
+              {autoResult.campaign.message && <div className="text-xs text-slate-500">{autoResult.campaign.message}</div>}
+              {liveMsg ? (
+                <div className="text-sm text-emerald-700 font-bold flex items-center gap-1"><Check className="w-4 h-4" /> {liveMsg}</div>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button onClick={goLive} disabled={activating} className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold px-4 py-2 rounded-xl disabled:opacity-60">
+                    {activating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} העלה לאוויר עכשיו
+                  </button>
+                  {autoResult.campaign.meta_url && <a href={autoResult.campaign.meta_url} target="_blank" rel="noreferrer" className="text-xs text-fuchsia-700 underline">פתח ב-Meta Ads Manager</a>}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-amber-700 text-sm">{autoResult.error || autoResult.campaign?.message || 'הקמפיין לא נוצר — בדוק את השלבים למעלה.'}</div>
+          )}
+        </div>
+      )}
 
       {campaign && (
         <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
