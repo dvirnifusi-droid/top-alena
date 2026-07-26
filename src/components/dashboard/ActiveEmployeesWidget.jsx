@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { base44 } from '@/api/base44Client';
-import { Clock, User, MessageCircle, AlertTriangle, Coffee, LogOut, Edit3, MapPin, MapPinOff } from 'lucide-react';
+import { Clock, User, MessageCircle, AlertTriangle, Coffee, LogOut, Edit3, MapPin, MapPinOff, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Haversine distance in meters (client-side, for the presence marker).
 function distM(a, b) {
@@ -62,6 +62,8 @@ const DEPT_LABEL = {
 
 export default function ActiveEmployeesWidget() {
   const [rows, setRows] = useState([]);
+  const [clockedOut, setClockedOut] = useState([]); // finished TODAY — shown in a collapsed section
+  const [showOut, setShowOut] = useState(false);     // collapsed by default; opens only on click
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [now, setNow] = useState(() => new Date());
@@ -137,8 +139,11 @@ export default function ActiveEmployeesWidget() {
         const looksLikeEmail = (s) => typeof s === 'string' && s.includes('@');
 
         const out = [];
+        const done = []; // finished TODAY (clocked out) — status not active/on_break but has shift_end
         for (const tr of shiftTracking) {
-          if (tr.status !== 'active' && tr.status !== 'on_break') continue;
+          const isActive = tr.status === 'active' || tr.status === 'on_break';
+          const hasEnd = !!tr.shift_end;
+          if (!isActive && !hasEnd) continue; // neither on-shift nor a completed clock-out today
 
           // Resolve real Employee record for the row
           const emp =
@@ -153,6 +158,20 @@ export default function ActiveEmployeesWidget() {
 
           const dept = detectDept(emp);
           const position = emp?.role || (Array.isArray(emp?.positions) && emp.positions[0]) || tr.position || null;
+          const positionStr = typeof position === 'string' ? position : position?.position_name || position?.name || null;
+
+          if (!isActive) {
+            // Clocked out today — goes into the collapsed "יצאו היום" section.
+            done.push({
+              id: tr.id,
+              name,
+              dept,
+              position: positionStr,
+              shiftStart: tr.shift_start,
+              shiftEnd: tr.shift_end,
+            });
+            continue;
+          }
 
           // Compute current break duration if on_break
           const breaks = Array.isArray(tr.breaks) ? tr.breaks : [];
@@ -166,7 +185,7 @@ export default function ActiveEmployeesWidget() {
             id: tr.id,
             name,
             phone: emp?.phone || null,
-            position: typeof position === 'string' ? position : position?.position_name || position?.name || null,
+            position: positionStr,
             dept,
             shiftStart: tr.shift_start,
             status: tr.status,
@@ -179,9 +198,11 @@ export default function ActiveEmployeesWidget() {
           });
         }
 
-        // Sort by clock-in time ascending (earliest first)
+        // Active: earliest clock-in first. Done: most-recent clock-out first.
         out.sort((a, b) => new Date(a.shiftStart).getTime() - new Date(b.shiftStart).getTime());
+        done.sort((a, b) => new Date(b.shiftEnd).getTime() - new Date(a.shiftEnd).getTime());
         setRows(out);
+        setClockedOut(done);
       } catch (error) {
         console.error('Error loading active employees:', error);
       } finally {
@@ -388,6 +409,49 @@ export default function ActiveEmployeesWidget() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* "יצאו היום" — collapsed by default, opens only on click (owner request). */}
+        {clockedOut.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-200">
+            <button
+              onClick={() => setShowOut((v) => !v)}
+              className="w-full flex items-center justify-between text-sm font-semibold text-slate-600 hover:text-slate-800 transition"
+            >
+              <span className="flex items-center gap-1.5">
+                <LogOut className="w-4 h-4" /> יצאו היום ({clockedOut.length})
+              </span>
+              {showOut ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            {showOut && (
+              <div className="space-y-1.5 mt-2">
+                {clockedOut.map((e) => {
+                  const st = e.shiftStart ? new Date(e.shiftStart) : null;
+                  const en = e.shiftEnd ? new Date(e.shiftEnd) : null;
+                  const outT = en ? en.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '—';
+                  const inT = st ? st.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '—';
+                  const dur = st && en ? formatDuration(en.getTime() - st.getTime()) : null;
+                  const deptInfo = DEPT_LABEL[e.dept] || DEPT_LABEL.unknown;
+                  return (
+                    <div
+                      key={e.id}
+                      className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[12px]"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <LogOut className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                        <span className="font-medium text-slate-700 truncate">{e.name}</span>
+                        <Badge variant="outline" className={`text-[10px] ${deptInfo.color}`}>{deptInfo.label}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-500 flex-shrink-0">
+                        <span>יצא/ה <b className="text-slate-700">{outT}</b></span>
+                        <span className="text-slate-400">({inT}{dur ? ` · ${dur}` : ''})</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </CardContent>
