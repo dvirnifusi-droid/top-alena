@@ -8,6 +8,7 @@ import PerformanceReview from '@/components/marketing/PerformanceReview';
 import LiveCampaigns from '@/components/marketing/LiveCampaigns';
 import MarketingLinks from '@/components/marketing/MarketingLinks';
 import MarketingPlaybook from '@/components/marketing/MarketingPlaybook';
+import { createPageUrl } from '@/utils';
 
 // ─── The questionnaire — grouped into sections so the owner answers in batches ───
 const QUESTIONS = [
@@ -222,6 +223,9 @@ export default function MarketingAdvisor() {
       )}
       {!loading && tab === 'actions' && (
         <div className="space-y-5">
+          <a href={createPageUrl('MarketingHub')} className="block rounded-2xl border border-[#A04A2E]/30 bg-[#A04A2E]/5 hover:bg-[#A04A2E]/10 p-3 text-sm font-bold text-[#A04A2E]">
+            🎯 כל כלי השיווק מסודרים עכשיו לפי ערוץ (מטה · ממומן · מועדון · עיצוב · אורגני) ב<u>מרכז השיווק המאוחד</u> — לחץ לפתיחה ←
+          </a>
           <MarketingLinks />
           <CampaignBuilder />
           <MarketingPlaybook />
