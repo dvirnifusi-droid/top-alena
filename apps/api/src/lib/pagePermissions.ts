@@ -111,9 +111,26 @@ export async function resolveUserTier(user: any): Promise<ResolvedTier> {
   }
   if (!tier) return { is_owner: false, tier: null, allowed_pages: null, source };
 
-  const pages = Array.isArray(tier.allowed_pages) ? tier.allowed_pages.map(String) : null;
+  let pages = Array.isArray(tier.allowed_pages) ? tier.allowed_pages.map(String) : null;
+  // Hub → children cascade: a hub page (e.g. "עובדים וסידור" / EmployeesHub) renders
+  // several sub-pages as tabs, each guarded by its OWN page name. Granting the hub
+  // must therefore also grant its children, or the owner grants the hub and the
+  // employee still hits "אין גישה" inside it. Additive only — never removes access.
+  if (pages) {
+    const set = new Set(pages);
+    for (const [hub, kids] of Object.entries(HUB_CHILDREN)) {
+      if (set.has(hub)) for (const k of kids) set.add(k);
+    }
+    pages = [...set];
+  }
   return { is_owner: false, tier, allowed_pages: pages && pages.length ? pages : null, source };
 }
+
+// Hub pages whose tabs are separately-guarded sub-pages. Keep in sync with the
+// hub components' tab lists.
+const HUB_CHILDREN: Record<string, string[]> = {
+  EmployeesHub: ['Employees', 'PositionsManagement', 'WorkScheduling', 'AvailabilityRequests', 'LeaveRequests', 'ShiftChat', 'EmployeeFeedback'],
+};
 
 // Back-office roles. Intentionally BROAD (manager included) so hardening an
 // endpoint can't lock out a legitimate manager — only plain employees are cut.
