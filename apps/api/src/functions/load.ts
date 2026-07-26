@@ -19914,6 +19914,68 @@ registerFn('adminCloseEmployeeShift', async ({ user, body }) => {
   return { ok: true, end_time: endHHMM, total_hours: totalHours, work_shifts_synced: synced };
 });
 
+// Admin-only — correct BOTH the clock-in and clock-out of an already-recorded
+// shift (the dashboard "יצאו היום" list). Recomputes hours and syncs both times
+// into WorkShift.assigned_staff so the סידור matches — the manager fixes one
+// place, not three. Same raw-SQL reason as patchShiftRaw (Prisma update crashes
+// on this table). HH:MM for the schedule is computed in Israel time explicitly,
+// so it's correct regardless of the container's timezone.
+registerFn('adminEditShiftTimes', async ({ user, body }) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole((user as any)?.role)) throw new Error('admin only');
+  const { shift_id, start_iso, end_iso } = (body || {}) as { shift_id?: string; start_iso?: string; end_iso?: string };
+  if (!shift_id) throw new Error('shift_id required');
+  if (!start_iso && !end_iso) throw new Error('start_iso or end_iso required');
+
+  const rows: any[] = await (prisma as any).$queryRaw`
+    SELECT id, employee_id, employee_name, shift_start, shift_end, date::text AS date_str
+    FROM "ShiftTracking" WHERE id = ${shift_id} LIMIT 1
+  `;
+  const tracking = rows?.[0];
+  if (!tracking) throw new Error('shift_not_found');
+
+  const startDate = start_iso ? new Date(start_iso) : new Date(tracking.shift_start);
+  const endDate = end_iso ? new Date(end_iso) : (tracking.shift_end ? new Date(tracking.shift_end) : null);
+  if (Number.isNaN(startDate.getTime())) throw new Error('invalid start_iso');
+  if (endDate && Number.isNaN(endDate.getTime())) throw new Error('invalid end_iso');
+  if (endDate && endDate.getTime() < startDate.getTime()) throw new Error('end_before_start');
+
+  const totalHours = endDate ? Math.max(0, (endDate.getTime() - startDate.getTime()) / 3600000) : 0;
+
+  await (prisma as any).$executeRaw`
+    UPDATE "ShiftTracking"
+    SET shift_start = ${startDate},
+        shift_end = ${endDate},
+        status = ${endDate ? 'completed' : 'active'},
+        total_hours = ${totalHours}, effective_hours = ${totalHours},
+        "updatedAt" = NOW()
+    WHERE id = ${shift_id}
+  `;
+
+  // Sync both times into WorkShift.assigned_staff for the same date+employee.
+  const ilHHMM = (d: Date) =>
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  const startHHMM = ilHHMM(startDate);
+  const endHHMM = endDate ? ilHHMM(endDate) : null;
+  const dateStr = String(tracking.date_str || '').slice(0, 10);
+  const workShifts: any[] = await (prisma as any).workShift.findMany({
+    where: { date: { gte: new Date(dateStr + 'T00:00:00.000Z'), lt: new Date(dateStr + 'T23:59:59.999Z') } },
+    take: 50,
+  });
+  let synced = 0;
+  for (const ws of workShifts) {
+    const staff = Array.isArray(ws.assigned_staff) ? ws.assigned_staff : [];
+    const idx = staff.findIndex((a: any) => a?.employee_id === tracking.employee_id);
+    if (idx < 0) continue;
+    const next = [...staff];
+    next[idx] = { ...next[idx], start_time: startHHMM, ...(endHHMM ? { end_time: endHHMM } : {}) };
+    await (prisma as any).workShift.update({ where: { id: ws.id }, data: { assigned_staff: next } });
+    synced++;
+  }
+
+  return { ok: true, start_time: startHHMM, end_time: endHHMM, total_hours: totalHours, work_shifts_synced: synced };
+});
+
 // End-of-day reconciliation: when a manager LOCKS a tip report, the hours he
 // entered/verified per waiter are the authoritative "actual worked hours".
 // Push them into ShiftTracking (which drives the LaborCost "actual" + the

@@ -112,6 +112,41 @@ export default function ActiveEmployeesWidget() {
     closeShiftAt(row.id, end.toISOString());
   };
 
+  // Fix BOTH clock-in and clock-out of an ALREADY clocked-out shift (from the
+  // "יצאו היום" list). Recomputes hours server-side and syncs the סידור.
+  const editTimes = async (shiftId, startIso, endIso) => {
+    setBusyShiftId(shiftId);
+    try {
+      await base44.functions.adminEditShiftTimes({ shift_id: shiftId, start_iso: startIso, end_iso: endIso });
+      setClockedOut((prev) => prev.map((r) => (r.id === shiftId ? { ...r, shiftStart: startIso, shiftEnd: endIso } : r)));
+    } catch (err) {
+      alert('שגיאה בעדכון שעות: ' + (err?.message || ''));
+    } finally {
+      setBusyShiftId(null);
+    }
+  };
+
+  const handleEditTimes = (row) => {
+    const startD = row.shiftStart ? new Date(row.shiftStart) : null;
+    const endD = row.shiftEnd ? new Date(row.shiftEnd) : null;
+    const fmt = (d) => (d ? d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '');
+    const inStr = window.prompt(`שעת כניסה של ${row.name} (HH:MM):`, fmt(startD));
+    if (inStr === null) return;
+    const outStr = window.prompt(`שעת יציאה של ${row.name} (HH:MM):`, fmt(endD));
+    if (outStr === null) return;
+    const mIn = inStr.trim().match(/^(\d{1,2}):(\d{2})$/);
+    const mOut = outStr.trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!mIn || !mOut) { alert('פורמט לא תקין. השתמש ב-HH:MM'); return; }
+    if (+mIn[1] > 23 || +mIn[2] > 59 || +mOut[1] > 23 || +mOut[2] > 59) { alert('שעה לא תקינה'); return; }
+    // Anchor both to the shift's calendar date; overnight → clock-out next day.
+    const base = startD || new Date();
+    const start = new Date(base); start.setHours(+mIn[1], +mIn[2], 0, 0);
+    const end = new Date(base); end.setHours(+mOut[1], +mOut[2], 0, 0);
+    if (end < start) end.setDate(end.getDate() + 1);
+    if (!window.confirm(`לעדכן את ${row.name}:\nכניסה ${inStr} ← יציאה ${outStr} (משך ${formatDuration(end - start)})?\n\nגם הסידור יתעדכן.`)) return;
+    editTimes(row.id, start.toISOString(), end.toISOString());
+  };
+
   // Tick every minute so durations update live.
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
@@ -446,6 +481,16 @@ export default function ActiveEmployeesWidget() {
                       <div className="flex items-center gap-2 text-slate-500 flex-shrink-0">
                         <span>יצא/ה <b className="text-slate-700">{outT}</b></span>
                         <span className="text-slate-400">({inT}{dur ? ` · ${dur}` : ''})</span>
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleEditTimes(e)}
+                            disabled={busyShiftId === e.id}
+                            className="bg-amber-500 hover:bg-amber-600 text-white p-1.5 rounded-full shadow-sm disabled:opacity-50"
+                            title="תקן שעות כניסה/יציאה"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
