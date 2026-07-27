@@ -276,17 +276,17 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
                             </Label>
                             <p className="text-xs text-gray-500 mb-2">הרשימה תמוין לפי שעת כניסה (מוקדם למעלה)</p>
                             <div className="border rounded-lg overflow-hidden">
-                                <div className="grid grid-cols-[1fr_140px_76px_76px] gap-0 bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-600 border-b">
+                                <div className="grid grid-cols-[1fr_116px_38px_38px] gap-1 bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-600 border-b">
                                     <span>שם עובד</span>
-                                    <span className="flex items-center gap-1"><Clock className="w-3 h-3"/> שעת כניסה</span>
-                                    <span className="flex items-center gap-1 justify-center"><Lock className="w-3 h-3"/> סגירה</span>
-                                    <span className="flex items-center gap-1 justify-center"><Star className="w-3 h-3"/> מקדם</span>
+                                    <span className="flex items-center gap-1"><Clock className="w-3 h-3"/> כניסה</span>
+                                    <span className="flex justify-center" title="סגירה"><Lock className="w-3.5 h-3.5"/></span>
+                                    <span className="flex justify-center" title="מקדם"><Star className="w-3.5 h-3.5"/></span>
                                 </div>
                                 <div className="divide-y max-h-[60vh] overflow-y-auto">
                                     {sortedStaffForDisplay.map((a) => {
                                         const ov = staffOverrides[a.employee_id] || {};
                                         return (
-                                            <div key={a.employee_id} className={`grid grid-cols-[1fr_140px_76px_76px] gap-0 px-2.5 py-1 items-center text-sm
+                                            <div key={a.employee_id} className={`grid grid-cols-[1fr_116px_38px_38px] gap-1 px-2.5 py-1 items-center text-sm
                                                 ${ov.isClosing && ov.isPromoter ? 'bg-amber-50' : ov.isClosing ? 'bg-orange-50' : ov.isPromoter ? 'bg-yellow-50' : ''}`}>
                                                 <div className="flex flex-col gap-0.5 min-w-0">
                                                     <span className="font-medium truncate">{a.employee_name}
@@ -315,23 +315,21 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
                                                 <div className="flex justify-center">
                                                     <button
                                                         onClick={() => setOverride(a.employee_id, 'isClosing', !ov.isClosing)}
-                                                        className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-xs font-semibold transition-colors
-                                                            ${ov.isClosing
-                                                                ? 'bg-orange-500 border-orange-600 text-white'
-                                                                : 'border-gray-300 text-gray-500 hover:border-orange-400 hover:text-orange-500'}`}
+                                                        title="סגירה"
+                                                        className={`w-8 h-8 rounded-full border flex items-center justify-center text-sm transition-colors
+                                                            ${ov.isClosing ? 'bg-orange-500 border-orange-600' : 'border-gray-300 opacity-50 hover:opacity-100 hover:border-orange-400'}`}
                                                     >
-                                                        🔒 סגירה
+                                                        🔒
                                                     </button>
                                                 </div>
                                                 <div className="flex justify-center">
                                                     <button
                                                         onClick={() => setOverride(a.employee_id, 'isPromoter', !ov.isPromoter)}
-                                                        className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-xs font-semibold transition-colors
-                                                            ${ov.isPromoter
-                                                                ? 'bg-yellow-400 border-yellow-500 text-white'
-                                                                : 'border-gray-300 text-gray-500 hover:border-yellow-400 hover:text-yellow-600'}`}
+                                                        title="מקדם"
+                                                        className={`w-8 h-8 rounded-full border flex items-center justify-center text-sm transition-colors
+                                                            ${ov.isPromoter ? 'bg-yellow-400 border-yellow-500' : 'border-gray-300 opacity-50 hover:opacity-100 hover:border-yellow-400'}`}
                                                     >
-                                                        ⭐ מקדם
+                                                        ⭐
                                                     </button>
                                                 </div>
                                             </div>
