@@ -276,62 +276,48 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
                             </Label>
                             <p className="text-xs text-gray-500 mb-2">הרשימה תמוין לפי שעת כניסה (מוקדם למעלה)</p>
                             <div className="border rounded-lg overflow-hidden">
-                                <div className="grid grid-cols-[1fr_116px_38px_38px] gap-1 bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-600 border-b">
-                                    <span>שם עובד</span>
-                                    <span className="flex items-center gap-1"><Clock className="w-3 h-3"/> כניסה</span>
-                                    <span className="flex justify-center" title="סגירה"><Lock className="w-3.5 h-3.5"/></span>
-                                    <span className="flex justify-center" title="מקדם"><Star className="w-3.5 h-3.5"/></span>
+                                <div className="flex items-center gap-3 bg-gray-100 px-2.5 py-1.5 text-[11px] font-semibold text-gray-500 border-b">
+                                    <span className="flex items-center gap-1"><Lock className="w-3 h-3"/> סגירה</span>
+                                    <span className="flex items-center gap-1"><Star className="w-3 h-3"/> מקדם</span>
+                                    <span className="flex items-center gap-1 ms-auto"><Clock className="w-3 h-3"/> שעת כניסה</span>
                                 </div>
                                 <div className="divide-y max-h-[60vh] overflow-y-auto">
                                     {sortedStaffForDisplay.map((a) => {
                                         const ov = staffOverrides[a.employee_id] || {};
+                                        const availNote = availabilities.find(av => av.employee_id === a.employee_id && av.date === selectedDate)?.reason;
                                         return (
-                                            <div key={a.employee_id} className={`grid grid-cols-[1fr_116px_38px_38px] gap-1 px-2.5 py-1 items-center text-sm
+                                            <div key={a.employee_id} className={`px-2.5 py-1 text-sm
                                                 ${ov.isClosing && ov.isPromoter ? 'bg-amber-50' : ov.isClosing ? 'bg-orange-50' : ov.isPromoter ? 'bg-yellow-50' : ''}`}>
-                                                <div className="flex flex-col gap-0.5 min-w-0">
-                                                    <span className="font-medium truncate">{a.employee_name}
-                                                        <span className="text-xs text-gray-400 mr-1">({a.position})</span>
-                                                    </span>
-                                                    {a.notes && (
-                                                        <span className="text-[10px] text-orange-700 bg-orange-50 border border-orange-200 rounded px-1 py-0.5 leading-tight whitespace-normal break-words block">
-                                                            📝 {a.notes}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex flex-col gap-0.5">
-                                                   <TimePicker
-                                                       value={ov.start_time || ''}
-                                                       onChange={val => setOverride(a.employee_id, 'start_time', val)}
-                                                   />
-                                                   {(() => {
-                                                       const note = availabilities.find(av => av.employee_id === a.employee_id && av.date === selectedDate)?.reason;
-                                                       return note ? (
-                                                           <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 leading-tight whitespace-normal break-words max-w-[160px] block">
-                                                               💬 {note}
-                                                           </span>
-                                                       ) : null;
-                                                   })()}
-                                                </div>
-                                                <div className="flex justify-center">
+                                                {/* one line: toggles + name + time — packs many people per screen */}
+                                                <div className="flex items-center gap-1.5">
                                                     <button
                                                         onClick={() => setOverride(a.employee_id, 'isClosing', !ov.isClosing)}
                                                         title="סגירה"
-                                                        className={`w-8 h-8 rounded-full border flex items-center justify-center text-sm transition-colors
-                                                            ${ov.isClosing ? 'bg-orange-500 border-orange-600' : 'border-gray-300 opacity-50 hover:opacity-100 hover:border-orange-400'}`}
-                                                    >
-                                                        🔒
-                                                    </button>
-                                                </div>
-                                                <div className="flex justify-center">
+                                                        className={`w-7 h-7 shrink-0 rounded-full border flex items-center justify-center text-sm transition-colors
+                                                            ${ov.isClosing ? 'bg-orange-500 border-orange-600' : 'border-gray-300 opacity-40 hover:opacity-100 hover:border-orange-400'}`}
+                                                    >🔒</button>
                                                     <button
                                                         onClick={() => setOverride(a.employee_id, 'isPromoter', !ov.isPromoter)}
                                                         title="מקדם"
-                                                        className={`w-8 h-8 rounded-full border flex items-center justify-center text-sm transition-colors
-                                                            ${ov.isPromoter ? 'bg-yellow-400 border-yellow-500' : 'border-gray-300 opacity-50 hover:opacity-100 hover:border-yellow-400'}`}
-                                                    >
-                                                        ⭐
-                                                    </button>
+                                                        className={`w-7 h-7 shrink-0 rounded-full border flex items-center justify-center text-sm transition-colors
+                                                            ${ov.isPromoter ? 'bg-yellow-400 border-yellow-500' : 'border-gray-300 opacity-40 hover:opacity-100 hover:border-yellow-400'}`}
+                                                    >⭐</button>
+                                                    <span className="flex-1 min-w-0 truncate font-medium">{a.employee_name}
+                                                        <span className="text-xs text-gray-400 mr-1">({a.position})</span>
+                                                    </span>
+                                                    <div className="w-[116px] shrink-0">
+                                                        <TimePicker
+                                                            value={ov.start_time || ''}
+                                                            onChange={val => setOverride(a.employee_id, 'start_time', val)}
+                                                        />
+                                                    </div>
                                                 </div>
+                                                {(a.notes || availNote) && (
+                                                    <div className="flex flex-wrap gap-1 mt-0.5 pr-[62px]">
+                                                        {a.notes && <span className="text-[10px] text-orange-700 bg-orange-50 border border-orange-200 rounded px-1 py-0.5 leading-tight">📝 {a.notes}</span>}
+                                                        {availNote && <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 leading-tight">💬 {availNote}</span>}
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })}
