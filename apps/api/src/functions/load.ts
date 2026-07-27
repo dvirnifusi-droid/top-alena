@@ -7489,6 +7489,72 @@ registerFn('setScheduleConfig', async ({ user, body }: any) => {
   return { ok: true };
 });
 
+// ── Tip deductions config (per-tenant, owner-tunable) ───────────────────────
+// The tip math was hardcoded in Tips.jsx (₪3/h restaurant, ₪40/h runner, 5%
+// manager, ₪32 min-wage). Owners now set their own rates + a pension per-hour
+// deduction. Self-healing single-row table, mirrors ScheduleConfig. Empty/absent
+// columns → the frontend falls back to the historical defaults, so nothing
+// changes until an owner saves.
+let _tipCfgEnsured = false;
+async function ensureTipConfig(): Promise<void> {
+  if (_tipCfgEnsured) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "TipConfig" (
+       "id" TEXT PRIMARY KEY,
+       "restaurant_hourly" DOUBLE PRECISION,
+       "runner_hourly" DOUBLE PRECISION,
+       "manager_percent" DOUBLE PRECISION,
+       "pension_hourly" DOUBLE PRECISION,
+       "minimum_wage" DOUBLE PRECISION,
+       "tip_roles" JSONB,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  );
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "TipConfig" ADD COLUMN IF NOT EXISTS "pension_hourly" DOUBLE PRECISION`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "TipConfig" ADD COLUMN IF NOT EXISTS "tip_roles" JSONB`).catch(() => {});
+  _tipCfgEnsured = true;
+}
+
+registerFn('getTipConfig', async ({ user }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  try {
+    await ensureTipConfig();
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "TipConfig" LIMIT 1`);
+    return rows[0] || {};
+  } catch { return {}; }
+});
+
+// PARTIAL update, OWNER/ADMIN only — these rates are money.
+registerFn('setTipConfig', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  const role = String((user as any)?.role || '');
+  if (!['owner', 'admin'].includes(role)) throw new Error('owner only');
+  await ensureTipConfig();
+  const b = (body || {}) as any;
+  const { randomUUID } = await import('node:crypto');
+  let existing: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "TipConfig" LIMIT 1`);
+  let id: string;
+  if (!existing.length) { id = randomUUID(); await (prisma as any).$executeRawUnsafe(`INSERT INTO "TipConfig" ("id","updatedAt") VALUES ($1,NOW())`, id); }
+  else { id = existing[0].id; }
+
+  const sets: string[] = [];
+  const params: any[] = [];
+  let i = 1;
+  const addNum = (col: string, val: any) => { const n = Number(val); sets.push(`"${col}"=$${i}`); params.push(Number.isFinite(n) && n >= 0 ? n : null); i++; };
+  if (b.restaurant_hourly !== undefined) addNum('restaurant_hourly', b.restaurant_hourly);
+  if (b.runner_hourly !== undefined) addNum('runner_hourly', b.runner_hourly);
+  if (b.manager_percent !== undefined) addNum('manager_percent', b.manager_percent); // stored as a FRACTION (0.05 = 5%)
+  if (b.pension_hourly !== undefined) addNum('pension_hourly', b.pension_hourly);
+  if (b.minimum_wage !== undefined) addNum('minimum_wage', b.minimum_wage);
+  if (b.tip_roles !== undefined) { sets.push(`"tip_roles"=$${i}::jsonb`); params.push(Array.isArray(b.tip_roles) ? JSON.stringify(b.tip_roles.map((s: any) => String(s).trim()).filter(Boolean).slice(0, 20)) : null); i++; }
+
+  if (sets.length) {
+    params.push(id);
+    await (prisma as any).$executeRawUnsafe(`UPDATE "TipConfig" SET ${sets.join(', ')}, "updatedAt"=NOW() WHERE id=$${i}`, ...params);
+  }
+  return { ok: true };
+});
+
 // Lock / unlock a schedule WEEK — OWNER only. When a week is locked, non-owner
 // editors (managers) can't add or remove assignments in it — the owner freezes a
 // finalised roster so it isn't changed underneath him. Stored as an array of

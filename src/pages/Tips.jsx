@@ -14,10 +14,12 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Loader2, CalendarIcon, Save, Printer, UserPlus, Trash2, Lock, Unlock, AlertTriangle } from 'lucide-react';
+import { Loader2, CalendarIcon, Save, Printer, UserPlus, Trash2, Lock, Unlock, AlertTriangle, Settings } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
+import { User } from '@/entities/User';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 // Warm Alena design tokens (matches Checklists / SupplierOrders restyle).
 const WARM = {
@@ -37,6 +39,11 @@ const MANAGER_TIP_PERCENT = 0.05;
 const MANAGER_POSITIONS = ['מנהל משמרת', 'מנהלת משמרת'];
 
 const TIP_ELIGIBLE_POSITIONS = ['מלצר', 'ברמן'];
+const RUNNER_POSITIONS = ['ראנר'];
+// Only these roles belong in the tips table; anyone else (kitchen, etc.) is
+// hidden — the owner didn't want non-tip staff cluttering the screen.
+const TIP_ROLES = [...TIP_ELIGIBLE_POSITIONS, ...RUNNER_POSITIONS, ...MANAGER_POSITIONS];
+const isTipRole = (pos) => TIP_ROLES.includes(String(pos || '').trim());
 
 function UnlockedReportsAlert() {
     const [unlockedReports, setUnlockedReports] = useState([]);
@@ -168,6 +175,26 @@ function TipsInner() {
     const [allEmployees, setAllEmployees] = useState([]);
     const [openingEmployeeIds, setOpeningEmployeeIds] = useState([]);
     const [closingEmployeeIds, setClosingEmployeeIds] = useState([]);
+    const [cfg, setCfg] = useState(null);        // owner-set deduction rates
+    const [me, setMe] = useState(null);          // for the owner-only settings gate
+    const [showSettings, setShowSettings] = useState(false);
+    const [cfgDraft, setCfgDraft] = useState(null);
+    const [savingCfg, setSavingCfg] = useState(false);
+
+    useEffect(() => {
+        base44.functions.getTipConfig({}).then(r => setCfg(r?.data || r || {})).catch(() => setCfg({}));
+        User.me().then(setMe).catch(() => setMe(null));
+    }, []);
+
+    // Effective rates — owner config overrides the historical hardcoded defaults.
+    const RATES = useMemo(() => ({
+        restaurantHourly: Number(cfg?.restaurant_hourly ?? RESTAURANT_HOURLY_DEDUCTION),
+        runnerHourly:     Number(cfg?.runner_hourly     ?? RUNNER_HOURLY_PAY),
+        managerPercent:   Number(cfg?.manager_percent   ?? MANAGER_TIP_PERCENT),
+        pensionHourly:    Number(cfg?.pension_hourly    ?? 0),
+        minimumWage:      Number(cfg?.minimum_wage      ?? MINIMUM_WAGE),
+    }), [cfg]);
+    const isOwner = ['owner', 'admin'].includes(String(me?.role || ''));
 
     const fetchAllEmployees = useCallback(async () => {
         try {
@@ -209,8 +236,11 @@ function TipsInner() {
                 const shifts = await WorkShift.filter({ date: dateString, shift_type: shiftType });
                 if (shifts.length > 0) {
                     const shift = shifts[0];
-                    const details = shift.assigned_staff?.map(staff => {
-                         return {
+                    // Only tip-relevant roles enter the tips table — kitchen and
+                    // unassigned-position staff are noise here (owner request).
+                    const details = (shift.assigned_staff || [])
+                        .filter(staff => isTipRole(staff.position))
+                        .map(staff => ({
                             employee_id: staff.employee_id,
                             employee_name: staff.employee_name,
                             position: staff.position,
@@ -219,9 +249,9 @@ function TipsInner() {
                             break_minutes: staff.total_break_minutes || 0,
                             breaks: staff.breaks || [],
                             meal_cost: 0,
-                            sales_bonus: 0
-                         };
-                    }) || [];
+                            sales_bonus: 0,
+                            has_pension: false,
+                        }));
                     setStaffDetails(details);
                 } else {
                     setStaffDetails([]);
@@ -255,10 +285,11 @@ function TipsInner() {
 
         let totalRestaurantDeduction = 0;
         let totalRunnerDeduction = 0;
-        // Shift-manager cut: 5% of the gross total, split evenly between any
-        // staff with a manager position. Subtracted from distributableTips
-        // BEFORE the per-hour pool is computed.
-        const totalManagerDeduction = numericTotalTips * MANAGER_TIP_PERCENT;
+        let totalPensionDeduction = 0;
+        // Shift-manager cut: an owner-set % of the gross total (0 = none), split
+        // evenly between any staff with a manager position. Subtracted from
+        // distributableTips BEFORE the per-hour pool is computed.
+        const totalManagerDeduction = numericTotalTips * RATES.managerPercent;
         const managerCount = staffDetails.filter(s => MANAGER_POSITIONS.includes(s.position)).length;
         const perManagerCut = managerCount > 0 ? totalManagerDeduction / managerCount : 0;
         distributableTips -= totalManagerDeduction;
@@ -269,27 +300,27 @@ function TipsInner() {
         const processedStaff = staffDetails.map(staff => {
             const start = staff.start_time ? parseISO(`1970-01-01T${staff.start_time}:00`) : null;
             const end = staff.end_time ? parseISO(`1970-01-01T${staff.end_time}:00`) : null;
-            
+
             let totalHours = 0;
             if (start && end) {
                 let diff = (end - start) / (1000 * 60 * 60);
                 if (diff < 0) diff += 24; // Handles overnight shifts
                 totalHours = diff;
             }
-            
+
             const breakHours = (parseFloat(staff.break_minutes) || 0) / 60;
             const effectiveHours = Math.max(0, totalHours - breakHours);
-            
+
             // Calculate deductions for runners
             if (staff.position === 'ראנר') {
-                const runnerPay = effectiveHours * RUNNER_HOURLY_PAY;
+                const runnerPay = effectiveHours * RATES.runnerHourly;
                 totalRunnerDeduction += runnerPay;
                 distributableTips -= runnerPay;
             }
-            
+
             // Calculate hours for restaurant deduction and tip pool
             if (TIP_ELIGIBLE_POSITIONS.includes(staff.position) || staff.position === 'ראנר') {
-                 totalRestaurantDeduction += effectiveHours * RESTAURANT_HOURLY_DEDUCTION;
+                 totalRestaurantDeduction += effectiveHours * RATES.restaurantHourly;
                  if (TIP_ELIGIBLE_POSITIONS.includes(staff.position)) {
                     totalTipEligibleHours += effectiveHours;
                  }
@@ -297,10 +328,10 @@ function TipsInner() {
 
             return { ...staff, totalHours, effectiveHours };
         });
-        
+
         // Apply restaurant deduction
         distributableTips -= totalRestaurantDeduction;
-        
+
         const tipPerHour = totalTipEligibleHours > 0 ? Math.max(0, distributableTips) / totalTipEligibleHours : 0;
 
         // Final calculation for each staff member
@@ -310,7 +341,7 @@ function TipsInner() {
 
             // Runners get fixed pay, no tip from pool
             if (staff.position === 'ראנר') {
-                grossTip = staff.effectiveHours * RUNNER_HOURLY_PAY;
+                grossTip = staff.effectiveHours * RATES.runnerHourly;
             }
             // Shift manager gets the flat percentage cut, evenly split if more than one
             else if (MANAGER_POSITIONS.includes(staff.position)) {
@@ -320,21 +351,30 @@ function TipsInner() {
             else if (TIP_ELIGIBLE_POSITIONS.includes(staff.position)) {
                 grossTip = staff.effectiveHours * tipPerHour;
             }
-            
-            const hourlyDeduction = staff.effectiveHours * RESTAURANT_HOURLY_DEDUCTION;
+
+            const hourlyDeduction = staff.effectiveHours * RATES.restaurantHourly;
             const mealCost = parseFloat(staff.meal_cost) || 0;
             const salesBonus = parseFloat(staff.sales_bonus) || 0;
 
-            const finalTip = grossTip - mealCost + salesBonus;
-            
-            const hourlyRateFromTips = staff.effectiveHours > 0 ? finalTip / staff.effectiveHours : 0;
-            if (TIP_ELIGIBLE_POSITIONS.includes(staff.position) && hourlyRateFromTips < MINIMUM_WAGE) {
-                supplement = (MINIMUM_WAGE - hourlyRateFromTips) * staff.effectiveHours;
+            // Tip BEFORE the personal pension deduction — the min-wage guarantee
+            // is computed on this, so pension never inflates the restaurant's top-up.
+            const tipBeforePension = grossTip - mealCost + salesBonus;
+
+            const hourlyRateFromTips = staff.effectiveHours > 0 ? tipBeforePension / staff.effectiveHours : 0;
+            if (TIP_ELIGIBLE_POSITIONS.includes(staff.position) && hourlyRateFromTips < RATES.minimumWage) {
+                supplement = (RATES.minimumWage - hourlyRateFromTips) * staff.effectiveHours;
             }
 
+            // Pension: per-hour deduction only for tip-eligible waiters the owner
+            // flagged as has_pension. Reduces take-home; doesn't return to the pool.
+            const pensionDeduction = (staff.has_pension && TIP_ELIGIBLE_POSITIONS.includes(staff.position) && RATES.pensionHourly > 0)
+                ? RATES.pensionHourly * staff.effectiveHours : 0;
+            totalPensionDeduction += pensionDeduction;
+
+            const finalTip = tipBeforePension - pensionDeduction;
             const totalEarnings = finalTip + supplement;
 
-            return { ...staff, grossTip, finalTip, supplement, totalEarnings };
+            return { ...staff, grossTip, finalTip, supplement, totalEarnings, pensionDeduction };
         });
 
         // שעות לפי תפקיד
@@ -371,6 +411,7 @@ function TipsInner() {
             totalRestaurantDeduction: totalRestaurantDeduction,
             totalRunnerDeduction: totalRunnerDeduction,
             totalManagerDeduction,
+            totalPensionDeduction,
             managerCount,
             netTipsForDistribution: Math.max(0, distributableTips),
             waiterHours,
@@ -378,7 +419,7 @@ function TipsInner() {
             popularStartRange,
             startTimeChart,
         };
-    }, [staffDetails, totalTips]);
+    }, [staffDetails, totalTips, RATES]);
 
     const handleSaveReport = async () => {
          setIsLoading(true);
@@ -406,7 +447,9 @@ function TipsInner() {
                       sales_bonus: s.sales_bonus || 0,
                       total_hours: s.totalHours,
                       effective_hours: s.effectiveHours,
-                      hourly_deduction: s.effectiveHours * RESTAURANT_HOURLY_DEDUCTION,
+                      hourly_deduction: s.effectiveHours * RATES.restaurantHourly,
+                      has_pension: !!s.has_pension,
+                      pension_deduction: s.pensionDeduction || 0,
                       gross_tip: s.grossTip,
                       final_tip: s.finalTip,
                       supplement: s.supplement,
@@ -444,14 +487,79 @@ function TipsInner() {
         setStaffDetails(newDetails);
     };
 
+    const handleSaveTipConfig = async () => {
+        if (!cfgDraft) return;
+        setSavingCfg(true);
+        try {
+            await base44.functions.setTipConfig({
+                restaurant_hourly: Number(cfgDraft.restaurant_hourly) || 0,
+                runner_hourly: Number(cfgDraft.runner_hourly) || 0,
+                manager_percent: (Number(cfgDraft.manager_percent_display) || 0) / 100, // stored as a fraction
+                pension_hourly: Number(cfgDraft.pension_hourly) || 0,
+                minimum_wage: Number(cfgDraft.minimum_wage) || 0,
+            });
+            const r = await base44.functions.getTipConfig({});
+            setCfg(r?.data || r || {});
+            setShowSettings(false);
+            toast.success('הגדרות ההפרשות נשמרו');
+        } catch (e) {
+            toast.error('שגיאה בשמירת ההגדרות: ' + (e?.message || ''));
+        } finally { setSavingCfg(false); }
+    };
+
     return (
         <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-[#FAF5E8] via-[#F7EFDD] to-[#F1E6CE]" dir="rtl">
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&display=swap');.tips-serif{font-family:'Frank Ruhl Libre',Georgia,serif;}`}</style>
             <UnlockedReportsAlert />
+            {showSettings && cfgDraft && (
+                <Dialog open={showSettings} onOpenChange={setShowSettings}>
+                    <DialogContent dir="rtl" className="max-w-md">
+                        <DialogHeader><DialogTitle className="text-right">⚙️ הגדרות הפרשות טיפים</DialogTitle></DialogHeader>
+                        <div className="space-y-3 py-1">
+                            <p className="text-xs text-slate-500">הרייטים נשמרים לעסק הזה בלבד ומשפיעים מיידית על החישוב.</p>
+                            {[
+                                { k: 'restaurant_hourly', label: 'הפרשה למסעדה (₪ לשעה)', hint: 'נלקח ממלצרים / ברמנים / ראנרים' },
+                                { k: 'pension_hourly', label: 'הפרשה לפנסיה (₪ לשעה)', hint: 'רק ממלצרים שסומנו "פנסיה" בטבלה' },
+                                { k: 'runner_hourly', label: 'תשלום לראנר (₪ לשעה)', hint: 'נלקח מקופת הטיפים' },
+                                { k: 'manager_percent_display', label: 'הפרשה למנהל משמרת (%)', hint: '0 = ללא הפרשה למנהל' },
+                                { k: 'minimum_wage', label: 'שכר מינימום לשעה (₪)', hint: 'להשלמת שכר למלצרים' },
+                            ].map(f => (
+                                <div key={f.k}>
+                                    <Label className="text-sm">{f.label}</Label>
+                                    <Input type="number" min="0" step="0.01" value={cfgDraft[f.k] ?? ''}
+                                        onChange={e => setCfgDraft(d => ({ ...d, [f.k]: e.target.value }))} />
+                                    <p className="text-[11px] text-slate-400 mt-0.5">{f.hint}</p>
+                                </div>
+                            ))}
+                        </div>
+                        <DialogFooter className="gap-2">
+                            <Button variant="outline" onClick={() => setShowSettings(false)}>ביטול</Button>
+                            <Button onClick={handleSaveTipConfig} disabled={savingCfg} style={{ background: WARM.olive, color: '#fff' }}>
+                                {savingCfg ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור'}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
             <Card className="max-w-7xl mx-auto rounded-2xl border-2 shadow-sm" style={{ borderColor: WARM.border, background: '#FFFDF8' }}>
                 <CardHeader className="rounded-t-2xl" style={{ background: WARM.creamCard, borderBottom: `1px solid ${WARM.border}` }}>
-                    <CardTitle className="text-2xl tips-serif flex items-center gap-2" style={{ color: WARM.terracotta }}>
-                        ניהול טיפים
+                    <CardTitle className="text-2xl tips-serif flex items-center justify-between gap-2" style={{ color: WARM.terracotta }}>
+                        <span>ניהול טיפים</span>
+                        {isOwner && (
+                            <Button
+                                variant="outline" size="sm"
+                                onClick={() => { setCfgDraft({
+                                    restaurant_hourly: RATES.restaurantHourly,
+                                    runner_hourly: RATES.runnerHourly,
+                                    manager_percent_display: +(RATES.managerPercent * 100).toFixed(2),
+                                    pension_hourly: RATES.pensionHourly,
+                                    minimum_wage: RATES.minimumWage,
+                                }); setShowSettings(true); }}
+                                className="text-xs gap-1"
+                            >
+                                <Settings className="w-4 h-4" /> הגדרות הפרשות
+                            </Button>
+                        )}
                     </CardTitle>
                     <p className="text-sm mt-1" style={{ color: WARM.muted }}>חישוב, חלוקה ונעילת דוח משמרת — כולל עדכון שעות בפועל לסידור סוף יום</p>
                 </CardHeader>
@@ -514,7 +622,7 @@ function TipsInner() {
                                     <CardContent><p className="text-2xl font-bold">₪{calculatedResults.totalRunnerDeduction.toFixed(2)}</p></CardContent>
                                 </Card>
                                 <Card>
-                                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">הפרשה למנהל משמרת (5%)</CardTitle></CardHeader>
+                                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">הפרשה למנהל משמרת ({(RATES.managerPercent * 100).toFixed(RATES.managerPercent * 100 % 1 ? 1 : 0)}%)</CardTitle></CardHeader>
                                     <CardContent>
                                         <p className="text-2xl font-bold text-blue-700">₪{calculatedResults.totalManagerDeduction.toFixed(2)}</p>
                                         {calculatedResults.managerCount === 0 && calculatedResults.totalManagerDeduction > 0 && (
@@ -530,6 +638,12 @@ function TipsInner() {
                                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">טיפ לשעה</CardTitle></CardHeader>
                                     <CardContent><p className="text-2xl font-bold text-[#44512C]">₪{calculatedResults.tipPerHour.toFixed(2)}</p></CardContent>
                                 </Card>
+                                {calculatedResults.totalPensionDeduction > 0 && (
+                                    <Card>
+                                        <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">הפרשה לפנסיה</CardTitle></CardHeader>
+                                        <CardContent><p className="text-2xl font-bold text-indigo-700">₪{calculatedResults.totalPensionDeduction.toFixed(2)}</p></CardContent>
+                                    </Card>
+                                )}
                             </div>
 
                             {/* Extra Stats */}
@@ -584,6 +698,7 @@ function TipsInner() {
                                             <TableHead>שולם</TableHead>
                                             <TableHead>שם העובד</TableHead>
                                             <TableHead>תפקיד</TableHead>
+                                            <TableHead className="text-center">פנסיה</TableHead>
                                             <TableHead>שעת כניסה</TableHead>
                                             <TableHead>שעת יציאה</TableHead>
                                             <TableHead>הפסקות</TableHead>
@@ -645,6 +760,13 @@ function TipsInner() {
                                                         </SelectContent>
                                                     </Select>
                                                 </TableCell>
+                                                <TableCell className="text-center">
+                                                    {TIP_ELIGIBLE_POSITIONS.includes(staff.position) ? (
+                                                        <input type="checkbox" checked={!!staff.has_pension}
+                                                            onChange={e => handleStaffDetailChange(index, 'has_pension', e.target.checked)}
+                                                            className="w-4 h-4 accent-[#44512C]" title="מפריש פנסיה — ינוכה לפי הרייט בהגדרות" />
+                                                    ) : <span className="text-slate-300 text-xs">—</span>}
+                                                </TableCell>
                                                 <TableCell><TimePicker size="sm" value={staff.start_time} onChange={v => handleStaffDetailChange(index, 'start_time', v)} /></TableCell>
                                                 <TableCell><TimePicker size="sm" value={staff.end_time} onChange={v => handleStaffDetailChange(index, 'end_time', v)} /></TableCell>
                                                 <TableCell>
@@ -685,7 +807,7 @@ function TipsInner() {
                                 {calculatedResults.staffDetails.map((staff, index) => {
                                     const isPaid = paidEmployeeIds.has(staff.employee_id);
                                     return (
-                                        <div key={index} className="rounded-2xl border-2 p-3 space-y-3" style={{ borderColor: isPaid ? '#86B049' : WARM.border, background: isPaid ? '#F3F8EC' : '#FFFDF8' }}>
+                                        <div key={index} className="rounded-2xl border-2 p-2.5 space-y-2" style={{ borderColor: isPaid ? '#86B049' : WARM.border, background: isPaid ? '#F3F8EC' : '#FFFDF8' }}>
                                             {/* header: paid toggle + name + delete */}
                                             <div className="flex items-center gap-2">
                                                 <button
@@ -701,16 +823,23 @@ function TipsInner() {
                                                 </div>
                                                 <Button variant="ghost" size="icon" className="shrink-0" onClick={() => handleRemoveStaff(index)}><Trash2 className="w-4 h-4 text-red-500"/></Button>
                                             </div>
-                                            {/* role */}
-                                            <Select value={staff.position} onValueChange={(value) => handleStaffDetailChange(index, 'position', value)}>
-                                                <SelectTrigger className="h-9"><SelectValue placeholder="תפקיד" /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="מלצר">מלצר</SelectItem>
-                                                    <SelectItem value="ראנר">ראנר</SelectItem>
-                                                    <SelectItem value="ברמן">ברמן</SelectItem>
-                                                    <SelectItem value="מנהל משמרת">מנהל משמרת</SelectItem>
-                                                </SelectContent>
-                                            </Select>
+                                            {/* role + pension */}
+                                            <div className="flex items-center gap-2">
+                                                <Select value={staff.position} onValueChange={(value) => handleStaffDetailChange(index, 'position', value)}>
+                                                    <SelectTrigger className="h-9 flex-1"><SelectValue placeholder="תפקיד" /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="מלצר">מלצר</SelectItem>
+                                                        <SelectItem value="ראנר">ראנר</SelectItem>
+                                                        <SelectItem value="ברמן">ברמן</SelectItem>
+                                                        <SelectItem value="מנהל משמרת">מנהל משמרת</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                {TIP_ELIGIBLE_POSITIONS.includes(staff.position) && (
+                                                    <label className="flex items-center gap-1 text-xs shrink-0 whitespace-nowrap" style={{ color: WARM.muted }}>
+                                                        <input type="checkbox" checked={!!staff.has_pension} onChange={e => handleStaffDetailChange(index, 'has_pension', e.target.checked)} className="w-4 h-4 accent-[#44512C]" /> פנסיה
+                                                    </label>
+                                                )}
+                                            </div>
                                             {/* times */}
                                             <div className="grid grid-cols-2 gap-2">
                                                 <div className="rounded-lg border p-2" style={{ borderColor: WARM.border, background: WARM.cream }}>
@@ -881,7 +1010,9 @@ function TipsInner() {
                                            sales_bonus: s.sales_bonus || 0,
                                            total_hours: s.totalHours,
                                            effective_hours: s.effectiveHours,
-                                           hourly_deduction: s.effectiveHours * RESTAURANT_HOURLY_DEDUCTION,
+                                           hourly_deduction: s.effectiveHours * RATES.restaurantHourly,
+                                           has_pension: !!s.has_pension,
+                                           pension_deduction: s.pensionDeduction || 0,
                                            gross_tip: s.grossTip,
                                            final_tip: s.finalTip,
                                            supplement: s.supplement,

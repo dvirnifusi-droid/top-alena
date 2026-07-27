@@ -16,6 +16,16 @@ const DINNER_POSITIONS_ORDER = [
 ];
 const LUNCH_POSITIONS_ORDER = ['קופה + אריזות', 'מלצר', 'טבח', 'מתלמד פלור', 'בלתם'];
 
+// Department filter for the send. Kitchen positions are listed explicitly;
+// everything else counts as floor (front of house), so an unrecognised position
+// defaults to floor rather than vanishing.
+const KITCHEN_POSITIONS = ['טבח', 'שוטף כלים', 'צאקר', 'גריל', 'פס בטטה', 'מתלמד מטבח', 'מטבח'];
+function inDept(pos, dept) {
+    if (dept === 'all') return true;
+    const isKitchen = KITCHEN_POSITIONS.includes(String(pos || '').trim());
+    return dept === 'kitchen' ? isKitchen : !isKitchen;
+}
+
 // parse "HH:mm" or "HH:mm:ss" → minutes since midnight (handles overnight: times < 06:00 treated as next day)
 function timeToMinutes(t) {
     if (!t) return 9999;
@@ -27,15 +37,19 @@ function timeToMinutes(t) {
     return total < 360 ? total + 1440 : total;
 }
 
-function buildMessage(shift, selectedDay, shiftType, staffOverrides) {
+function buildMessage(shift, selectedDay, shiftType, staffOverrides, department = 'all') {
     if (!shift || !shift.assigned_staff?.length) return null;
 
+    const staff = (shift.assigned_staff || []).filter(a => inDept(a.position, department));
+    if (!staff.length) return null;
+
     const dayStr = format(selectedDay, 'EEEE dd/MM', { locale: he });
-    const shiftLabel = shiftType === 'lunch' ? '🌞 משמרת צהריים' : '🌙 משמרת ערב';
+    const deptLabel = department === 'floor' ? ' · פלור' : department === 'kitchen' ? ' · מטבח' : '';
+    const shiftLabel = (shiftType === 'lunch' ? '🌞 משמרת צהריים' : '🌙 משמרת ערב') + deptLabel;
     const posOrder = shiftType === 'lunch' ? LUNCH_POSITIONS_ORDER : DINNER_POSITIONS_ORDER;
 
     const byPosition = {};
-    for (const a of shift.assigned_staff) {
+    for (const a of staff) {
         if (!byPosition[a.position]) byPosition[a.position] = [];
         byPosition[a.position].push(a);
     }
@@ -74,7 +88,7 @@ function buildMessage(shift, selectedDay, shiftType, staffOverrides) {
     }
 
     msg += `\n${'─'.repeat(25)}\n`;
-    msg += `✅ סה"כ ${shift.assigned_staff.length} עובדים`;
+    msg += `✅ סה"כ ${staff.length} עובדים`;
 
     return msg;
 }
@@ -82,6 +96,7 @@ function buildMessage(shift, selectedDay, shiftType, staffOverrides) {
 export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, availabilities = [], onSaved }) {
     const [selectedDate, setSelectedDate] = useState('');
     const [shiftType, setShiftType] = useState('dinner');
+    const [department, setDepartment] = useState('all'); // all | floor | kitchen
     const [copied, setCopied] = useState(false);
     const [saving, setSaving] = useState(false);
     const [savedFlash, setSavedFlash] = useState(false);
@@ -114,7 +129,7 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
         }));
     };
 
-    const message = selectedDay && shift ? buildMessage(shift, selectedDay, shiftType, staffOverrides) : null;
+    const message = selectedDay && shift ? buildMessage(shift, selectedDay, shiftType, staffOverrides, department) : null;
 
     const handleCopy = () => {
         if (!message) return;
@@ -168,9 +183,9 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
         window.open(`https://wa.me/?text=${encoded}`, '_blank');
     };
 
-    // get sorted staff for display (same sort as message)
+    // get sorted staff for display (same sort + department filter as message)
     const sortedStaffForDisplay = shift
-        ? [...(shift.assigned_staff || [])].sort((a, b) => {
+        ? [...(shift.assigned_staff || [])].filter(a => inDept(a.position, department)).sort((a, b) => {
             const tA = timeToMinutes((staffOverrides[a.employee_id]?.start_time) || a.start_time);
             const tB = timeToMinutes((staffOverrides[b.employee_id]?.start_time) || b.start_time);
             return tA - tB;
@@ -227,9 +242,30 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
                         </div>
                     </div>
 
+                    <div>
+                        <Label className="mb-1 block">מחלקה</Label>
+                        <div className="flex gap-2">
+                            {[
+                                { k: 'all', label: '🍽️👨‍🍳 הכל' },
+                                { k: 'floor', label: '🍽️ פלור' },
+                                { k: 'kitchen', label: '👨‍🍳 מטבח' },
+                            ].map(d => (
+                                <Button key={d.k} variant={department === d.k ? 'default' : 'outline'}
+                                    onClick={() => setDepartment(d.k)} className="flex-1 text-sm" size="sm">
+                                    {d.label}
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+
                     {selectedDate && !shift && (
                         <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
                             ⚠️ אין משמרת מוגדרת ליום ולסוג שנבחרו
+                        </p>
+                    )}
+                    {selectedDate && shift && sortedStaffForDisplay.length === 0 && (
+                        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                            ⚠️ אין עובדים במחלקה שנבחרה למשמרת הזו
                         </p>
                     )}
 
@@ -240,17 +276,17 @@ export default function SendScheduleWhatsAppDialog({ open, onClose, week, days, 
                             </Label>
                             <p className="text-xs text-gray-500 mb-2">הרשימה תמוין לפי שעת כניסה (מוקדם למעלה)</p>
                             <div className="border rounded-lg overflow-hidden">
-                                <div className="grid grid-cols-[1fr_150px_84px_84px] gap-0 bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600 border-b">
+                                <div className="grid grid-cols-[1fr_140px_76px_76px] gap-0 bg-gray-100 px-2.5 py-1.5 text-xs font-semibold text-gray-600 border-b">
                                     <span>שם עובד</span>
                                     <span className="flex items-center gap-1"><Clock className="w-3 h-3"/> שעת כניסה</span>
                                     <span className="flex items-center gap-1 justify-center"><Lock className="w-3 h-3"/> סגירה</span>
                                     <span className="flex items-center gap-1 justify-center"><Star className="w-3 h-3"/> מקדם</span>
                                 </div>
-                                <div className="divide-y max-h-52 overflow-y-auto">
+                                <div className="divide-y max-h-[60vh] overflow-y-auto">
                                     {sortedStaffForDisplay.map((a) => {
                                         const ov = staffOverrides[a.employee_id] || {};
                                         return (
-                                            <div key={a.employee_id} className={`grid grid-cols-[1fr_150px_84px_84px] gap-0 px-3 py-2 items-center text-sm
+                                            <div key={a.employee_id} className={`grid grid-cols-[1fr_140px_76px_76px] gap-0 px-2.5 py-1 items-center text-sm
                                                 ${ov.isClosing && ov.isPromoter ? 'bg-amber-50' : ov.isClosing ? 'bg-orange-50' : ov.isPromoter ? 'bg-yellow-50' : ''}`}>
                                                 <div className="flex flex-col gap-0.5 min-w-0">
                                                     <span className="font-medium truncate">{a.employee_name}
