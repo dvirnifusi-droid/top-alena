@@ -8,7 +8,7 @@ import { pullAllConnectedCalendars } from '../lib/googleSync.js';
 import { scanEmailInvoices } from '../lib/emailInvoiceScan.js';
 import { runInvoiceGapsDigest } from '../lib/invoiceGaps.js';
 import { alertIngredientPricesAutoUpdated } from '../lib/whatsappAlerts.js';
-import { runMarketingOptimizer } from '../functions/load.js';
+import { runMarketingOptimizer, purgeOldChecklistRuns } from '../functions/load.js';
 
 // Internal cron endpoints, guarded by a shared secret (x-cron-secret header or
 // ?secret=). Called by the server crontab — never by end users.
@@ -94,11 +94,19 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
     // Piggyback the proactive marketing optimizer (daily; dedup'd + Meta-gated
     // internally, alerts only on real ad waste).
     try { await runMarketingOptimizer(); } catch (e: any) { console.warn('[morning-brief] marketing optimizer failed', e?.message); }
+    // Purge checklist runs older than the retention window (owner: keep ~2 days).
+    try { await purgeOldChecklistRuns(); } catch (e: any) { console.warn('[morning-brief] checklist purge failed', e?.message); }
     return res;
   });
 
   // Manual/preview trigger for the proactive marketing optimizer.
   app.post('/marketing-optimizer', async () => runMarketingOptimizer());
+
+  // Manual trigger for the checklist-archive retention purge (?days= to override).
+  app.post('/checklist-purge', async (req) => {
+    const days = Number((req.query as any)?.days);
+    return purgeOldChecklistRuns(Number.isFinite(days) && days > 0 ? days : undefined);
+  });
 
   // Daily staff-hours report. The in-process timer is primary; this endpoint is
   // a backup/manual trigger. '/daily-hours-report' respects the slot+dedup;

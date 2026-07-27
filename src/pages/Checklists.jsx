@@ -143,7 +143,15 @@ function ChecklistsInner() {
         try {
             const currentUser = await User.me();
             setUser(currentUser);
-            
+
+            // Archive retention (owner): keep only the last ~2 days of runs. A
+            // manager opening the page triggers the purge — deterministic +
+            // idempotent, awaited so the list below loads already-clean. The
+            // daily cron covers tenants where no manager opens the page.
+            if (['admin', 'owner', 'manager', 'shift_manager'].includes(currentUser?.role)) {
+                try { await base44.functions.purgeChecklistArchive(); } catch { /* non-fatal */ }
+            }
+
             const [checklistsData, executionsData, employeesData] = await Promise.all([
                 Checklist.list().then(data => data.filter(c => c.title !== "צ'ק ליסט אריזת משלוחים" && c.status === 'active')),
                 ChecklistExecution.list('-execution_date').catch(() => []),
@@ -646,8 +654,9 @@ function ChecklistsInner() {
                     <TabsContent value="stats">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {[
-                                { icon: CheckCircle, tint: 'bg-emerald-50 text-emerald-600', num: 'text-emerald-600', label: 'הושלמו השבוע',
-                                  value: executions.filter(e => e.status === 'completed' && e.execution_date && (Date.now() - new Date(e.execution_date).getTime()) < 7*24*60*60*1000).length },
+                                { icon: CheckCircle, tint: 'bg-emerald-50 text-emerald-600', num: 'text-emerald-600', label: 'הושלמו לאחרונה',
+                                  // The archive keeps ~2 days (auto-purge), so count within that window.
+                                  value: executions.filter(e => e.status === 'completed' && e.execution_date && (Date.now() - new Date(e.execution_date).getTime()) < 2*24*60*60*1000).length },
                                 { icon: Clock, tint: 'bg-[#F4ECD8] text-[#7A5A2E]', num: 'text-[#7A5A2E]', label: 'בתהליך כעת',
                                   value: executions.filter(e => e.status === 'in_progress').length },
                                 { icon: AlertTriangle, tint: 'bg-rose-50 text-rose-600', num: 'text-rose-600', label: 'דורשים תשומת לב',

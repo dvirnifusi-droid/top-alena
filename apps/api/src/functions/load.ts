@@ -5243,6 +5243,37 @@ registerFn('reviewMarketingPerformance', async ({ user }) => {
 // owner about clear waste — a campaign spending with ZERO leads, or a high cost
 // per lead. Once per day (dedup table), sends only when there's something real.
 // Called daily from the morning-brief cron.
+
+// Checklist archive retention — the daily shared runs pile up forever and the
+// owner only wants the last couple of days ("חבל על כל המידע שמצטבר"). Hard-delete
+// ChecklistExecution rows older than the window (default 2 days; override with
+// CHECKLIST_RETENTION_DAYS). Raw SQL runs in the tenant's own schema via
+// search_path, so it's per-tenant. Today's shared live run is < the window, so
+// it's never touched. Wired to the daily cron AND called when the Checklists
+// page loads, so every tenant stays clean regardless of cron reach.
+export async function purgeOldChecklistRuns(days?: number): Promise<{ deleted: number }> {
+  const keepDays = (typeof days === 'number' && days > 0)
+    ? days
+    : (Number(process.env.CHECKLIST_RETENTION_DAYS) || 2);
+  const cutoff = new Date(Date.now() - keepDays * 24 * 60 * 60 * 1000);
+  try {
+    const n: any = await (prisma as any).$executeRaw`
+      DELETE FROM "ChecklistExecution"
+      WHERE execution_date < ${cutoff}
+         OR (execution_date IS NULL AND "createdAt" < ${cutoff})`;
+    const deleted = typeof n === 'number' ? n : 0;
+    if (deleted) console.log(`[checklist-purge] removed ${deleted} runs older than ${keepDays}d`);
+    return { deleted };
+  } catch (e: any) {
+    console.warn('[checklist-purge] failed', e?.message);
+    return { deleted: 0 };
+  }
+}
+registerFn('purgeChecklistArchive', async ({ body }: any) => {
+  const days = Number((body as any)?.days);
+  return purgeOldChecklistRuns(Number.isFinite(days) && days > 0 ? days : undefined);
+});
+
 let _mktOptReady = false;
 export async function runMarketingOptimizer(): Promise<any> {
   try {
@@ -16823,13 +16854,10 @@ registerFn('deleteEventLeads', async ({ body }) => {
   return { deleted: r.count };
 });
 
-// AUTH — owner deletes a booking too (rare, mostly for testing).
-registerFn('deleteEventBooking', async ({ body }) => {
-  const { booking_id } = body as any;
-  if (!booking_id) throw new Error('booking_id required');
-  await db.eventBooking.delete({ where: { id: booking_id } });
-  return { ok: true };
-});
+// NOTE: `deleteEventBooking` is defined earlier (auth-guarded, takes `{ id }`,
+// matching EventsPrivate.jsx). A second stub registration used to live here and
+// SHADOWED it (registerFn = last wins), so the UI's `{ id }` hit a handler that
+// demanded `booking_id` → "booking_id required" on every delete. Removed.
 
 registerFn('rejectEventBooking', async ({ body }) => {
   const { booking_id, notes } = body as any;
