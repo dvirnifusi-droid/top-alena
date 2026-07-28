@@ -385,6 +385,91 @@ async function isApproved(sid: string): Promise<boolean> {
   return approved;
 }
 
+// Sample values shown to Meta reviewers per template shape. Realistic samples
+// approve faster than placeholder labels. Only the shapes we auto-provision need
+// entries; others fall back to the variable labels.
+const SAMPLE_VARS: Partial<Record<TemplateKind, string[]>> = {
+  staff_notice: ['דנה', 'עלינא', 'הסידור לשבוע הבא פורסם — היכנס/י לאשר', 'https://topalena.com'],
+  owner_notification: ['עלינא', 'סיכום יומי', 'המחזור היום ₪12,400, 84 שולחנות', 'https://topalena.com'],
+};
+
+async function storeTemplateSid(kind: TemplateKind, sid: string): Promise<void> {
+  try {
+    const key = TEMPLATES[kind].secretKey;
+    const r: any = await dbx().integrationSecret.updateMany({ where: { key }, data: { value: sid } });
+    if (!r?.count) await dbx().integrationSecret.create({ data: { key, value: sid } });
+  } catch { /* stored SID stays; in-memory resolution still delivers */ }
+}
+
+/**
+ * Make sure `kind` has an APPROVED WhatsApp template on the account — creating
+ * the Content template and submitting it for Meta review if needed. This is the
+ * ONLY way to reach a recipient outside the 24h window (a cold employee who has
+ * never written to the bot), which is exactly the staff bot-intro / schedule /
+ * reminder use-case. Idempotent: if an approved or pending template of the right
+ * shape already exists it just adopts its SID; it never creates duplicates when
+ * one is already in flight.
+ */
+export async function ensureTemplateApproved(kind: TemplateKind): Promise<{
+  status: 'approved' | 'pending' | 'submitted' | 'created_submitted' | 'error';
+  sid: string | null;
+  detail?: string;
+}> {
+  const tpl = TEMPLATES[kind];
+  const want = tpl.vars.length;
+  const { twilioAuth } = await import('./twilio.js');
+  const { sid: acct, token } = await twilioAuth();
+  if (!acct || !token) return { status: 'error', sid: null, detail: 'no_twilio_creds' };
+  const authHeader = `Basic ${Buffer.from(`${acct}:${token}`).toString('base64')}`;
+
+  // Force a fresh view of the account so we don't act on a stale cache.
+  _contentCache = null;
+  resolvedSidCache.delete(kind);
+  const list = await twilioContentList();
+  const prefix = FRIENDLY_PREFIX[kind];
+  const wantBody = normBody(tpl.body);
+  const candidates = list.filter((c) =>
+    tplVarCount(c) === want &&
+    (String(c.friendly_name || '').startsWith(prefix) || normBody(tplBody(c)) === wantBody),
+  );
+  const approved = candidates.find((c) => tplStatus(c) === 'approved');
+  if (approved) { await storeTemplateSid(kind, approved.sid); return { status: 'approved', sid: approved.sid }; }
+  const pending = candidates.find((c) => /pending|received|review/i.test(String(tplStatus(c))));
+  if (pending) { await storeTemplateSid(kind, pending.sid); return { status: 'pending', sid: pending.sid }; }
+
+  // Reuse a rejected/unsubmitted candidate if present, else create a new Content.
+  let sid: string | null = candidates[0]?.sid || null;
+  let created = false;
+  if (!sid) {
+    const samples = SAMPLE_VARS[kind] || tpl.vars;
+    const variables: Record<string, string> = {};
+    samples.forEach((v, i) => { variables[String(i + 1)] = v; });
+    const friendly = `${prefix}_${Date.now()}`.slice(0, 60);
+    const res = await fetch('https://content.twilio.com/v1/Content', {
+      method: 'POST', headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ friendly_name: friendly, language: 'he', variables, types: { 'twilio/text': { body: tpl.body } } }),
+    });
+    const d: any = await res.json().catch(() => ({}));
+    if (!res.ok || !d?.sid) return { status: 'error', sid: null, detail: `create_failed: ${d?.message || res.status}` };
+    sid = d.sid; created = true;
+  }
+  if (!sid) return { status: 'error', sid: null, detail: 'no_sid' };
+
+  // Submit for WhatsApp/Meta approval.
+  const category = tpl.category === 'marketing' ? 'MARKETING' : 'UTILITY';
+  const name = `${prefix}_${category.toLowerCase()}_${Date.now()}`.replace(/[^a-z0-9_]/g, '_').slice(0, 60);
+  const sres = await fetch(`https://content.twilio.com/v1/Content/${sid}/ApprovalRequests/whatsapp`, {
+    method: 'POST', headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, category }),
+  });
+  const sd: any = await sres.json().catch(() => ({}));
+  await storeTemplateSid(kind, sid);
+  if (!sres.ok && !/already|exists|in review|pending/i.test(String(sd?.message || ''))) {
+    return { status: 'error', sid, detail: `submit_failed: ${sd?.message || sres.status}` };
+  }
+  return { status: created ? 'created_submitted' : 'submitted', sid };
+}
+
 /** Which templates are wired up AND live — drives the setup screen. */
 export async function templateStatus(): Promise<Array<{
   kind: TemplateKind; label: string; category: string; configured: boolean; approved: boolean;

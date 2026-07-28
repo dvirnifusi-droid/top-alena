@@ -5376,6 +5376,27 @@ registerFn('sendStaffBotIntro', async ({ user }) => {
   };
 });
 
+// One-click: make the staff (or any) WhatsApp template APPROVED so the bot can
+// message employees who have never written to it (the only way past WhatsApp's
+// 24h window). Creates the Content template + submits it for Meta review if
+// needed; idempotent. Owner-triggered from the "הפעל בוט לצוות" flow.
+registerFn('ensureWaTemplate', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'ensureWaTemplate');
+  const kind = String((body || {}).kind || 'staff_notice');
+  const allowed = ['staff_notice', 'owner_notification'];
+  if (!allowed.includes(kind)) throw new Error('unsupported template kind');
+  const { ensureTemplateApproved } = await import('../lib/waTemplates.js');
+  const r = await ensureTemplateApproved(kind as any);
+  const he: Record<string, string> = {
+    approved: 'התבנית כבר מאושרת ✅ — אפשר לשלוח לכולם עכשיו.',
+    pending: 'התבנית כבר בבדיקת WhatsApp ⏳ — בדרך כלל מאושר תוך דקות עד יום. נסה לשלוח שוב מאוחר יותר.',
+    submitted: 'שלחתי את התבנית לאישור WhatsApp ⏳ — בדרך כלל מאושר תוך דקות עד יום. ברגע שמאושר, הבוט ישלח לכולם.',
+    created_submitted: 'יצרתי ושלחתי את התבנית לאישור WhatsApp ⏳ — בדרך כלל מאושר תוך דקות עד יום. ברגע שמאושר, הבוט ישלח לכולם.',
+    error: 'לא הצלחתי לשלוח את התבנית לאישור אוטומטית. צריך לאשר אותה ידנית במסך תבניות ה-WhatsApp.',
+  };
+  return { ...r, message: he[r.status] || r.status };
+});
+
 // Per-employee WhatsApp message log — the owner wants to see every message the
 // system sent each employee (and their replies). Twilio already stores every
 // message, so we read from there and map each phone → Employee name; no need to

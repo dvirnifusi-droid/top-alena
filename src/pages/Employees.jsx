@@ -896,7 +896,11 @@ function EmployeesInner() {
                          + (d.unreached ? `\n⚠️ ${d.unreached} לא נשלחה (מספר לא תקין).` : '')
                          + (d.without_phone ? `\n📱 ${d.without_phone} בלי טלפון — מלא ב"מלא טלפונים חסרים".` : ''));
                      } else {
-                       alert('❌ ההודעה לא נשלחה לאף אחד.\n\n' + (d.note || 'צריך לאשר את תבנית ה-WhatsApp לעובדים לפני שאפשר לשלוח לצוות שעדיין לא כתב לבוט.'));
+                       const doApprove = window.confirm('❌ ההודעה לא נשלחה — תבנית ה-WhatsApp לצוות עדיין לא מאושרת.\n\n' + (d.note ? d.note + '\n\n' : '') + 'לשלוח את התבנית לאישור עכשיו? (אוטומטי — בד"כ דקות עד יום. אחרי האישור הבוט ישלח לכולם, גם למי שלא כתב לבוט.)');
+                       if (doApprove) {
+                         try { const rr = await base44.functions.ensureWaTemplate({ kind: 'staff_notice' }); const dd = rr?.data || rr || {}; alert(dd.message || 'נשלח לאישור.'); }
+                         catch (e2) { alert('שגיאה באישור התבנית: ' + (e2?.message || '')); }
+                       }
                      }
                    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
                  }}>📲 הפעל בוט לצוות</DropdownMenuItem>
