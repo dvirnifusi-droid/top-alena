@@ -364,11 +364,14 @@ async function cmdBuildScheduleNow(
   const lines: string[] = [`📋 *סידור ${divLabelDone} נבנה*`];
   lines.push(`✅ ${res.createdShifts || 0} משמרות · ${res.assignmentCount || 0} שיבוצים`);
   if (Array.isArray(res.missing) && res.missing.length) {
-    lines.push(`⚠️ לא הגישו זמינות: ${res.missing.join(', ')}`);
+    lines.push(res.missing.length <= 8
+      ? `⚠️ לא הגישו זמינות: ${res.missing.join(', ')}`
+      : `⚠️ *${res.missing.length} עובדים לא הגישו זמינות* (הרשימה בקישור).`);
   }
-  if (Array.isArray(res.insights) && res.insights.length) {
+  const cleanIns = (Array.isArray(res.insights) ? res.insights : []).filter((i: any) => !String(i).includes('לא הגישו זמינות'));
+  if (cleanIns.length) {
     lines.push('', '💡 *תובנות:*');
-    for (const i of res.insights) lines.push(`  • ${i}`);
+    for (const i of cleanIns) lines.push(`  • ${i}`);
   }
   const base = process.env.APP_BASE_URL || 'https://topalena.com';
   lines.push('', `🔗 לאישור/עריכה: ${base}/WorkScheduling`);

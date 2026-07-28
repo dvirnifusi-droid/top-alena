@@ -14998,13 +14998,25 @@ ${JSON.stringify(empSummary, null, 2)}
   if (adminNumbers.length) {
     const { sendWhatsApp } = await import('../lib/twilio.js');
     if (!(await isNotifEnabled('weekly_schedule_ready'))) return { ok: true, createdShifts, assignmentCount: assignments.length, insights, missing: missing.map((m) => m.full_name), notified: false };
-    const missingNames = missing.map((m) => m.full_name).join(', ') || 'אף אחד';
-    const insightLines = insights.length ? insights.map((i) => `• ${i}`).join('\n') : '• הסידור מאוזן, לא נמצאו חוסרים';
+    const submittedCount = submitterNames.size;
+    const missingCount = missing.length;
+    const missingNames = missing.map((m) => m.full_name);
+    // Names only when the list is short; a long list becomes a count + nudge
+    // (full list is one tap away). Dumping 27 names twice just buried the point.
+    const missingBlock = missingCount === 0
+      ? '🎉 כולם הגישו זמינות!'
+      : missingCount <= 8
+        ? `⚠️ *לא הגישו זמינות:* ${missingNames.join(', ')}`
+        : `⚠️ *${missingCount} עובדים לא הגישו זמינות* — שווה לתזכר להם (הרשימה המלאה בקישור).`;
+    // Insights WITHOUT the missing-list line — it's already summarized above.
+    const cleanInsights = insights.filter((i) => !String(i).includes('לא הגישו זמינות'));
+    const insightLines = cleanInsights.length ? cleanInsights.map((i) => `• ${i}`).join('\n') : '';
     const msg = `📋 *סידור שבוע ${weekDates[0].slice(8)}.${weekDates[0].slice(5, 7)}-${weekDates[6].slice(8)}.${weekDates[6].slice(5, 7)} מוכן*\n\n` +
-      `✅ ${createdShifts} משמרות נבנו (${assignments.length} שיבוצים)\n\n` +
-      `⚠️ *לא הגישו זמינות:* ${missingNames}\n\n` +
-      `💡 *תובנות:*\n${insightLines}\n\n` +
-      `🔗 לאישור / עריכה:\n${APP_BASE_URL}/WorkScheduling`;
+      `✅ ${createdShifts} משמרות · ${assignments.length} שיבוצים\n` +
+      `👥 זמינות: *${submittedCount}* הגישו · *${missingCount}* לא\n` +
+      `${missingBlock}\n` +
+      (insightLines ? `\n💡 *תובנות:*\n${insightLines}\n` : '') +
+      `\n🔗 לאישור / עריכה:\n${APP_BASE_URL}/WorkScheduling`;
     for (const p of adminNumbers) {
       try { await notifyOwner(p, 'סידור עבודה', msg); } catch (e: any) { console.warn('[weekly-build] notify failed', e?.message); }
     }
