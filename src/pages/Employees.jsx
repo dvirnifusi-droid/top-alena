@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Employee, PendingInvitation } from '@/entities/all';
 import PageGuard from '../components/shared/PageGuard';
 import { User } from '@/entities/User';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Users, Check, Copy, Shield, Bell, Upload, Sparkles, Loader2 } from 'lucide-react';
+import { Plus, Users, Check, Copy, Shield, Bell, Upload, Sparkles, Loader2, ChevronDown, Wrench } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -582,6 +582,7 @@ function EmployeesInner() {
    const [bulkPhoneOpen, setBulkPhoneOpen] = useState(false);
    const [bulkPhones, setBulkPhones] = useState({});
    const [bulkSaving, setBulkSaving] = useState(false);
+   const fileImportRef = useRef(null);
    const saveBulkPhones = async () => {
      setBulkSaving(true);
      let saved = 0;
@@ -870,62 +871,38 @@ function EmployeesInner() {
           subtitle="הוספה, עריכה וניהול של צוות המסעדה"
           icon={Users}
           action={
-           <div className="flex gap-2 flex-wrap">
-             <Button
-               variant="outline"
-               onClick={() => {
-                 const link = `${window.location.origin}/JoinTeam`;
-                 try { navigator.clipboard?.writeText(link); } catch { /* no clipboard */ }
-                 if (window.confirm(
-                   `🔗 קישור ההצטרפות הועתק:\n${link}\n\n` +
-                   `שתף בקבוצת הצוות — כל עובד נרשם לבד (שם, טלפון, מייל, תפקיד) ` +
-                   `ומופיע כאן לאישור שלך.\n\nלפתוח וואטסאפ לשיתוף?`
-                 )) {
-                   window.open(`https://wa.me/?text=${encodeURIComponent(`היי! נרשמים לצוות שלנו כאן (לוקח דקה):\n${link}`)}`, '_blank');
-                 }
-               }}
-               className="gap-1"
-             >
-               💬 הזמן ב-WhatsApp
-             </Button>
-             <Button
-               variant="outline"
-               onClick={async () => {
-                 if (!window.confirm('לשלוח לכל העובדים עם טלפון הודעת הפעלה לעוזר בוואטסאפ?\nהם ידעו שאפשר לכתוב לבוט ("מתי אני עובד?", "אני לא יכול מחר" וכו\').')) return;
-                 try {
-                   const r = await base44.functions.sendStaffBotIntro({});
-                   const d = r?.data || r || {};
-                   alert(`✅ נשלחה הודעת הפעלה ל-${d.sent || 0} עובדים.` +
-                     (d.without_phone ? `\n\n⚠️ ${d.without_phone} עובדים בלי טלפון — לא קיבלו. הוסף להם טלפון (או שיירשמו ב-JoinTeam) והרץ שוב.` : ''));
-                 } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
-               }}
-               className="gap-1 border-[#44512C] text-[#44512C] hover:bg-[#F4ECD8]"
-             >
-               📲 הפעל בוט לצוות
-             </Button>
-             <Button
-               variant="outline"
-               onClick={() => { setMsgEmp(''); setMsgLogOpen(true); loadMsgLog(); }}
-               className="gap-1"
-             >
-               📩 יומן הודעות
-             </Button>
-             {(() => {
-               const n = allEmployees.filter(e => e.status === 'active' && String(e.phone || '').replace(/\D/g, '').length < 9).length;
-               return n > 0 ? (
-                 <Button variant="outline" onClick={() => { setBulkPhones({}); setBulkPhoneOpen(true); }} className="gap-1 border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100">
-                   📱 מלא טלפונים ({n})
+           <div className="flex gap-2 flex-wrap items-center">
+             <input ref={fileImportRef} type="file" accept=".pdf,.xlsx,.xls,.csv,image/*" onChange={handleAiFileImport} className="hidden" />
+             <DropdownMenu>
+               <DropdownMenuTrigger asChild>
+                 <Button variant="outline" className="gap-1">
+                   <Wrench className="w-4 h-4" /> כלים <ChevronDown className="w-4 h-4" />
                  </Button>
-               ) : null;
-             })()}
-             <label className="inline-flex items-center gap-1 px-3 py-2 rounded-md border border-amber-300 bg-amber-50 text-amber-800 cursor-pointer hover:bg-amber-100 text-sm">
-               {aiImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-               {aiImporting ? 'סורק...' : 'ייבא מ-PDF/Excel'}
-               <input type="file" accept=".pdf,.xlsx,.xls,.csv,image/*" onChange={handleAiFileImport} className="hidden" />
-             </label>
-             <Button onClick={syncAllEmails} variant="outline" className="border-[#D9BD83] text-[#7A3722] hover:bg-[#F4ECD8]">
-               🔄 סנכרן מיילים
-             </Button>
+               </DropdownMenuTrigger>
+               <DropdownMenuContent align="end" className="w-60">
+                 <DropdownMenuItem onClick={() => {
+                   const link = `${window.location.origin}/JoinTeam`;
+                   try { navigator.clipboard?.writeText(link); } catch { /* no clipboard */ }
+                   if (window.confirm(`🔗 קישור ההצטרפות הועתק:\n${link}\n\nשתף בקבוצת הצוות — כל עובד נרשם לבד ומופיע כאן לאישור.\n\nלפתוח וואטסאפ לשיתוף?`)) {
+                     window.open(`https://wa.me/?text=${encodeURIComponent(`היי! נרשמים לצוות שלנו כאן (לוקח דקה):\n${link}`)}`, '_blank');
+                   }
+                 }}>💬 הזמן עובד ב-WhatsApp</DropdownMenuItem>
+                 <DropdownMenuItem onClick={async () => {
+                   if (!window.confirm('לשלוח לכל העובדים עם טלפון הודעת הפעלה לעוזר בוואטסאפ?\nהם ידעו שאפשר לכתוב לבוט ("מתי אני עובד?", "אני לא יכול מחר").')) return;
+                   try {
+                     const r = await base44.functions.sendStaffBotIntro({}); const d = r?.data || r || {};
+                     alert(`✅ נשלחה הודעת הפעלה ל-${d.sent || 0} עובדים.` + (d.without_phone ? `\n\n⚠️ ${d.without_phone} בלי טלפון — לא קיבלו.` : ''));
+                   } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+                 }}>📲 הפעל בוט לצוות</DropdownMenuItem>
+                 <DropdownMenuItem onClick={() => { setMsgEmp(''); setMsgLogOpen(true); loadMsgLog(); }}>📩 יומן הודעות</DropdownMenuItem>
+                 {(() => {
+                   const n = allEmployees.filter(e => e.status === 'active' && String(e.phone || '').replace(/\D/g, '').length < 9).length;
+                   return n > 0 ? <DropdownMenuItem className="text-amber-700 font-medium" onClick={() => { setBulkPhones({}); setBulkPhoneOpen(true); }}>📱 מלא טלפונים חסרים ({n})</DropdownMenuItem> : null;
+                 })()}
+                 <DropdownMenuItem onClick={() => fileImportRef.current?.click()}>{aiImporting ? '⏳ סורק...' : '📄 ייבא מ-PDF/Excel'}</DropdownMenuItem>
+                 <DropdownMenuItem onClick={syncAllEmails}>🔄 סנכרן מיילים</DropdownMenuItem>
+               </DropdownMenuContent>
+             </DropdownMenu>
              <AiScannerButton target="employees" onImported={loadEmployees} />
              <Button onClick={openAddForm} className="bg-[#44512C] hover:bg-[#44512C]">
                <Plus className="w-5 h-5 ml-2" />
@@ -974,16 +951,16 @@ function EmployeesInner() {
             <p className="text-xs text-slate-500 -mt-1">הזן מספר לכל עובד. ברגע שיש טלפון — הבוט מזהה אותו ומגיע אליו. אפשר לדלג על מי שאין לך.</p>
             <div className="overflow-y-auto flex-1 space-y-2 pr-1 mt-2">
               {allEmployees.filter(e => e.status === 'active' && String(e.phone || '').replace(/\D/g, '').length < 9).map(e => (
-                <div key={e.id} className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0">
+                <div key={e.id} className="grid grid-cols-[1fr_128px] items-center gap-2">
+                  <div className="min-w-0">
                     <div className="font-medium text-sm truncate">{e.full_name}</div>
-                    <div className="text-[11px] text-slate-400">{e.role || ''}</div>
+                    <div className="text-[11px] text-slate-400 truncate">{e.role || ''}</div>
                   </div>
                   <Input
-                    type="tel" dir="ltr" placeholder="05X-XXXXXXX"
+                    type="tel" dir="ltr" placeholder="טלפון"
                     value={bulkPhones[e.id] ?? ''}
                     onChange={ev => setBulkPhones(prev => ({ ...prev, [e.id]: ev.target.value }))}
-                    className="w-40"
+                    className="w-full"
                   />
                 </div>
               ))}
