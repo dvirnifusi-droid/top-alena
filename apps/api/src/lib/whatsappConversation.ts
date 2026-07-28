@@ -3617,7 +3617,19 @@ export async function runConversationAgent(phone: string, userMessage: string, h
   }
   contents.push({ role: 'user', parts: [{ text: userMessage }] });
 
-  const systemPrompt = await buildSystemPrompt(phone);
+  let systemPrompt = await buildSystemPrompt(phone);
+  // Quote-reply precision: when the user replied to a specific alert (marker set
+  // by twilioWebhook), a top-of-system directive forces the agent to answer from
+  // the quoted alert's own content and NOT dump broad data. A system instruction
+  // is followed far more reliably than one buried in the user message.
+  if (userMessage.includes('עשה *reply* ישירות על ההתראה')) {
+    systemPrompt =
+      `‼️ הכי חשוב עכשיו: המשתמש הגיב (reply) על התראה ספציפית שצוטטה בהודעתו. ` +
+      `ענה אך ורק על אותה התראה. אם המספר/השם/הסכום/השעה כבר מופיעים בטקסט ההתראה — ` +
+      `החזר אותם ישירות במשפט קצר, ואל תריץ שום כלי ואל תביא נתונים כלליים/מצטברים. ` +
+      `הרץ כלי רק אם באמת חסר מידע כדי לענות, ואז מקד אותו בגורם הספציפי שבהתראה בלבד.\n\n` +
+      systemPrompt;
+  }
 
   // Route to a FOCUSED tool set (see routedToolDeclarations): staff get their 4
   // self-service tools; owners/managers get only the group matching the message
