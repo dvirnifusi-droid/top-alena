@@ -9,6 +9,15 @@ import { Badge } from "@/components/ui/badge";
 import { Trash2, Plus, ChevronRight, ChevronLeft, Settings, ListChecks, ArrowUp, ArrowDown } from "lucide-react";
 import { UploadFile } from "@/integrations/Core";
 
+const DAY_HE = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
+// Render a per-day send-time map, e.g. {"0":"01:00","4":"03:00"} → "א=01:00 · ה=03:00".
+function formatPerDay(s) {
+    try {
+        const m = JSON.parse(s);
+        return Object.entries(m).map(([d, t]) => `${DAY_HE[+d] ?? d}=${t}`).join(' · ');
+    } catch { return 'לפי יום'; }
+}
+
 export default function ChecklistEditDialog({ isOpen, checklist, employees, onClose, onSave }) {
     const [step, setStep] = useState('details'); // 'details' | 'items'
     const [selectedItemIndex, setSelectedItemIndex] = useState(null);
@@ -269,11 +278,21 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                                         })}
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <Label className="text-sm whitespace-nowrap">שעת שליחה</Label>
-                                    <Input type="time" value={formData.send_time || ''} onChange={e => setFormData(prev => ({ ...prev, send_time: e.target.value }))} className="w-32" />
-                                    <span className="text-[11px] text-slate-400">ריק = לפי משמרת בוקר/ערב</span>
-                                </div>
+                                {String(formData.send_time || '').trim().startsWith('{') ? (
+                                    <div className="space-y-1">
+                                        <Label className="text-sm">שעת שליחה</Label>
+                                        <div className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
+                                            ⏰ שעות משתנות לפי יום: {formatPerDay(formData.send_time)}
+                                        </div>
+                                        <button type="button" onClick={() => setFormData(prev => ({ ...prev, send_time: '' }))} className="text-[11px] text-slate-500 underline">אפס לשעה אחת פשוטה</button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <Label className="text-sm whitespace-nowrap">שעת שליחה</Label>
+                                        <Input type="time" value={formData.send_time || ''} onChange={e => setFormData(prev => ({ ...prev, send_time: e.target.value }))} className="w-32" />
+                                        <span className="text-[11px] text-slate-400">ריק = לפי משמרת בוקר/ערב</span>
+                                    </div>
+                                )}
                             </div>
 
                             <Button onClick={() => setStep('items')} className="w-full mt-2" variant="outline">
