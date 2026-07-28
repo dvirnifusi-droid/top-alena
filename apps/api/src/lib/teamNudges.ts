@@ -246,9 +246,20 @@ async function checkChecklists(cfg: NudgeConfig) {
   // checklist falls back to its legacy morning/evening slot. This is what lets
   // the owner spread checklists across the day instead of one big dump.
   const dueNow = (c: any): boolean => {
+    const st = String(c.send_time || '').trim();
+    // one-off / monthly with no explicit time must not be auto-reminded daily.
+    if (!st && ['as_needed', 'monthly'].includes(String(c.frequency || ''))) return false;
     const days = Array.isArray(c.active_days) ? c.active_days.map((x: any) => Number(x)).filter((n: number) => Number.isFinite(n)) : [];
     if (days.length && !days.includes(now.day)) return false;          // not one of its weekdays
-    const st = String(c.send_time || '').trim();
+    // Per-day time map for checklists whose deadline varies by day (e.g. kitchen
+    // close: {"0":"01:00","4":"03:00","6":"02:00"}). Day keys ARE the active days.
+    if (st.startsWith('{')) {
+      try {
+        const map = JSON.parse(st);
+        const t = map[String(now.day)];
+        return !!t && now.hour === parseInt(String(t).split(':')[0], 10);
+      } catch { return false; }
+    }
     if (/^\d{1,2}:\d{2}$/.test(st)) return now.hour === parseInt(st.split(':')[0], 10);
     if (!legacySlot) return false;
     const wanted = legacySlot === 'morning'
