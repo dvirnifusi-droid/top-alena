@@ -58,6 +58,27 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
+  // When someone QUOTE-REPLIES to one of our WhatsApp messages, Twilio sends
+  // OriginalRepliedMessageSid. Fetch that message's rendered text so the agent
+  // can answer about the SPECIFIC alert being replied to (the assistant fires
+  // many). Twilio's Message resource carries the final rendered `body` even for
+  // template sends. Best-effort — never throws into the webhook.
+  const fetchRepliedMessageText = async (sid: string): Promise<string> => {
+    if (!sid) return '';
+    try {
+      const acct = process.env.TWILIO_ACCOUNT_SID;
+      const tok = process.env.TWILIO_AUTH_TOKEN;
+      if (!acct || !tok) return '';
+      const auth = Buffer.from(`${acct}:${tok}`).toString('base64');
+      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${acct}/Messages/${encodeURIComponent(sid)}.json`, {
+        headers: { Authorization: `Basic ${auth}` },
+      });
+      if (!res.ok) return '';
+      const d: any = await res.json();
+      return String(d?.body || '').trim();
+    } catch { return ''; }
+  };
+
   app.post('/whatsapp-inbox', async (req, reply) => {
     const params = (req.body as Record<string, string>) || {};
     const sig = String(req.headers['x-twilio-signature'] || '');
@@ -81,6 +102,20 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
     const numMedia = Number(params.NumMedia || 0);
     const messageStatus = params.MessageStatus || ''; // delivery callbacks
     const errorCode = params.ErrorCode || '';
+
+    // Quote-reply context: when the sender REPLIES to a specific earlier message
+    // from us (the assistant fires many alerts), Twilio sends
+    // OriginalRepliedMessageSid. Prepend that message's text so the conversation
+    // agent answers about THAT alert, not the latest turn. Declared at handler
+    // scope so both agent-routing branches can use it; raw `body` stays clean for
+    // intent-matching, history, and logging.
+    let agentInput = body;
+    if (body && params.OriginalRepliedMessageSid) {
+      const quoted = await fetchRepliedMessageText(params.OriginalRepliedMessageSid);
+      if (quoted) {
+        agentInput = `הגבתי (reply) על ההודעה הבאה מהמערכת:\n"""\n${quoted.slice(0, 700)}\n"""\n\nהתגובה/שאלה שלי: ${body}`;
+      }
+    }
 
     // ── D3 router (only runs on the platform-entrypoint container = 'alena').
     // Status callbacks and internal-forwarded requests skip the router.
@@ -491,7 +526,7 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
                 // Maintains chat history, calls read/write tools as needed, never
                 // returns 'didn't understand'.
                 req.log.info({ from }, '[whatsapp-agent] falling through to conversation agent');
-                const reply = await runConversationAgent(from, body);
+                const reply = await runConversationAgent(from, agentInput);
                 await sendWhatsApp(from, reply || '🤔 לא בטוח איך לעזור — תוכל להרחיב?');
               }
             } catch (e: any) {
@@ -525,7 +560,7 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             reply.type('text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
             void (async () => {
               try {
-                const replyText = await runConversationAgent(from, body);
+                const replyText = await runConversationAgent(from, agentInput);
                 if (replyText) await sendWhatsApp(from, replyText);
               } catch (e: any) {
                 req.log.error({ err: e?.message }, '[whatsapp-agent] agent flow crashed');
