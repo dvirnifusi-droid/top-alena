@@ -856,6 +856,21 @@ function EmployeesInner() {
              >
                💬 הזמן ב-WhatsApp
              </Button>
+             <Button
+               variant="outline"
+               onClick={async () => {
+                 if (!window.confirm('לשלוח לכל העובדים עם טלפון הודעת הפעלה לעוזר בוואטסאפ?\nהם ידעו שאפשר לכתוב לבוט ("מתי אני עובד?", "אני לא יכול מחר" וכו\').')) return;
+                 try {
+                   const r = await base44.functions.sendStaffBotIntro({});
+                   const d = r?.data || r || {};
+                   alert(`✅ נשלחה הודעת הפעלה ל-${d.sent || 0} עובדים.` +
+                     (d.without_phone ? `\n\n⚠️ ${d.without_phone} עובדים בלי טלפון — לא קיבלו. הוסף להם טלפון (או שיירשמו ב-JoinTeam) והרץ שוב.` : ''));
+                 } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+               }}
+               className="gap-1 border-[#44512C] text-[#44512C] hover:bg-[#F4ECD8]"
+             >
+               📲 הפעל בוט לצוות
+             </Button>
              <label className="inline-flex items-center gap-1 px-3 py-2 rounded-md border border-amber-300 bg-amber-50 text-amber-800 cursor-pointer hover:bg-amber-100 text-sm">
                {aiImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                {aiImporting ? 'סורק...' : 'ייבא מ-PDF/Excel'}

@@ -5325,6 +5325,28 @@ export async function runMarketingOptimizer(): Promise<any> {
   return { ok: true, alerted: true, wasteful: wasteful.length, expensive: expensive.length };
 }
 
+// One-tap "activate the WhatsApp assistant for the whole team" — sends every
+// active employee WITH a phone a short intro so they know they can talk to the
+// bot. Recognition + notifications are AUTOMATIC once a phone is on file (the bot
+// matches the sender's number to the Employee record); this is just the kickoff.
+// Uses the staff_notice template so it reaches them even outside the 24h window.
+registerFn('sendStaffBotIntro', async ({ user }) => {
+  await requireBackOffice(user, 'sendStaffBotIntro');
+  const brand = await getBrandName().catch(() => 'המסעדה');
+  const emps: any[] = await db.employee.findMany({ where: { status: 'active' }, select: { full_name: true, phone: true } });
+  const clean = (p: any) => String(p || '').replace(/\D/g, '');
+  const withPhone = emps.filter((e) => clean(e.phone).length >= 9);
+  const { notifyStaff } = await import('../lib/waTemplates.js');
+  let sent = 0; const failed: string[] = [];
+  for (const e of withPhone) {
+    const first = String(e.full_name || '').split(' ')[0] || 'שלום';
+    const msg = `מעכשיו יש לך עוזר אישי בוואטסאפ 🤖 של ${brand}!\nאפשר פשוט לכתוב לי כאן בשפה חופשית — למשל: "מתי אני עובד?", "אני לא יכול ביום חמישי", "תראה לי את הסידור", "רוצה להחליף משמרת". אני כאן 24/7.`;
+    try { const r: any = await notifyStaff(e.phone, first, msg, { brand }); if (r?.sent) sent++; else failed.push(e.full_name); }
+    catch { failed.push(e.full_name); }
+  }
+  return { ok: true, total_active: emps.length, with_phone: withPhone.length, without_phone: emps.length - withPhone.length, sent, failed };
+});
+
 // Update a customer's birthday — used by the admin UI + by reservation form
 registerFn('setCustomerBirthday', async ({ body, user }) => {
   await requireBackOffice(user, 'setCustomerBirthday');
