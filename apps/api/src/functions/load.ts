@@ -5298,11 +5298,29 @@ export async function runMarketingOptimizer(): Promise<any> {
   const wasteful = active.filter((r: any) => r.spend >= 100 && r.leads === 0);
   const expensive = active.filter((r: any) => r.leads > 0 && r.spend / r.leads >= 120);
   if (!wasteful.length && !expensive.length) return { ok: true, alerted: false };
-  const lines = [
-    ...wasteful.map((r: any) => `🔴 "${r.name}" — ₪${r.spend} ב-7 ימים, *0 לידים* → שקול לעצור/לשנות.`),
-    ...expensive.map((r: any) => `🟠 "${r.name}" — כ-₪${Math.round(r.spend / r.leads)} לליד (₪${r.spend}, ${r.leads} לידים) → יקר.`),
-  ];
-  const msg = `📊 *אופטימיזציה — בזבוז בקמפיינים הממומנים (7 ימים)*\n${lines.join('\n')}\n\n💬 לפעולה מיידית — השב לי כאן: "עצור את הקמפיין <שם>" או "הורד תקציב של <שם> ל-40", ואבצע אחרי אישור. או פתח את "קמפיינים חיים" בעמוד השיווק.`;
+  const totalWaste = wasteful.reduce((s: number, r: any) => s + r.spend, 0);
+  const sections: string[] = [];
+  if (wasteful.length) {
+    sections.push(
+      `🔴 *מבזבז — 0 לידים (${wasteful.length}):*\n` +
+      wasteful.map((r: any) => `   • ${r.name}\n      ₪${r.spend} · 0 לידים`).join('\n'),
+    );
+  }
+  if (expensive.length) {
+    sections.push(
+      `🟠 *יקר מדי (${expensive.length}):*\n` +
+      expensive.map((r: any) => `   • ${r.name}\n      ₪${r.spend} · ${r.leads} לידים · *₪${Math.round(r.spend / r.leads)} לליד*`).join('\n'),
+    );
+  }
+  const msg =
+    `📊 *דוח אופטימיזציה — 7 ימים אחרונים*\n` +
+    (totalWaste > 0 ? `💸 בזבוז מזוהה: *₪${totalWaste}*\n` : '') +
+    `\n${sections.join('\n\n')}\n\n` +
+    `━━━━━━━━━━━━\n` +
+    `✅ *מה לעשות?* פשוט השב לי כאן:\n` +
+    `• "עצור את הקמפיין <שם>"\n` +
+    `• "הורד תקציב של <שם> ל-40"\n` +
+    `ואבצע אחרי אישור — או פתח "קמפיינים חיים" בעמוד השיווק.`;
   try { const { broadcastToAdmins } = await import('../lib/whatsappAlerts.js'); await broadcastToAdmins(msg); } catch { /* ignore */ }
   return { ok: true, alerted: true, wasteful: wasteful.length, expensive: expensive.length };
 }
@@ -15102,13 +15120,18 @@ export async function runNoShowWatcher() {
   }
   if (candidates.length === 0) return { ok: true, checked: 0 };
 
-  // Bulk check active ShiftTracking for these employees today
-  const empIds = [...new Set(candidates.map((c) => c.staff.employee_id))];
+  // Who has clocked in for a shift today? ShiftTracking.date is a DateTime, so
+  // the old `date::text = ilDate` NEVER matched ("2026-07-27 00:00:00" != the
+  // bare date) → clockedIn was always empty → EVERYONE past their start got a
+  // false "late" alert even after clocking in. Match on a recent `shift_start`
+  // instead, and by id OR name (Google-auth clock-ins store a User.id that
+  // differs from the schedule's Employee.id).
   const trackingRows: any[] = await (prisma as any).$queryRaw`
-    SELECT employee_id, status FROM "ShiftTracking"
-    WHERE date::text = ${ilDate} AND employee_id = ANY(${empIds}::text[])
+    SELECT employee_id, employee_name FROM "ShiftTracking"
+    WHERE shift_start >= NOW() - INTERVAL '18 hours'
   `;
-  const clockedIn = new Set(trackingRows.map((r) => r.employee_id));
+  const clockedInIds = new Set(trackingRows.map((r) => r.employee_id).filter(Boolean));
+  const clockedInNames = new Set(trackingRows.map((r) => String(r.employee_name || '').trim()).filter(Boolean));
 
   // Find which alerts already fired today (de-dupe key = empId|date|shiftType)
   // We encode the key as a prefix `[no_show:KEY]` at the start of body since
@@ -15134,7 +15157,7 @@ export async function runNoShowWatcher() {
   const { sendWhatsApp } = await import('../lib/twilio.js');
 
   for (const c of candidates) {
-    if (clockedIn.has(c.staff.employee_id)) continue;
+    if (clockedInIds.has(c.staff.employee_id) || clockedInNames.has(String(c.staff.employee_name || '').trim())) continue;
     const key = `${c.staff.employee_id}|${ilDate}|${c.ws.shift_type}`;
     if (sentKeys.has(key)) continue;
     const emp: any = await (prisma as any).employee.findUnique({ where: { id: c.staff.employee_id } }).catch(() => null);
