@@ -567,6 +567,18 @@ function EmployeesInner() {
    const [aiImporting, setAiImporting] = useState(false);
    const [aiCandidates, setAiCandidates] = useState(null);
    const [importingEmp, setImportingEmp] = useState(false);
+   const [msgLogOpen, setMsgLogOpen] = useState(false);
+   const [msgLog, setMsgLog] = useState([]);
+   const [msgLoading, setMsgLoading] = useState(false);
+   const [msgEmp, setMsgEmp] = useState('');
+   const loadMsgLog = async (employee_id) => {
+     setMsgLoading(true);
+     try {
+       const r = await base44.functions.getWaMessagesLog(employee_id ? { employee_id } : {});
+       setMsgLog((r?.data || r || {}).messages || []);
+     } catch { setMsgLog([]); }
+     setMsgLoading(false);
+   };
 
    const handleAiFileImport = async (e) => {
      const file = e.target.files?.[0];
@@ -871,6 +883,13 @@ function EmployeesInner() {
              >
                📲 הפעל בוט לצוות
              </Button>
+             <Button
+               variant="outline"
+               onClick={() => { setMsgEmp(''); setMsgLogOpen(true); loadMsgLog(); }}
+               className="gap-1"
+             >
+               📩 יומן הודעות
+             </Button>
              <label className="inline-flex items-center gap-1 px-3 py-2 rounded-md border border-amber-300 bg-amber-50 text-amber-800 cursor-pointer hover:bg-amber-100 text-sm">
                {aiImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                {aiImporting ? 'סורק...' : 'ייבא מ-PDF/Excel'}
@@ -887,6 +906,38 @@ function EmployeesInner() {
            </div>
           }
         />
+
+        {/* WhatsApp message log per employee (owner: "see every message sent to which employee") */}
+        <Dialog open={msgLogOpen} onOpenChange={setMsgLogOpen}>
+          <DialogContent dir="rtl" className="max-w-2xl max-h-[85vh] flex flex-col">
+            <DialogHeader><DialogTitle>📩 יומן הודעות וואטסאפ לעובדים</DialogTitle></DialogHeader>
+            <div className="flex items-center gap-2 mb-1">
+              <Select value={msgEmp || 'all'} onValueChange={(v) => { const id = v === 'all' ? '' : v; setMsgEmp(id); loadMsgLog(id); }}>
+                <SelectTrigger className="w-56"><SelectValue placeholder="כל העובדים" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">כל העובדים</SelectItem>
+                  {allEmployees.filter(e => e.phone).map(e => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-slate-400">{msgLog.length} הודעות</span>
+            </div>
+            <div className="overflow-y-auto flex-1 space-y-1.5 pr-1">
+              {msgLoading ? (
+                <div className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-400" /></div>
+              ) : msgLog.length === 0 ? (
+                <p className="text-center text-slate-400 py-10">אין הודעות להצגה</p>
+              ) : msgLog.map((m, i) => (
+                <div key={i} className={`rounded-lg border p-2 text-sm ${m.direction === 'out' ? 'bg-slate-50 border-slate-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 mb-0.5">
+                    <span>{m.direction === 'out' ? '↗ נשלח' : '↘ התקבל'} · <b className="text-slate-700">{m.employee_name || m.phone9}</b></span>
+                    <span>{m.date ? new Date(m.date).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}{m.error_code ? ` · ❌${m.error_code}` : ''}</span>
+                  </div>
+                  <div className="whitespace-pre-wrap break-words text-slate-800">{m.body || '(ללא טקסט)'}</div>
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
 
          {allEmployees.filter(e => e.status === 'pending_approval').length > 0 && (
            <Card className="border-blue-300 bg-blue-50/60 mb-6">

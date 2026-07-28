@@ -5347,6 +5347,51 @@ registerFn('sendStaffBotIntro', async ({ user }) => {
   return { ok: true, total_active: emps.length, with_phone: withPhone.length, without_phone: emps.length - withPhone.length, sent, failed };
 });
 
+// Per-employee WhatsApp message log — the owner wants to see every message the
+// system sent each employee (and their replies). Twilio already stores every
+// message, so we read from there and map each phone → Employee name; no need to
+// log at every send site. Filter by employee_id, or omit for the whole team.
+registerFn('getWaMessagesLog', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'getWaMessagesLog');
+  const acct = process.env.TWILIO_ACCOUNT_SID, tok = process.env.TWILIO_AUTH_TOKEN;
+  if (!acct || !tok) return { messages: [], reason: 'no_twilio' };
+  const H = { Authorization: `Basic ${Buffer.from(`${acct}:${tok}`).toString('base64')}` };
+  const { employee_id, limit } = (body || {}) as any;
+
+  const emps: any[] = await db.employee.findMany({ where: { status: 'active' }, select: { id: true, full_name: true, phone: true } });
+  const norm = (p: any) => String(p || '').replace(/\D/g, '').replace(/^0/, '972');
+  const last9 = (p: any) => norm(p).slice(-9);
+  const byPhone: Record<string, string> = {};
+  for (const e of emps) { const n = last9(e.phone); if (n.length === 9) byPhone[n] = e.full_name; }
+  let filter9: string | null = null;
+  if (employee_id) { const e = emps.find((x) => x.id === employee_id); filter9 = e ? last9(e.phone) : '___none___'; }
+
+  const raw: any[] = [];
+  let url: string | null = `https://api.twilio.com/2010-04-01/Accounts/${acct}/Messages.json?PageSize=${Math.min(Number(limit) || 500, 1000)}`;
+  for (let p = 0; p < 2 && url; p++) {
+    const res: any = await fetch(url, { headers: H });
+    const d: any = await res.json();
+    for (const m of (d?.messages || [])) raw.push(m);
+    url = d?.next_page_uri ? `https://api.twilio.com${d.next_page_uri}` : null;
+  }
+  const rows = raw
+    .map((m: any) => {
+      const outbound = String(m.direction || '').startsWith('outbound');
+      const p9 = last9(outbound ? m.to : m.from); // the employee side of the message
+      return {
+        date: m.date_sent || m.date_created,
+        direction: outbound ? 'out' : 'in',
+        employee_name: byPhone[p9] || null,
+        phone9: p9,
+        body: String(m.body || ''),
+        status: m.status || null,
+        error_code: m.error_code || null,
+      };
+    })
+    .filter((r: any) => (filter9 ? r.phone9 === filter9 : !!r.employee_name));
+  return { messages: rows.slice(0, 400) };
+});
+
 // Update a customer's birthday — used by the admin UI + by reservation form
 registerFn('setCustomerBirthday', async ({ body, user }) => {
   await requireBackOffice(user, 'setCustomerBirthday');
