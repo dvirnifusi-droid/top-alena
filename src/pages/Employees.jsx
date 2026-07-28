@@ -579,6 +579,26 @@ function EmployeesInner() {
      } catch { setMsgLog([]); }
      setMsgLoading(false);
    };
+   const [bulkPhoneOpen, setBulkPhoneOpen] = useState(false);
+   const [bulkPhones, setBulkPhones] = useState({});
+   const [bulkSaving, setBulkSaving] = useState(false);
+   const saveBulkPhones = async () => {
+     setBulkSaving(true);
+     let saved = 0;
+     try {
+       for (const [id, phone] of Object.entries(bulkPhones)) {
+         const clean = String(phone || '').trim();
+         if (clean.replace(/\D/g, '').length < 9) continue;
+         await Employee.update(id, { phone: clean });
+         saved++;
+       }
+       await loadEmployees();
+       setBulkPhoneOpen(false);
+       setBulkPhones({});
+       alert(`✅ נשמרו ${saved} טלפונים.\nעכשיו אפשר ללחוץ "📲 הפעל בוט לצוות" כדי לשלוח להם הודעת פתיחה.`);
+     } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+     setBulkSaving(false);
+   };
 
    const handleAiFileImport = async (e) => {
      const file = e.target.files?.[0];
@@ -890,6 +910,14 @@ function EmployeesInner() {
              >
                📩 יומן הודעות
              </Button>
+             {(() => {
+               const n = allEmployees.filter(e => e.status === 'active' && String(e.phone || '').replace(/\D/g, '').length < 9).length;
+               return n > 0 ? (
+                 <Button variant="outline" onClick={() => { setBulkPhones({}); setBulkPhoneOpen(true); }} className="gap-1 border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100">
+                   📱 מלא טלפונים ({n})
+                 </Button>
+               ) : null;
+             })()}
              <label className="inline-flex items-center gap-1 px-3 py-2 rounded-md border border-amber-300 bg-amber-50 text-amber-800 cursor-pointer hover:bg-amber-100 text-sm">
                {aiImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                {aiImporting ? 'סורק...' : 'ייבא מ-PDF/Excel'}
@@ -936,6 +964,36 @@ function EmployeesInner() {
                 </div>
               ))}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Bulk phone backfill — fill missing employee phones so the bot can reach them */}
+        <Dialog open={bulkPhoneOpen} onOpenChange={setBulkPhoneOpen}>
+          <DialogContent dir="rtl" className="max-w-lg max-h-[85vh] flex flex-col">
+            <DialogHeader><DialogTitle>📱 מילוי טלפונים חסרים</DialogTitle></DialogHeader>
+            <p className="text-xs text-slate-500 -mt-1">הזן מספר לכל עובד. ברגע שיש טלפון — הבוט מזהה אותו ומגיע אליו. אפשר לדלג על מי שאין לך.</p>
+            <div className="overflow-y-auto flex-1 space-y-2 pr-1 mt-2">
+              {allEmployees.filter(e => e.status === 'active' && String(e.phone || '').replace(/\D/g, '').length < 9).map(e => (
+                <div key={e.id} className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate">{e.full_name}</div>
+                    <div className="text-[11px] text-slate-400">{e.role || ''}</div>
+                  </div>
+                  <Input
+                    type="tel" dir="ltr" placeholder="05X-XXXXXXX"
+                    value={bulkPhones[e.id] ?? ''}
+                    onChange={ev => setBulkPhones(prev => ({ ...prev, [e.id]: ev.target.value }))}
+                    className="w-40"
+                  />
+                </div>
+              ))}
+            </div>
+            <DialogFooter className="gap-2 mt-2">
+              <Button variant="outline" onClick={() => setBulkPhoneOpen(false)}>סגור</Button>
+              <Button onClick={saveBulkPhones} disabled={bulkSaving} className="bg-[#44512C] hover:bg-[#44512C] text-white">
+                {bulkSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור הכל'}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
