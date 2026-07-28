@@ -200,8 +200,19 @@ function EmployeeReportsInner() {
         if (!confirm(`למחוק את המשמרת מתאריך ${entry.date}?`)) return;
         const ws = workShifts.find(w => w.id === entry.workShiftId);
         if (!ws) return;
+        // Match the assigned_staff row by employee (id OR name — id can diverge for
+        // Google-auth users) + the SCHEDULED start_time + position. Deliberately do
+        // NOT compare end_time: for clock-sourced rows entry.end_time is the actual
+        // clock-out (clockEnd), which differs from the scheduled a.end_time, so an
+        // end_time match silently removed nothing — the exact garbage 2-min rows the
+        // owner is trying to delete. start_time+position uniquely identifies the row.
+        const selEmp = employees.find(e => e.id === selectedEmployeeId);
+        const selName = normEmpName(selEmp?.full_name);
+        const sameEmp = (a) =>
+            (a.employee_id && a.employee_id === selectedEmployeeId) ||
+            (a.employee_name && selName && normEmpName(a.employee_name) === selName);
         const updatedStaff = (ws.assigned_staff || []).filter(a =>
-            !(a.employee_id === selectedEmployeeId && a.start_time === entry.start_time && a.end_time === entry.end_time && ws.date === entry.date)
+            !(sameEmp(a) && a.start_time === entry.start_time && (a.position || '') === (entry.position || ''))
         );
         await base44.entities.WorkShift.update(ws.id, { assigned_staff: updatedStaff });
         await loadReportData();
@@ -1304,7 +1315,7 @@ function EmployeeReportsInner() {
                                                             <th className="text-right py-3 px-4">הפסקה (דק')</th>
                                                             <th className="text-right py-3 px-4 font-bold text-[#44512C]">שעות נטו</th>
                                                             <th className="text-right py-3 px-4 font-bold text-orange-600">ברוטו</th>
-                                                            {isAdmin && <th className="py-3 px-4" colSpan={2}></th>}
+                                                            {isAdmin && <th className="py-3 px-2 sticky end-0 bg-slate-50 z-20 border-s border-gray-200 text-center whitespace-nowrap">פעולות</th>}
                                                         </tr>
                                             </thead>
                                             <tbody>
@@ -1342,17 +1353,15 @@ function EmployeeReportsInner() {
                                                                          {positionRates[entry.position] > 0 ? `₪${(Number(entry.net_hours || 0) * parseFloat(positionRates[entry.position])).toFixed(2)}` : '-'}
                                                                          </td>
                                                                          {isAdmin && (
-                                                                         <td className="py-3 px-4">
-                                                                         <button onClick={() => setEditShift({ entry, workShiftId: entry.workShiftId })} className="text-gray-500 hover:text-[#44512C] p-1">
-                                                                         <Pencil className="w-3.5 h-3.5" />
+                                                                         <td className="py-2 px-2 sticky end-0 z-10 bg-white border-s border-gray-200">
+                                                                         <div className="flex items-center justify-center gap-1">
+                                                                         <button onClick={() => setEditShift({ entry, workShiftId: entry.workShiftId })} className="text-gray-500 hover:text-[#44512C] p-1.5 rounded hover:bg-slate-100" title="ערוך משמרת">
+                                                                         <Pencil className="w-4 h-4" />
                                                                          </button>
-                                                                         </td>
-                                                                         )}
-                                                                         {isAdmin && (
-                                                                         <td className="py-3 px-2">
-                                                                         <button onClick={() => handleDeleteShiftEntry(entry)} className="text-gray-400 hover:text-red-600 p-1">
-                                                                         <Trash2 className="w-3.5 h-3.5" />
+                                                                         <button onClick={() => handleDeleteShiftEntry(entry)} className="text-gray-400 hover:text-red-600 p-1.5 rounded hover:bg-red-50" title="מחק משמרת">
+                                                                         <Trash2 className="w-4 h-4" />
                                                                          </button>
+                                                                         </div>
                                                                          </td>
                                                                          )}
                                                                          </tr>
@@ -1370,12 +1379,12 @@ function EmployeeReportsInner() {
                                                                          return (
                                                                          <>
                                                                          <tr className="border-t-2 border-gray-400 bg-[#F4ECD8]">
-                                                                         <td colSpan={isAdmin ? 7 : 6} className="py-3 px-4 font-bold text-right text-[#2E3819]">סה"כ שעות לתקופה:</td>
+                                                                         <td colSpan={6} className="py-3 px-4 font-bold text-right text-[#2E3819]">סה"כ שעות לתקופה:</td>
                                                                          <td className="py-3 px-4 font-bold text-xl text-[#44512C]">{calculations.totalHourlyHours}</td>
                                                                          <td className="py-3 px-4 font-bold text-xl text-orange-600">{totalGross > 0 ? `₪${totalGross.toFixed(2)}` : ''}</td>
                                                                          </tr>
                                                                          <tr className="bg-slate-50 border-t border-slate-200">
-                                                                         <td colSpan={isAdmin ? 9 : 7} className="py-2 px-4">
+                                                                         <td colSpan={isAdmin ? 9 : 8} className="py-2 px-4">
                                                                          <div className="flex flex-wrap gap-4 text-xs font-semibold">
                                                                             <span className="text-green-700">✅ שעות רגילות (100%): {r.toFixed(2)}</span>
                                                                             <span className="text-orange-600">⚡ שעות 125%: {h1.toFixed(2)}</span>
