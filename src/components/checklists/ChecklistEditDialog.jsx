@@ -20,6 +20,8 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
         assigned_role: '',
         department: '',
         shift: 'all',
+        active_days: [],
+        send_time: '',
         color: 'emerald',
         items: []
     });
@@ -38,11 +40,13 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                 assigned_role: checklist.assigned_role || '',
                 department: checklist.department || '',
                 shift: checklist.shift || 'all',
+                active_days: Array.isArray(checklist.active_days) ? checklist.active_days.map(Number) : [],
+                send_time: checklist.send_time || '',
                 color: checklist.color || 'emerald',
                 items: checklist.items ? checklist.items.map(item => ({ ...item })) : []
             });
         } else {
-            setFormData({ title: '', description: '', category: 'operational', frequency: 'daily', assigned_role: '', department: '', shift: 'all', color: 'emerald', items: [] });
+            setFormData({ title: '', description: '', category: 'operational', frequency: 'daily', assigned_role: '', department: '', shift: 'all', active_days: [], send_time: '', color: 'emerald', items: [] });
         }
     }, [checklist, isOpen]);
 
@@ -240,6 +244,35 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                                             />
                                         ))}
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* When the bot reminds about this checklist (owner request:
+                                spread checklists across the day, not one big dump). */}
+                            <div className="rounded-lg border p-3 bg-slate-50 space-y-3">
+                                <Label className="font-semibold">⏰ מתי הבוט שולח תזכורת</Label>
+                                <div>
+                                    <div className="text-xs text-slate-500 mb-1">ימים (ריק = כל יום)</div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {[{ d: 0, l: 'א' }, { d: 1, l: 'ב' }, { d: 2, l: 'ג' }, { d: 3, l: 'ד' }, { d: 4, l: 'ה' }, { d: 5, l: 'ו' }, { d: 6, l: 'ש' }].map(({ d, l }) => {
+                                            const on = (formData.active_days || []).includes(d);
+                                            return (
+                                                <button
+                                                    key={d} type="button"
+                                                    onClick={() => setFormData(prev => {
+                                                        const cur = Array.isArray(prev.active_days) ? prev.active_days : [];
+                                                        return { ...prev, active_days: on ? cur.filter(x => x !== d) : [...cur, d].sort((a, b) => a - b) };
+                                                    })}
+                                                    className={`w-9 h-9 rounded-full text-sm font-bold border-2 transition ${on ? 'bg-[#44512C] text-white border-[#44512C]' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
+                                                >{l}</button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <Label className="text-sm whitespace-nowrap">שעת שליחה</Label>
+                                    <Input type="time" value={formData.send_time || ''} onChange={e => setFormData(prev => ({ ...prev, send_time: e.target.value }))} className="w-32" />
+                                    <span className="text-[11px] text-slate-400">ריק = לפי משמרת בוקר/ערב</span>
                                 </div>
                             </div>
 

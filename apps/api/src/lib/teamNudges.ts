@@ -230,26 +230,42 @@ async function checkChecklists(cfg: NudgeConfig) {
   if (cfg.checklist.enabled === false) return;
   if (!(await isNotifEnabled('nudge_checklist'))) return;
   const now = ilParts();
-  let slot: 'morning' | 'evening' | null = null;
-  if (now.hour === cfg.checklist.morning_hour) slot = 'morning';
-  else if (now.hour === cfg.checklist.evening_hour) slot = 'evening';
-  if (!slot) return;
 
-  const batchKey = `ck_${now.dateStr}_${slot}`;
-  if (await alreadySent(batchKey)) return;
-  await logNudge('system', `batch ${batchKey}`, batchKey, 'checklist_batch');
+  // Legacy morning/evening slot — used ONLY by checklists with no explicit
+  // send_time, so existing checklists keep working exactly as before.
+  let legacySlot: 'morning' | 'evening' | null = null;
+  if (now.hour === cfg.checklist.morning_hour) legacySlot = 'morning';
+  else if (now.hour === cfg.checklist.evening_hour) legacySlot = 'evening';
 
-  const wanted = slot === 'morning' ? ['morning', 'all'] : now.day === 4 ? ['evening', 'thursday', 'all'] : ['evening', 'all'];
   const checklists: any[] = await db.$queryRawUnsafe(
-    `SELECT id, title, shift, items FROM "Checklist" WHERE status='active'`,
+    `SELECT id, title, shift, items, active_days, send_time FROM "Checklist" WHERE status='active'`,
   ).catch(() => []);
-  const relevant = checklists.filter((c) => wanted.includes(String(c.shift || 'all')));
+  if (!checklists.length) return;
+
+  // Due THIS hour? A per-checklist send_time (+ active_days) wins; otherwise the
+  // checklist falls back to its legacy morning/evening slot. This is what lets
+  // the owner spread checklists across the day instead of one big dump.
+  const dueNow = (c: any): boolean => {
+    const days = Array.isArray(c.active_days) ? c.active_days.map((x: any) => Number(x)).filter((n: number) => Number.isFinite(n)) : [];
+    if (days.length && !days.includes(now.day)) return false;          // not one of its weekdays
+    const st = String(c.send_time || '').trim();
+    if (/^\d{1,2}:\d{2}$/.test(st)) return now.hour === parseInt(st.split(':')[0], 10);
+    if (!legacySlot) return false;
+    const wanted = legacySlot === 'morning'
+      ? ['morning', 'all']
+      : (now.day === 4 ? ['evening', 'thursday', 'all'] : ['evening', 'all']);
+    return wanted.includes(String(c.shift || 'all'));
+  };
+  const relevant = checklists.filter(dueNow);
   if (!relevant.length) return;
 
   const incomplete: Array<{ title: string; done: number; total: number }> = [];
   for (const cl of relevant) {
     const total = Array.isArray(cl.items) ? cl.items.length : 0;
     if (!total) continue;
+    // Remind each checklist at most once per its send-hour, per day.
+    const ckKey = `ck_${now.dateStr}_${cl.id}_${now.hour}`;
+    if (await alreadySent(ckKey)) continue;
     const runs: any[] = await db.$queryRawUnsafe(
       `SELECT results FROM "ChecklistExecution"
        WHERE checklist_id = $1 AND id LIKE 'live\\_%'
@@ -265,7 +281,10 @@ async function checkChecklists(cfg: NudgeConfig) {
     if (doneToday[0]) continue;
     const res = runs[0]?.results && typeof runs[0].results === 'object' && !Array.isArray(runs[0].results) ? runs[0].results : {};
     const done = Object.values(res).filter((v: any) => v?.checked).length;
-    if (done < total) incomplete.push({ title: cl.title, done, total });
+    if (done < total) {
+      incomplete.push({ title: cl.title, done, total });
+      await logNudge('system', `checklist ${cl.title}`, ckKey, 'checklist').catch(() => {});
+    }
   }
   if (!incomplete.length) return;
 
@@ -285,9 +304,9 @@ async function checkChecklists(cfg: NudgeConfig) {
   for (const emp of recipients.slice(0, 8)) {
     const first = String(emp.full_name || '').split(' ')[0] || 'היי';
     const body = `היי ${first} 👋\nתזכורת מההנהלה — יש צ'קליסטים שעוד לא הושלמו למשמרת:\n${list}\n🔗 ${APP_BASE()}/Checklists`;
-    if (await sendNudge(emp, body, `${batchKey}_${emp.id}`, 'checklist')) sent++;
+    if (await sendNudge(emp, body, `ck_${now.dateStr}_${now.hour}_${emp.id}`, 'checklist')) sent++;
   }
-  await ownerSummary(`📋 צ'קליסטים לא הושלמו (${slot === 'morning' ? 'בוקר' : 'ערב'}):\n${list}\n${sent ? `נשלחה תזכורת ל-${sent} עובדים במשמרת.` : 'אין עובדים מוחתמים כרגע — לא נשלחו תזכורות.'}`);
+  await ownerSummary(`📋 צ'קליסטים לא הושלמו:\n${list}\n${sent ? `נשלחה תזכורת ל-${sent} עובדים במשמרת.` : 'אין עובדים מוחתמים כרגע — לא נשלחו תזכורות.'}`);
 }
 
 // ── owner broadcast (used by the WhatsApp agent tool) ───────────────────────

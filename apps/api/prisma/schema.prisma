@@ -469,6 +469,12 @@ model Checklist {
   // Department: 'floor' | 'bar' | 'kitchen' | 'managers' (NULL = unassigned, shows in "הכל")
   department                   String?
   shift                        String?  @default("all")
+  // Per-checklist scheduling (owner-set): which weekdays it applies to (array of
+  // 0=Sun..6=Sat; null/empty = every day) and the HH:MM the bot sends its
+  // reminder. When send_time is null the legacy shift-based morning/evening
+  // slot is used, so existing checklists keep working unchanged.
+  active_days                  Json?
+  send_time                    String?
   color                        String?  @default("emerald")
   items                        Json
   status                       String?  @default("draft")
