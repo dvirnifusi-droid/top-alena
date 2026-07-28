@@ -534,8 +534,16 @@ export async function sendTemplated(opts: {
       // Never send an empty variable: WhatsApp/Twilio reject a blank placeholder
       // (also a 21656). Fall back to a neutral dash so the template still sends.
       opts.vars.forEach((v, i) => {
-        const s = String(v ?? '').trim();
-        variables[String(i + 1)] = s.length ? String(v) : '—';
+        // WhatsApp/Twilio REJECT a template variable (error 21656) when it is
+        // blank OR contains a newline / tab / 4+ consecutive spaces. Multi-line
+        // bodies (owner reports, the staff bot-intro) were silently failing the
+        // template and falling to free-form — which only reaches in-window
+        // contacts, so cold employees got nothing. Collapse all whitespace to
+        // single spaces so every variable is one clean line and the template
+        // actually delivers. Proven live 2026-07-29: multiline var → 21656,
+        // same text flattened → sent OK.
+        const s = String(v ?? '').replace(/\s+/g, ' ').trim();
+        variables[String(i + 1)] = s.length ? s : '—';
       });
       const out: any = await sendWhatsAppTemplate(opts.to, sid, variables);
       if (!out?.skipped) return { sent: true, via: 'template' };

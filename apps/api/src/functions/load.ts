@@ -5343,14 +5343,12 @@ registerFn('sendStaffBotIntro', async ({ user }) => {
   // "אני לא יכול ביום חמישי" and "רוצה להחליף משמרת" — a shift SWAP is a
   // manager-only tool, and casual day-declining made staff expect the bot to
   // pull them off a published shift, which it doesn't do. Feminine branding.
+  // Single line by design: WhatsApp template variables cannot contain newlines
+  // (21656). Uses " · " separators so it still reads well; sendTemplated also
+  // flattens defensively.
   const msg =
-    `מהיום אני העוזרת האישית שלך בוואטסאפ של ${brand} 🤖\n` +
-    `כותבים לי כאן בשפה חופשית ואני עונה מיד, 24/7.\n\n` +
-    `כמה דוגמאות למה שאפשר לשאול אותי:\n` +
-    `📅 "מתי אני עובד השבוע?" / "מה הסידור שלי?"\n` +
-    `⏱️ "כמה שעות עבדתי החודש?"\n` +
-    `💰 "כמה טיפים היו לי השבוע?"\n` +
-    `📝 "אני רוצה להגיש זמינות לשבוע הבא"\n\n` +
+    `מהיום אני העוזרת האישית שלך בוואטסאפ של ${brand} 🤖 — כותבים לי כאן בשפה חופשית ואני עונה מיד, 24/7. ` +
+    `אפשר לשאול אותי דברים כמו: 📅 "מתי אני עובד השבוע?" · ⏱️ "כמה שעות עבדתי החודש?" · 💰 "כמה טיפים היו לי השבוע?" · 📝 "רוצה להגיש זמינות לשבוע הבא". ` +
     `פשוט תכתבו לי 🙂`;
   let delivered = 0, unreached = 0; const failed: string[] = []; let templateMissing = false;
   for (const e of withPhone) {
