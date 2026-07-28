@@ -113,7 +113,14 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
     if (body && params.OriginalRepliedMessageSid) {
       const quoted = await fetchRepliedMessageText(params.OriginalRepliedMessageSid);
       if (quoted) {
-        agentInput = `הגבתי (reply) על ההודעה הבאה מהמערכת:\n"""\n${quoted.slice(0, 700)}\n"""\n\nהתגובה/שאלה שלי: ${body}`;
+        agentInput =
+          `📌 המשתמש עשה *reply* ישירות על ההתראה הספציפית הזו שהמערכת שלחה לו:\n` +
+          `"""\n${quoted.slice(0, 900)}\n"""\n\n` +
+          `ענה *ספציפית על ההתראה הזו ועל התוכן שלה בלבד*. כללים:\n` +
+          `1. אם התשובה כבר מופיעה בטקסט ההתראה (מספר, שם, סכום, שעה) — קח אותה משם ישירות, אל תריץ כלי ואל תרחיב לנתונים כלליים.\n` +
+          `2. אם חסר מידע כדי לענות — השתמש בכלי, אבל התמקד רק בגורם/בפריט שמופיע בהתראה (העובד/החשבונית/הקמפיין הספציפי), לא בכלל הנתונים.\n` +
+          `3. אם המשתמש מבקש פעולה — בצע אותה בדיוק על הגורם שבהתראה.\n\n` +
+          `מה שהמשתמש כתב בתגובה: ${body}`;
       }
     }
 
