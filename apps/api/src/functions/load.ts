@@ -5336,15 +5336,44 @@ registerFn('sendStaffBotIntro', async ({ user }) => {
   const emps: any[] = await db.employee.findMany({ where: { status: 'active' }, select: { full_name: true, phone: true } });
   const clean = (p: any) => String(p || '').replace(/\D/g, '');
   const withPhone = emps.filter((e) => clean(e.phone).length >= 9);
-  const { notifyStaff } = await import('../lib/waTemplates.js');
-  let sent = 0; const failed: string[] = [];
+  const { sendTemplated } = await import('../lib/waTemplates.js');
+  const link = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
+  // The intro deliberately lists ONLY genuine self-service abilities (view own
+  // schedule / hours / tips, submit availability). The old text invited
+  // "אני לא יכול ביום חמישי" and "רוצה להחליף משמרת" — a shift SWAP is a
+  // manager-only tool, and casual day-declining made staff expect the bot to
+  // pull them off a published shift, which it doesn't do. Feminine branding.
+  const msg =
+    `מהיום אני העוזרת האישית שלך בוואטסאפ של ${brand} 🤖\n` +
+    `כותבים לי כאן בשפה חופשית ואני עונה מיד, 24/7.\n\n` +
+    `כמה דוגמאות למה שאפשר לשאול אותי:\n` +
+    `📅 "מתי אני עובד השבוע?" / "מה הסידור שלי?"\n` +
+    `⏱️ "כמה שעות עבדתי החודש?"\n` +
+    `💰 "כמה טיפים היו לי השבוע?"\n` +
+    `📝 "אני רוצה להגיש זמינות לשבוע הבא"\n\n` +
+    `פשוט תכתבו לי 🙂`;
+  let delivered = 0, unreached = 0; const failed: string[] = []; let templateMissing = false;
   for (const e of withPhone) {
-    const first = String(e.full_name || '').split(' ')[0] || 'שלום';
-    const msg = `מעכשיו יש לך עוזר אישי בוואטסאפ 🤖 של ${brand}!\nאפשר פשוט לכתוב לי כאן בשפה חופשית — למשל: "מתי אני עובד?", "אני לא יכול ביום חמישי", "תראה לי את הסידור", "רוצה להחליף משמרת". אני כאן 24/7.`;
-    try { const r: any = await notifyStaff(e.phone, first, msg, { brand }); if (r?.sent) sent++; else failed.push(e.full_name); }
-    catch { failed.push(e.full_name); }
+    const first = String(e.full_name || '').split(' ')[0] || 'עובד/ת';
+    // Template-ONLY: this reaches employees who have (by definition) never written
+    // to the bot, so freeform WhatsApp cannot arrive — Twilio accepts it then
+    // bounces it with 63016, which the owner saw as "❌ נשלח" that never landed.
+    // skipFreeform makes the result the TRUTH; we do NOT silently fall back to
+    // paid SMS. via==='template' means it truly went out.
+    try {
+      const r: any = await sendTemplated({ kind: 'staff_notice', to: e.phone, vars: [first, brand, msg, link], freeformText: msg, skipFreeform: true });
+      if (r?.via === 'template') delivered++;
+      else { unreached++; failed.push(e.full_name); if (r?.reason === 'all_channels_failed') templateMissing = true; }
+    } catch { unreached++; failed.push(e.full_name); }
   }
-  return { ok: true, total_active: emps.length, with_phone: withPhone.length, without_phone: emps.length - withPhone.length, sent, failed };
+  return {
+    ok: delivered > 0,
+    total_active: emps.length, with_phone: withPhone.length, without_phone: emps.length - withPhone.length,
+    delivered, unreached, failed,
+    note: (templateMissing && delivered === 0)
+      ? 'התבנית "הודעה לעובד" (staff_notice) עדיין לא מאושרת ב‑WhatsApp, ולכן אי אפשר לשלוח לעובדים שעדיין לא כתבו לבוט. צריך לאשר את התבנית פעם אחת (טוויליו/הגדרות אינטגרציות), ואז לשלוח שוב — ומאותו רגע גם כל שאר ההתראות לצוות (סידור, תזכורות זמינות וכו׳) יגיעו לכולם.'
+      : undefined,
+  };
 });
 
 // Per-employee WhatsApp message log — the owner wants to see every message the

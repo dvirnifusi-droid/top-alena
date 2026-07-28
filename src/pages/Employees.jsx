@@ -888,10 +888,16 @@ function EmployeesInner() {
                    }
                  }}>💬 הזמן עובד ב-WhatsApp</DropdownMenuItem>
                  <DropdownMenuItem onClick={async () => {
-                   if (!window.confirm('לשלוח לכל העובדים עם טלפון הודעת הפעלה לעוזר בוואטסאפ?\nהם ידעו שאפשר לכתוב לבוט ("מתי אני עובד?", "אני לא יכול מחר").')) return;
+                   if (!window.confirm('לשלוח לכל העובדים עם טלפון הודעת הפעלה לעוזרת בוואטסאפ?\nהם ידעו שאפשר לכתוב לבוט: "מתי אני עובד השבוע?", "כמה שעות עבדתי החודש?", "כמה טיפים היו לי?".')) return;
                    try {
                      const r = await base44.functions.sendStaffBotIntro({}); const d = r?.data || r || {};
-                     alert(`✅ נשלחה הודעת הפעלה ל-${d.sent || 0} עובדים.` + (d.without_phone ? `\n\n⚠️ ${d.without_phone} בלי טלפון — לא קיבלו.` : ''));
+                     if (d.delivered > 0) {
+                       alert(`✅ ההודעה נשלחה ל-${d.delivered} עובדים.`
+                         + (d.unreached ? `\n⚠️ ${d.unreached} לא נשלחה (מספר לא תקין).` : '')
+                         + (d.without_phone ? `\n📱 ${d.without_phone} בלי טלפון — מלא ב"מלא טלפונים חסרים".` : ''));
+                     } else {
+                       alert('❌ ההודעה לא נשלחה לאף אחד.\n\n' + (d.note || 'צריך לאשר את תבנית ה-WhatsApp לעובדים לפני שאפשר לשלוח לצוות שעדיין לא כתב לבוט.'));
+                     }
                    } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
                  }}>📲 הפעל בוט לצוות</DropdownMenuItem>
                  <DropdownMenuItem onClick={() => { setMsgEmp(''); setMsgLogOpen(true); loadMsgLog(); }}>📩 יומן הודעות</DropdownMenuItem>
