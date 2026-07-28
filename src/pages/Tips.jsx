@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { User } from '@/entities/User';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useMyPermissions } from '@/hooks/useMyPermissions';
 
 // Warm Alena design tokens (matches Checklists / SupplierOrders restyle).
 const WARM = {
@@ -194,7 +195,11 @@ function TipsInner() {
         pensionHourly:    Number(cfg?.pension_hourly    ?? 0),
         minimumWage:      Number(cfg?.minimum_wage      ?? MINIMUM_WAGE),
     }), [cfg]);
-    const isOwner = ['owner', 'admin'].includes(String(me?.role || ''));
+    // me?.role is the JWT snapshot from login and goes stale after a role change,
+    // so a promoted owner would lose the ⚙️ settings gear. OR the live owner
+    // signal (getMyPermissions, DB-backed) so the owner always sees their gear.
+    const { isOwner: permIsOwner } = useMyPermissions();
+    const isOwner = permIsOwner || ['owner', 'admin'].includes(String(me?.role || ''));
 
     const fetchAllEmployees = useCallback(async () => {
         try {

@@ -19,6 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import ExportToAccountantDialog from '../components/reports/ExportToAccountantDialog';
 import ShiftEditInlineDialog from '../components/reports/ShiftEditInlineDialog';
 import EmployeeRankingReport from '../components/reports/EmployeeRankingReport';
+import { useMyPermissions } from '@/hooks/useMyPermissions';
 
 // TIP-based positions (excluded from hourly salary report)
 const TIP_POSITIONS = ['מלצר', 'ברמן', 'ראנר'];
@@ -98,7 +99,15 @@ export default function EmployeeReportsPage() {
 function EmployeeReportsInner() {
     const { toast } = useToast();
     const [user, setUser] = useState(null);
-    const [isAdmin, setIsAdmin] = useState(false);
+    // isAdmin from auth.me().role is the JWT snapshot taken at login — it goes
+    // stale after a role change, so a promoted owner keeps a non-owner JWT and
+    // loses the in-table edit/delete buttons even though PageGuard (which reads
+    // the LIVE role via getMyPermissions) lets them in. OR the live owner signal
+    // so the buttons never disappear for a real owner. Additive: never removes
+    // admin rights from a genuine admin.
+    const { isOwner: permIsOwner } = useMyPermissions();
+    const [isAdminRaw, setIsAdmin] = useState(false);
+    const isAdmin = isAdminRaw || permIsOwner;
     const [employees, setEmployees] = useState([]);
     const [shifts, setShifts] = useState([]);
     const [tipReports, setTipReports] = useState([]);
