@@ -7,6 +7,7 @@
 // so the manager can decide what to do without opening the app.
 
 import { prisma } from '../db.js';
+import { appBaseUrl } from './appUrl.js';
 import { pushoverToAdmins, pushoverEventsOwners } from './pushover.js';
 import { notifyEmployee } from './notifications.js';
 import {
@@ -87,7 +88,7 @@ const join = (lines: (string | null | undefined)[]) => lines.filter(Boolean).joi
 
 // Deep-link back into the tenant's app. Falls back to the topalena.com host
 // for the current TENANT_SLUG when no explicit base URL is configured.
-const APP_BASE = () => (process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || `https://${process.env.TENANT_SLUG || 'topalena'}.topalena.com`).replace(/\/$/, '');
+const APP_BASE = appBaseUrl; // Alena → topalena.com (never alena.topalena.com)
 const link = (path: string) => `🔗 ${APP_BASE()}${path}`;
 
 // ─────────────────── Pushover (to admins) ───────────────────

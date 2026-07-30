@@ -10,6 +10,7 @@
 // mean the same thing. The LLM normalizes — we verify the parsed params with
 // hard checks before showing the confirmation, so a misparse can't sneak through.
 import { prisma } from '../db.js';
+import { appBaseUrl } from './appUrl.js';
 import { invokeLLM } from './llm.js';
 import { sendWhatsApp, sendSms } from './twilio.js';
 import { sendTemplated, notifyStaff, sendClubMessage } from './waTemplates.js';
@@ -1267,7 +1268,7 @@ async function executeAction(exec: any): Promise<string> {
         `);
         await (prisma as any).pendingInvitation.create({ data: { token, full_name: fullName, phone: empPhone, status: 'sent' } });
       }
-      const origin = process.env.PUBLIC_BASE_URL || `https://${process.env.TENANT_SLUG || 'topalena'}.topalena.com`;
+      const origin = appBaseUrl();
       const link = `${origin}/EmployeeComplete?t=${token}`;
       const msg = `שלום ${fullName} 🌿\nהוזמנת להצטרף לצוות ${brand}.\nכדי להשלים את הפרטים (תפקיד, מייל) — לחץ כאן:\n${link}\n\nזה ייקח דקה 🚀`;
       // A brand-new employee — first contact, so free-form could never reach

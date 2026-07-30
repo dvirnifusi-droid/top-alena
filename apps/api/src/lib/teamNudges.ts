@@ -15,6 +15,7 @@
 //   RestaurantProfile.team_nudges (JSONB) so no owner is surprised.
 
 import { prisma } from '../db.js';
+import { appBaseUrl } from './appUrl.js';
 import { sendWhatsApp } from './twilio.js';
 import { notifyOwner, notifyStaff } from './waTemplates.js';
 import { notifyEmployee } from './notifications.js';
@@ -23,8 +24,7 @@ import { isNotifEnabled, notifText } from './notificationSettings.js';
 
 const db = prisma as any;
 
-const APP_BASE = () =>
-  (process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || `https://${process.env.TENANT_SLUG || 'topalena'}.topalena.com`).replace(/\/$/, '');
+const APP_BASE = appBaseUrl; // Alena → topalena.com (never alena.topalena.com)
 
 // ── config ──────────────────────────────────────────────────────────────────
 export type NudgeConfig = {
