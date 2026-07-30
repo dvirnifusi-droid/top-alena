@@ -3546,7 +3546,13 @@ const INTENT_KEYWORDS: Array<[string, RegExp]> = [
   // keep it in the previous group, which has no event tool). Keep in sync with the
   // restaurant-event guard in whatsappActions.ts.
   ['events', /אירוע(?! חריג)|ליד|לידים|הצעת מחיר|אשר.{0,10}אירוע|חתונה|מסיב|בר\s*מצווה|בת\s*מצווה|ברית|גיבוש|יום\s*הולדת|אירוסין|רווק(ים|ות)|כנס\b/],
-  ['schedule', /סידור|משמר|זמינות|שבץ|שיבוץ|מי עובד|פרסם.{0,10}סידור|מחלה|חולה|תוריד.{0,12}(מ|ממשמרת)|לו"?ז|עובד חדש|הזמן עובד/],
+  // "שעות של X" + any shift-list line (date + time-range, e.g. "5.7 12:00-17:00"
+  // or "ראשון 5.7 12:00-17") must reach the schedule group so
+  // propose_employee_shifts_batch is EXPOSED — otherwise the tool isn't offered
+  // to the model and it wrongly falls onto the calendar tool (propose_event_add_batch),
+  // reading the day-name as "next Sunday" and inventing dates. Checked after
+  // events/tasks so a real meeting with its own keywords still wins.
+  ['schedule', /סידור|משמר|זמינות|שבץ|שיבוץ|מי עובד|פרסם.{0,10}סידור|מחלה|חולה|תוריד.{0,12}(מ|ממשמרת)|לו"?ז|עובד חדש|הזמן עובד|שעות של|השעות של|שעות עבודה|\d{1,2}[.\/]\d{1,2}\s+\d{1,2}:?\d{0,2}\s*-/],
   ['finance', /מכר|כמה מכרנו|כמה כסף|הכנס|מזומן|קופ|טיפ|הוצא|שילמתי|מחיר|עלות|פוד.?קוסט|רווח|מה המצב/],
   ['tasks', /משימה|משימות|תזכורת|תזכיר|יומן|פגיש|תזכור|לעשות/],
 ];
