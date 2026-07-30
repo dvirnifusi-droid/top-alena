@@ -1820,14 +1820,25 @@ async function tool_propose_employee_shifts_batch(args: any, phone: string): Pro
   const parsed: Array<{ date: string; start: string; end: string; shift_type: 'lunch' | 'dinner' }> = [];
   const errors: string[] = [];
   for (const e of rawEntries) {
-    const dm = String(e.date).match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/);
+    // Tolerant date match: find the DD.MM anywhere in the field so a day-name
+    // prefix ("ראשון 5.7") or a trailing note doesn't break it — that was the
+    // "השתבש לי עם התאריכים" failure the owner hit. Validate the ranges so a
+    // stray time (e.g. "12:00") can't slip through as a bogus "17"-month date.
+    const dm = String(e.date).match(/(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/);
     if (!dm) { errors.push(`bad date ${e.date}`); continue; }
     const d = parseInt(dm[1]); const m = parseInt(dm[2]);
+    if (d < 1 || d > 31 || m < 1 || m > 12) { errors.push(`bad date ${e.date}`); continue; }
     let y = dm[3] ? parseInt(dm[3]) : currentYear;
     if (y < 100) y += 2000;
     const ymd = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const start = String(e.start_time).trim();
-    const end = String(e.end_time).trim();
+    let start = String(e.start_time).trim();
+    let end = String(e.end_time).trim();
+    // The model sometimes stuffs the whole "12:00-17:00" range into start_time
+    // and leaves end_time empty — split it so the shift still lands.
+    if ((!end || end === 'undefined') && /[-–—]|עד/.test(start)) {
+      const parts = start.split(/\s*(?:-|–|—|עד)\s*/);
+      if (parts.length === 2) { start = parts[0].trim(); end = parts[1].trim(); }
+    }
     // Accept "11", "11:00", "11:5", "9:00" — normalize to HH:MM.
     const normTime = (t: string): string | null => {
       const m = String(t).trim().match(/^(\d{1,2})(?::(\d{1,2}))?$/);
@@ -3380,6 +3391,8 @@ const SYSTEM_PROMPT_BASE_TEMPLATE = `אתה העוזר האישי של בעל מ
 - *⚠️ חשוב מאוד — איך להבדיל בין משמרות לפגישות:*
   - אם בהודעה יש *שם אדם + תפקיד מסעדה* (קופה ואריזות / מארחת / מלצר / ברמן / טבח / שטיפה / ראנר / אחראי משמרת) ואחריו 1+ שורות תאריך+שעות → זה *תמיד* propose_employee_shifts_batch, גם אם רק שורה אחת. לעולם לא propose_event_add_batch.
   - שורות בפורמט "DD.M טווח-שעות" או "DD/M טווח-שעות" (תאריך + טווח שעות עם מקף, *בלי כותרת*) = *משמרות עבודה* → תמיד propose_employee_shifts_batch.
+  - שורות עם *שם-יום לפני התאריך* ("ראשון 5.7 12:00-17:00", "שלישי 7.7 11:00-17:00", "חמישי 9/7 12:00-15:00") = *משמרות עבודה*. שם-היום (ראשון/שני/שלישי/רביעי/חמישי/שישי/שבת) הוא לא פגישה — חלץ רק את *התאריך* (5.7) ל-date ואת הטווח ל-start_time+end_time. אם בהתחלה יש שם עובד+תפקיד ("איה קופה ואריזות") → כל השורות הן משמרות של אותו עובד.
+  - המילים "שעות", "שעות של X", "תכניס שעות ל-X", "השעות של X" ליד שם עובד = *משמרות עבודה* → propose_employee_shifts_batch, לעולם לא propose_event_add_batch.
   - מילות-טריגר שמחייבות שיבוץ עובד (לא פגישה): "שבץ", "שיבוץ", "תשבץ", "סידור עבודה", "משמרת", "משמרות", "תכניס לסידור", "להכניס לדוחות עובדים", "להוסיף לדוח", "סיכום חודשי".
   - *⚠️ אל תקרא ל-propose_shift_assign* אם המשתמש כתב שעות מדויקות (כמו "17:00-00:30") — propose_shift_assign מצמיד לסוגי משמרת קבועים ומאבד את השעות שלך. תקרא תמיד ל-*propose_employee_shifts_batch* (גם עבור משמרת אחת בלבד) כשיש לך שעת התחלה+סיום ספציפיות.
   - "להכניס לדוחות עובדים" / "סיכום חודשי" = בדיוק אותו פעולה כמו "שבץ למשמרת" — שניהם כותבים ל-WorkShift. אל תשאל את המשתמש איזה מהם — תפעל ישר עם propose_employee_shifts_batch.
