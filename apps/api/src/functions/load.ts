@@ -5395,6 +5395,46 @@ registerFn('ensureWaTemplate', async ({ user, body }: any) => {
   return { ...r, message: he[r.status] || r.status };
 });
 
+// Remove a "stray" user that logged into THIS tenant by mistake (their email
+// belongs to another business, but because it sat in this tenant's Employee list
+// the shared-domain login attached them here). Deletes the local User + Employee
+// row for that email so the next login routes them to their real tenant. SAFETY:
+// refuses if the email has real shift data here (a genuine worker), and reports
+// which other tenant the email actually belongs to. Owner-gated. Scoped to THIS
+// tenant's schema only — never touches another business's data.
+registerFn('removeStrayUser', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'removeStrayUser');
+  const email = String((body || {}).email || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) throw new Error('נדרש מייל תקין');
+  const emp: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, full_name, status FROM "Employee" WHERE lower(email)=lower($1)`, email);
+  const usr: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, role FROM "User" WHERE lower(email)=lower($1)`, email);
+  if (!emp.length && !usr.length) return { ok: true, removed: false, message: 'לא נמצא משתמש/עובד עם המייל הזה בעסק הזה — כנראה כבר נוקה.' };
+  // Footprint safety — never delete a real worker who has clock/shift history here.
+  let footprint = 0;
+  if (emp.length) {
+    const h: any[] = await (prisma as any).$queryRawUnsafe(`SELECT count(*)::int c FROM "ShiftTracking" WHERE employee_id=$1 OR lower(employee_name)=lower($2)`, emp[0].id, emp[0].full_name).catch(() => [{ c: 0 }]);
+    footprint = Number(h[0]?.c || 0);
+  }
+  // Where does this email really belong? (read-only scan of the other schemas)
+  const homes: string[] = [];
+  try {
+    const schemas: any[] = await (prisma as any).$queryRawUnsafe(`SELECT DISTINCT table_schema s FROM information_schema.tables WHERE table_name='Employee' AND table_schema NOT IN ('public','information_schema','pg_catalog')`);
+    for (const row of schemas) {
+      const s = row.s;
+      const r: any[] = await (prisma as any).$queryRawUnsafe(`SELECT 1 FROM "${s}"."Employee" WHERE lower(email)=lower($1) LIMIT 1`, email).catch(() => []);
+      if (r.length) homes.push(s);
+    }
+  } catch { /* scan is best-effort */ }
+  if (footprint > 0) {
+    return { ok: false, removed: false, reason: 'has_shift_data', shift_rows: footprint, homes,
+      message: `לא הוסר — למייל הזה יש ${footprint} רשומות שעון בעסק הזה, כלומר הוא כן עבד כאן. צריך בדיקה ידנית.` };
+  }
+  const du: number = await (prisma as any).$executeRawUnsafe(`DELETE FROM "User" WHERE lower(email)=lower($1)`, email);
+  const de: number = await (prisma as any).$executeRawUnsafe(`DELETE FROM "Employee" WHERE lower(email)=lower($1)`, email);
+  return { ok: true, removed: true, users_removed: du, employees_removed: de, homes,
+    message: `הוסר: ${du} משתמש + ${de} עובד. בכניסה הבאה הוא ינותב לעסק שלו${homes.length ? ` (${homes.join(', ')})` : ''}.` };
+});
+
 // Per-employee WhatsApp message log — the owner wants to see every message the
 // system sent each employee (and their replies). Twilio already stores every
 // message, so we read from there and map each phone → Employee name; no need to

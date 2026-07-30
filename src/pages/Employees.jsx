@@ -911,6 +911,15 @@ function EmployeesInner() {
                  })()}
                  <DropdownMenuItem onClick={() => fileImportRef.current?.click()}>{aiImporting ? '⏳ סורק...' : '📄 ייבא מ-PDF/Excel'}</DropdownMenuItem>
                  <DropdownMenuItem onClick={syncAllEmails}>🔄 סנכרן מיילים</DropdownMenuItem>
+                 <DropdownMenuItem onClick={async () => {
+                   const email = window.prompt('הסרת משתמש שנכנס בטעות לעסק הזה — הזן את המייל שלו:\n(הרישום שלו יימחק מכאן והוא ינותב לעסק שלו בכניסה הבאה)');
+                   if (!email || !email.trim()) return;
+                   try {
+                     const r = await base44.functions.removeStrayUser({ email: email.trim() }); const d = r?.data || r || {};
+                     alert(d.message || (d.removed ? 'הוסר.' : 'לא בוצע.'));
+                     loadEmployees();
+                   } catch (e) { alert('שגיאה: ' + (e?.message || '')); }
+                 }}>🧹 הסר משתמש שנכנס בטעות</DropdownMenuItem>
                </DropdownMenuContent>
              </DropdownMenu>
              <AiScannerButton target="employees" onImported={loadEmployees} />
