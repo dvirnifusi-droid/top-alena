@@ -21,8 +21,13 @@ import ShiftEditInlineDialog from '../components/reports/ShiftEditInlineDialog';
 import EmployeeRankingReport from '../components/reports/EmployeeRankingReport';
 import { useMyPermissions } from '@/hooks/useMyPermissions';
 
-// TIP-based positions (excluded from hourly salary report)
+// TIP-based positions (excluded from the hourly-salary report — they're paid
+// from tips, not for scheduled hours). Match by CONTAINMENT so Hebrew gender
+// forms (מלצרית / ברמנית / ראנרית) and compound titles ("מלצרית וקופה") are all
+// caught — exact-match missed "מלצרית" and wrongly billed those shifts as hours.
 const TIP_POSITIONS = ['מלצר', 'ברמן', 'ראנר'];
+const normPos = (p) => String(p || '').replace(/["'׳״]/g, '').replace(/\s+/g, '').toLowerCase();
+const isTipPosition = (pos) => { const p = normPos(pos); return !!p && TIP_POSITIONS.some((k) => p.includes(normPos(k))); };
 
 // Derive a department for filtering when the explicit Employee.department
 // column is empty. Looks at positions[] for keyword matches.
@@ -352,7 +357,7 @@ function EmployeeReportsInner() {
             return true;
         };
 
-        const tipEntries = allTipEntries.filter(e => inPeriod(e.date) && (!e.position || TIP_POSITIONS.includes(e.position)));
+        const tipEntries = allTipEntries.filter(e => inPeriod(e.date) && (!e.position || isTipPosition(e.position)));
 
         // משמרות ShiftTracking לפי שם עובד
         const empShifts = shifts.filter(s =>
@@ -392,7 +397,7 @@ function EmployeeReportsInner() {
                 const idMatch = a.employee_id && a.employee_id === selectedEmployeeId;
                 const nameMatch = a.employee_name && selName && normEmpName(a.employee_name) === selName;
                 if (!idMatch && !nameMatch) return;
-                if (TIP_POSITIONS.includes(a.position)) return; // טיפ-based - לא כאן
+                if (isTipPosition(a.position)) return; // טיפ-based - לא כאן
 
                 // Worked hours = a COMPLETED clock (in AND out) or a manual entry.
                 // Planned-only / in-progress (clocked in, not out) / no-show shifts
@@ -1670,7 +1675,7 @@ function AllEmployeesSummary({ workShifts, employees, shifts = [], isAdmin, onRe
             const wsDate = String(ws.date).slice(0, 10);
             if (!wsDate || wsDate < monthStart || wsDate > monthEnd) return;
             (ws.assigned_staff || []).forEach(a => {
-                if (TIP_POSITIONS.includes(a.position)) return;
+                if (isTipPosition(a.position)) return;
                 const emp = empById.get(a.employee_id);
                 if (!emp) return; // only employees in the current (filtered) list
                 const net = calcHours(a.start_time, a.end_time) - (a.total_break_minutes || 0) / 60;
@@ -1711,7 +1716,7 @@ function AllEmployeesSummary({ workShifts, employees, shifts = [], isAdmin, onRe
             if (!ws.date || ws.date < monthStart || ws.date > monthEnd) return;
             (ws.assigned_staff || []).forEach(a => {
                 if (a.employee_id !== emp.id) return;
-                if (TIP_POSITIONS.includes(a.position)) return;
+                if (isTipPosition(a.position)) return;
                 const hours = calcHours(a.start_time, a.end_time) - (a.total_break_minutes || 0) / 60;
                 if (hours <= 0) return;
                 workDates.add(ws.date);
@@ -1744,7 +1749,7 @@ function AllEmployeesSummary({ workShifts, employees, shifts = [], isAdmin, onRe
                 (emp.full_name && s.employee_name && s.employee_name.trim().toLowerCase() === emp.full_name.trim().toLowerCase())
             );
             if (!s) return;
-            if (s.position && !TIP_POSITIONS.includes(s.position)) return;
+            if (s.position && !isTipPosition(s.position)) return;
             tipDates.add(report.date);
             const pos = s.position || 'מלצר';
             if (!tipByPosition[pos]) tipByPosition[pos] = { hours: 0, earnings: 0 };
