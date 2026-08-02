@@ -7266,7 +7266,8 @@ registerFn('getReservationSettings', async () => {
 // AUTHED — reservation + marketing analytics for a date range (+ optional compare range).
 // Every reservation already carries source/campaign/medium/utm, so this is pure aggregation
 // over THIS tenant's own reservations (schema-scoped). Powers the reservations dashboard.
-registerFn('getReservationAnalytics', async ({ body }: any) => {
+registerFn('getReservationAnalytics', async ({ body, user }: any) => {
+  await requireBackOffice(user, 'getReservationAnalytics'); // returns customer PII — back-office only
   const { from, to, compare_from, compare_to } = (body || {}) as any;
   if (!from || !to) throw new Error('from, to required');
 

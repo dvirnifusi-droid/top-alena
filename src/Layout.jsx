@@ -81,6 +81,7 @@ export const adminLinks = [
   { title: "דוח סיום משמרת", url: createPageUrl("ShiftEndReport"), icon: ClipboardCheck, isSubItem: true, color: "cinnamon" },
 
   { title: "📞 תור והזמנות", url: createPageUrl("QueueHub"), icon: QrCode, color: "gold" },
+  { title: "📊 דאשבורד הזמנות", url: createPageUrl("ReservationsAnalytics"), icon: BarChart3, color: "gold" },
 
   { title: "כספים ודוחות", url: "#", icon: TrendingUp, isCategory: true, color: "olive" },
   // "WhatsApp Inbox" + "קופה Live" (BeecommLive) moved to the settings hub.

@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { format, subDays, startOfMonth, differenceInCalendarDays } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Loader2, TrendingUp, TrendingDown, Users, CalendarCheck, UserX, RefreshCw, BarChart3 } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, Users, CalendarCheck, UserX, RefreshCw, BarChart3, Copy, Download, Plus, Check, Trash2, QrCode } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
+import { QRCodeCanvas } from 'qrcode.react';
 
 // Source key → label + emoji. Falls back to the raw key for anything unmapped.
 const SOURCE_META = {
@@ -79,6 +80,37 @@ export default function ReservationsAnalytics() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');            // free-text search over the detail table
   const [srcFilter, setSrcFilter] = useState(null); // click a source bar → filter detail table
+
+  // ── Dedicated tracked links + QR per channel ───────────────────────────────
+  // Each link is <origin>/PublicReservation?src=<key>. captureAttribution() on
+  // the public page reads ?src, and classifyReservationSource preserves unknown
+  // values as-is — so custom channels show up distinctly in the breakdown below.
+  // origin is per-tenant (topalena.com for Alena, <slug>.topalena.com otherwise).
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://topalena.com';
+  const PRESET_CHANNELS = [
+    { key: 'instagram', label: 'אינסטגרם', emoji: '📸' },
+    { key: 'facebook', label: 'פייסבוק', emoji: '👍' },
+    { key: 'tiktok', label: 'טיקטוק', emoji: '🎵' },
+    { key: 'google', label: 'גוגל', emoji: '🔍' },
+    { key: 'whatsapp', label: 'וואטסאפ', emoji: '💬' },
+    { key: 'qr', label: 'QR בשולחנות', emoji: '📱' },
+  ];
+  const [customSrc, setCustomSrc] = useState(() => { try { return JSON.parse(localStorage.getItem('resv_custom_sources') || '[]'); } catch { return []; } });
+  const [newSrc, setNewSrc] = useState('');
+  const [copiedKey, setCopiedKey] = useState(null);
+  const linkFor = (key) => `${origin}/PublicReservation?src=${encodeURIComponent(key)}`;
+  const copyLink = async (key) => { try { await navigator.clipboard.writeText(linkFor(key)); setCopiedKey(key); setTimeout(() => setCopiedKey(null), 1500); } catch { /* clipboard blocked */ } };
+  const downloadQR = (key, label) => { const c = document.getElementById(`qr-${key}`); if (!c) return; const a = document.createElement('a'); a.href = c.toDataURL('image/png'); a.download = `qr-${String(label).replace(/\s+/g, '-')}.png`; document.body.appendChild(a); a.click(); a.remove(); };
+  const addCustom = () => {
+    const name = newSrc.trim(); if (!name) return;
+    const key = name.toLowerCase().replace(/[^a-z0-9֐-׿]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 40) || `src${Date.now() % 100000}`;
+    if ([...PRESET_CHANNELS, ...customSrc].some((c) => c.key === key)) { setNewSrc(''); return; }
+    const next = [...customSrc, { key, label: name }];
+    setCustomSrc(next); try { localStorage.setItem('resv_custom_sources', JSON.stringify(next)); } catch { /* ignore */ }
+    setNewSrc('');
+  };
+  const removeCustom = (key) => { const next = customSrc.filter((c) => c.key !== key); setCustomSrc(next); try { localStorage.setItem('resv_custom_sources', JSON.stringify(next)); } catch { /* ignore */ } };
+  const allChannels = [...PRESET_CHANNELS, ...customSrc.map((c) => ({ ...c, emoji: c.emoji || '🔗', custom: true }))];
 
   const applyPreset = (key) => {
     setPreset(key);
@@ -158,6 +190,43 @@ export default function ReservationsAnalytics() {
             <input type="checkbox" checked={compareOn} onChange={e => setCompareOn(e.target.checked)} />
             השווה לתקופה קודמת
           </label>
+        </CardContent>
+      </Card>
+
+      {/* Dedicated tracked links + QR per channel */}
+      <Card className="shadow-sm">
+        <CardContent className="p-4">
+          <h2 className="font-black text-gray-900 flex items-center gap-2"><QrCode className="w-5 h-5 text-indigo-500" /> קישורים ייעודיים למעקב</h2>
+          <p className="text-xs text-gray-500 mt-1 mb-4">קישור נפרד + ברקוד לכל ערוץ. כל הזמנה שתגיע דרכו מתויגת אוטומטית — ותראה למטה בדיוק מאיפה הגיעה כל הזמנה, עד רמת השם.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {allChannels.map((ch) => (
+              <div key={ch.key} className="border border-gray-200 rounded-xl p-3 flex gap-3 items-center">
+                <div className="shrink-0 bg-white p-1 rounded-lg border border-gray-100">
+                  <QRCodeCanvas id={`qr-${ch.key}`} value={linkFor(ch.key)} size={256} includeMargin level="M" style={{ width: 68, height: 68 }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-base">{ch.emoji}</span>
+                    <span className="font-bold text-gray-800 text-sm truncate">{ch.label}</span>
+                    {ch.custom && <button onClick={() => removeCustom(ch.key)} title="הסר" className="text-gray-300 hover:text-red-500 mr-auto"><Trash2 className="w-3.5 h-3.5" /></button>}
+                  </div>
+                  <div className="text-[10px] text-gray-400 truncate mb-2 text-left" dir="ltr">{linkFor(ch.key).replace(/^https?:\/\//, '')}</div>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => copyLink(ch.key)} className="flex-1 inline-flex items-center justify-center gap-1 text-[11px] font-bold px-2 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
+                      {copiedKey === ch.key ? <><Check className="w-3.5 h-3.5" /> הועתק</> : <><Copy className="w-3.5 h-3.5" /> העתק קישור</>}
+                    </button>
+                    <button onClick={() => downloadQR(ch.key, ch.label)} title="הורד ברקוד להדפסה" className="inline-flex items-center justify-center gap-1 text-[11px] font-bold px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">
+                      <Download className="w-3.5 h-3.5" /> QR
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+            <Input value={newSrc} onChange={(e) => setNewSrc(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addCustom(); }} placeholder="צור מקור משלך (למשל: שלט בכניסה, ניוזלטר)…" className="h-9 text-sm flex-1" />
+            <Button onClick={addCustom} size="sm" className="h-9 shrink-0"><Plus className="w-4 h-4 ml-1" /> צור</Button>
+          </div>
         </CardContent>
       </Card>
 
