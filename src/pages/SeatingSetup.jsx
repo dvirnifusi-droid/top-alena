@@ -459,6 +459,7 @@ export default function SeatingSetup() {
         || (isMainAlena() ? 'https://media.base44.com/images/public/68ac71d972dff18b98e30a21/5fc81039d_WhatsAppImage2026-04-10at145322.jpg' : null);
     const [isSmartMapMode, setIsSmartMapMode] = useState(false); // AI overlay state (Phase 4)
     const [quickSeatOpen, setQuickSeatOpen] = useState(false); // walk-in / standby quick-seat flow
+    const [quickSeatTable, setQuickSeatTable] = useState(null); // table pre-chosen from the map
     const [smartReserveOpen, setSmartReserveOpen] = useState(false); // smart-recommended reservation dialog
     const [clockTick, setClockTick] = useState(() => new Date());
     const [aiOpen, setAiOpen] = useState(false); // floating AI assistant widget
@@ -877,6 +878,9 @@ export default function SeatingSetup() {
             const cleanNotes = m
                 ? (entry.notes || '').replace(/^שולחן:\s*[\d,\s]+/, '').trim()
                 : (entry.notes || '');
+            // Stamp the end time so the turn timer works for queue-seated guests too
+            // (they were created without it, so they never showed מסיים/חריגה).
+            const qEndMin = (now.getHours() * 60 + now.getMinutes()) + getSeatingDuration(entry.party_size);
             const created = await Reservation.create({
                 customer_name: entry.customer_name,
                 customer_phone: entry.phone,
@@ -885,6 +889,7 @@ export default function SeatingSetup() {
                 party_size: entry.party_size,
                 status: 'seated',
                 special_requests: cleanNotes || null,
+                reservation_end_time: `${String(Math.floor(qEndMin / 60) % 24).padStart(2, '0')}:${String(qEndMin % 60).padStart(2, '0')}`,
                 source: 'queue',
                 ...(preTables ? { assigned_table: preTables } : {}),
             });
@@ -916,6 +921,17 @@ export default function SeatingSetup() {
         return activeSessions.find(session => {
             if (session.status !== 'active') return false;
             // Support multi-table sessions stored as 'A,B' or 'A+B'
+            const parts = String(session.table_number || '').split(/[,+]/).map(s => s.trim());
+            return parts.includes(String(tableNumber));
+        });
+    };
+
+    // A table marked "ניקוי" keeps a session with status 'to_be_cleaned'. getTableSession
+    // only matches 'active', so a dirty table used to render exactly like a clean empty
+    // one — the hostess would seat the next party onto plates, or שבץ הכל would assign it.
+    const getCleaningSession = (tableNumber) => {
+        return activeSessions.find(session => {
+            if (session.status !== 'to_be_cleaned') return false;
             const parts = String(session.table_number || '').split(/[,+]/).map(s => s.trim());
             return parts.includes(String(tableNumber));
         });
@@ -1300,6 +1316,18 @@ export default function SeatingSetup() {
             }
 
             if (newStatus === 'available') {
+                // Closing a table ends the meal and completes the booking — there is no
+                // undo. On a tablet the toolbar sits on every table at once, so a 20px
+                // miss used to close out a paying party of 8 silently. Confirm first,
+                // and only when someone is actually sitting there.
+                const occupied = sessions.length > 0 || heldReservation?.status === 'seated';
+                if (occupied) {
+                    const who = heldReservation?.customer_name ? ` (${heldReservation.customer_name})` : '';
+                    const spanLabel = spanTables.length > 1 ? spanTables.join(' + ') : spanTables[0];
+                    if (!window.confirm(`לפנות את שולחן ${spanLabel}${who}?\n\nהמשמרת בשולחן תיסגר וההזמנה תסומן כהושלמה. אי אפשר לבטל.`)) {
+                        return;
+                    }
+                }
                 await Promise.all(sessions.map(s => TableSession.update(s.id, {
                     status: 'completed', session_end: new Date().toISOString(),
                 })));
@@ -2055,7 +2083,7 @@ export default function SeatingSetup() {
     const handleReleaseTable = async (tableNumber) => {
         const session = getTableSession(tableNumber);
         if (!session) return;
-        
+        if (!window.confirm(`לשחרר את שולחן ${tableNumber}?\n\nהמשמרת בשולחן תיסגר. אי אפשר לבטל.`)) return;
         try {
             await TableSession.update(session.id, { 
                 status: 'completed',
@@ -2439,7 +2467,24 @@ export default function SeatingSetup() {
                         <div className="text-center py-8">
                             <div className="text-6xl mb-4">😴</div>
                             <h3 className="text-xl font-bold text-gray-600 mb-2">השולחן פנוי</h3>
-                            <p className="text-gray-500">אין פעילות כרגע בשולחן זה</p>
+                            <p className="text-gray-500 mb-4">אין פעילות כרגע בשולחן זה</p>
+                            {/* The most common hostess gesture — "guest at the door, this table
+                                is open" — had no path from the map at all: the empty state was a
+                                dead end and she had to leave the table, open הושבה מהירה and find
+                                it again in a grid. */}
+                            <Button
+                                onClick={() => {
+                                    setQuickSeatTable(table);
+                                    setTableDetailsOpen(false);
+                                    setQuickSeatOpen(true);
+                                }}
+                                className="bg-[#A04A2E] hover:bg-[#7A3722] text-white font-bold gap-2 px-6 py-5 text-base"
+                            >
+                                🪑 הושב כאן
+                            </Button>
+                            <p className="text-[11px] text-gray-400 mt-2">
+                                מזמין מזדמן או אורח מהתור — {table.min_capacity}-{table.max_capacity} סועדים
+                            </p>
                         </div>
                     )}
 
@@ -2824,7 +2869,7 @@ export default function SeatingSetup() {
                                         variant={bigMapMode ? 'default' : 'outline'}
                                         size="sm"
                                         onClick={() => setBigMapMode(v => !v)}
-                                        className={`hidden lg:flex ${bigMapMode ? 'bg-[#A04A2E] hover:bg-[#7A3722] text-white' : ''}`}
+                                        className={`hidden md:flex ${bigMapMode ? 'bg-[#A04A2E] hover:bg-[#7A3722] text-white' : ''}`}
                                     >
                                         <Maximize2 className="w-4 h-4 ml-1" />
                                         {bigMapMode ? 'צא ממפה גדולה' : 'מפה גדולה'}
@@ -3096,7 +3141,7 @@ export default function SeatingSetup() {
                                 {/* Right rail — only in big-map mode. Toggles between compact
                                     'tonight' strip and the full ReservationsDashboard inline (no overlay). */}
                                 {bigMapMode && (
-                                <div className="hidden lg:flex flex-col gap-2 lg:order-1 overflow-y-auto pl-1" style={{ maxHeight: 'calc(100vh - 110px)' }}>
+                                <div className="hidden md:flex flex-col gap-2 lg:order-1 overflow-y-auto pl-1" style={{ maxHeight: 'calc(100vh - 110px)' }}>
                                     {/* AI Assistant moved to a floating widget — see bottom of page render */}
 
                                     {/* Tab toggle at top — 3 tabs: tonight / full / queue */}
@@ -3600,7 +3645,23 @@ export default function SeatingSetup() {
                                         // to drive the "finishing soon" amber state in the last 30 min.
                                         let minutesUntilEnd = null;
                                         let computedEndTime = seatedReservation?.reservation_end_time || null;
-                                        if (seatedReservation?.time && computedEndTime) {
+                                        // Walk-ins and queue-seated guests are created WITHOUT
+                                        // reservation_end_time, so the whole turn-timer chain
+                                        // (מסיים / חריגה / countdown) never fired for them — on a busy
+                                        // night that's half the room showing as an undifferentiated
+                                        // wall of green. Derive the end time when it's missing.
+                                        if (!computedEndTime && seatedReservation) {
+                                            computedEndTime = getReservationCalculatedEndTime(seatedReservation);
+                                        }
+                                        if (!computedEndTime && session?.session_start) {
+                                            const st = new Date(session.session_start);
+                                            if (!isNaN(st)) {
+                                                const guests = Number(session.party_size) || Number(table.max_capacity) || 2;
+                                                const e = new Date(st.getTime() + getSeatingDuration(guests) * 60000);
+                                                computedEndTime = `${String(e.getHours()).padStart(2, '0')}:${String(e.getMinutes()).padStart(2, '0')}`;
+                                            }
+                                        }
+                                        if (computedEndTime) {
                                             const [eh, em] = computedEndTime.split(':').map(Number);
                                             const end = new Date();
                                             end.setHours(eh, em || 0, 0, 0);
@@ -3624,6 +3685,8 @@ export default function SeatingSetup() {
 
                                         let tableColorClass = '';
                                         const isReallyOccupied = !!session || !!seatedReservation;
+                                        // Dirty table awaiting bussing — must NOT look available.
+                                        const cleaningSession = !isReallyOccupied ? getCleaningSession(table.table_number) : null;
 
                                         // Upcoming reservation TODAY → "Reserved" state (soft yellow)
                                         const upcomingToday = !isReallyOccupied && futureReservationsForTable.find(r => r.date === currentDate);
@@ -3636,6 +3699,10 @@ export default function SeatingSetup() {
                                         } else if (isReallyOccupied) {
                                             // SEATED — light green (distinct from white "available")
                                             tableColorClass = 'bg-green-50 border-green-500 text-green-900';
+                                        } else if (cleaningSession) {
+                                            // CLEANING — slate, clearly not available (dashed border +
+                                            // 🧹 glyph below) so nobody is seated onto dirty plates.
+                                            tableColorClass = 'bg-slate-200 border-slate-500 border-dashed text-slate-700';
                                         } else if (upcomingToday) {
                                             // RESERVED — pastel yellow
                                             tableColorClass = 'bg-[#FAF5E8] border-yellow-400 text-yellow-900';
@@ -3755,6 +3822,9 @@ export default function SeatingSetup() {
                                                     )}
                                                     {isOvertime && (
                                                         <span className="absolute top-0 left-1 text-base" title="באיחור">⚠️</span>
+                                                    )}
+                                                    {cleaningSession && (
+                                                        <span className="absolute top-0 left-1 text-base" title="ממתין לניקוי">🧹</span>
                                                     )}
 
                                                     {/* TOP: table number is the hero; capacity is a subtle chip */}
@@ -3967,7 +4037,8 @@ export default function SeatingSetup() {
             {quickSeatOpen && (
                 <QuickSeatDialog
                     open={quickSeatOpen}
-                    onClose={() => setQuickSeatOpen(false)}
+                    onClose={() => { setQuickSeatOpen(false); setQuickSeatTable(null); }}
+                    preselectTable={quickSeatTable}
                     tables={tables}
                     reservations={reservations}
                     activeSessions={activeSessions}
@@ -3977,18 +4048,27 @@ export default function SeatingSetup() {
                         const dateStr = format(now, 'yyyy-MM-dd');
                         const time = format(now, 'HH:mm');
                         try {
+                            const size = parseInt(party_size);
+                            // Stamp the end time so the turn timer ("מסיים"/"חריגה" + countdown)
+                            // works for walk-ins too. Without it these guests rendered as flat
+                            // green forever and the hostess had no idea who was nearly done.
+                            const endMin = (now.getHours() * 60 + now.getMinutes()) + getSeatingDuration(size);
+                            const reservation_end_time =
+                                `${String(Math.floor(endMin / 60) % 24).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
                             const created = await Reservation.create({
                                 customer_name: name,
                                 customer_phone: phone || null,
                                 date: dateStr,
                                 time,
-                                party_size: parseInt(party_size),
+                                party_size: size,
                                 status: 'seated',
                                 assigned_table: [table_number],
+                                reservation_end_time,
                                 source: source_label || 'walkin',
                             });
                             await loadLiveData();
                             setQuickSeatOpen(false);
+                            setQuickSeatTable(null);
                         } catch (e) {
                             alert('שגיאה בהושבה: ' + (e?.message || e));
                         }
@@ -5394,13 +5474,15 @@ function LiveAccordionPanel({ reservations, queueEntries, selectedDate, onEditRe
 // === QuickSeatDialog — walk-in / standby / casual quick seat ================
 // Rule-based recommendation engine: given a party size, find available tables
 // (no active session, no overlapping reservation) and rank by fit.
-function QuickSeatDialog({ open, onClose, tables, reservations, activeSessions, onSeat }) {
+function QuickSeatDialog({ open, onClose, tables, reservations, activeSessions, onSeat, preselectTable }) {
     const [step, setStep] = useState('intake'); // intake | pick
     const [partySize, setPartySize] = useState(2);
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [sourceLabel, setSourceLabel] = useState('walkin'); // walkin | queue | standby
-    const [selectedTable, setSelectedTable] = useState(null);
+    // Opened from a specific table on the map ("הושב כאן") → that table is already
+    // chosen and the party size defaults to what it seats.
+    const [selectedTable, setSelectedTable] = useState(preselectTable?.table_number || null);
 
     if (!open) return null;
 
