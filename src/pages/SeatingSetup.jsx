@@ -950,6 +950,10 @@ export default function SeatingSetup() {
     const getActiveTime = (session) => {
         if (!session || !session.session_start) return '';
         const activeMinutes = Math.round((new Date() - new Date(session.session_start)) / 60000);
+        // A session nobody closed keeps counting forever — a table on the live map
+        // was showing "367:38" (two weeks). Past a full service that isn't a timer,
+        // it's a stuck session, so say so instead of printing a meaningless number.
+        if (activeMinutes > 12 * 60) return '⚠️ תקוע';
         if (activeMinutes < 60) return `${activeMinutes} דק'`;
         const hours = Math.floor(activeMinutes / 60);
         const minutes = activeMinutes % 60;
@@ -3640,6 +3644,32 @@ export default function SeatingSetup() {
                                                     <span className="text-2xl">{facilityType.icon}</span>
                                                     <span className="font-bold text-xs mt-1 text-inherit">{facility.name}</span>
                                                     <button onClick={() => handleRemoveFacility(facility.id)} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">×</button>
+                                                    {/* Facilities could only be dragged or deleted — there was no way to
+                                                        resize the kitchen/bar/restrooms to match the real room. Pointer
+                                                        events (not mouse) so it works on the hostess's tablet, and the
+                                                        handle stays visible on touch where there is no hover. */}
+                                                    <div
+                                                        className="absolute -bottom-1 -left-1 w-4 h-4 bg-gray-700 rounded-sm cursor-se-resize opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-70 transition-opacity touch-none"
+                                                        title="גרור לשינוי גודל"
+                                                        onPointerDown={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            e.currentTarget.setPointerCapture?.(e.pointerId);
+                                                            const startX = e.clientX, startY = e.clientY;
+                                                            const startW = facility.width || 80, startH = facility.height || 60;
+                                                            const move = (ev) => {
+                                                                const w = Math.max(40, Math.round((startW - (ev.clientX - startX)) / GRID_SIZE) * GRID_SIZE);
+                                                                const h = Math.max(40, Math.round((startH + (ev.clientY - startY)) / GRID_SIZE) * GRID_SIZE);
+                                                                setFacilities(prev => prev.map(f => f.id === facility.id ? { ...f, width: w, height: h } : f));
+                                                            };
+                                                            const up = () => {
+                                                                document.removeEventListener('pointermove', move);
+                                                                document.removeEventListener('pointerup', up);
+                                                            };
+                                                            document.addEventListener('pointermove', move);
+                                                            document.addEventListener('pointerup', up);
+                                                        }}
+                                                    />
                                                 </div>
                                             );
                                         })}
@@ -3669,8 +3699,17 @@ export default function SeatingSetup() {
                                             const today = new Date();
                                             today.setHours(0, 0, 0, 0);
                                             reservationDate.setHours(0, 0, 0, 0);
-                                            
-                                            return reservationDate >= today;
+                                            if (reservationDate < today) return false;
+                                            // TODAY: drop bookings whose time already passed, or a lunch booking
+                                            // still renders as "the next one" late at night (seen live on table 81:
+                                            // a guest seated until 03:59 showed 12:00 as their next booking).
+                                            // 30-min grace so a guest running late doesn't vanish off the map.
+                                            if (reservationDate.getTime() === today.getTime() && r.status !== 'seated' && r.time) {
+                                                const [rh, rm] = String(r.time).split(':').map(Number);
+                                                const n = new Date();
+                                                if (Number.isFinite(rh) && (rh * 60 + (rm || 0)) < (n.getHours() * 60 + n.getMinutes() - 30)) return false;
+                                            }
+                                            return true;
                                         }).sort((a, b) => {
                                             const dateA = new Date(`${a.date}T${a.time || '00:00'}`);
                                             const dateB = new Date(`${b.date}T${b.time || '00:00'}`);
