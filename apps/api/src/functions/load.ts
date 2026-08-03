@@ -79,7 +79,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'payment-hardening-2026-08-04b', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'payment-hardening-2026-08-04c', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -12285,17 +12285,23 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
     ? []
     : (Array.isArray(avail.table?.table_numbers) ? avail.table.table_numbers.map(String) : [String(avail.table.table_number)]);
 
+  // Resolve policy and day bounds BEFORE opening the transaction. Each tenant
+  // container runs with connection_limit=3, so anything awaited inside the locked
+  // section holds a pooled connection and starves concurrent bookings — the first
+  // version of this guard did exactly that and returned HTTP 500 to real guests
+  // under load. Keep the critical section to one read + one insert.
+  const policyNow = await getReservationPolicy();
+  const { start: lockDayStart, next: lockDayNext } = dayRange(date);
+
   let reservation: any;
   try {
     reservation = await (prisma as any).$transaction(async (tx: any) => {
       await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1::int)', slotLockKey);
       // Standby rows don't consume capacity or a table — skip the re-check.
       if (!isStandby) {
-        const { start: dS, next: dN } = dayRange(date);
-        const sameDayRows: any[] = await tx.reservation.findMany({ where: { date: { gte: dS, lt: dN } } });
+        const sameDayRows: any[] = await tx.reservation.findMany({ where: { date: { gte: lockDayStart, lt: lockDayNext } } });
         const liveRow = (x: any) => x.status !== 'cancelled' && x.status !== 'no_show' && !isStaleUnpaidHold(x);
         const startMin = toMin(time);
-        const policyNow = await getReservationPolicy();
         const takenSeats = sameDayRows
           .filter((x: any) => liveRow(x) && x.time && toMin(x.time) >= startMin && toMin(x.time) < startMin + 15)
           .reduce((sum: number, x: any) => sum + (x.party_size || 0), 0);
@@ -12343,7 +12349,10 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       marketing_consent_at: marketing_consent ? new Date() : null,
     } as any,
       });
-    }, { timeout: 15000 });
+      // maxWait: queue for a free connection/lock instead of erroring the guest out
+      // (Prisma's 2s default made concurrent bookings fail with a 500).
+      // timeout: the locked section is one read + one insert, so this is generous.
+    }, { maxWait: 25000, timeout: 10000 });
   } catch (e: any) {
     // Lost the race — the slot or table filled up while this request was in flight.
     // Offer alternatives instead of silently overbooking.
