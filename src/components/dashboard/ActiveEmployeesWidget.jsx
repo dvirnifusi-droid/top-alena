@@ -230,6 +230,7 @@ export default function ActiveEmployeesWidget() {
             lastLat: tr.last_lat ?? null,
             lastLng: tr.last_lng ?? null,
             lastLocAt: tr.last_location_at ?? null,
+            source: tr.source || null,
           });
         }
 
@@ -359,6 +360,9 @@ export default function ActiveEmployeesWidget() {
                         </Badge>
                         {emp.position && (
                           <span className="text-[11px] text-slate-500">· {emp.position}</span>
+                        )}
+                        {emp.source === 'whatsapp' && (
+                          <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-300" title="נכנס דרך וואטסאפ — המיקום לא אומת">📲 וואטסאפ</Badge>
                         )}
                       </div>
                       <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500">
