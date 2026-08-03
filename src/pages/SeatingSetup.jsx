@@ -3494,30 +3494,28 @@ export default function SeatingSetup() {
                                         <span className="text-[10px] text-gray-400 mr-2 hidden md:inline">גרור לתזוזה</span>
                                         <span className="w-px h-5 bg-gray-200 mx-1"></span>
 
-                                        {/* HOSTESS LENS — "where can I seat them?" without reading 57 cards.
-                                            Non-matching tables fade rather than disappear, so the room's shape
-                                            stays readable. */}
-                                        {[
-                                            { k: 'all', label: 'הכל' },
-                                            { k: 'free_now', label: 'פנוי עכשיו' },
-                                            { k: 'free_long', label: 'פנוי לזמן ארוך' },
-                                            { k: 'arriving', label: 'מגיעים בקרוב' },
-                                        ].map(o => (
-                                            <button
-                                                key={o.k}
-                                                onClick={() => setMapFilter(o.k)}
-                                                className={`text-[10px] font-bold px-2 py-1 rounded transition-colors whitespace-nowrap ${
-                                                    mapFilter === o.k
-                                                        ? 'bg-[#A04A2E] text-white'
-                                                        : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-400'
-                                                }`}
-                                                title={
-                                                    o.k === 'free_long' ? 'שולחנות פנויים ללא הזמנה בשעתיים הקרובות — הכי בטוח למזדמן'
-                                                    : o.k === 'arriving' ? 'שולחנות שמגיעה אליהם הזמנה בשעה הקרובה'
-                                                    : o.k === 'free_now' ? 'כל מה שפנוי כרגע' : 'ללא סינון'
-                                                }
-                                            >{o.label}</button>
-                                        ))}
+                                        {/* HOSTESS LENS — "where can I seat them, and for how long?" as one
+                                            menu instead of a row of chips, so the runway thresholds all fit. */}
+                                        <select
+                                            value={mapFilter}
+                                            onChange={(e) => setMapFilter(e.target.value)}
+                                            className={`text-[10px] font-bold rounded px-1.5 py-1 border transition-colors ${
+                                                mapFilter === 'all'
+                                                    ? 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                                                    : 'bg-[#A04A2E] text-white border-[#A04A2E]'
+                                            }`}
+                                            title="הצג רק שולחנות שמתאימים למה שאני מחפשת"
+                                        >
+                                            <option value="all">🔎 כל השולחנות</option>
+                                            <option value="free_now">פנוי עכשיו</option>
+                                            <option value="free_30">פנוי ל-30 דק׳</option>
+                                            <option value="free_45">פנוי ל-45 דק׳</option>
+                                            <option value="free_60">פנוי לשעה</option>
+                                            <option value="free_90">פנוי לשעה וחצי</option>
+                                            <option value="free_120">פנוי לשעתיים</option>
+                                            <option value="free_999">פנוי לכל הערב</option>
+                                            <option value="arriving">מגיעים בשעה הקרובה</option>
+                                        </select>
 
                                         {/* How many bookings each card lists */}
                                         <span className="text-[10px] text-gray-400 mr-1 hidden md:inline">שורות</span>
@@ -3747,14 +3745,15 @@ export default function SeatingSetup() {
                                             ? Math.max(0, (Number(nextBooking.time.slice(0, 2)) * 60 + Number(nextBooking.time.slice(3, 5))) - nowMin)
                                             : null;
                                         const isFreeNow = !isReallyOccupied && !cleaningSession;
-                                        // "free for a long time" = no booking for 2h+ (or none at all today)
-                                        const isFreeLong = isFreeNow && (freeUntilMin === null || freeUntilMin >= 120);
                                         const arrivingSoon = !isReallyOccupied && nextBooking && freeUntilMin !== null && freeUntilMin <= 60;
+                                        // "free for at least N minutes" — the hostess picks the runway she needs
+                                        // (a quick 45-min turn vs a relaxed two-hour table). null runway = free all night.
+                                        const freeForAtLeast = (min) => isFreeNow && (freeUntilMin === null || freeUntilMin >= min);
                                         const matchesFilter =
                                             mapFilter === 'all' ? true
                                             : mapFilter === 'free_now' ? isFreeNow
-                                            : mapFilter === 'free_long' ? isFreeLong
                                             : mapFilter === 'arriving' ? !!arrivingSoon
+                                            : mapFilter.startsWith('free_') ? freeForAtLeast(parseInt(mapFilter.slice(5), 10) || 0)
                                             : true;
 
                                         // Upcoming reservation TODAY → "Reserved" state (soft yellow)
@@ -3918,20 +3917,35 @@ export default function SeatingSetup() {
                                                                 {/* Seated guest — LIGHT GREEN chip */}
                                                                 <div className="w-full bg-green-200 text-green-900 rounded px-1 py-0.5 leading-tight">
                                                                     <div className="font-black text-[11px] truncate">{getFirstName(session?.customer_name || seatedReservation?.customer_name) || '—'}</div>
-                                                                    <div className="text-[9px] font-bold opacity-90 flex items-center justify-between tabular-nums">
-                                                                        <span>{session ? getActiveTime(session) : `${seatedReservation?.time || ''}${computedEndTime ? `–${computedEndTime}` : ''}`}</span>
+                                                                    <div className="text-[10px] font-normal opacity-90 flex items-center justify-between tabular-nums">
+                                                                        {/* dir=ltr — a time RANGE flips visually inside an RTL card
+                                                                            ("01:59–03:59" rendered as "03:59-01:59"). */}
+                                                                        <span dir="ltr">{session ? getActiveTime(session) : `${seatedReservation?.time?.slice(0, 5) || ''}${computedEndTime ? `–${computedEndTime}` : ''}`}</span>
                                                                         <span>×{session?.party_size || seatedReservation?.party_size}</span>
                                                                     </div>
                                                                 </div>
                                                                 {/* Upcoming bookings AFTER the seated guest — how many show is an
                                                                     owner setting (planning the whole evening vs a packed night). */}
-                                                                {futureReservationsForTable.filter(r => r.id !== seatedReservation?.id).slice(0, Math.max(0, rowsPerTable - 1)).map(res => (
-                                                                    <div key={res.id} className="w-full bg-[#44512C]/15 text-[#44512C] rounded px-1 flex items-center justify-between text-[11px] font-normal leading-tight tabular-nums">
-                                                                        <span>{res.time?.slice(0, 5)}</span>
-                                                                        <span className="truncate mx-1">{getFirstName(res.customer_name)}</span>
-                                                                        <span>×{res.party_size}</span>
-                                                                    </div>
-                                                                ))}
+                                                                {(() => {
+                                                                    const after = futureReservationsForTable.filter(r => r.id !== seatedReservation?.id);
+                                                                    // An occupied table must still answer "and then what?" — either
+                                                                    // who's booked after them, or that it opens up. Without this the
+                                                                    // card was a dead end for every seated table.
+                                                                    if (!after.length) {
+                                                                        return (
+                                                                            <div className="w-full text-[10px] font-normal opacity-60 leading-tight">
+                                                                                אין הזמנה אחריהם
+                                                                            </div>
+                                                                        );
+                                                                    }
+                                                                    return after.slice(0, Math.max(1, rowsPerTable - 1)).map(res => (
+                                                                        <div key={res.id} className="w-full bg-[#44512C]/15 text-[#44512C] rounded px-1 flex items-center justify-between text-[11px] font-normal leading-tight tabular-nums">
+                                                                            <span dir="ltr">{res.time?.slice(0, 5)}</span>
+                                                                            <span className="truncate mx-1">{getFirstName(res.customer_name)}</span>
+                                                                            <span>×{res.party_size}</span>
+                                                                        </div>
+                                                                    ));
+                                                                })()}
                                                             </div>
                                                         ) : futureReservationsForTable.length > 0 ? (
                                                             <div className="w-full flex flex-col gap-0.5">
@@ -3940,13 +3954,13 @@ export default function SeatingSetup() {
                                                                     return (
                                                                         <div className="w-full bg-[#44512C] text-white rounded px-1 py-0.5 leading-tight">
                                                                             <div className="font-black text-[11px] truncate">{getFirstName(res.customer_name) || 'שמור'}</div>
-                                                                            <div className="text-[9px] font-bold opacity-90 flex items-center justify-between tabular-nums"><span>{res.time?.slice(0, 5)}</span><span>×{res.party_size}</span></div>
+                                                                            <div className="text-[10px] font-normal opacity-90 flex items-center justify-between tabular-nums"><span dir="ltr">{res.time?.slice(0, 5)}</span><span>×{res.party_size}</span></div>
                                                                         </div>
                                                                     );
                                                                 })()}
                                                                 {futureReservationsForTable.slice(1, rowsPerTable).map(res => (
                                                                     <div key={res.id} className="w-full bg-[#44512C]/15 text-[#44512C] rounded px-1 flex items-center justify-between text-[11px] font-normal leading-tight tabular-nums">
-                                                                        <span>{res.time?.slice(0, 5)}</span>
+                                                                        <span dir="ltr">{res.time?.slice(0, 5)}</span>
                                                                         <span className="truncate mx-1">{getFirstName(res.customer_name)}</span>
                                                                         <span>×{res.party_size}</span>
                                                                     </div>
@@ -3965,11 +3979,13 @@ export default function SeatingSetup() {
                                                                     <span className="w-1.5 h-1.5 rounded-full bg-current inline-block"></span>
                                                                     פנוי
                                                                 </div>
-                                                                {freeUntilMin !== null && (
+                                                                {freeUntilMin !== null ? (
                                                                     <div className={`text-[10px] font-normal tabular-nums ${freeUntilMin < 60 ? 'opacity-90' : 'opacity-60'}`}>
-                                                                        עד {nextBooking.time?.slice(0, 5)}
+                                                                        עד <span dir="ltr">{nextBooking.time?.slice(0, 5)}</span>
                                                                         {freeUntilMin < 60 ? ` · ${freeUntilMin} דק׳` : ''}
                                                                     </div>
+                                                                ) : (
+                                                                    <div className="text-[10px] font-normal opacity-50">כל הערב</div>
                                                                 )}
                                                             </div>
                                                         )}
