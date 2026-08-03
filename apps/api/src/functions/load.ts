@@ -79,7 +79,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'reservation-safety-2026-08-04a', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'payment-hardening-2026-08-04b', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -11563,11 +11563,15 @@ registerFn('sendEventDeposit', async ({ body, user, req }: any) => {
 
 // PUBLIC webhook — PayPlus posts the transaction result here. Matches the reservation by
 // more_info (= reservation id). Lands on this tenant's own container (per-tenant callback host).
-registerFn('payplusCallback', async ({ body }: any) => {
+registerFn('payplusCallback', async ({ body, req }: any) => {
   try {
     const tx = body?.transaction || body?.data || body || {};
     const moreInfo = tx.more_info || body?.more_info;
     const transactionUid = tx.uid || tx.transaction_uid || body?.transaction_uid || null;
+    // The payment-page id WE generated and stored — an attacker forging a callback
+    // knows a reservation id (it's returned to the booker) but not this.
+    const pageUid = tx.page_request_uid || body?.page_request_uid || null;
+    const cbAmount = Number(tx.amount ?? body?.amount ?? 0) || 0;
     const statusCode = String(tx.status_code ?? tx.status ?? body?.status_code ?? '');
     const approved = statusCode === '000' || !!tx.approval_num || String(tx.status || '').toLowerCase() === 'approved';
     console.log('[payplusCallback] more_info=%s uid=%s status=%s approved=%s', moreInfo, transactionUid, statusCode, approved);
@@ -11585,6 +11589,13 @@ registerFn('payplusCallback', async ({ body }: any) => {
       const dep = m.deposit || {};
       // Terminal states are final — a duplicate/late IPN must not revert them.
       if (dep.status === 'paid' || dep.status === 'authorized') return { ok: true, note: `event deposit already ${dep.status}` };
+      // Same anti-forgery rule as the reservation branch: only a deposit WE
+      // initiated, on the payment page we generated, may be marked paid.
+      if (!dep.amount) return { ok: false, note: 'no pending event deposit' };
+      if (pageUid && dep.page_uid && String(pageUid) !== String(dep.page_uid)) {
+        console.warn('[payplusCallback] REJECTED event — page uid mismatch', { leadId });
+        return { ok: false, note: 'page uid mismatch' };
+      }
       dep.status = approved ? (dep.hold ? 'authorized' : 'paid') : 'failed';
       dep.ref = transactionUid || dep.ref || null;
       if (approved) dep.paid_at = new Date().toISOString();
@@ -11605,12 +11616,41 @@ registerFn('payplusCallback', async ({ body }: any) => {
     // Terminal states are final. PayPlus retries webhooks, so a late/duplicate IPN
     // arriving AFTER a manual capture or release must NOT revert the hold back to
     // 'authorized' (which would re-arm the charge button → double charge).
-    if (r.deposit_status === 'captured' || r.deposit_status === 'released') {
+    // 'authorized' is terminal here too: re-processing it would let a forged
+    // callback overwrite deposit_provider_ref with an arbitrary transaction uid,
+    // so a later manual "charge" would hit a DIFFERENT guest's card.
+    if (['captured', 'released', 'authorized'].includes(String(r.deposit_status))) {
       return { ok: true, note: `already ${r.deposit_status}, ignoring callback` };
+    }
+    // ── ANTI-FORGERY ────────────────────────────────────────────────────────
+    // This endpoint is public and unauthenticated (PayPlus posts to it), so the
+    // body alone can never be trusted. Without these checks anyone could POST
+    // {more_info:<reservation id>, status_code:'000'} to confirm a booking with
+    // no card on file, or plant a transaction uid to be charged later.
+    // 1. There must be a deposit WE initiated and are still waiting on.
+    if (!['pending', 'failed'].includes(String(r.deposit_status || ''))) {
+      console.warn('[payplusCallback] REJECTED — no pending deposit', { id: r.id, status: r.deposit_status });
+      return { ok: false, note: 'no pending deposit' };
+    }
+    // 2. The payment page must be the one we generated for THIS reservation.
+    if (pageUid && r.deposit_provider_ref && String(pageUid) !== String(r.deposit_provider_ref)) {
+      console.warn('[payplusCallback] REJECTED — page uid mismatch', { id: r.id, got: pageUid, want: r.deposit_provider_ref });
+      return { ok: false, note: 'page uid mismatch' };
+    }
+    // 3. The hold must not be stale — a link we sent days ago is not a live payment.
+    const sentAt = r.deposit_sent_at ? new Date(r.deposit_sent_at).getTime() : 0;
+    if (sentAt && Date.now() - sentAt > 24 * 60 * 60 * 1000) {
+      console.warn('[payplusCallback] REJECTED — stale deposit link', { id: r.id });
+      return { ok: false, note: 'stale deposit' };
+    }
+    // 4. Never authorize more than we asked for.
+    if (approved && cbAmount && Number(r.deposit_amount) && cbAmount > Number(r.deposit_amount) * 1.01) {
+      console.warn('[payplusCallback] REJECTED — amount mismatch', { id: r.id, got: cbAmount, want: r.deposit_amount });
+      return { ok: false, note: 'amount mismatch' };
     }
     if (approved) {
       const wasPending = r.status === 'pending' && !r.is_standby;
-      const firstAuth = wasPending || r.deposit_status !== 'authorized';
+      const firstAuth = true; // reaching here means deposit_status was pending/failed
       const updated = await db.reservation.update({
         where: { id: r.id },
         data: {
@@ -11683,12 +11723,39 @@ registerFn('releaseDeposit', async ({ body, user }) => {
   const r: any = await (prisma as any).reservation.findUnique({ where: { id: String(reservation_id) } });
   if (!r) throw new Error('not_found');
   if (r.deposit_status !== 'authorized') return { success: false, reason: 'not_authorized', currentStatus: r.deposit_status };
-  // TODO: call provider API to release
+  // Actually void the J5 hold at PayPlus. This used to be a bare TODO: the row was
+  // marked 'released' while the guest's credit limit stayed blocked for 7-30 days
+  // until the issuer expired it — after a normal, fully-paid dinner.
+  const s: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+  const cred = s?.provider_credentials;
+  let providerReleased = false;
+  let providerError: string | null = null;
+  if (cred?.api_key && r.deposit_provider_ref) {
+    try {
+      await payplusPost(cred, 'Transactions/CancelApprovalByTransactionUID', {
+        transaction_uid: r.deposit_provider_ref,
+      });
+      providerReleased = true;
+    } catch (e: any) {
+      providerError = e?.message || String(e);
+      console.warn('[deposit] provider release failed', { id: r.id, err: providerError });
+    }
+  } else {
+    providerError = 'חסר מזהה עסקה או מפתחות PayPlus';
+  }
+  // Clear it locally either way so the board doesn't stay stuck, but report the
+  // truth: if the provider didn't confirm, the hold may still sit on the card.
   await (prisma as any).reservation.update({
     where: { id: r.id },
     data: { deposit_status: 'released', deposit_released_at: new Date() },
   });
-  return { success: true };
+  console.log(`[deposit] release by ${(user as any)?.email} — reservation ${r.id} provider_released=${providerReleased}`);
+  return {
+    success: true,
+    provider_released: providerReleased,
+    error: providerError,
+    warning: providerReleased ? null : 'שוחרר במערכת, אך PayPlus לא אישר את הביטול — בדוק בממשק PayPlus שההחזקה ירדה מהכרטיס.',
+  };
 });
 
 // ── Shared table-picker: the ONE source of truth for auto-assignment ─────────
@@ -12202,7 +12269,50 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
     }
   }
 
-  const reservation = await db.reservation.create({
+  // ── ATOMIC CAPACITY CLAIM ─────────────────────────────────────────────────
+  // The availability check above and this insert used to be separate queries with
+  // several awaits between them. Two guests submitting at the same second both
+  // passed the check and both got created — over capacity, and both handed the
+  // SAME table. Serialize per (date, slot) with a Postgres advisory lock held for
+  // the transaction, and re-verify inside the lock before inserting.
+  const slotLockKey = (() => {
+    const s = `${String(date).slice(0, 10)}|${String(time)}`;
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+    return h; // 32-bit signed — fits pg_advisory_xact_lock(int)
+  })();
+  const wantedTables: string[] = isStandby
+    ? []
+    : (Array.isArray(avail.table?.table_numbers) ? avail.table.table_numbers.map(String) : [String(avail.table.table_number)]);
+
+  let reservation: any;
+  try {
+    reservation = await (prisma as any).$transaction(async (tx: any) => {
+      await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1::int)', slotLockKey);
+      // Standby rows don't consume capacity or a table — skip the re-check.
+      if (!isStandby) {
+        const { start: dS, next: dN } = dayRange(date);
+        const sameDayRows: any[] = await tx.reservation.findMany({ where: { date: { gte: dS, lt: dN } } });
+        const liveRow = (x: any) => x.status !== 'cancelled' && x.status !== 'no_show' && !isStaleUnpaidHold(x);
+        const startMin = toMin(time);
+        const policyNow = await getReservationPolicy();
+        const takenSeats = sameDayRows
+          .filter((x: any) => liveRow(x) && x.time && toMin(x.time) >= startMin && toMin(x.time) < startMin + 15)
+          .reduce((sum: number, x: any) => sum + (x.party_size || 0), 0);
+        if (takenSeats + size > policyNow.slotCapacity) {
+          throw Object.assign(new Error('slot_full'), { code: 'SLOT_FULL' });
+        }
+        // Someone may have claimed our table while we were between checks.
+        const clash = sameDayRows.some((x: any) => {
+          if (!liveRow(x) || !Array.isArray(x.assigned_table)) return false;
+          if (!x.assigned_table.some((t: any) => wantedTables.includes(String(t)))) return false;
+          const oStart = toMin(x.time);
+          const oEnd = x.reservation_end_time ? toMin(x.reservation_end_time) : oStart + seatingDuration(x.party_size || 2);
+          return oStart < endMin && startMin < oEnd; // time ranges intersect
+        });
+        if (clash) throw Object.assign(new Error('table_taken'), { code: 'SLOT_FULL' });
+      }
+      return tx.reservation.create({
     data: {
       customer_name: String(customer_name).trim(),
       customer_phone: String(customer_phone).trim(),
@@ -12232,7 +12342,18 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       marketing_consent,
       marketing_consent_at: marketing_consent ? new Date() : null,
     } as any,
-  });
+      });
+    }, { timeout: 15000 });
+  } catch (e: any) {
+    // Lost the race — the slot or table filled up while this request was in flight.
+    // Offer alternatives instead of silently overbooking.
+    if (e?.code === 'SLOT_FULL') {
+      console.log('[booking] atomic re-check rejected a booking that would have overbooked', String(date), String(time));
+      const alternatives = await findNearbyAvailableSlots(date, time, size).catch(() => []);
+      return { success: false, reason: 'no_availability', alternatives };
+    }
+    throw e;
+  }
   fireTriggers('Reservation', 'created', reservation).catch(() => {});
 
   // Customer-facing confirmation messages
