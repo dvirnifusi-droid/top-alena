@@ -470,6 +470,14 @@ export default function SeatingSetup() {
     // Hostess lens: which tables to spotlight. Non-matching tables dim so the answer
     // to "where can I put this walk-in?" is visible without reading every card.
     const [mapFilter, setMapFilter] = useState('all'); // all | free_now | free_long | arriving
+    // Locked by DEFAULT: during service the map is a board to read, not to edit.
+    // A stray drag on a tablet silently relocated table 300 and the change stuck
+    // on the next save. Unlock deliberately to rearrange.
+    const [mapLocked, setMapLocked] = useState(() => localStorage.getItem('map_locked') !== 'false');
+    useEffect(() => { localStorage.setItem('map_locked', String(mapLocked)); }, [mapLocked]);
+    // Zone tints off = a plain white floor, for when overlapping areas get noisy.
+    const [showZoneColors, setShowZoneColors] = useState(() => localStorage.getItem('map_zone_colors') !== 'false');
+    useEffect(() => { localStorage.setItem('map_zone_colors', String(showZoneColors)); }, [showZoneColors]);
     const [smartReserveOpen, setSmartReserveOpen] = useState(false); // smart-recommended reservation dialog
     const [clockTick, setClockTick] = useState(() => new Date());
     const [aiOpen, setAiOpen] = useState(false); // floating AI assistant widget
@@ -1239,6 +1247,23 @@ export default function SeatingSetup() {
             return table;
         });
         setTables(newTables);
+    };
+
+    // Build any element the room actually has — an עמדת מארחת, a wine wall, a
+    // pillar — instead of being limited to the eight built-in types.
+    const handleAddCustomFacility = () => {
+        const name = window.prompt('שם האלמנט (למשל: עמדת מארחת, עמוד, ויטרינה)');
+        if (!name || !name.trim()) return;
+        const icon = window.prompt('אימוג׳י לתצוגה (אופציונלי — Enter לדילוג)', '🔹') || '🔹';
+        setFacilities([...facilities, {
+            id: Date.now().toString(),
+            type: 'custom',
+            name: name.trim(),
+            icon: icon.trim(),
+            x: Math.round((200 + Math.random() * 300) / GRID_SIZE) * GRID_SIZE,
+            y: Math.round((200 + Math.random() * 300) / GRID_SIZE) * GRID_SIZE,
+            width: 100, height: 70,
+        }]);
     };
 
     const handleAddFacility = () => {
@@ -2539,6 +2564,27 @@ export default function SeatingSetup() {
                                 is open" — had no path from the map at all: the empty state was a
                                 dead end and she had to leave the table, open הושבה מהירה and find
                                 it again in a grid. */}
+                            {/* Move a table between zones — or out of all of them. Zone
+                                backdrops are drawn from their members' bounding box, so one
+                                stray table stretches a zone across the room and its colour
+                                bleeds over everything. Reassigning is the real fix. */}
+                            <div className="mb-4 flex items-center justify-center gap-2 text-sm">
+                                <span className="text-gray-500">אזור:</span>
+                                <select
+                                    value={table.area || ''}
+                                    onChange={(e) => {
+                                        const area = e.target.value || null;
+                                        setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, area } : t));
+                                        alert(`שולחן ${table.table_number} הועבר ל${area || 'ללא אזור'}.\nלחץ "שמור מפה" כדי לשמור.`);
+                                    }}
+                                    className="border rounded-lg px-2 py-1 text-sm bg-white"
+                                >
+                                    <option value="">ללא אזור</option>
+                                    {[...new Set(tables.map(t => t.area).filter(Boolean))].map(a => (
+                                        <option key={a} value={a}>{a}</option>
+                                    ))}
+                                </select>
+                            </div>
                             <Button
                                 onClick={() => {
                                     setQuickSeatTable(table);
@@ -3585,11 +3631,35 @@ export default function SeatingSetup() {
                                             {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
                                         </select>
                                         <span className="w-px h-5 bg-gray-200 mx-1"></span>
+                                        {/* Lock is the primary control during service — first, and unmissable. */}
+                                        <button
+                                            onClick={() => setMapLocked(v => !v)}
+                                            className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
+                                                mapLocked
+                                                    ? 'bg-emerald-600 text-white border border-emerald-600'
+                                                    : 'bg-amber-500 text-white border border-amber-500 animate-pulse'
+                                            }`}
+                                            title={mapLocked
+                                                ? 'המפה נעולה — אי אפשר להזיז שולחנות בטעות. לחץ כדי לפתוח לעריכה'
+                                                : 'המפה פתוחה לעריכה — שולחנות ניתנים לגרירה. לחץ כדי לנעול'}
+                                        >{mapLocked ? '🔒 נעול' : '🔓 עריכה'}</button>
+                                        <button
+                                            onClick={() => setShowZoneColors(v => !v)}
+                                            className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
+                                                showZoneColors ? 'bg-white text-gray-600 border border-gray-200 hover:border-gray-400' : 'bg-zinc-800 text-white border border-zinc-800'
+                                            }`}
+                                            title="הצג/הסתר את צבעי האזורים ברקע"
+                                        >🎨 {showZoneColors ? 'צבעים' : 'ללא צבע'}</button>
                                         <button
                                             onClick={handleTidyMap}
                                             className="text-[10px] font-bold px-2 py-1 rounded transition-colors bg-white text-gray-600 border border-gray-200 hover:border-[#A04A2E] hover:text-[#A04A2E]"
                                             title="הצמד את כל השולחנות לרשת, גודל אחיד, וכל אזור כבלוק נפרד בלי חפיפה"
                                         >📐 יישר מפה</button>
+                                        <button
+                                            onClick={handleAddCustomFacility}
+                                            className="text-[10px] font-bold px-2 py-1 rounded transition-colors bg-white text-gray-600 border border-gray-200 hover:border-[#A04A2E] hover:text-[#A04A2E]"
+                                            title="הוסף אלמנט משלך למפה — עמדת מארחת, עמוד, ויטרינה…"
+                                        >➕ אלמנט</button>
                                         <button
                                             onClick={() => setShowBlueprint(v => !v)}
                                             className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
@@ -3637,7 +3707,7 @@ export default function SeatingSetup() {
                                         >
                                         {/* ZONE BACKDROPS — computed bounding boxes per area, soft pastel fills.
                                             Renders BEFORE tables/facilities so they sit underneath. */}
-                                        {!showBlueprint && (() => {
+                                        {!showBlueprint && showZoneColors && (() => {
                                             // Alena's zones keep their established hues; ANY other name gets a
                                             // deterministic pastel from its own text, so a new tenant's areas are
                                             // backdropped and labelled too (they used to get nothing at all —
@@ -3715,24 +3785,26 @@ export default function SeatingSetup() {
                                             });
                                         })()}
                                         {facilities.map((facility) => {
-                                            const facilityType = FACILITY_TYPES[facility.type];
-                                            if (!facilityType) return null;
+                                            // Owner-built elements ("עמדת מארחת" etc.) have no built-in type —
+                                            // fall back to a neutral chip instead of vanishing from the map.
+                                            const facilityType = FACILITY_TYPES[facility.type]
+                                                || { name: facility.name || 'אלמנט', icon: facility.icon || '🔹', color: 'bg-stone-200 border-stone-400 text-stone-800' };
                                             return (
                                                 <div
                                                     key={facility.id}
-                                                    draggable={!swapping && !assigningTable && !isSelectingTables}
+                                                    draggable={!mapLocked && !swapping && !assigningTable && !isSelectingTables}
                                                     onDragEnd={(e) => handleFacilityDragEnd(facility.id, e)}
                                                     style={{ position: 'absolute', left: facility.x || 50, top: facility.y || 50, width: facility.width || 80, height: facility.height || 60 }}
                                                     className={`flex flex-col items-center justify-center rounded-lg shadow-lg border-2 transition-all hover:scale-105 ${facilityType.color} relative group ${swapping || assigningTable || isSelectingTables ? 'cursor-not-allowed' : 'cursor-grab'}`}
                                                 >
-                                                    <span className="text-2xl">{facilityType.icon}</span>
+                                                    <span className="text-2xl">{facility.icon || facilityType.icon}</span>
                                                     <span className="font-bold text-xs mt-1 text-inherit">{facility.name}</span>
                                                     <button onClick={() => handleRemoveFacility(facility.id)} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">×</button>
                                                     {/* Facilities could only be dragged or deleted — there was no way to
                                                         resize the kitchen/bar/restrooms to match the real room. Pointer
                                                         events (not mouse) so it works on the hostess's tablet, and the
                                                         handle stays visible on touch where there is no hover. */}
-                                                    <div
+                                                    {!mapLocked && <div
                                                         className="absolute -bottom-1 -left-1 w-4 h-4 bg-gray-700 rounded-sm cursor-se-resize opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-70 transition-opacity touch-none"
                                                         title="גרור לשינוי גודל"
                                                         onPointerDown={(e) => {
@@ -3753,7 +3825,7 @@ export default function SeatingSetup() {
                                                             document.addEventListener('pointermove', move);
                                                             document.addEventListener('pointerup', up);
                                                         }}
-                                                    />
+                                                    />}
                                                 </div>
                                             );
                                         })}
@@ -3932,7 +4004,7 @@ export default function SeatingSetup() {
                                         return (
                                             <div
                                                 key={table.table_number}
-                                                draggable={!isResizing && !swapping && !assigningTable && !isSelectingTables && !isBlockedForInteraction}
+                                                draggable={!mapLocked && !isResizing && !swapping && !assigningTable && !isSelectingTables && !isBlockedForInteraction}
                                                 onDragEnd={(e) => handleTableDragEnd(table.table_number, e)}
                                                 onClick={() => {
                                                     if (!isBlockedForInteraction) {
@@ -4151,7 +4223,7 @@ export default function SeatingSetup() {
                                                     ) : null}
                                                 </div>
                                                 
-                                                {!isBlockedForInteraction && (
+                                                {!mapLocked && !isBlockedForInteraction && (
                                                     <div
                                                         className="absolute -bottom-1 -right-1 w-3 h-3 bg-gray-600 cursor-se-resize opacity-0 group-hover:opacity-100 transition-opacity rounded-sm"
                                                         onMouseDown={(e) => {
