@@ -12,6 +12,28 @@ import { prisma } from '../db.js';
 import { notifyOwner } from './waTemplates.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
 import { isNotifEnabled, notifText } from './notificationSettings.js';
+import { appBaseUrl } from './appUrl.js';
+
+// An employee asked to redeem coins for a prize/voucher — needs owner approval.
+// Fires off the CoinTransaction 'created' trigger. Not gated behind a registry
+// key (brand-new alert) so it always reaches the owner; toggle can come later.
+export async function alertRedemptionRequest(row: any): Promise<void> {
+  if (row?.status !== 'pending_approval') return;
+  const reason = String(row?.reason || '');
+  if (row?.trigger !== 'redemption' && !/פדיון/.test(reason)) return;
+  const name = row.employee_name || 'עובד';
+  const reward = reason.replace(/^בקשת פדיון:\s*/, '').trim() || String(row.redemption_reward || '') || 'פרס';
+  const cost = Math.abs(Number(row.amount) || 0);
+  const lines = [
+    '🎁 *בקשת פדיון פרס*',
+    `👤 ${name}`,
+    `🏷 ${reward}`,
+    cost ? `🪙 ${cost} מטבעות` : null,
+    '',
+    `לאישור או דחייה: ${appBaseUrl()}/GamificationAdmin`,
+  ].filter(Boolean).join('\n');
+  await broadcastToAdmins(lines, 'בקשת פדיון פרס');
+}
 
 export async function broadcastToAdmins(text: string, title = 'התראה'): Promise<void> {
   const phones = await reportRecipientPhones();

@@ -16,6 +16,7 @@ import {
   alertCriticalIncident,
   alertLargeReservation,
   alertCashDiscrepancy,
+  alertRedemptionRequest,
 } from './whatsappAlerts.js';
 
 const db = prisma as any;
@@ -295,6 +296,9 @@ on('EmployeeAvailability', 'created', async (row) => {
 });
 
 // 8. Clock-in
+// Employee asked to redeem coins for a prize → alert the owner to approve.
+on('CoinTransaction', 'created', (row) => alertRedemptionRequest(row));
+
 on('ShiftTracking', 'created', async (row) => {
   const t = fmtTime(row.shift_start);
   const ilHour = ilHourOf(row.shift_start || Date.now());
