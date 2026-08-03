@@ -452,6 +452,11 @@ export default function SeatingSetup() {
         return 1;
     });
     const [showBlueprint, setShowBlueprint] = useState(false); // legacy background drawing toggle (default OFF)
+    // Floor-plan photo behind the map. Alena keeps its legacy image; every other
+    // tenant uses its OWN (layout.blueprint_url) or gets no overlay at all — it
+    // used to be Alena's hardcoded photo for everyone.
+    const blueprintUrl = layout?.blueprint_url
+        || (isMainAlena() ? 'https://media.base44.com/images/public/68ac71d972dff18b98e30a21/5fc81039d_WhatsAppImage2026-04-10at145322.jpg' : null);
     const [isSmartMapMode, setIsSmartMapMode] = useState(false); // AI overlay state (Phase 4)
     const [quickSeatOpen, setQuickSeatOpen] = useState(false); // walk-in / standby quick-seat flow
     const [smartReserveOpen, setSmartReserveOpen] = useState(false); // smart-recommended reservation dialog
@@ -3465,8 +3470,11 @@ export default function SeatingSetup() {
                                             width: '1400px',
                                             height: '850px',
                                             // Blueprint overlay only when toggled — clean white-ish canvas by default
-                                            ...(showBlueprint ? {
-                                                backgroundImage: `url('https://media.base44.com/images/public/68ac71d972dff18b98e30a21/5fc81039d_WhatsAppImage2026-04-10at145322.jpg')`,
+                                            // blueprintUrl is the tenant's OWN floor-plan photo. It used
+                                            // to be Alena's hardcoded image, which meant any other
+                                            // restaurant pressing "שרטוט" saw Alena's dining room.
+                                            ...(showBlueprint && blueprintUrl ? {
+                                                backgroundImage: `url('${blueprintUrl}')`,
                                                 backgroundSize: '100% 100%',
                                                 backgroundRepeat: 'no-repeat',
                                                 backgroundPosition: 'center',
@@ -4037,14 +4045,19 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
         .filter(r => {
             const d = (r.date instanceof Date) ? format(r.date, 'yyyy-MM-dd') : String(r.date || '').slice(0, 10);
             if (d !== todayStr) return false;
-            if (r.status === 'cancelled' || r.status === 'no_show' || r.status === 'deleted') return false;
-            if (!r.time) return true;
-            if (String(r.time) < '17:00') return false;
+            if (r.status === 'cancelled' || r.status === 'deleted') return false;
+            // A no-show STAYS on the board (owner rule): it's auto-marked 30 min
+            // after the slot, and hiding it would take the ₪ hold — and the
+            // decision to charge or release it — off the owner's main view.
+            // Search must still apply to timeless rows, so it runs before the
+            // time cutoff, not after.
             if (q) {
                 const nameMatch = (r.customer_name || '').toLowerCase().includes(q);
                 const phoneMatch = (r.customer_phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''));
                 if (!nameMatch && !phoneMatch) return false;
             }
+            if (!r.time) return true;
+            if (String(r.time) < '17:00') return false;
             return true;
         })
         .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
@@ -5541,10 +5554,17 @@ function QuickSeatDialog({ open, onClose, tables, reservations, activeSessions, 
     );
 }
 
-// Geofence constants — matches QueueDashboard's calculation
-const QUEUE_RESTAURANT_LAT = 31.964780873771108;
-const QUEUE_RESTAURANT_LNG = 34.79326668650769;
+// Geofence — the restaurant's OWN coordinates (RestaurantProfile.restaurant_lat/lng,
+// set on /LocationSettings). These used to be Alena's hardcoded coordinates, so for
+// every other tenant EVERY waiting guest was flagged "רחוק" and the signal became
+// noise. When a tenant hasn't set a location we simply don't show the flag.
+let QUEUE_RESTAURANT_LAT = null;
+let QUEUE_RESTAURANT_LNG = null;
 const QUEUE_MAX_DISTANCE_M = 100;
+export function setQueueGeofenceOrigin(lat, lng) {
+  QUEUE_RESTAURANT_LAT = Number.isFinite(Number(lat)) ? Number(lat) : null;
+  QUEUE_RESTAURANT_LNG = Number.isFinite(Number(lng)) ? Number(lng) : null;
+}
 function queueCalcDistance(lat1, lon1, lat2, lon2) {
     const R = 6371000, toRad = d => d * Math.PI / 180;
     const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
@@ -5553,6 +5573,7 @@ function queueCalcDistance(lat1, lon1, lat2, lon2) {
 }
 function queueIsFarAway(entry) {
     if (!entry?.last_location_lat || !entry?.last_location_lng) return false;
+    if (QUEUE_RESTAURANT_LAT == null || QUEUE_RESTAURANT_LNG == null) return false; // location not configured → no flag
     return queueCalcDistance(QUEUE_RESTAURANT_LAT, QUEUE_RESTAURANT_LNG, entry.last_location_lat, entry.last_location_lng) > QUEUE_MAX_DISTANCE_M;
 }
 

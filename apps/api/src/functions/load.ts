@@ -24,6 +24,7 @@ import { isNotifEnabled, notifText, notifTime, notifSlot } from '../lib/notifica
 import { registerFn, functionHandlers } from './index.js';
 import { sendSms, sendWhatsApp, sendWhatsAppTemplate, invalidateTwilioCredsCache, twilioAuth } from '../lib/twilio.js';
 import { pushover, pushoverToAdmins, pushoverEventsOwners } from '../lib/pushover.js';
+import { appBaseUrl } from '../lib/appUrl.js';
 import { checkDailyHoursReportSchedule, sendDailyHoursReport, buildDailyHoursReport } from '../lib/dailyHoursReport.js';
 import { registerEmailTenant } from '../lib/emailTenantMap.js';
 import { fireTriggers } from '../lib/triggers.js';
@@ -78,7 +79,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'mkthq-fast-2026-08-03d', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'reservation-safety-2026-08-04a', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -11392,6 +11393,30 @@ async function payplusChargeByUID(cred: any, transaction_uid: string, amount: nu
   return payplusPost(cred, 'Transactions/ChargeByTransactionUID', { transaction_uid, amount });
 }
 
+// OWNER RULE: a reservation deposit is a SECURITY HOLD (J5). The card is only
+// reserved — money moves ONLY when the owner presses "charge". So hold (2) is the
+// fail-safe DEFAULT; an immediate charge (1) requires an explicit, deliberate
+// opt-in flag. Previously this read `cred?.j5 ? 2 : 1`, so a tenant that never
+// ticked the J5 checkbox (the default!) silently charged every guest at booking
+// time while the UI promised "we only secure the card".
+function depositChargeMethod(cred: any): number {
+  return cred?.immediate_charge === true ? 1 : 2;
+}
+// Deposits are capped server-side so a typo or a tampered field can't charge a
+// guest an arbitrary sum. Ceiling: ₪500/guest, hard max ₪5,000.
+function capDepositAmount(amount: number, partySize?: number): number {
+  const n = Math.max(0, Math.round(Number(amount) || 0));
+  const perGuestCeiling = 500 * Math.max(1, Number(partySize) || 1);
+  return Math.min(n, perGuestCeiling, 5000);
+}
+// Money/credential actions are owner/admin/manager only — never a junior host.
+function requireDepositRole(user: any): void {
+  const role = (user as any)?.role;
+  if (!['owner', 'admin', 'manager'].includes(String(role))) {
+    throw new Error('אין הרשאה לפעולות פיקדון — למנהל בלבד');
+  }
+}
+
 // AUTHED — verify the tenant's PayPlus keys by generating a real ₪1 link. No one is charged
 // unless they actually open and pay it, so this is a safe connection test before we build on top.
 registerFn('payplusTest', async ({ user }: any) => {
@@ -11402,7 +11427,7 @@ registerFn('payplusTest', async ({ user }: any) => {
   try {
     const r = await payplusGenerateLink(cred, {
       amount: 1,
-      charge_method: cred?.j5 ? 2 : 1,
+      charge_method: depositChargeMethod(cred),
       customer: { customer_name: 'בדיקת חיבור', email: 'test@topalena.com', phone: '0500000000' },
       more_info: 'connection_test',
       callback_url: `${base}/api/public/fn/payplusCallback`,
@@ -11419,6 +11444,7 @@ registerFn('payplusTest', async ({ user }: any) => {
 // Uses J5 (hold) when enabled, so the card is only RESERVED — never charged automatically.
 registerFn('sendDepositRequest', async ({ body, user, req }: any) => {
   if (!user) throw new Error('auth required');
+  requireDepositRole(user);
   const { reservation_id } = body as any;
   const overrideAmount = Number((body as any)?.amount) || 0; // manager-chosen amount (optional)
   const r: any = await db.reservation.findUnique({ where: { id: String(reservation_id) } });
@@ -11448,13 +11474,14 @@ registerFn('sendDepositRequest', async ({ body, user, req }: any) => {
     amount = perGuest * (Number(r.party_size) || 1);
   }
   if (amount <= 0) throw new Error('לא ניתן לחשב סכום פיקדון — הגדר "סכום לסועד" בהגדרות הפיקדון.');
+  amount = capDepositAmount(amount, r.party_size); // never hold more than the server-side ceiling
 
   // Callback must hit THIS tenant's own host/container so the right secret verifies it.
   const host = req?.headers?.host || (process.env.PUBLIC_BASE_URL || 'topalena.com').replace(/^https?:\/\//, '');
   const base = `https://${host}`;
   const link = await payplusGenerateLink(cred, {
     amount,
-    charge_method: cred?.j5 ? 2 : 1, // J5 hold by default — manual charge only, per owner
+    charge_method: depositChargeMethod(cred), // J5 hold by default — manual charge only, per owner
     customer: { customer_name: r.customer_name || '', email: r.customer_email || '', phone: r.customer_phone || '' },
     more_info: r.id,
     callback_url: `${base}/api/public/fn/payplusCallback`,
@@ -11470,9 +11497,9 @@ registerFn('sendDepositRequest', async ({ body, user, req }: any) => {
     `שלום ${r.customer_name || ''} 👋`,
     ``,
     `עוד כמה שניות לאישור ההזמנה שלך ב${brand} ✨`,
-    cred?.j5
+    depositChargeMethod(cred) === 2
       ? `רק מאבטחים את הכרטיס (לא מחייבים אותו) — פורמליות קטנה ששומרת לך את השולחן.`
-      : `להשלמת ההזמנה:`,
+      : `להשלמת ההזמנה (הכרטיס יחויב עכשיו):`,
     ``,
     `🔗 ${link.payment_page_link}`,
   ].join('\n');
@@ -11610,6 +11637,7 @@ registerFn('payplusCallback', async ({ body }: any) => {
 // For now these only update DB state and log; real provider call is a TODO.
 registerFn('captureDeposit', async ({ body, user }) => {
   if (!user) throw new Error('auth required');
+  requireDepositRole(user); // charging a guest's card is a manager action, never a junior host
   const { reservation_id } = body as any;
   const r: any = await (prisma as any).reservation.findUnique({ where: { id: String(reservation_id) } });
   if (!r) throw new Error('not_found');
@@ -11631,13 +11659,17 @@ registerFn('captureDeposit', async ({ body, user }) => {
     const cur: any = await (prisma as any).reservation.findUnique({ where: { id: r.id } }).catch(() => null);
     return { success: false, reason: 'in_progress_or_done', currentStatus: cur?.deposit_status };
   }
+  // Clamp before money moves — deposit_amount is writable through the generic
+  // entity route, so never trust it blindly at charge time.
+  const chargeIls = capDepositAmount(r.deposit_amount, r.party_size);
   try {
-    await payplusChargeByUID(cred, r.deposit_provider_ref, r.deposit_amount);
+    await payplusChargeByUID(cred, r.deposit_provider_ref, chargeIls);
     await (prisma as any).reservation.update({
       where: { id: r.id },
-      data: { deposit_status: 'captured', deposit_charged_at: new Date(), deposit_charge_amount: r.deposit_amount },
+      data: { deposit_status: 'captured', deposit_charged_at: new Date(), deposit_charge_amount: chargeIls },
     });
-    return { success: true, captured_ils: r.deposit_amount };
+    console.log(`[deposit] MANUAL capture by ${(user as any)?.email} — reservation ${r.id} ₪${chargeIls}`);
+    return { success: true, captured_ils: chargeIls };
   } catch (e: any) {
     await (prisma as any).reservation.update({ where: { id: r.id }, data: { deposit_status: 'authorized' } }).catch(() => {});
     return { success: false, error: e?.message || String(e) };
@@ -11646,6 +11678,7 @@ registerFn('captureDeposit', async ({ body, user }) => {
 
 registerFn('releaseDeposit', async ({ body, user }) => {
   if (!user) throw new Error('auth required');
+  requireDepositRole(user);
   const { reservation_id } = body as any;
   const r: any = await (prisma as any).reservation.findUnique({ where: { id: String(reservation_id) } });
   if (!r) throw new Error('not_found');
@@ -12033,6 +12066,30 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   if (!customer_name || !customer_phone || !date || !time || !party_size) {
     throw new Error('missing_required_fields');
   }
+  // Server-side gate for the owner's own switches. These were UI-only: turning
+  // "אפשר הזמנות חדשות" off, or marking a day closed, still accepted a direct
+  // POST — so a closed restaurant could be booked at 04:30. Enforce them here,
+  // where every public booking must pass.
+  {
+    const rsForGate: any = await db.reservationSettings.findFirst().catch(() => null);
+    if (rsForGate && rsForGate.reservations_enabled === false) {
+      return { success: false, reason: 'reservations_disabled' };
+    }
+    const oh: any = rsForGate?.opening_hours;
+    if (oh && typeof oh === 'object') {
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const dow = new Date(`${String(date).slice(0, 10)}T12:00:00Z`).getUTCDay();
+      const day = oh[dayNames[dow]];
+      if (day?.closed === true) return { success: false, reason: 'closed_that_day' };
+      // Outside opening hours (handles a past-midnight close such as 12:00→02:00).
+      const toMin = (t: any) => { const [h, m] = String(t || '').split(':').map(Number); return Number.isFinite(h) ? h * 60 + (m || 0) : null; };
+      const t = toMin(time), open = toMin(day?.open), close = toMin(day?.close);
+      if (t != null && open != null && close != null) {
+        const inHours = close > open ? (t >= open && t <= close) : (t >= open || t <= close);
+        if (!inHours) return { success: false, reason: 'outside_opening_hours' };
+      }
+    }
+  }
   // Email is now MANDATORY for public reservations (owner requirement).
   const emailRaw = String((body as any)?.customer_email || '').trim();
   if (!emailRaw || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) {
@@ -12114,6 +12171,37 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   const depSettings: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
   const depCred = depSettings?.provider_credentials;
   const willCollectDeposit = !!(depositInfo.required && (depositInfo as any).amount_ils > 0 && !isStandby && depSettings?.enabled && depCred?.api_key && depCred?.payment_page_uid);
+
+  // ── DUPLICATE GUARD ───────────────────────────────────────────────────────
+  // There was no server-side dedupe at all: a refresh-resubmit, a browser Back
+  // out of the PayPlus page, a double-tap, or a retried request each created a
+  // SECOND live booking — two tables held and two confirmation messages to the
+  // same guest. Replay the original instead of booking again: same phone + same
+  // date + same time, still active, created in the last 15 minutes.
+  const dupPhone = String(customer_phone).replace(/\D/g, '').slice(-9);
+  if (dupPhone.length >= 9) {
+    const sameDay: any[] = await db.reservation.findMany({
+      where: {
+        date: bookingDate, time: String(time),
+        status: { notIn: ['cancelled', 'no_show'] },
+        createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+      },
+      take: 50,
+    }).catch(() => []);
+    const existing = sameDay.find((r: any) => String(r.customer_phone || '').replace(/\D/g, '').endsWith(dupPhone));
+    if (existing) {
+      console.log(`[booking] duplicate suppressed — replaying reservation ${existing.id} for ${dupPhone}`);
+      return {
+        success: true, duplicate: true,
+        reservation_id: existing.id,
+        reservation: existing,
+        tracking_token: existing.tracking_token,
+        requires_deposit: false,
+        assigned_table: existing.assigned_table || null,
+      };
+    }
+  }
+
   const reservation = await db.reservation.create({
     data: {
       customer_name: String(customer_name).trim(),
@@ -12361,7 +12449,7 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       const hostBase = `https://${host}`;
       const link = await payplusGenerateLink(depCred, {
         amount: (depositInfo as any).amount_ils,
-        charge_method: depCred?.j5 ? 2 : 1,
+        charge_method: depositChargeMethod(depCred),
         customer: { customer_name: String(customer_name).trim(), email: customer_email || '', phone: String(customer_phone).trim() },
         more_info: reservation.id,
         callback_url: `${hostBase}/api/public/fn/payplusCallback`,
@@ -25091,6 +25179,7 @@ export async function autoMarkNoShows() {
       for (const t of String(s.table_number || '').split(/[,+]/)) sessionTables.add(t.trim());
     }
     let marked = 0;
+    const markedRows: any[] = [];
     for (const r of todayRes) {
       const status = String(r.status || 'pending').toLowerCase();
       // Only confirmed/pending bookings can flip to no_show
@@ -25100,8 +25189,18 @@ export async function autoMarkNoShows() {
       if (!Number.isFinite(hh)) continue;
       const resMin = hh * 60 + (mm || 0);
       if (nowMin - resMin < NO_SHOW_GRACE_MIN) continue; // not yet past grace
-      // If any of their assigned tables has an active session — they're seated, skip
+      // Standby/waitlist rows are NOT no-shows — they're people waiting for a slot
+      // to open. Auto-marking them made promoteStandbyReservation unable to find
+      // them, silently destroying the whole waitlist every service.
+      if (r.is_standby) continue;
       const assigned: string[] = Array.isArray(r.assigned_table) ? r.assigned_table.map(String) : [];
+      // Only auto-flag a booking we can actually verify didn't turn up: one with a
+      // table assigned that stayed empty. A row with NO table (WhatsApp bookings,
+      // manual adds) can never satisfy the "seated" check — `[].some()` is always
+      // false — so it used to be auto-no-showed unconditionally. Leave those to a
+      // human; the owner still gets the alert below.
+      if (!assigned.length) continue;
+      // If any of their assigned tables has an active session — they're seated, skip
       if (assigned.some((t) => sessionTables.has(t))) continue;
       // Mark as no_show
       try {
@@ -25114,14 +25213,29 @@ export async function autoMarkNoShows() {
           },
         });
         marked++;
+        markedRows.push(r);
         console.log(`[no-show-cron] marked ${r.customer_name} ${r.time} as no_show`);
       } catch (e: any) { console.warn('[no-show-cron] update failed:', e?.message); }
     }
     if (marked > 0) {
       try {
+        // Actionable alert (owner rule): name the guests, flag which ones still
+        // have a live card hold and how much, and link straight to the board —
+        // the owner decides to charge or release. NOTHING is charged here.
+        const lines = markedRows.slice(0, 10).map((r: any) => {
+          const held = r.deposit_status === 'authorized' && Number(r.deposit_amount) > 0;
+          return `• ${r.time} ${r.customer_name || 'ללא שם'} (${r.party_size || '?'} סועדים)`
+            + (held ? ` — 💳 אשראי תפוס ₪${r.deposit_amount}` : '');
+        });
+        const holds = markedRows.filter((r: any) => r.deposit_status === 'authorized' && Number(r.deposit_amount) > 0);
+        const extra = marked > 10 ? `\n…ועוד ${marked - 10}` : '';
+        const holdLine = holds.length
+          ? `\n\n💳 ${holds.length} עם אשראי תפוס (₪${holds.reduce((s: number, r: any) => s + Number(r.deposit_amount || 0), 0)} סה"כ) — לחיוב או שחרור ידני בלוח.`
+          : '';
         await pushoverEventsOwners(
-          '⚠️ הזמנות סומנו אוטומטית כלא-הגיע',
-          `${marked} הזמנות עברו ${NO_SHOW_GRACE_MIN} דק' אחרי הזמן ולא הגיעו.\nבדוק את לוח ההזמנות.`,
+          `⚠️ ${marked} לא הגיעו להזמנה`,
+          `עברו ${NO_SHOW_GRACE_MIN} דק' מהשעה:\n${lines.join('\n')}${extra}${holdLine}`
+            + `\n\nההזמנות נשארות בלוח — ${appBaseUrl()}/SeatingSetup`,
         );
       } catch { /* ignore */ }
     }
