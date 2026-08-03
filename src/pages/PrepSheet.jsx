@@ -220,6 +220,29 @@ export default function PrepSheet() {
     if (!editMode) saveOne(next);
   };
 
+  // Product-level "לסמן"/"בוצע" — flips the field on every item of the product
+  // (category) at once. 'done' only touches the items marked to-prep.
+  const toggleProduct = (rows, field) => {
+    markInteraction();
+    const relevant = field === 'done' ? rows.filter((r) => r.to_prep) : rows;
+    if (!relevant.length) return;
+    const target = !relevant.every((r) => r[field]);
+    const byName = me?.full_name || me?.email || 'עובד';
+    const nowIso = new Date().toISOString();
+    const ids = new Set(relevant.map((r) => r.id));
+    const updated = [];
+    const nextItems = items.map((it) => {
+      if (!ids.has(it.id)) return it;
+      let next = { ...it, [field]: target };
+      if (field === 'done') next = target ? { ...next, done_by: byName, done_at: nowIso } : { ...next, done_by: null, done_at: null };
+      if (field === 'to_prep' && !target) next = { ...next, done: false, done_by: null, done_at: null };
+      updated.push(next);
+      return next;
+    });
+    setItems(nextItems);
+    if (!editMode) updated.forEach((it) => saveOne(it));
+  };
+
   const attachPhoto = async (it, file) => {
     if (!file) return;
     setUploadingId(it.id);
@@ -458,7 +481,22 @@ export default function PrepSheet() {
                       <ChevronDown className={`w-4 h-4 transition-transform ${collapsedCats[cat] ? '-rotate-90' : ''}`} />
                       {cat}
                     </span>
-                    {(() => { const tp = rows.filter((r) => r.to_prep).length; const dn = rows.filter((r) => r.to_prep && r.done).length; return tp > 0 ? <span className="text-xs font-bold bg-white/70 rounded-full px-2 py-0.5 text-orange-700">{dn}/{tp} הוכנו</span> : <span className="text-xs text-gray-400 font-normal">{rows.length} פריטים</span>; })()}
+                    <span className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      {(() => {
+                        const allPrep = rows.length > 0 && rows.every((r) => r.to_prep);
+                        const prepItems = rows.filter((r) => r.to_prep);
+                        const allDone = prepItems.length > 0 && prepItems.every((r) => r.done);
+                        return (
+                          <>
+                            <button onClick={() => toggleProduct(rows, 'to_prep')} title="להכין את כל המוצר?"
+                              className={`w-7 h-7 rounded border-2 inline-flex items-center justify-center transition-colors ${allPrep ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 bg-white hover:border-orange-400'}`}>{allPrep ? <Check className="w-3.5 h-3.5" /> : <span className="text-[8px] font-bold text-gray-400">לסמן</span>}</button>
+                            <button onClick={() => toggleProduct(rows, 'done')} title="כל המוצר הוכן?"
+                              className={`w-7 h-7 rounded border-2 inline-flex items-center justify-center transition-colors ${allDone ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 bg-white hover:border-green-400'}`}>{allDone ? <Check className="w-3.5 h-3.5" /> : <span className="text-[8px] font-bold text-gray-400">בוצע</span>}</button>
+                          </>
+                        );
+                      })()}
+                      {(() => { const tp = rows.filter((r) => r.to_prep).length; const dn = rows.filter((r) => r.to_prep && r.done).length; return tp > 0 ? <span className="text-xs font-bold bg-white/70 rounded-full px-2 py-0.5 text-orange-700">{dn}/{tp}</span> : <span className="text-xs text-gray-400 font-normal">{rows.length}</span>; })()}
+                    </span>
                   </CardTitle>
                 </CardHeader>
                 {!collapsedCats[cat] && (
