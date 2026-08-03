@@ -79,7 +79,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'payment-hardening-2026-08-04c', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'payment-hardening-2026-08-04d', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -12281,7 +12281,7 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
     for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
     return h; // 32-bit signed — fits pg_advisory_xact_lock(int)
   })();
-  const wantedTables: string[] = isStandby
+  let wantedTables: string[] = isStandby
     ? []
     : (Array.isArray(avail.table?.table_numbers) ? avail.table.table_numbers.map(String) : [String(avail.table.table_number)]);
 
@@ -12292,6 +12292,9 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   // under load. Keep the critical section to one read + one insert.
   const policyNow = await getReservationPolicy();
   const { start: lockDayStart, next: lockDayNext } = dayRange(date);
+  // Pre-loaded so the locked section can re-pick a table without extra queries.
+  const lockLayout = isStandby ? null : await db.seatingLayout.findFirst().catch(() => null);
+  const lockSessions = isStandby ? [] : await db.tableSession.findMany({ where: { status: 'active' } }).catch(() => []);
 
   let reservation: any;
   try {
@@ -12316,7 +12319,17 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
           const oEnd = x.reservation_end_time ? toMin(x.reservation_end_time) : oStart + seatingDuration(x.party_size || 2);
           return oStart < endMin && startMin < oEnd; // time ranges intersect
         });
-        if (clash) throw Object.assign(new Error('table_taken'), { code: 'SLOT_FULL' });
+        // Under a burst, every concurrent request is handed the SAME best-fit table
+        // by the pre-lock search. Only the first can have it — but the room is still
+        // full of free tables, so re-pick from the fresh rows instead of turning the
+        // guest away (10 of 12 concurrent bookings were being rejected this way).
+        if (clash) {
+          const repick: any = pickFreeTableByPriority({
+            layout: lockLayout, reservations: sameDayRows, activeSessions: lockSessions, time, size,
+          });
+          if (!repick) throw Object.assign(new Error('table_taken'), { code: 'SLOT_FULL' });
+          wantedTables = Array.isArray(repick.table_numbers) ? repick.table_numbers.map(String) : [String(repick.table_number)];
+        }
       }
       return tx.reservation.create({
     data: {
@@ -12332,7 +12345,7 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       special_requests: special_requests || null,
       special_occasion: special_occasion || null,
       reservation_end_time: end_time,
-      assigned_table: isStandby ? null : (Array.isArray(avail.table?.table_numbers) ? avail.table.table_numbers : [avail.table.table_number]),
+      assigned_table: isStandby ? null : wantedTables, // may have been re-picked inside the lock
       source,
       campaign: utm_campaign ? String(utm_campaign).slice(0, 80) : null,
       medium: utm_medium ? String(utm_medium).slice(0, 40) : null,
