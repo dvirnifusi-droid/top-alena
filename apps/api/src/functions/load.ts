@@ -78,7 +78,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'notif-delay-2026-08-03a', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'tenant-isolation-2026-08-03b', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -2151,10 +2151,25 @@ async function runDailyCelebrationCampaigns(force = false) {
 
 const DRIP_TEMPLATES = {
   welcome: 'תודה ששמת אותנו במפה שלך, {name} 🌿\nתקווה שנהניתם — לקראת הביקור הבא יש לך 10% הנחה.\nרק תגיד "ראיתי בוואטסאפ" למלצר.\n{brand}',
-  nps_high: 'היי {name}, איך היה אצלנו?\nאם נהנית — נשמח לביקורת קטנה ב-Google:\nhttps://g.page/r/topalena-review\nתודה רבה 🌿',
+  nps_high: 'היי {name}, איך היה אצלנו?\nאם נהנית — נשמח לביקורת קטנה ב-Google:\n{review_link}\nתודה רבה 🌿',
   nps_low: 'היי {name},\nאיך היה אצלנו? תן לנו 1-5 בקצרה.\nכל משוב נכנס ישירות למנהל ועוזר לנו להשתפר 🌿',
   pre_birthday: 'היי {name}! 🎂\nבעוד שבוע יש לך יום הולדת — נשמח לחגוג איתך!\nתזמין שולחן וקבל קינוח חינם.\nרוטשילד 104, ראשון לציון 🌿',
 };
+
+// Per-tenant Google-review link. Prefer an explicit URL, then a Place ID, then
+// the flagship's legacy short link. Returns null for any non-alena tenant that
+// hasn't configured a review target — so we NEVER send another business Alena's
+// review link (a real cross-tenant leak). getSecret reads IntegrationSecret→env.
+async function googleReviewUrl(): Promise<string | null> {
+  const explicit = await getSecret('GOOGLE_REVIEW_URL');
+  if (explicit && String(explicit).trim()) return String(explicit).trim();
+  const placeId = await getSecret('GOOGLE_BUSINESS_PLACE_ID');
+  if (placeId && String(placeId).trim()) {
+    return `https://search.google.com/local/writereview?placeid=${encodeURIComponent(String(placeId).trim())}`;
+  }
+  const isAlena = (process.env.TENANT_SLUG || 'alena') === 'alena';
+  return isAlena ? 'https://g.page/r/topalena-review' : null;
+}
 
 async function runDripCampaigns(force = false) {
   // ── KILL SWITCH ──────────────────────────────────────────────────────────
@@ -2230,12 +2245,22 @@ async function runDripCampaigns(force = false) {
       let ok = 0, fail = 0;
       for (const c of candidates) {
         try {
-          // Use 'high' template for VIPs (assume happy), 'low' template for everyone else
+          // Use 'high' template (Google-review ask) for VIPs, 'low' (plain feedback)
+          // for everyone else. The Google line only goes out if THIS tenant has a
+          // review link — otherwise the VIP falls back to the plain feedback message
+          // so we never send another business Alena's review link.
           const npsKey = c.loyalty_tier === 'vip' ? 'drip_nps_vip' : 'drip_nps_regular';
           if (!(await isNotifEnabled(npsKey))) continue; // per-tier toggle off
-          const template = c.loyalty_tier === 'vip' ? DRIP_TEMPLATES.nps_high : DRIP_TEMPLATES.nps_low;
-          const npsTpl = await notifText(npsKey, template, { name: c.name || 'אורח/ת יקר/ה' });
-          const msg = withOptOut(npsTpl.replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה'), c.id);
+          const reviewLink = await googleReviewUrl();
+          const useHigh = c.loyalty_tier === 'vip' && !!reviewLink;
+          const tplKey = useHigh ? npsKey : 'drip_nps_regular';
+          const template = useHigh ? DRIP_TEMPLATES.nps_high : DRIP_TEMPLATES.nps_low;
+          const npsTpl = await notifText(tplKey, template, { name: c.name || 'אורח/ת יקר/ה', review_link: reviewLink || '' });
+          const msg = withOptOut(
+            npsTpl
+              .replace(/\{name\}/g, c.name || 'אורח/ת יקר/ה')
+              .replace(/\{review_link\}/g, reviewLink || ''),
+            c.id);
           const out = await sendClubMessage(c.phone, String(c.name || '').split(' ')[0], msg);
           if (!(out as any)?.skipped) {
             ok++;
@@ -5211,7 +5236,8 @@ registerFn('reviewMarketingPerformance', async ({ user }) => {
   // the optimization agent responds to REAL spend/CTR/leads, not only club sends.
   let meta: any = null;
   try {
-    if (await META_TOKEN()) {
+    const META_AD_ACCOUNT_ID = await getMetaAdAccountId();
+    if (META_AD_ACCOUNT_ID && await META_TOKEN()) {
       const camp: any = await metaApi(`/act_${META_AD_ACCOUNT_ID}/campaigns?fields=name,effective_status,daily_budget,insights.date_preset(last_7d){spend,clicks,ctr,actions}&limit=25`);
       const rows = (camp?.data || []).map((c: any) => {
         const ins = c?.insights?.data?.[0] || {};
@@ -5286,6 +5312,8 @@ export async function runMarketingOptimizer(): Promise<any> {
     if (!affected) return { skipped: 'already_ran_today' };
   } catch { /* dedup best-effort */ }
   if (!(await META_TOKEN())) return { skipped: 'no_meta' };
+  const META_AD_ACCOUNT_ID = await getMetaAdAccountId();
+  if (!META_AD_ACCOUNT_ID) return { skipped: 'no_ad_account' };
   let camp: any;
   try { camp = await metaApi(`/act_${META_AD_ACCOUNT_ID}/campaigns?fields=name,effective_status,insights.date_preset(last_7d){spend,ctr,actions}&limit=25`); }
   catch { return { skipped: 'meta_error' }; }
@@ -17804,9 +17832,6 @@ async function getAlinaBrandVoice(): Promise<string> {
 const ALINA_DEFAULT_CITIES = ['Rishon LeZion'];
 const ALINA_DEFAULT_LANDING_URL = 'https://topalena.com/EventsInquiry?utm_source=facebook';
 
-// Pita Alena ad account (provided by owner). Token comes from DB (set via UI)
-// with env fallback for legacy setups.
-const META_AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID || '1678566132326169';
 async function getSecret(key: string): Promise<string | null> {
   try {
     const row = await db.integrationSecret.findFirst({ where: { key } });
@@ -17815,6 +17840,19 @@ async function getSecret(key: string): Promise<string | null> {
   return process.env[key] || null;
 }
 const META_TOKEN = () => getSecret('META_ADS_ACCESS_TOKEN');
+
+// Per-tenant Meta ad account. The flagship (alena) keeps its legacy hardcoded
+// account; EVERY other tenant must configure its own via IntegrationSecret/env
+// (key META_AD_ACCOUNT_ID) or all Meta ad features are refused. We NEVER fall
+// back to Alena's account for another tenant — that would spend a tenant's
+// budget on Alena and expose Alena's campaign data. Empty string = not configured.
+async function getMetaAdAccountId(): Promise<string> {
+  const raw = await getSecret('META_AD_ACCOUNT_ID');
+  const clean = raw ? String(raw).replace(/^act_/, '').trim() : '';
+  if (clean) return clean;
+  const isAlena = (process.env.TENANT_SLUG || 'alena') === 'alena';
+  return isAlena ? '1678566132326169' : '';
+}
 
 const AGENT_REGISTRY: Record<string, { label: string; needs?: string[] }> = {
   vp_marketing:         { label: 'VP Marketing (מנהל שיווק)' },
@@ -17988,6 +18026,8 @@ async function runMetaAgent(agentKey: string, input: any) {
   };
   const periodHebrew = periodLabel[datePreset] || datePreset;
 
+  const META_AD_ACCOUNT_ID = await getMetaAdAccountId();
+  if (!META_AD_ACCOUNT_ID) throw new Error('חשבון מודעות Meta לא מוגדר לעסק הזה — הגדר META_AD_ACCOUNT_ID במסך מפתחות API');
   const insightFields = 'spend,impressions,clicks,ctr,cpc,cpm,reach,frequency,actions,cost_per_action_type';
   const campaigns = await metaApi(
     `/act_${META_AD_ACCOUNT_ID}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,start_time,stop_time,insights.date_preset(${datePreset}){${insightFields}}&limit=50`,
@@ -18233,7 +18273,8 @@ async function runVpMarketing(input: any) {
   // Compact Meta snapshot — full campaign array bloats the prompt and pushes
   // Gemini past its 60s ceiling. We pass totals + the top 3 by spend only.
   let metaSnapshot: any = null;
-  if (await META_TOKEN()) {
+  const META_AD_ACCOUNT_ID = await getMetaAdAccountId();
+  if (META_AD_ACCOUNT_ID && await META_TOKEN()) {
     try {
       const campaigns = await metaApi(
         `/act_${META_AD_ACCOUNT_ID}/campaigns?fields=id,name,status,objective,daily_budget,insights.date_preset(last_7d){spend,clicks,ctr,actions}&limit=25`,
@@ -18396,21 +18437,29 @@ registerFn('runMarketingAgent', async ({ body, user }) => {
     },
   });
 
-  // Meta agents need the access token. If missing, return needs_integration
-  // with the exact key — but ad-account ID is already wired so it's not listed.
-  if (META_AGENTS.has(agent_type) && !(await META_TOKEN())) {
-    const updated = await db.marketingAgentRun.update({
-      where: { id: run.id },
-      data: {
-        status: 'needs_integration',
-        needs_integration: ['META_ADS_ACCESS_TOKEN'],
-        output: {
-          message: `סוכן ${meta.label} מוכן. Ad account "pita alena" (${META_AD_ACCOUNT_ID}) כבר מוגדר. חסר רק META_ADS_ACCESS_TOKEN ב-env.`,
-          how_to_get: 'developers.facebook.com → Tools → Graph API Explorer → בחר את האפליקציה והדף, סמן הרשאות ads_read + ads_management, וצור Long-Lived Token (60 יום) או System User Token (לא פג).',
+  // Meta agents need BOTH the access token and THIS tenant's ad-account id.
+  // If either is missing, return needs_integration listing exactly what's absent
+  // — never assume Alena's account for another tenant.
+  if (META_AGENTS.has(agent_type)) {
+    const hasToken = !!(await META_TOKEN());
+    const adAccountId = await getMetaAdAccountId();
+    if (!hasToken || !adAccountId) {
+      const missing: string[] = [];
+      if (!adAccountId) missing.push('META_AD_ACCOUNT_ID');
+      if (!hasToken) missing.push('META_ADS_ACCESS_TOKEN');
+      const updated = await db.marketingAgentRun.update({
+        where: { id: run.id },
+        data: {
+          status: 'needs_integration',
+          needs_integration: missing,
+          output: {
+            message: `סוכן ${meta.label} דורש חיבור Meta. חסר: ${missing.join(', ')}. הגדר במסך מפתחות API (Integrations).`,
+            how_to_get: 'developers.facebook.com → Tools → Graph API Explorer → בחר את האפליקציה והדף, סמן הרשאות ads_read + ads_management, וצור Long-Lived Token (60 יום) או System User Token (לא פג). את מזהה חשבון-המודעות (act_...) לוקחים מ-Ads Manager.',
+          },
         },
-      },
-    });
-    return { run: updated };
+      });
+      return { run: updated };
+    }
   }
 
   try {
@@ -18814,6 +18863,8 @@ registerFn('launchCampaignBrief', async ({ body, user }) => {
   if (!id) throw new Error('id required');
   const token = await META_TOKEN();
   if (!token) throw new Error('META_ADS_ACCESS_TOKEN לא מוגדר — הגדר אותו במסך מפתחות API');
+  const META_AD_ACCOUNT_ID = await getMetaAdAccountId();
+  if (!META_AD_ACCOUNT_ID) throw new Error('חשבון מודעות Meta לא מוגדר לעסק הזה — הגדר META_AD_ACCOUNT_ID במסך מפתחות API לפני שיגור קמפיין');
   const brief = await db.campaignBrief.findUnique({ where: { id } });
   if (!brief) throw new Error('brief not found');
   if (brief.status !== 'approved') throw new Error(`brief must be approved before launch (current: ${brief.status})`);
@@ -19097,6 +19148,8 @@ registerFn('listMetaCampaigns', async ({ user }) => {
   await requireBackOffice(user, 'listMetaCampaigns');
   const token = await META_TOKEN();
   if (!token) return { configured: false, campaigns: [] };
+  const META_AD_ACCOUNT_ID = await getMetaAdAccountId();
+  if (!META_AD_ACCOUNT_ID) return { configured: false, campaigns: [] };
   const res = await metaApi(
     `/act_${META_AD_ACCOUNT_ID}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget,insights.date_preset(last_7d){spend,clicks,ctr,actions}&limit=50`,
   );
@@ -19209,6 +19262,8 @@ async function metaHashPhone(raw: string): Promise<string | null> {
 // campaign can fall back to interest targeting while Meta processes the list.
 async function ensureClubLookalikeAudience(): Promise<{ lookalike_id: string | null; ready: boolean; matched?: number; note: string }> {
   if (!(await META_TOKEN())) return { lookalike_id: null, ready: false, note: 'מטא לא מחובר' };
+  const META_AD_ACCOUNT_ID = await getMetaAdAccountId();
+  if (!META_AD_ACCOUNT_ID) return { lookalike_id: null, ready: false, note: 'חשבון מודעות Meta לא מוגדר לעסק הזה' };
   // Already have a lookalike? Report readiness (operation_status.code 200 = ready).
   const existingLa = await getSecret('META_CLUB_LOOKALIKE_ID');
   if (existingLa) {

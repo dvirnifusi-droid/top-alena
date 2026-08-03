@@ -318,8 +318,8 @@ export const NOTIFICATIONS: NotifDef[] = [
     label: 'בקשת ביקורת — לקוח VIP', description: '2–4 ימים אחרי ביקור (לקוח חוזר)',
     defaultEnabled: true, scheduleShape: 'none',
     textEditability: 'full',
-    defaultText: 'היי {name}, איך היה אצלנו?\nאם נהנית — נשמח לביקורת קטנה ב-Google:\nhttps://g.page/r/topalena-review\nתודה רבה 🌿',
-    variables: [NAME], source: 'load.ts:2161',
+    defaultText: 'היי {name}, איך היה אצלנו?\nאם נהנית — נשמח לביקורת קטנה ב-Google:\n{review_link}\nתודה רבה 🌿',
+    variables: [NAME, V('review_link', 'קישור לביקורת Google (לפי הגדרת העסק)')], source: 'load.ts:2161',
   },
   {
     key: 'drip_nps_regular', audience: 'customer', kind: 'cron',

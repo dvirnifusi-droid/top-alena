@@ -37,6 +37,7 @@ const SAMPLE: Record<string, string> = {
   count: '3', minutes: '15', title: 'פגישה עם ספק', text: 'להזמין ירקות',
   balance: '4,500', day: '25/07', range: '21.07-27.07', start: '12:00',
   address: 'רוטשילד 104, ראשון לציון',
+  review_link: 'https://search.google.com/local/writereview?placeid=…',
 };
 const sampleFor = (key: string): Record<string, string> => {
   const out: Record<string, string> = {};
