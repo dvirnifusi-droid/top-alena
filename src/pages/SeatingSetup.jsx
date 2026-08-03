@@ -3949,6 +3949,15 @@ export default function SeatingSetup() {
                                                             </div>
                                                         ) : futureReservationsForTable.length > 0 ? (
                                                             <div className="w-full flex flex-col gap-0.5">
+                                                                {/* Reserved-but-empty RIGHT NOW: the table is bookable until the
+                                                                    guest arrives, and that window is exactly what decides whether
+                                                                    a walk-in fits. Without it the card only said "שמור" and hid
+                                                                    a usable table. */}
+                                                                {freeUntilMin !== null && freeUntilMin > 0 && (
+                                                                    <div className={`w-full text-[10px] font-normal leading-tight tabular-nums ${freeUntilMin <= 45 ? 'text-amber-800' : 'opacity-60'}`}>
+                                                                        פנוי עוד {freeUntilMin} דק׳
+                                                                    </div>
+                                                                )}
                                                                 {(() => {
                                                                     const res = futureReservationsForTable[0];
                                                                     return (
