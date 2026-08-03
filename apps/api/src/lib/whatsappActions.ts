@@ -958,7 +958,13 @@ async function executeAction(exec: any): Promise<string> {
       // Mirror createPublicReservation (load.ts:7864): date = midnight-UTC of the
       // day, time raw "HH:mm", confirmed status.
       const bookingDate = new Date(`${exec.date}T00:00:00.000Z`);
-      await (prisma as any).reservation.create({
+      // Goes through the SAME per-slot lock as the website. This used to write
+      // straight to the table, so the agent could confirm a booking into a slot
+      // the website had just filled — two parties, one table.
+      const { createReservationGuarded } = await import('../functions/load.js');
+      const created = await createReservationGuarded({
+        date: String(exec.date), time: String(exec.time), party_size: Number(exec.party_size),
+        tables: [],
         data: {
           customer_name: exec.customer_name,
           customer_phone: exec.customer_phone || null,
@@ -970,8 +976,11 @@ async function executeAction(exec: any): Promise<string> {
           reservation_end_time: exec.reservation_end_time || null,
           special_requests: exec.special_requests || null,
           source: exec.source || 'whatsapp',
-        } as any,
+        },
       });
+      if (!created.ok) {
+        return `⚠️ לא הצלחתי לשמור — הסלוט של ${exec.time} התמלא בדיוק עכשיו. תרצה שאבדוק שעה אחרת?`;
+      }
       return `✅ נשמרה הזמנה ל-*${exec.customer_name}* · ${exec.party_size} סועדים · ${exec.date} ${exec.time}${exec.customer_phone ? ` · ${exec.customer_phone}` : ''}.`;
     }
     case 'cancel_reservation': {

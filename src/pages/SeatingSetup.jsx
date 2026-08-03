@@ -4292,7 +4292,9 @@ export default function SeatingSetup() {
                             const endMin = (now.getHours() * 60 + now.getMinutes()) + getSeatingDuration(size);
                             const reservation_end_time =
                                 `${String(Math.floor(endMin / 60) % 24).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
-                            const created = await Reservation.create({
+                            // Guarded server path — the same table can be claimed by a
+                            // website booking in the seconds it takes to fill this form.
+                            const resp = await base44.functions.createReservationChecked({
                                 customer_name: name,
                                 customer_phone: phone || null,
                                 date: dateStr,
@@ -4303,6 +4305,12 @@ export default function SeatingSetup() {
                                 reservation_end_time,
                                 source: source_label || 'walkin',
                             });
+                            const payload = resp?.data || resp || {};
+                            if (payload.success === false) {
+                                alert(payload.message || 'השולחן נתפס — בחר שולחן אחר');
+                                return;
+                            }
+                            const created = payload.reservation;
                             await loadLiveData();
                             setQuickSeatOpen(false);
                             setQuickSeatTable(null);

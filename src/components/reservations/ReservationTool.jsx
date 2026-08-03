@@ -10,6 +10,7 @@ import { SeatingLayout } from '@/entities/SeatingLayout';
 import { TableSession } from '@/entities/TableSession';
 import { Reservation } from '@/entities/Reservation';
 import { Customer } from '@/entities/Customer';
+import { base44 } from '@/api/base44Client';
 import { format, addMinutes, parse } from "date-fns";
 import { Calendar, Clock, Users, Wand2, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import TimePicker from '../shared/TimePicker';
@@ -228,9 +229,18 @@ export default function ReservationTool({ onReservationCreated, customers }) {
                 reservation_end_time: format(endDateTime, 'HH:mm')
             };
 
-            await Reservation.create(reservationData);
+            // Through the guarded server function, not a raw entity write — the
+            // suggested table can be claimed by the website (or another host) in
+            // the seconds between "find a table" and "confirm".
+            const res = await base44.functions.createReservationChecked(reservationData);
+            const out = res?.data || res || {};
+            if (out.success === false) {
+                setError(out.message || 'השולחן נתפס בזמן שאישרת — חפש שולחן שוב');
+                setSuggestion(null);
+                return;
+            }
             await updateCustomerClub(customerPhone, customerName, dateString);
-            
+
             setSuccess(`ההזמנה אושרה בהצלחה!`);
             setSuggestion(null);
             

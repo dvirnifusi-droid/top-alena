@@ -79,7 +79,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'payment-hardening-2026-08-04d', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'booking-doors-2026-08-04e', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -12121,6 +12121,104 @@ export async function sendReservationReminders() {
   }
   return { ok: true, date: ilDateStr, attempted: due.length, reminded };
 }
+
+// ── The ONE guarded insert every booking door must go through ───────────────
+// createPublicReservation holds a per-slot advisory lock and re-checks capacity
+// before inserting, but the hostess ("הזמנה חדשה", walk-in, queue-seat) and the
+// WhatsApp agent wrote straight to the table through the generic entity route —
+// side doors with no lock. So the hostess could hand table 12 to a guest in the
+// same second the website did, and both were confirmed. Same lock, same checks.
+export async function createReservationGuarded(input: {
+  data: any;              // the row to insert
+  date: string;           // 'YYYY-MM-DD'
+  time: string;           // 'HH:mm'
+  party_size: number;
+  tables?: string[];      // requested table(s); empty = no table held
+  skipCapacity?: boolean; // walk-ins seated NOW may exceed the booking ceiling
+}): Promise<{ ok: true; reservation: any } | { ok: false; reason: string; conflict?: string }> {
+  const { date, time, party_size: size } = input;
+  const wanted = (input.tables || []).map(String);
+  const startMin = toMin(time);
+  const endMin = startMin + seatingDuration(size);
+  const lockKey = (() => {
+    const s = `${String(date).slice(0, 10)}|${String(time)}`;
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+    return h;
+  })();
+  const policy = await getReservationPolicy();
+  const { start: dS, next: dN } = dayRange(date);
+  try {
+    const reservation = await (prisma as any).$transaction(async (tx: any) => {
+      await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1::int)', lockKey);
+      const rows: any[] = await tx.reservation.findMany({ where: { date: { gte: dS, lt: dN } } });
+      const live = (x: any) => x.status !== 'cancelled' && x.status !== 'no_show' && !isStaleUnpaidHold(x);
+      if (!input.skipCapacity) {
+        const taken = rows
+          .filter((x: any) => live(x) && x.time && toMin(x.time) >= startMin && toMin(x.time) < startMin + 15)
+          .reduce((s: number, x: any) => s + (x.party_size || 0), 0);
+        if (taken + size > policy.slotCapacity) throw Object.assign(new Error('slot_full'), { code: 'SLOT_FULL' });
+      }
+      if (wanted.length) {
+        const clash = rows.find((x: any) => {
+          if (!live(x) || !Array.isArray(x.assigned_table)) return false;
+          if (!x.assigned_table.some((t: any) => wanted.includes(String(t)))) return false;
+          const oS = toMin(x.time);
+          const oE = x.reservation_end_time ? toMin(x.reservation_end_time) : oS + seatingDuration(x.party_size || 2);
+          return oS < endMin && startMin < oE;
+        });
+        if (clash) throw Object.assign(new Error('table_taken'), { code: 'TABLE_TAKEN', who: clash.customer_name || '' });
+      }
+      return tx.reservation.create({ data: input.data });
+    }, { maxWait: 25000, timeout: 10000 });
+    return { ok: true, reservation };
+  } catch (e: any) {
+    if (e?.code === 'SLOT_FULL') return { ok: false, reason: 'slot_full' };
+    if (e?.code === 'TABLE_TAKEN') return { ok: false, reason: 'table_taken', conflict: e.who };
+    throw e;
+  }
+}
+
+// AUTHED door for the hostess UI — same lock as the public page.
+registerFn('createReservationChecked', async ({ body, user }: any) => {
+  await requireStaff(user, 'createReservationChecked');
+  const b = (body || {}) as any;
+  if (!b.customer_name || !b.date || !b.time || !b.party_size) throw new Error('missing_required_fields');
+  const tables = Array.isArray(b.assigned_table) ? b.assigned_table.map(String) : [];
+  const { start: bookingDate } = dayRange(String(b.date));
+  const size = parseInt(b.party_size, 10);
+  const endMin = toMin(String(b.time)) + seatingDuration(size);
+  const res = await createReservationGuarded({
+    date: String(b.date), time: String(b.time), party_size: size, tables,
+    // A guest standing at the door is already IN the room — capacity is about
+    // future bookings, so seating them must never be blocked by it.
+    skipCapacity: b.status === 'seated',
+    data: {
+      customer_name: String(b.customer_name).trim(),
+      customer_phone: b.customer_phone ? String(b.customer_phone).trim() : null,
+      customer_email: b.customer_email || null,
+      date: bookingDate, time: String(b.time), party_size: size,
+      status: b.status || 'confirmed',
+      assigned_table: tables.length ? tables : null,
+      special_requests: b.special_requests || null,
+      special_occasion: b.special_occasion || null,
+      reservation_end_time: b.reservation_end_time
+        || `${String(Math.floor(endMin / 60) % 24).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`,
+      source: b.source || 'staff',
+      tracking_token: makeTrackingToken(),
+    },
+  });
+  if (!res.ok) {
+    return {
+      success: false, reason: res.reason,
+      message: res.reason === 'table_taken'
+        ? `השולחן כבר תפוס${res.conflict ? ` (${res.conflict})` : ''} בשעה הזו — בחר שולחן אחר`
+        : 'אין מספיק מקום בסלוט הזה',
+    };
+  }
+  fireTriggers('Reservation', 'created', res.reservation).catch(() => {});
+  return { success: true, reservation: res.reservation };
+});
 
 registerFn('createPublicReservation', async ({ body, req }: any) => {
   await ensureReservationSourceCols();
