@@ -796,6 +796,11 @@ const TOOL_DECLARATIONS = [
     },
   },
   {
+    name: 'mute_late_alerts',
+    description: 'עצור את התראות ה"עובד מאחר" על עובד מסוים להיום בלבד (משאיר אותו בסידור, לא מסיר). טריגרים: "תפסיק לשלוח על מישל", "אל תתריע על דני", "די עם ההתראות על X", "השתק את X". שונה מ-propose_remove_from_shift (שמסיר מהסידור).',
+    parameters: { type: 'OBJECT', properties: { employee_name: { type: 'STRING' } }, required: ['employee_name'] },
+  },
+  {
     name: 'propose_remove_from_shift',
     description: 'הצע להסיר/להוריד עובד ממשמרת מסוימת. טריגרים: "תוריד את דני מהמשמרת של מחר ערב", "הסר את מיכל מצהריים ביום שלישי", "בטל שיבוץ".',
     parameters: {
@@ -1452,6 +1457,33 @@ async function tool_propose_remove_from_shift(args: any, phone: string): Promise
     target_phone: phone,
   });
   return { proposal: `🗑 הסרת *${emp.full_name}* מ${args.shift_type === 'lunch' ? 'צהריים' : 'ערב'} ${dateStr}`, awaiting_confirmation: true };
+}
+
+// Stop the "employee is late" owner alerts for one employee for the REST OF
+// TODAY (keeps them on the schedule). Direct + idempotent — low-risk and
+// reversible (auto-clears tomorrow). runNoShowWatcher skips muted employees.
+async function tool_mute_late_alerts(args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.can_write) return { error: 'הפעולה הזו דורשת הרשאת מנהל.' };
+  const emps: any[] = await (prisma as any).employee.findMany({ where: { status: 'active' }, take: 500 });
+  const m = matchEmployees(String(args.employee_name || ''), emps);
+  if (!m.exact.length) {
+    if (m.suggestions.length) return { not_found: true, message: `לא מצאתי עובד פעיל בשם "${args.employee_name}". התכוונת לאחד מאלה?`, suggestions: m.suggestions.map((e: any) => e.full_name) };
+    return { error: `לא נמצא עובד פעיל בשם "${args.employee_name}".` };
+  }
+  if (m.exact.length > 1) return { ambiguous: true, candidates: m.exact.map((e: any) => e.full_name) };
+  const emp = m.exact[0];
+  const ilDate = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date());
+  const existing = await (prisma as any).whatsAppMessage.findFirst({ where: { status: 'no_show_muted', body: { contains: `[no_show_mute:${emp.id}|${ilDate}]` } }, select: { id: true } }).catch(() => null);
+  if (!existing) {
+    await (prisma as any).whatsAppMessage.create({ data: {
+      body: `[no_show_mute:${emp.id}|${ilDate}] ${emp.full_name}`,
+      direction: 'outgoing', status: 'no_show_muted',
+      from_phone: 'system', to_phone: 'system', contact_phone: 'system', is_read: true,
+    } }).catch(() => {});
+  }
+  return { ok: true, done: `🔕 הפסקתי להתריע על *${emp.full_name}* להיום. מחר זה חוזר לרגיל.` };
 }
 
 async function tool_propose_publish_schedule(_args: any, phone: string): Promise<any> {
@@ -3342,6 +3374,7 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   propose_invite_employee: tool_propose_invite_employee,
   propose_team_broadcast: tool_propose_team_broadcast,
   propose_remove_from_shift: tool_propose_remove_from_shift,
+  mute_late_alerts: tool_mute_late_alerts,
   propose_publish_schedule: tool_propose_publish_schedule,
   propose_approve_event: tool_propose_approve_event,
 };
@@ -3500,7 +3533,7 @@ type=${exec.type || '?'} · נשלח לפני ${Math.round((Date.now() - new Dat
 const UNIVERSAL_TOOLS = ['list_pending_proposals', 'modify_pending_proposal', 'cancel_pending_proposal', 'ask_knowledge'];
 const TOOL_GROUPS: Record<string, string[]> = {
   finance: ['get_today_revenue', 'get_cash_balance', 'list_unpaid_expenses', 'list_expected_income', 'get_recent_tips', 'propose_mark_expense_paid', 'propose_lock_tips', 'get_recipe_cost', 'list_high_food_cost', 'update_ingredient_price', 'get_my_recipe_summary', 'propose_set_dish_price', 'daily_status'],
-  schedule: ['list_today_schedule', 'build_schedule_now', 'add_scheduling_rule', 'list_scheduling_rules', 'propose_shift_assign', 'propose_employee_shifts_batch', 'propose_remove_from_shift', 'propose_publish_schedule', 'search_employee', 'propose_invite_employee', 'propose_mark_sick', 'find_replacements', 'submit_availability', 'request_availability_reopen', 'approve_availability_reopen', 'reset_availability'],
+  schedule: ['list_today_schedule', 'build_schedule_now', 'add_scheduling_rule', 'list_scheduling_rules', 'propose_shift_assign', 'propose_employee_shifts_batch', 'propose_remove_from_shift', 'mute_late_alerts', 'propose_publish_schedule', 'search_employee', 'propose_invite_employee', 'propose_mark_sick', 'find_replacements', 'submit_availability', 'request_availability_reopen', 'approve_availability_reopen', 'reset_availability'],
   reservations: ['check_availability', 'list_reservations', 'propose_create_reservation', 'propose_cancel_reservation'],
   orders: ['list_order_needs', 'propose_mark_supplier_ordered'],
   incidents: ['propose_open_incident', 'list_incidents', 'propose_resolve_incident'],
@@ -3552,7 +3585,7 @@ const INTENT_KEYWORDS: Array<[string, RegExp]> = [
   // to the model and it wrongly falls onto the calendar tool (propose_event_add_batch),
   // reading the day-name as "next Sunday" and inventing dates. Checked after
   // events/tasks so a real meeting with its own keywords still wins.
-  ['schedule', /סידור|משמר|זמינות|שבץ|שיבוץ|מי עובד|פרסם.{0,10}סידור|מחלה|חולה|תוריד.{0,12}(מ|ממשמרת)|לו"?ז|עובד חדש|הזמן עובד|שעות של|השעות של|שעות עבודה|\d{1,2}[.\/]\d{1,2}\s+\d{1,2}:?\d{0,2}\s*-/],
+  ['schedule', /סידור|משמר|זמינות|שבץ|שיבוץ|מי עובד|פרסם.{0,10}סידור|מחלה|חולה|תוריד.{0,12}(מ|ממשמרת)|לו"?ז|עובד חדש|הזמן עובד|שעות של|השעות של|שעות עבודה|תפסיק לשלוח|אל תתריע|תפסיק להתריע|די עם ההתרא|השתק|\d{1,2}[.\/]\d{1,2}\s+\d{1,2}:?\d{0,2}\s*-/],
   ['finance', /מכר|כמה מכרנו|כמה כסף|הכנס|מזומן|קופ|טיפ|הוצא|שילמתי|מחיר|עלות|פוד.?קוסט|רווח|מה המצב/],
   ['tasks', /משימה|משימות|תזכורת|תזכיר|יומן|פגיש|תזכור|לעשות/],
 ];

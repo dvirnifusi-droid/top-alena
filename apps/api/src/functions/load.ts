@@ -15301,20 +15301,13 @@ export async function runNoShowWatcher() {
   const clockedInIds = new Set(trackingRows.map((r) => r.employee_id).filter(Boolean));
   const clockedInNames = new Set(trackingRows.map((r) => String(r.employee_name || '').trim()).filter(Boolean));
 
-  // Find which alerts already fired today (de-dupe key = empId|date|shiftType)
-  // We encode the key as a prefix `[no_show:KEY]` at the start of body since
-  // WhatsAppMessage doesn't have a notes column.
-  const sentAlerts: any[] = await (prisma as any).whatsAppMessage.findMany({
-    where: { status: 'no_show_alert_sent', body: { contains: `[no_show:` } },
-    take: 500,
-  });
-  const sentKeys = new Set(
-    sentAlerts
-      .map((r) => {
-        const m = String(r.body || '').match(/^\[no_show:([^\]]+)\]/);
-        return m ? m[1] : '';
-      })
-      .filter(Boolean)
+  // Employees the owner muted for TODAY via WhatsApp ("תפסיק לשלוח על X"). Marker
+  // rows carry `[no_show_mute:empId|date]`; filtered to today so the set stays tiny.
+  const muteRows: any[] = await (prisma as any).whatsAppMessage.findMany({
+    where: { status: 'no_show_muted', body: { contains: `|${ilDate}]` } }, take: 200,
+  }).catch(() => []);
+  const mutedIds = new Set(
+    muteRows.map((r) => { const m = String(r.body || '').match(/\[no_show_mute:([^|]+)\|/); return m ? m[1] : ''; }).filter(Boolean),
   );
 
   const { reportRecipientPhones } = await import('../lib/whatsappPermissions.js');
@@ -15326,17 +15319,27 @@ export async function runNoShowWatcher() {
 
   for (const c of candidates) {
     if (clockedInIds.has(c.staff.employee_id) || clockedInNames.has(String(c.staff.employee_name || '').trim())) continue;
-    const key = `${c.staff.employee_id}|${ilDate}|${c.ws.shift_type}`;
-    if (sentKeys.has(key)) continue;
+    if (mutedIds.has(c.staff.employee_id)) continue; // owner said "stop alerting" for today
+    const [sh, sm] = String(c.staff.start_time).split(':').map(Number);
+    const lateBy = nowMins - ((sh || 0) * 60 + (sm || 0));
+    // First alert at 15 min late, then a FRESH one every 30 min — not every tick.
+    // The dedupe is a targeted per-key lookup (not the old take:500 bulk fetch
+    // that silently stopped matching once history passed 500 rows → minute spam).
+    const bucket = Math.max(0, Math.floor((lateBy - 15) / 30));
+    const key = `${c.staff.employee_id}|${ilDate}|${c.ws.shift_type}|${bucket}`;
+    const already = await (prisma as any).whatsAppMessage.findFirst({
+      where: { status: 'no_show_alert_sent', body: { contains: `[no_show:${key}]` } }, select: { id: true },
+    }).catch(() => null);
+    if (already) continue;
     const emp: any = await (prisma as any).employee.findUnique({ where: { id: c.staff.employee_id } }).catch(() => null);
     const phone = emp?.phone || null;
     const phoneClean = phone ? String(phone).replace(/\D/g, '').replace(/^0/, '972') : null;
     const waLink = phoneClean ? `https://wa.me/${phoneClean}?text=${encodeURIComponent(`היי ${c.staff.employee_name || ''} 👋 אנחנו מחכים לך במשמרת — הכל בסדר?`)}` : null;
-    const [sh, sm] = String(c.staff.start_time).split(':').map(Number);
-    const lateBy = nowMins - ((sh || 0) * 60 + (sm || 0));
-    const msg = `⏰ *${c.staff.employee_name || 'עובד'}* מאחר ${lateBy} דק' למשמרת ${c.ws.shift_type === 'lunch' ? 'צהריים' : 'ערב'} (${c.staff.start_time}).\n` +
+    const nm = c.staff.employee_name || 'העובד';
+    const msg = `⏰ *${nm}* מאחר ${lateBy} דק' למשמרת ${c.ws.shift_type === 'lunch' ? 'צהריים' : 'ערב'} (${c.staff.start_time}).\n` +
       `תפקיד: ${c.staff.position || 'לא ידוע'}\n` +
-      (waLink ? `📲 שלח לו וואטסאפ בלחיצה: ${waLink}` : `⚠️ אין טלפון רשום לעובד.`);
+      (waLink ? `📲 שלח לו וואטסאפ בלחיצה: ${waLink}` : `⚠️ אין טלפון רשום לעובד.`) +
+      `\n\n💡 השב על ההודעה: "תפסיק לשלוח על ${nm}" (עוצר התראות להיום) · "תוריד את ${nm} מהמשמרת" (מסיר מהסידור).`;
     for (const a of adminNumbers) {
       try { await notifyOwner(a, 'עובד מאחר', msg); } catch (e: any) { console.warn('[no-show] admin notify failed', e?.message); }
     }
