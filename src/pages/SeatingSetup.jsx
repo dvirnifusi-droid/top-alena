@@ -1874,6 +1874,59 @@ export default function SeatingSetup() {
         );
     };
 
+    // ── יישר מפה ────────────────────────────────────────────────────────────
+    // Zones are computed as the bounding box of their tables, so when tables from
+    // different areas are interleaved physically the boxes overlap and the pastel
+    // fills mix into mud. Laying each area out as its own packed block is what
+    // actually makes the background clean — it removes the overlap at the source.
+    // Only mutates local state; nothing persists until the owner presses שמור.
+    const TIDY_W = 104, TIDY_H = 78, TIDY_GAP = 14, TIDY_ZONE_PAD = 46, TIDY_CANVAS = 1400;
+    const handleTidyMap = () => {
+        if (!tables.length) return;
+        if (!window.confirm('ליישר את המפה?\n\nכל שולחן יוצמד לרשת ויקבל גודל אחיד, וכל אזור יסודר כבלוק נפרד בלי חפיפה.\nהשינוי לא נשמר עד שתלחץ "שמור מפה".')) return;
+
+        // Keep each area's existing reading order (top-to-bottom, right-to-left).
+        const byArea = {};
+        for (const t of tables) {
+            const a = t.area || 'ללא אזור';
+            (byArea[a] = byArea[a] || []).push(t);
+        }
+        const areas = Object.entries(byArea).map(([area, list]) => {
+            const sorted = [...list].sort((p, q) =>
+                (Math.round((p.y || 0) / 60) - Math.round((q.y || 0) / 60)) || ((q.x || 0) - (p.x || 0)));
+            const cols = Math.max(1, Math.min(6, Math.ceil(Math.sqrt(sorted.length * 1.7))));
+            const rows = Math.ceil(sorted.length / cols);
+            return {
+                area, sorted, cols, rows,
+                w: cols * TIDY_W + (cols - 1) * TIDY_GAP + TIDY_ZONE_PAD * 2,
+                h: rows * TIDY_H + (rows - 1) * TIDY_GAP + TIDY_ZONE_PAD * 2,
+            };
+        }).sort((a, b) => b.h - a.h); // tallest blocks first so rows pack tightly
+
+        // Shelf-pack the area blocks so no two zones can overlap.
+        const next = [];
+        let cursorX = 20, cursorY = 20, shelfH = 0;
+        for (const blk of areas) {
+            if (cursorX + blk.w > TIDY_CANVAS && cursorX > 20) {
+                cursorX = 20; cursorY += shelfH + 28; shelfH = 0;
+            }
+            blk.sorted.forEach((t, i) => {
+                const c = i % blk.cols, r = Math.floor(i / blk.cols);
+                next.push({
+                    ...t,
+                    x: cursorX + TIDY_ZONE_PAD + c * (TIDY_W + TIDY_GAP),
+                    y: cursorY + TIDY_ZONE_PAD + r * (TIDY_H + TIDY_GAP),
+                    width: TIDY_W,
+                    height: TIDY_H,
+                });
+            });
+            cursorX += blk.w + 24;
+            shelfH = Math.max(shelfH, blk.h);
+        }
+        setTables(next);
+        alert('המפה יושרה ✅\n\nלחץ "שמור מפה" כדי לשמור — או פשוט רענן את הדף כדי לבטל.');
+    };
+
     const getSeatingDuration = (size) => {
         if (size >= 9) return 165;
         if (size >= 6) return 150;
@@ -3533,6 +3586,11 @@ export default function SeatingSetup() {
                                         </select>
                                         <span className="w-px h-5 bg-gray-200 mx-1"></span>
                                         <button
+                                            onClick={handleTidyMap}
+                                            className="text-[10px] font-bold px-2 py-1 rounded transition-colors bg-white text-gray-600 border border-gray-200 hover:border-[#A04A2E] hover:text-[#A04A2E]"
+                                            title="הצמד את כל השולחנות לרשת, גודל אחיד, וכל אזור כבלוק נפרד בלי חפיפה"
+                                        >📐 יישר מפה</button>
+                                        <button
                                             onClick={() => setShowBlueprint(v => !v)}
                                             className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
                                                 showBlueprint ? 'bg-zinc-900 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-400'
@@ -3580,28 +3638,48 @@ export default function SeatingSetup() {
                                         {/* ZONE BACKDROPS — computed bounding boxes per area, soft pastel fills.
                                             Renders BEFORE tables/facilities so they sit underneath. */}
                                         {!showBlueprint && (() => {
-                                            const ZONE_STYLES = {
-                                                'אזור חום':     { bg: 'rgba(217,178,138,0.25)', label: '#7c5e3a', name: 'אזור חום' },
-                                                'כניסה':         { bg: 'rgba(167,243,208,0.35)', label: '#065f46', name: 'כניסה' },
-                                                'אדום מרוכזי':   { bg: 'rgba(254,205,211,0.35)', label: '#9f1239', name: 'אזור אדום מרכזי' },
-                                                'זוהרה':         { bg: 'rgba(167,139,250,0.20)', label: '#5b21b6', name: 'זוהרה' },
-                                                'מספרה':         { bg: 'rgba(250,204,21,0.20)', label: '#92400e', name: 'מספרה' },
-                                                'גבטה':          { bg: 'rgba(165,180,252,0.30)', label: '#1e3a8a', name: 'גבטה' },
-                                                'ורוד':          { bg: 'rgba(251,207,232,0.35)', label: '#9d174d', name: 'אזור ורוד' },
+                                            // Alena's zones keep their established hues; ANY other name gets a
+                                            // deterministic pastel from its own text, so a new tenant's areas are
+                                            // backdropped and labelled too (they used to get nothing at all —
+                                            // a flat sea of unlabelled rectangles).
+                                            const NAMED = {
+                                                'אזור חום':     { h: 32,  name: 'אזור חום' },
+                                                'כניסה':         { h: 155, name: 'כניסה' },
+                                                'אדום מרוכזי':   { h: 350, name: 'אזור אדום מרכזי' },
+                                                'זוהרה':         { h: 265, name: 'זוהרה' },
+                                                'מספרה':         { h: 45,  name: 'מספרה' },
+                                                'גבטה':          { h: 225, name: 'גבטה' },
+                                                'ורוד':          { h: 330, name: 'אזור ורוד' },
+                                            };
+                                            const hueOf = (s) => {
+                                                let x = 0;
+                                                for (let i = 0; i < s.length; i++) x = (x * 31 + s.charCodeAt(i)) % 360;
+                                                return x;
+                                            };
+                                            const styleFor = (area) => {
+                                                const hit = NAMED[area];
+                                                const h = hit ? hit.h : hueOf(area);
+                                                return {
+                                                    // Much lighter than before — overlapping zones used to mix into mud.
+                                                    bg: `hsl(${h} 62% 96%)`,
+                                                    edge: `hsl(${h} 45% 86%)`,
+                                                    label: `hsl(${h} 45% 34%)`,
+                                                    name: hit ? hit.name : area,
+                                                };
                                             };
                                             const byArea = {};
                                             tables.forEach(t => {
-                                                if (!t.area || !ZONE_STYLES[t.area]) return;
+                                                if (!t.area) return;
                                                 if (!byArea[t.area]) byArea[t.area] = [];
                                                 byArea[t.area].push(t);
                                             });
-                                            const PADDING = 24;
+                                            const PADDING = 26;
                                             return Object.entries(byArea).map(([area, ts]) => {
-                                                const zone = ZONE_STYLES[area];
+                                                const zone = styleFor(area);
                                                 const minX = Math.min(...ts.map(t => t.x || 0)) - PADDING;
-                                                const minY = Math.min(...ts.map(t => t.y || 0)) - PADDING;
+                                                const minY = Math.min(...ts.map(t => t.y || 0)) - PADDING - 20; // room for the label chip
                                                 const maxX = Math.max(...ts.map(t => (t.x || 0) + (t.width || 80))) + PADDING;
-                                                const maxY = Math.max(...ts.map(t => (t.y || 0) + (t.height || 80))) + PADDING + 18;
+                                                const maxY = Math.max(...ts.map(t => (t.y || 0) + (t.height || 80))) + PADDING;
                                                 return (
                                                     <div
                                                         key={area}
@@ -3610,20 +3688,26 @@ export default function SeatingSetup() {
                                                             left: minX, top: minY,
                                                             width: maxX - minX, height: maxY - minY,
                                                             background: zone.bg,
-                                                            borderRadius: 16,
-                                                            border: `1px dashed ${zone.label}30`,
+                                                            borderRadius: 14,
+                                                            border: `1px solid ${zone.edge}`,
                                                             pointerEvents: 'none',
                                                         }}
                                                     >
+                                                        {/* Label as a solid chip at the TOP of the zone. It used to sit
+                                                            bottom-right at 12px/0.75 opacity, where it collided with the
+                                                            last row of tables and vanished at tablet zoom. */}
                                                         <div
                                                             style={{
                                                                 position: 'absolute',
-                                                                bottom: 4, right: 12,
+                                                                top: 6, right: 10,
                                                                 fontSize: 12,
-                                                                fontWeight: 800,
+                                                                fontWeight: 500,
                                                                 color: zone.label,
-                                                                letterSpacing: '0.02em',
-                                                                opacity: 0.75,
+                                                                background: '#ffffffd9',
+                                                                border: `1px solid ${zone.edge}`,
+                                                                borderRadius: 999,
+                                                                padding: '1px 9px',
+                                                                whiteSpace: 'nowrap',
                                                             }}
                                                         >{zone.name}</div>
                                                     </div>
