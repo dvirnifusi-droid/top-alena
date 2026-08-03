@@ -95,6 +95,26 @@ function NotificationSettingsInner() {
       'השעה נשמרה');
   };
 
+  // "Send X minutes after the trigger" — persisted to team_nudges (not the
+  // NotificationSetting row), so it uses a dedicated fn instead of `save`.
+  const onDelayChange = async (item, minutes) => {
+    const dc = item.delayConfig || {};
+    const val = Math.max(dc.min ?? 1, Math.min(dc.max ?? 180, Math.round(Number(minutes) || 0)));
+    patchLocal(item.key, { delay_min: val }); // optimistic
+    setBusyKey(item.key);
+    try {
+      const res = await base44.functions.setNotificationDelay({ key: item.key, delay_min: val });
+      const saved = (res?.data || res || {}).delay_min;
+      if (Number.isFinite(saved)) patchLocal(item.key, { delay_min: saved });
+      flash('הזמן נשמר ⏱️');
+    } catch (e) {
+      flash('שמירה נכשלה ❌');
+      load();
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto px-3 py-6" dir="rtl">
       <PageHeader
@@ -134,6 +154,7 @@ function NotificationSettingsInner() {
                     onToggle={onToggle}
                     onTimeChange={onTimeChange}
                     onSlotChange={onSlotChange}
+                    onDelayChange={onDelayChange}
                     onEdit={() => setEditing(item)}
                     onReset={() => resetOne(item.key)}
                   />
@@ -162,7 +183,9 @@ function NotificationSettingsInner() {
   );
 }
 
-function NotifCard({ item, busy, onToggle, onTimeChange, onSlotChange, onEdit, onReset }) {
+function NotifCard({ item, busy, onToggle, onTimeChange, onSlotChange, onDelayChange, onEdit, onReset }) {
+  const [delayDraft, setDelayDraft] = useState(null); // local while typing; null = show saved value
+  const delayVal = item.delay_min ?? item.delayConfig?.default ?? 0;
   const chip = KIND_CHIP[item.kind] || KIND_CHIP.event;
   const ChipIcon = chip.icon;
   const toggleable = canToggle(item);
@@ -204,6 +227,42 @@ function NotifCard({ item, busy, onToggle, onTimeChange, onSlotChange, onEdit, o
       {item.textEditability !== 'none' && effectiveText && !off && (
         <div className="mt-3 rounded-lg bg-[#F3F7EC] border border-[#D9E7C4] text-[13px] text-[#33461f] whitespace-pre-wrap px-3 py-2 leading-relaxed">
           {effectiveText}
+        </div>
+      )}
+
+      {/* Delay editor — "send X minutes after the trigger" (e.g. shift start) */}
+      {!off && item.delayConfig && (
+        <div className="mt-3 flex items-center gap-2 flex-wrap text-sm text-stone-600">
+          <Clock className="w-4 h-4 text-stone-400" />
+          <span>נשלחת</span>
+          <div className="inline-flex items-center rounded-lg border border-stone-200 overflow-hidden">
+            <button
+              type="button"
+              className="px-2.5 py-1 text-stone-500 hover:bg-stone-100 disabled:opacity-40 text-base leading-none"
+              onClick={() => { setDelayDraft(null); onDelayChange(item, delayVal - 5); }}
+              disabled={busy || delayVal <= item.delayConfig.min}
+              aria-label="פחות"
+            >−</button>
+            <input
+              type="number"
+              className="w-14 text-center py-1 text-sm font-semibold text-stone-800 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+              value={delayDraft ?? delayVal}
+              min={item.delayConfig.min}
+              max={item.delayConfig.max}
+              onChange={(e) => setDelayDraft(e.target.value)}
+              onBlur={(e) => { setDelayDraft(null); onDelayChange(item, e.target.value); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+            />
+            <button
+              type="button"
+              className="px-2.5 py-1 text-stone-500 hover:bg-stone-100 disabled:opacity-40 text-base leading-none"
+              onClick={() => { setDelayDraft(null); onDelayChange(item, delayVal + 5); }}
+              disabled={busy || delayVal >= item.delayConfig.max}
+              aria-label="עוד"
+            >+</button>
+          </div>
+          <span>דקות אחרי תחילת המשמרת</span>
+          {busy && <Loader2 className="w-4 h-4 animate-spin text-stone-300" />}
         </div>
       )}
 

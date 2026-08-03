@@ -37,7 +37,7 @@ export type NudgeConfig = {
 const DEFAULTS: NudgeConfig = {
   enabled: (process.env.TENANT_SLUG || 'alena') === 'alena',
   availability: { enabled: true, days: [3, 4], hour: 10 }, // Wed + Thu 10:00
-  clockin: { enabled: true, delay_min: 35 },
+  clockin: { enabled: true, delay_min: 10 },
   checklist: { enabled: true, morning_hour: 11, evening_hour: 19 },
 };
 

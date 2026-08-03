@@ -47,6 +47,10 @@ export interface NotifDef {
   defaultText?: string;      // editor seed (mirrors current code string), {token} form
   variables?: NotifVar[];
   note?: string;             // extra hint shown in the editor
+  // Owner-editable "send X minutes after the trigger" delay. Persisted in
+  // RestaurantProfile.team_nudges at `path` (e.g. 'clockin.delay_min') — the SAME
+  // value the runtime reads, so the card and the ops-manager panel never drift.
+  delayConfig?: { path: string; default: number; min: number; max: number };
   source: string;            // file:line of the live send (provenance / audit)
 }
 
@@ -213,8 +217,9 @@ export const NOTIFICATIONS: NotifDef[] = [
   },
   {
     key: 'nudge_clockin', audience: 'staff', kind: 'cron',
-    label: 'תזכורת החתמת כניסה', description: 'לעובד משובץ שלא החתים — ~35 דק׳ אחרי תחילת המשמרת',
+    label: 'תזכורת החתמת כניסה', description: 'לעובד משובץ שלא החתים — כמה דקות אחרי תחילת המשמרת (ניתן לשינוי)',
     defaultEnabled: true, scheduleShape: 'none',
+    delayConfig: { path: 'clockin.delay_min', default: 10, min: 1, max: 180 },
     textEditability: 'full',
     defaultText: 'היי {first} 👋\nשים/י לב — את/ה משובץ/ת למשמרת שהתחילה ב-{start} ועדיין אין החתמת כניסה.\nאם את/ה כבר פה — תחתום/י עכשיו 🙏 ואם יש בעיה, עדכנו את המנהל.\n🔗 {link}',
     variables: [FIRST, V('start', 'שעת תחילת משמרת'), LINK], source: 'teamNudges.ts:207',

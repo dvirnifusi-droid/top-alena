@@ -369,7 +369,7 @@ function TeamNudgesSection() {
                         <input type="checkbox" checked={cfg.clockin?.enabled !== false} onChange={e => setSub('clockin', { enabled: e.target.checked })} className="w-4 h-4 accent-emerald-600" />
                         <span className="font-semibold">🕐 שובץ ולא החתים כניסה</span>
                         <span className="text-gray-500">— אחרי</span>
-                        {numInput(cfg.clockin?.delay_min ?? 35, v => setSub('clockin', { delay_min: v }))}
+                        {numInput(cfg.clockin?.delay_min ?? 10, v => setSub('clockin', { delay_min: v }))}
                         <span className="text-gray-500">דקות מתחילת המשמרת</span>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap bg-gray-50 rounded-lg p-2 text-sm">

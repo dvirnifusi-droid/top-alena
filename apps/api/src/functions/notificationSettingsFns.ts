@@ -5,6 +5,7 @@
 // lib/notificationSettings.ts; the message catalog lives in
 // lib/notificationRegistry.ts.
 import { registerFn } from './index.js';
+import { prisma } from '../db.js';
 import {
   listNotifSettings, setNotifSetting, resetNotifSetting,
   type NotifPatch,
@@ -12,8 +13,22 @@ import {
 import {
   byKey, applyTokens, AUDIENCE_ORDER, AUDIENCE_LABEL, type NotifAudience,
 } from '../lib/notificationRegistry.js';
+import { getNudgeConfig } from '../lib/teamNudges.js';
 
 const isAdminRole = (r: any) => r === 'owner' || r === 'admin';
+
+// Read/write a dotted path (e.g. 'clockin.delay_min') on a plain object.
+const getPath = (o: any, path: string): any =>
+  path.split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
+const setPath = (o: any, path: string, val: any): void => {
+  const keys = path.split('.');
+  let cur = o;
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (cur[keys[i]] == null || typeof cur[keys[i]] !== 'object') cur[keys[i]] = {};
+    cur = cur[keys[i]];
+  }
+  cur[keys[keys.length - 1]] = val;
+};
 
 // Sample values used to render a live preview in the edit modal.
 const SAMPLE: Record<string, string> = {
@@ -34,6 +49,17 @@ registerFn('getNotificationSettings', async ({ user }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   if (!isAdminRole(user?.role)) throw new Error('admin only');
   const all = await listNotifSettings();
+  // Attach the live "send after N minutes" value for delay-configurable messages
+  // (read from the same team_nudges config the runtime uses — no separate store).
+  if (all.some((n) => (n as any).delayConfig)) {
+    const nudge = await getNudgeConfig().catch(() => null);
+    for (const n of all as any[]) {
+      if (n.delayConfig) {
+        const v = nudge ? getPath(nudge, n.delayConfig.path) : undefined;
+        n.delay_min = Number.isFinite(v) ? v : n.delayConfig.default;
+      }
+    }
+  }
   const groups = AUDIENCE_ORDER
     .map((aud: NotifAudience) => ({
       audience: aud,
@@ -75,6 +101,28 @@ registerFn('setNotificationSetting', async ({ user, body }: any) => {
 
   await setNotifSetting(key, patch, user.id);
   return { ok: true };
+});
+
+// SET DELAY — change how many minutes after the trigger a delay-based reminder
+// fires. Persists to RestaurantProfile.team_nudges (the exact value the runtime
+// reads), so this card and the ops-manager panel stay in sync. Body: { key, delay_min }.
+registerFn('setNotificationDelay', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  if (!isAdminRole(user?.role)) throw new Error('admin only');
+  const b = (body || {}) as any;
+  const key = String(b.key || '');
+  const def = byKey(key) as any;
+  if (!def?.delayConfig) throw new Error('this message has no editable delay');
+  let val = Math.round(Number(b.delay_min));
+  if (!Number.isFinite(val)) throw new Error('invalid delay');
+  val = Math.max(def.delayConfig.min, Math.min(def.delayConfig.max, val));
+
+  const cfg: any = await getNudgeConfig();
+  setPath(cfg, def.delayConfig.path, val);
+  const px = prisma as any;
+  await px.$executeRawUnsafe(`ALTER TABLE "RestaurantProfile" ADD COLUMN IF NOT EXISTS "team_nudges" JSONB`).catch(() => {});
+  await px.$executeRawUnsafe(`UPDATE "RestaurantProfile" SET team_nudges = $1::jsonb`, JSON.stringify(cfg));
+  return { ok: true, delay_min: val };
 });
 
 // RESET — revert one message entirely to its default.
