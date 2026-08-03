@@ -374,6 +374,16 @@ const TOOL_DECLARATIONS = [
     parameters: { type: 'OBJECT', properties: {} },
   },
   {
+    name: 'clock_in_self',
+    description: 'העובד מחתים כניסה לשעון בעצמו דרך וואטסאפ. טריגרים: "הגעתי", "נכנסתי", "התחלתי משמרת", "תכניסי אותי לשעון", "פתח/י לי משמרת", "אני בעבודה". קרא/י לזה ישר — בלי לשאול. אין צורך במיקום.',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
+    name: 'clock_out_self',
+    description: 'העובד מחתים יציאה מהשעון בעצמו. טריגרים: "סיימתי", "אני יוצא/ת", "גמרתי משמרת", "תוציאי אותי מהשעון", "סוגר/ת משמרת", "הלכתי הביתה". קרא/י לזה ישר.',
+    parameters: { type: 'OBJECT', properties: {} },
+  },
+  {
     name: 'propose_mark_sick',
     description: 'CALLER reports themselves sick — creates a sick-day request and notifies the manager. Use when employee says "אני חולה", "לא מרגיש טוב, לא אגיע", "חולה היום/מחר". Do NOT use for someone else.',
     parameters: { type: 'OBJECT', properties: { date: { type: 'STRING', description: 'Date in YYYY-MM-DD, or the literals "today" / "tomorrow" / "היום" / "מחר".' } } },
@@ -1457,6 +1467,63 @@ async function tool_propose_remove_from_shift(args: any, phone: string): Promise
     target_phone: phone,
   });
   return { proposal: `🗑 הסרת *${emp.full_name}* מ${args.shift_type === 'lunch' ? 'צהריים' : 'ערב'} ${dateStr}`, awaiting_confirmation: true };
+}
+
+// The CALLER clocks themselves IN via WhatsApp. No geofence (there's no location
+// in chat) — the record is tagged source='whatsapp' so the owner sees it wasn't
+// location-verified. Always returns an explicit confirmation so nothing falls
+// through silently (the old bot just greeted without stamping).
+async function tool_clock_in_self(_args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.employee_id) return { error: 'לא זיהיתי אותך כעובד רשום במערכת — פנה/י למנהל.' };
+  const empId = scope.employee_id;
+  const name = scope.employee_name || 'עובד';
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const hhmm = (d: Date) => new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  const open: any[] = await (prisma as any).$queryRaw`SELECT id, shift_start, date FROM "ShiftTracking" WHERE employee_id=${empId} AND status='active' ORDER BY shift_start DESC`;
+  for (const row of (open || [])) {
+    const rowDate = row.date ? new Date(row.date).toISOString().slice(0, 10) : '';
+    if (rowDate === todayStr) return { already_active: true, message: `אתה כבר בשעון מ-${hhmm(new Date(row.shift_start))} 👍 אין צורך להחתים שוב. כשתסיים תכתוב "סיימתי".` };
+    // A previous day's shift left open → close it before opening a new one.
+    const startTs = new Date(row.shift_start).getTime();
+    const closeAt = new Date(startTs + 8 * 3600 * 1000);
+    const total = Math.round(((closeAt.getTime() - startTs) / 3600000) * 10) / 10;
+    await (prisma as any).$executeRaw`UPDATE "ShiftTracking" SET shift_end=${closeAt}, status='completed', total_hours=${total}, auto_close_reason='auto-closed on WhatsApp clock-in', "updatedAt"=NOW() WHERE id=${row.id}`;
+  }
+  const newId = `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  const today = new Date(todayStr);
+  try {
+    await (prisma as any).$executeRaw`
+      INSERT INTO "ShiftTracking" (id, employee_id, employee_name, date, shift_start, status, breaks, total_break_minutes, had_meal, source, "createdAt","updatedAt")
+      VALUES (${newId}, ${empId}, ${name}, ${today}, ${now}, 'active', ${'[]'}::jsonb, 0, false, 'whatsapp', NOW(), NOW())`;
+  } catch (e: any) {
+    console.error('[wa-clock-in] insert failed', e?.message);
+    return { error: 'משהו השתבש בהחתמת השעון — נסה שוב עוד רגע, ואם לא עובד תיכנס/י דרך האפליקציה.' };
+  }
+  try { const { fireTriggers } = await import('./triggers.js'); fireTriggers('ShiftTracking', 'created', { id: newId, employee_id: empId, employee_name: name, date: today, shift_start: now, status: 'active', source: 'whatsapp' }).catch(() => {}); } catch { /* trigger best-effort */ }
+  return { ok: true, message: `✅ הוחתמת בשעון ב-${hhmm(now)}. שיהיה לך יום מוצלח! 💪\n(נכנסת דרך וואטסאפ)` };
+}
+
+// The CALLER clocks themselves OUT + gets a link to the shift-end questionnaire.
+async function tool_clock_out_self(_args: any, phone: string): Promise<any> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (!scope.employee_id) return { error: 'לא זיהיתי אותך כעובד רשום במערכת — פנה/י למנהל.' };
+  const empId = scope.employee_id;
+  const rows: any[] = await (prisma as any).$queryRaw`SELECT id, shift_start, total_break_minutes FROM "ShiftTracking" WHERE employee_id=${empId} AND (status='active' OR status='on_break') ORDER BY shift_start DESC LIMIT 1`;
+  const shift = rows?.[0];
+  if (!shift) return { no_open: true, message: 'אין לך משמרת פתוחה בשעון כרגע. אם התכוונת להיכנס — כתוב/י "הגעתי".' };
+  const now = new Date();
+  const startTs = new Date(shift.shift_start).getTime();
+  const grossH = Math.max(0, (now.getTime() - startTs) / 3600000);
+  const netH = Math.max(0, grossH - (Number(shift.total_break_minutes) || 0) / 60);
+  await (prisma as any).$executeRaw`UPDATE "ShiftTracking" SET shift_end=${now}, status='completed', total_hours=${Math.round(grossH * 100) / 100}, effective_hours=${Math.round(netH * 100) / 100}, "updatedAt"=NOW() WHERE id=${shift.id}`;
+  const hhmm = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
+  const hh = Math.floor(netH); const mm = Math.round((netH - hh) * 60);
+  const { appBaseUrl } = await import('./appUrl.js');
+  return { ok: true, message: `✅ יצאת בשעון ב-${hhmm}. עבדת ${hh}:${String(mm).padStart(2, '0')} שעות. תודה על העבודה! 🙏\n\n📝 דקה אחרונה — מלא/י דוח סוף משמרת (איך היה + דירוגים):\n${appBaseUrl()}/ShiftEndReport` };
 }
 
 // Stop the "employee is late" owner alerts for one employee for the REST OF
@@ -3300,6 +3367,8 @@ const TOOL_HANDLERS: Record<string, (args: any, phone: string) => Promise<any>> 
   get_my_schedule: tool_get_my_schedule,
   get_my_tips: tool_get_my_tips,
   get_my_hours: tool_get_my_hours,
+  clock_in_self: tool_clock_in_self,
+  clock_out_self: tool_clock_out_self,
   propose_mark_sick: tool_propose_mark_sick,
   submit_availability: tool_submit_availability,
   request_availability_reopen: tool_request_availability_reopen,
@@ -3468,12 +3537,16 @@ const STAFF_PROMPT_TEMPLATE = `אתה העוזר האישי של {name} ב-Whats
 עיקרון: ענה רק על דברים שקשורים אליו/ה. *אל* תיתן מידע על עובדים אחרים, לידים, חשבוניות, או נתוני העסק.
 
 כלים זמינים:
+- clock_in_self — החתמת כניסה לשעון ("הגעתי")
+- clock_out_self — החתמת יציאה מהשעון ("סיימתי")
 - get_my_schedule — המשמרות הקרובות שלי
 - get_my_tips — הטיפים שלי
 - get_my_hours — שעות שעבדתי החודש
 - propose_mark_sick — אני חולה היום/מחר
 
 שאלות נפוצות וכיצד לענות:
+- "הגעתי" / "נכנסתי" / "תכניסי אותי לשעון" / "התחלתי" → *תמיד* clock_in_self() — אסור להסתפק בברכה! חובה להחתים בפועל ולהחזיר את האישור מהכלי.
+- "סיימתי" / "אני יוצא/ת" / "תוציאי אותי מהשעון" / "גמרתי" → clock_out_self()
 - "מתי המשמרת הבאה שלי?" → get_my_schedule({days:3})
 - "כמה טיפים יש לי השבוע?" → get_my_tips({days:7})
 - "כמה שעות החודש?" → get_my_hours()
@@ -3547,7 +3620,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
 };
 // When the intent is unclear, a modest common set (still far smaller than 54).
 const GENERAL_TOOLS = ['get_today_revenue', 'daily_status', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'propose_create_reservation', 'list_order_needs', 'list_incidents', 'propose_open_incident', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee', 'issue_club_benefit', 'list_live_campaigns', 'pause_meta_campaign', 'resume_meta_campaign', 'set_meta_budget'];
-const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'propose_mark_sick', 'submit_availability'];
+const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'clock_in_self', 'clock_out_self', 'propose_mark_sick', 'submit_availability'];
 
 // Deterministic keyword routing — covers the vast majority of phrasings without
 // an LLM call. Order matters: more specific intents first. The LLM classifier is
