@@ -1469,16 +1469,31 @@ async function tool_propose_remove_from_shift(args: any, phone: string): Promise
   return { proposal: `🗑 הסרת *${emp.full_name}* מ${args.shift_type === 'lunch' ? 'צהריים' : 'ערב'} ${dateStr}`, awaiting_confirmation: true };
 }
 
+// Resolve the CALLER's own Employee record for self-clock. Staff carry
+// scope.employee_id; owner/managers do NOT (their scope employee_id is null) —
+// so fall back to matching the WhatsApp number against Employee.phone, letting
+// owners/managers who also work shifts clock themselves in/out too.
+async function resolveClockEmployee(phone: string): Promise<{ id: string; name: string } | null> {
+  const { resolveAccessScope } = await import('./whatsappPermissions.js');
+  const scope = await resolveAccessScope(phone);
+  if (scope.employee_id) return { id: scope.employee_id, name: scope.employee_name || 'עובד' };
+  const last9 = String(phone || '').replace(/\D/g, '').slice(-9);
+  if (last9.length === 9) {
+    const rows: any[] = await (prisma as any).$queryRaw`SELECT id, full_name FROM "Employee" WHERE regexp_replace(phone,'[^0-9]','','g') LIKE ${'%' + last9} AND status='active' LIMIT 1`;
+    if (rows?.[0]) return { id: rows[0].id, name: rows[0].full_name || 'עובד' };
+  }
+  return null;
+}
+
 // The CALLER clocks themselves IN via WhatsApp. No geofence (there's no location
 // in chat) — the record is tagged source='whatsapp' so the owner sees it wasn't
 // location-verified. Always returns an explicit confirmation so nothing falls
 // through silently (the old bot just greeted without stamping).
 async function tool_clock_in_self(_args: any, phone: string): Promise<any> {
-  const { resolveAccessScope } = await import('./whatsappPermissions.js');
-  const scope = await resolveAccessScope(phone);
-  if (!scope.employee_id) return { error: 'לא זיהיתי אותך כעובד רשום במערכת — פנה/י למנהל.' };
-  const empId = scope.employee_id;
-  const name = scope.employee_name || 'עובד';
+  const me = await resolveClockEmployee(phone);
+  if (!me) return { error: 'לא מצאתי רשומת עובד עם המספר הזה — פנה/י למנהל.' };
+  const empId = me.id;
+  const name = me.name;
   const now = new Date();
   const todayStr = now.toISOString().slice(0, 10);
   const hhmm = (d: Date) => new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
@@ -1508,10 +1523,9 @@ async function tool_clock_in_self(_args: any, phone: string): Promise<any> {
 
 // The CALLER clocks themselves OUT + gets a link to the shift-end questionnaire.
 async function tool_clock_out_self(_args: any, phone: string): Promise<any> {
-  const { resolveAccessScope } = await import('./whatsappPermissions.js');
-  const scope = await resolveAccessScope(phone);
-  if (!scope.employee_id) return { error: 'לא זיהיתי אותך כעובד רשום במערכת — פנה/י למנהל.' };
-  const empId = scope.employee_id;
+  const me = await resolveClockEmployee(phone);
+  if (!me) return { error: 'לא מצאתי רשומת עובד עם המספר הזה — פנה/י למנהל.' };
+  const empId = me.id;
   const rows: any[] = await (prisma as any).$queryRaw`SELECT id, shift_start, total_break_minutes FROM "ShiftTracking" WHERE employee_id=${empId} AND (status='active' OR status='on_break') ORDER BY shift_start DESC LIMIT 1`;
   const shift = rows?.[0];
   if (!shift) return { no_open: true, message: 'אין לך משמרת פתוחה בשעון כרגע. אם התכוונת להיכנס — כתוב/י "הגעתי".' };
@@ -3617,6 +3631,7 @@ const TOOL_GROUPS: Record<string, string[]> = {
   menu: ['list_menu', 'add_menu_item', 'set_menu_item_availability', 'update_menu_item', 'remove_menu_item', 'propose_set_dish_price', 'get_recipe_cost'],
   deliveries: ['list_deliveries', 'update_delivery'],
   recruitment: ['list_candidates', 'candidate_summary', 'schedule_interview', 'update_candidate_status', 'recruitment_link'],
+  selfclock: ['clock_in_self', 'clock_out_self'],
 };
 // When the intent is unclear, a modest common set (still far smaller than 54).
 const GENERAL_TOOLS = ['get_today_revenue', 'daily_status', 'list_today_schedule', 'build_schedule_now', 'check_availability', 'propose_create_reservation', 'list_order_needs', 'list_incidents', 'propose_open_incident', 'get_unpaid_invoices', 'propose_task_add', 'propose_remind_me', 'list_open_tasks', 'search_employee', 'issue_club_benefit', 'list_live_campaigns', 'pause_meta_campaign', 'resume_meta_campaign', 'set_meta_budget'];
@@ -3626,6 +3641,10 @@ const STAFF_TOOLS = ['get_my_schedule', 'get_my_tips', 'get_my_hours', 'clock_in
 // an LLM call. Order matters: more specific intents first. The LLM classifier is
 // only a fallback for wording the keywords miss.
 const INTENT_KEYWORDS: Array<[string, RegExp]> = [
+  // Self clock-in/out FIRST — so "הגעתי" / "סיימתי" / "תכניס אותי לשעון" reach the
+  // self-clock tools (resolved by phone) instead of a greeting or the owner's
+  // clock-an-EMPLOYEE flow. "אותי" (me) distinguishes it from "תכניס את X".
+  ['selfclock', /הגעתי|החתימי? אותי|תכניס(י)? אותי לשעון|נכנסתי לשעון|התחלתי (את ה)?משמרת|סיימתי (את ה)?משמרת|תוציא(י)? אותי (מהשעון|מהמשמרת)|יצאתי מהמשמרת|גמרתי (את ה)?משמרת|אני (יוצא|יוצאת|סוגר|סוגרת).{0,8}(משמרת|שעון)/],
   // Meta ad-campaign control — pause/resume/budget on live campaigns. Kept early
   // so budget phrasing ("הורד תקציב") doesn't get grabbed by finance/other rules.
   ['team', /קמפיינ?ים|תקציב יומי|הורד.{0,6}תקציב|תוריד.{0,6}תקציב|העלה.{0,6}תקציב|תעלה.{0,6}תקציב|(עצור|תעצור|השהה|תשהה|תפסיק|תפעיל|תחזיר).{0,12}(קמפיין|פרסום|מודעה|מודעות)|מבזבז|כמה הוצאתי על (פרסום|מודעות)/],
