@@ -7670,6 +7670,86 @@ registerFn('setScheduleConfig', async ({ user, body }: any) => {
 // columns → the frontend falls back to the historical defaults, so nothing
 // changes until an owner saves.
 let _tipCfgEnsured = false;
+// ── Two-step hours approval: the employee self-approves their month, then the
+// owner locks it. Backend-persisted per employee+month (the old owner lock lived
+// only in the owner's localStorage, so an employee's approval could never reach
+// him). Self-healing table, additive — never touches existing data.
+let _haEnsured = false;
+async function ensureHoursApproval(): Promise<void> {
+  if (_haEnsured) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "HoursApproval" (
+       "id" TEXT PRIMARY KEY,
+       "employee_id" TEXT NOT NULL,
+       "period" TEXT NOT NULL,
+       "employee_approved_at" TIMESTAMPTZ,
+       "owner_approved_at" TIMESTAMPTZ,
+       "owner_by" TEXT,
+       "updatedAt" TIMESTAMPTZ DEFAULT NOW()
+     )`,
+  );
+  await (prisma as any).$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "HoursApproval_period_idx" ON "HoursApproval"("period")`).catch(() => {});
+  _haEnsured = true;
+}
+const haMonthOk = (m: any) => /^\d{4}-\d{2}$/.test(String(m || ''));
+
+// Approval states for a month → { [employee_id]: {employee_approved_at, owner_approved_at} }.
+// Admin sees everyone; a plain employee sees only their own row.
+registerFn('getHoursApprovals', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensureHoursApproval();
+  const month = String((body || {}).month || '');
+  if (!haMonthOk(month)) throw new Error('month (YYYY-MM) required');
+  let rows: any[];
+  if (isAdminRole((user as any)?.role)) {
+    rows = await (prisma as any).$queryRawUnsafe(`SELECT employee_id, employee_approved_at, owner_approved_at FROM "HoursApproval" WHERE period=$1`, month);
+  } else {
+    const emp = await db.employee.findFirst({ where: { email: { equals: user.email, mode: 'insensitive' } } }).catch(() => null);
+    rows = emp ? await (prisma as any).$queryRawUnsafe(`SELECT employee_id, employee_approved_at, owner_approved_at FROM "HoursApproval" WHERE period=$1 AND employee_id=$2`, month, emp.id) : [];
+  }
+  const approvals: Record<string, any> = {};
+  for (const r of rows) approvals[r.employee_id] = { employee_approved_at: r.employee_approved_at, owner_approved_at: r.owner_approved_at };
+  return { month, approvals };
+});
+
+// The employee confirms their OWN hours. Resolves the caller's Employee from
+// their login email; a non-admin can only approve themselves.
+registerFn('setEmployeeHoursApproval', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensureHoursApproval();
+  const month = String((body || {}).month || '');
+  if (!haMonthOk(month)) throw new Error('month (YYYY-MM) required');
+  const admin = isAdminRole((user as any)?.role);
+  const callerEmp = await db.employee.findFirst({ where: { email: { equals: user.email, mode: 'insensitive' } } }).catch(() => null);
+  const empId = (admin && (body || {}).employee_id) ? String((body as any).employee_id) : callerEmp?.id;
+  if (!empId) throw new Error('לא נמצאה רשומת עובד למשתמש הזה — פנה למנהל.');
+  const approve = (body || {}).approved !== false;
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "HoursApproval" ("id","employee_id","period","employee_approved_at","updatedAt")
+     VALUES ($1,$2,$3, ${approve ? 'NOW()' : 'NULL'}, NOW())
+     ON CONFLICT ("id") DO UPDATE SET "employee_approved_at" = ${approve ? 'NOW()' : 'NULL'}, "updatedAt" = NOW()`,
+    `${empId}|${month}`, empId, month,
+  );
+  return { ok: true, employee_id: empId, month, approved: approve };
+});
+
+// Owner's final approval / lock of an employee's month.
+registerFn('setOwnerHoursApproval', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'setOwnerHoursApproval');
+  await ensureHoursApproval();
+  const { employee_id, month } = (body || {}) as any;
+  if (!employee_id) throw new Error('employee_id required');
+  if (!haMonthOk(month)) throw new Error('month (YYYY-MM) required');
+  const approve = (body || {}).approved !== false;
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "HoursApproval" ("id","employee_id","period","owner_approved_at","owner_by","updatedAt")
+     VALUES ($1,$2,$3, ${approve ? 'NOW()' : 'NULL'}, $4, NOW())
+     ON CONFLICT ("id") DO UPDATE SET "owner_approved_at" = ${approve ? 'NOW()' : 'NULL'}, "owner_by" = $4, "updatedAt" = NOW()`,
+    `${employee_id}|${month}`, employee_id, month, String(user?.email || user?.id || ''),
+  );
+  return { ok: true, employee_id, month, approved: approve };
+});
+
 async function ensureTipConfig(): Promise<void> {
   if (_tipCfgEnsured) return;
   await (prisma as any).$executeRawUnsafe(

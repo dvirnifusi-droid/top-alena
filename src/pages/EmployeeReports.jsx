@@ -126,20 +126,33 @@ function EmployeeReportsInner() {
     const [selectedLockState, setSelectedLockState] = useState('all'); // all | locked | unlocked
     const [filterPeriod, setFilterPeriod] = useState('month');
     const [selectedMonth, setSelectedMonth] = useState(new Date());
-    // Approved-hours lock state, shared between single-employee header and
-    // the bulk summary card. Persisted per month in localStorage.
-    const approvedStorageKey = `approved_hours_${format(selectedMonth, 'yyyy-MM')}`;
-    const [approvedEmployees, setApprovedEmployees] = useState([]);
+    // Two-step hours approval, backend-persisted per month:
+    // { [empId]: {employee_approved_at, owner_approved_at} }. The old owner lock
+    // lived in localStorage (per device), so an employee's approval could never
+    // reach the owner — now it's server-synced.
+    const monthKey = format(selectedMonth, 'yyyy-MM');
+    const [hoursApprovals, setHoursApprovals] = useState({});
     useEffect(() => {
-        try { setApprovedEmployees(JSON.parse(localStorage.getItem(approvedStorageKey) || '[]')); }
-        catch { setApprovedEmployees([]); }
-    }, [approvedStorageKey]);
-    const toggleApproved = (empId) => {
-        setApprovedEmployees((prev) => {
-            const next = prev.includes(empId) ? prev.filter((id) => id !== empId) : [...prev, empId];
-            localStorage.setItem(approvedStorageKey, JSON.stringify(next));
-            return next;
-        });
+        let alive = true;
+        base44.functions.getHoursApprovals({ month: monthKey })
+            .then((r) => { if (alive) setHoursApprovals((r?.data || r)?.approvals || {}); })
+            .catch(() => { if (alive) setHoursApprovals({}); });
+        return () => { alive = false; };
+    }, [monthKey]);
+    const reloadApprovals = async () => {
+        try { const r = await base44.functions.getHoursApprovals({ month: monthKey }); setHoursApprovals((r?.data || r)?.approvals || {}); } catch { /* keep prior */ }
+    };
+    // Owner-locked (final approval) list — derived so all existing UI keeps working.
+    const approvedEmployees = Object.keys(hoursApprovals).filter((id) => hoursApprovals[id]?.owner_approved_at);
+    const toggleApproved = async (empId) => {
+        const approved = !hoursApprovals[empId]?.owner_approved_at;
+        try { await base44.functions.setOwnerHoursApproval({ employee_id: empId, month: monthKey, approved }); await reloadApprovals(); }
+        catch (e) { toast({ title: 'שגיאה', description: e?.message || '', variant: 'destructive' }); }
+    };
+    // The employee confirms their OWN month.
+    const selfApproveHours = async (approved) => {
+        try { await base44.functions.setEmployeeHoursApproval({ month: monthKey, approved }); await reloadApprovals(); }
+        catch (e) { toast({ title: 'שגיאה', description: e?.message || '', variant: 'destructive' }); }
     };
     const [loading2, setLoading2] = useState(false);
     const [workShifts, setWorkShifts] = useState([]);
@@ -786,6 +799,35 @@ function EmployeeReportsInner() {
                     )}
                 />
 
+                {/* Employee self-approval of their own month's hours */}
+                {!isAdmin && (() => {
+                    const myId = myEmployeeRecord?.id || (selectedEmployeeId !== 'all' ? selectedEmployeeId : null);
+                    const appr = myId ? hoursApprovals[myId] : null;
+                    const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: he });
+                    return (
+                        <Card className={`mb-6 border-2 ${appr?.employee_approved_at ? 'border-green-300 bg-green-50' : 'border-amber-300 bg-amber-50'}`}>
+                            <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                {appr?.employee_approved_at ? (
+                                    <>
+                                        <div className="text-sm font-bold text-green-800">
+                                            ✅ אישרת את השעות שלך ל{monthLabel} ({format(new Date(appr.employee_approved_at), 'dd/MM HH:mm')}).
+                                            {appr.owner_approved_at ? ' המנהל אישר סופית 🔒' : ' ממתין לאישור סופי של המנהל.'}
+                                        </div>
+                                        {!appr.owner_approved_at && (
+                                            <Button variant="outline" size="sm" className="shrink-0" onClick={() => selfApproveHours(false)}>בטל אישור</Button>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="text-sm font-medium text-amber-900">עברת על השעות שלך לחודש {monthLabel}? אשר אותן כדי שהמנהל יוכל לאשר סופית.</div>
+                                        <Button className="bg-green-600 hover:bg-green-700 shrink-0" onClick={() => selfApproveHours(true)}>✅ עברתי ואישרתי את השעות שלי</Button>
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
+                    );
+                })()}
+
                 {/* Filters */}
                 <Card className="mb-8 border-2">
                     <CardHeader>
@@ -912,6 +954,7 @@ function EmployeeReportsInner() {
                         tipReports={tipReports}
                         approvedEmployees={approvedEmployees}
                         toggleApproved={toggleApproved}
+                        hoursApprovals={hoursApprovals}
                         onExport={() => { setExportSelectedEmps(filteredForBulk.map(e => e.id)); setShowExport(true); }}
                     />
                     );
@@ -956,6 +999,9 @@ function EmployeeReportsInner() {
                         >
                             {anomalies?.loading ? '🤖 מנתח...' : '🤖 חריגות AI'}
                         </button>
+                        {hoursApprovals[selectedEmployeeId]?.employee_approved_at
+                            ? <span className="text-xs bg-green-100 text-green-700 border border-green-300 px-2 py-0.5 rounded-full font-bold" title={`אושר ע"י העובד ${format(new Date(hoursApprovals[selectedEmployeeId].employee_approved_at), 'dd/MM HH:mm')}`}>✔️ העובד אישר</span>
+                            : <span className="text-xs bg-gray-100 text-gray-500 border border-gray-300 px-2 py-0.5 rounded-full font-bold">⬜ ממתין לאישור העובד</span>}
                         <button
                             onClick={() => toggleApproved(selectedEmployeeId)}
                             className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${
@@ -1654,7 +1700,7 @@ function EmployeeReportsInner() {
     );
 }
 
-function AllEmployeesSummary({ workShifts, employees, shifts = [], isAdmin, onReload, selectedMonth, tipReports, onExport, approvedEmployees, toggleApproved }) {
+function AllEmployeesSummary({ workShifts, employees, shifts = [], isAdmin, onReload, selectedMonth, tipReports, onExport, approvedEmployees, toggleApproved, hoursApprovals = {} }) {
     const monthStart = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
     const monthEnd = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
 
@@ -1903,6 +1949,9 @@ function AllEmployeesSummary({ workShifts, employees, shifts = [], isAdmin, onRe
                                     {emp.full_name}
                                     {approvedEmployees.includes(emp.id) && (
                                         <span className="text-xs bg-green-100 text-green-700 border border-green-300 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">🔒 שעות נעולות</span>
+                                    )}
+                                    {hoursApprovals[emp.id]?.employee_approved_at && !approvedEmployees.includes(emp.id) && (
+                                        <span className="text-xs bg-green-50 text-green-600 border border-green-200 px-2 py-0.5 rounded-full font-bold">✔️ העובד אישר</span>
                                     )}
                                 </CardTitle>
                                 <p className="text-sm text-gray-500 mt-0.5">סה"כ <span className="font-bold text-gray-700">{totalDays}</span> ימי עבודה</p>
