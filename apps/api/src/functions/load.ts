@@ -78,7 +78,7 @@ const db = prisma as any; // generic delegate access
 
 // Public deploy marker — lets us confirm which build is live (and that
 // auto-deploy is working) without server access. Bump on each deploy test.
-registerFn('deployInfo', async () => ({ version: 'outbound-killswitch-2026-08-03c', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
+registerFn('deployInfo', async () => ({ version: 'mkthq-fast-2026-08-03d', ts: new Date().toISOString(), publicFns: Array.from((await import('./index.js')).publicFunctions).sort() }), { public: true });
 
 
 
@@ -4236,11 +4236,46 @@ registerFn('clubTestJoinMessage', async ({ body, user }) => {
 registerFn('getMarketingStats', async ({ body }) =>
   await marketingStats(Number((body as any)?.days) || 30));
 
+// The "manager says" headline is the ONLY LLM part of Marketing HQ, and an LLM
+// round-trip (~2-3s) must never block the page. We cache it per container (one
+// restaurant per container) for 30 min and refresh it in the BACKGROUND, so the
+// response always ships instantly with the deterministic headline and picks up
+// the LLM version on the next load once the cache is warm.
+let _mktHqHeadline: { at: number; text: string } = { at: 0, text: '' };
+let _mktHeadlineRefreshing = false;
+function mktDeterministicHeadline(actions: any[]): string {
+  return actions.some((a) => a.kind === 'campaign')
+    ? `השבוע כדאי להתמקד ב: ${actions.filter((a) => a.kind === 'campaign').slice(0, 2).map((a) => a.title).join(' ו')}.`
+    : 'הנתונים יציבים השבוע — המשך לתחזק את הקשר עם הלקוחות.';
+}
+async function refreshMktHeadline(ctx: any): Promise<void> {
+  if (_mktHeadlineRefreshing) return;
+  _mktHeadlineRefreshing = true;
+  try {
+    const res: any = await invokeLLM({
+      prompt: [
+        MARKETING_ADVISOR_PERSONA,
+        'נתוני השבוע:',
+        `- חברי מועדון פעילים: ${ctx.activeMembers}`,
+        `- הכנסה השבוע: ₪${Math.round(ctx.revThis)}${ctx.revPct !== null ? ` (${ctx.revPct}% מול שבוע שעבר)` : ''}`,
+        `- נוטשים: ${ctx.lapsed} · ימי הולדת השבוע: ${ctx.birthdays} · VIP: ${ctx.vip}`,
+        `- פעולות מומלצות: ${ctx.actions.map((a: any) => a.title).join(', ') || 'אין'}`,
+        'כתוב פסקה קצרה אחת (2-3 משפטים) בעברית, בגוף ראשון, כמנהל השיווק של העסק — מה הכי חשוב לעשות השבוע ולמה. בלי כותרת ובלי רשימה.',
+      ].join('\n'),
+      responseSchema: { type: 'object', properties: { headline: { type: 'string' } }, required: ['headline'] },
+      maxOutputTokens: 220,
+    });
+    const h = String(res?.headline || '').trim();
+    if (h && !h.includes('[object')) _mktHqHeadline = { at: Date.now(), text: h };
+  } catch { /* keep the deterministic headline; try again next load */ }
+  finally { _mktHeadlineRefreshing = false; }
+}
+
 /** Marketing HQ command center: live KPIs + a ranked, executable action list.
  *  Numbers are deterministic SQL (never the LLM); only the one-line "manager says"
- *  headline is LLM, best-effort. Each action carries a segment + default message
- *  the UI fires via the existing sendCustomerCampaign (consent/throttle/opt-out
- *  already enforced there) — HQ adds no new way to message customers. */
+ *  headline is LLM, cached + refreshed in the background so it never blocks. Each
+ *  action carries a segment + default message the UI fires via the existing
+ *  sendCustomerCampaign (consent/throttle/opt-out already enforced there). */
 registerFn('getMarketingHQ', async ({ user }: any) => {
   await requireBackOffice(user, 'getMarketingHQ', 'MarketingHub');
   const TZ = 'Asia/Jerusalem';
@@ -4254,30 +4289,37 @@ registerFn('getMarketingHQ', async ({ user }: any) => {
   const wkStart = ymd(weekStart), wkEnd = ymd(now);
   const pvStart = ymd(addDays(weekStart, -7)), pvEnd = ymd(addDays(weekStart, -1));
 
-  // Revenue this week vs last week from Beecomm orders (mirrors weeklyInsights).
-  let revThis = 0, revPrev = 0;
-  try {
-    const orders: any[] = await (db as any).beecommOrder.findMany({ orderBy: { date: 'desc' }, take: 5000 });
-    for (const o of orders) {
-      const d = o.date instanceof Date ? o.date.toISOString().slice(0, 10) : String(o.date).slice(0, 10);
-      const v = Number(o.total_ils ?? o.total ?? 0) || 0;
-      if (d >= wkStart && d <= wkEnd) revThis += v;
-      else if (d >= pvStart && d <= pvEnd) revPrev += v;
-    }
-  } catch { /* no beecomm data — revenue stays 0 */ }
-  const revPct = revPrev ? Math.round(((revThis - revPrev) / revPrev) * 100) : null;
-
   const cnt = async (where: any) => (await (db as any).customer.count({ where }).catch(() => 0)) || 0;
   const consentGate = { marketing_consent: true, marketing_unsubscribed_at: null };
-  const activeMembers = await cnt(consentGate);
-  const lapsed = await cnt(buildSegmentWhere('winback_60', null));
-  const vip = await cnt(buildSegmentWhere('vip', null));
-  const withCoins = await cnt(buildSegmentWhere('with_coins', null));
   const mmdds: string[] = [];
   for (let i = 0; i < 7; i++) mmdds.push(ymd(addDays(now, i)).slice(5));
-  const birthdays = await cnt({ ...consentGate, birthday_mmdd: { in: mmdds } });
 
-  const stats: any = await marketingStats(30).catch(() => null);
+  // All independent reads run concurrently — the page waits for the slowest, not
+  // the sum of seven sequential queries. Revenue this week vs last (Beecomm).
+  const revenueP = (async () => {
+    let revThis = 0, revPrev = 0;
+    try {
+      const orders: any[] = await (db as any).beecommOrder.findMany({ orderBy: { date: 'desc' }, take: 5000 });
+      for (const o of orders) {
+        const d = o.date instanceof Date ? o.date.toISOString().slice(0, 10) : String(o.date).slice(0, 10);
+        const v = Number(o.total_ils ?? o.total ?? 0) || 0;
+        if (d >= wkStart && d <= wkEnd) revThis += v;
+        else if (d >= pvStart && d <= pvEnd) revPrev += v;
+      }
+    } catch { /* no beecomm data — revenue stays 0 */ }
+    return { revThis, revPrev };
+  })();
+  const [rev, activeMembers, lapsed, vip, withCoins, birthdays, stats] = await Promise.all([
+    revenueP,
+    cnt(consentGate),
+    cnt(buildSegmentWhere('winback_60', null)),
+    cnt(buildSegmentWhere('vip', null)),
+    cnt(buildSegmentWhere('with_coins', null)),
+    cnt({ ...consentGate, birthday_mmdd: { in: mmdds } }),
+    marketingStats(30).catch(() => null),
+  ]);
+  const revThis = rev.revThis, revPrev = rev.revPrev;
+  const revPct = revPrev ? Math.round(((revThis - revPrev) / revPrev) * 100) : null;
   const delivery = stats?.delivery || null;
   const dripsEnabled = process.env.DRIP_CAMPAIGNS_ENABLED === 'true';
 
@@ -4332,28 +4374,15 @@ registerFn('getMarketingHQ', async ({ user }: any) => {
   });
   actions.sort((a, b) => a.priority - b.priority);
 
-  // Advisor voice — best-effort, never blocks the page.
-  let headline = '';
-  try {
-    const res: any = await invokeLLM({
-      prompt: [
-        MARKETING_ADVISOR_PERSONA,
-        'נתוני השבוע:',
-        `- חברי מועדון פעילים: ${activeMembers}`,
-        `- הכנסה השבוע: ₪${Math.round(revThis)}${revPct !== null ? ` (${revPct}% מול שבוע שעבר)` : ''}`,
-        `- נוטשים: ${lapsed} · ימי הולדת השבוע: ${birthdays} · VIP: ${vip}`,
-        `- פעולות מומלצות: ${actions.map((a) => a.title).join(', ') || 'אין'}`,
-        'כתוב פסקה קצרה אחת (2-3 משפטים) בעברית, בגוף ראשון, כמנהל השיווק של העסק — מה הכי חשוב לעשות השבוע ולמה. בלי כותרת ובלי רשימה.',
-      ].join('\n'),
-      responseSchema: { type: 'object', properties: { headline: { type: 'string' } }, required: ['headline'] },
-      maxOutputTokens: 220,
-    });
-    headline = String(res?.headline || '').trim();
-  } catch { /* deterministic fallback below */ }
-  if (!headline || headline.includes('[object')) {
-    headline = actions.some((a) => a.kind === 'campaign')
-      ? `השבוע כדאי להתמקד ב: ${actions.filter((a) => a.kind === 'campaign').slice(0, 2).map((a) => a.title).join(' ו')}.`
-      : 'הנתונים יציבים השבוע — המשך לתחזק את הקשר עם הלקוחות.';
+  // Advisor voice — served from a 30-min cache; refreshed in the BACKGROUND so an
+  // LLM round-trip never blocks the page. First load (cold cache) shows the
+  // deterministic line and the LLM version appears from the next load on.
+  let headline: string;
+  if (_mktHqHeadline.text && Date.now() - _mktHqHeadline.at < 30 * 60 * 1000) {
+    headline = _mktHqHeadline.text;
+  } else {
+    headline = mktDeterministicHeadline(actions);
+    refreshMktHeadline({ activeMembers, revThis, revPct, lapsed, birthdays, vip, actions }).catch(() => {});
   }
 
   return { kpis, actions, headline, drips_enabled: dripsEnabled };
