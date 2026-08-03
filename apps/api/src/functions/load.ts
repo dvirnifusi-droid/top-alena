@@ -8235,6 +8235,9 @@ async function ensurePrepItems(): Promise<void> {
   // par_locked: on an order list, locks the "should be in stock" (target) column
   // so daily staff only edit "how much we have" — default locked once set.
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "par_locked" BOOLEAN NOT NULL DEFAULT true`).catch(() => {});
+  // Per-category batch multiplier for the prep sheet: {"משאוויה": 2} scales the
+  // base "להכין" quantity of every item in that category (recipe ×0.5/×1/×2…).
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "category_multipliers" JSONB NOT NULL DEFAULT '{}'::jsonb`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(
     `CREATE TABLE IF NOT EXISTS "PrepArchive" (
        "id" TEXT PRIMARY KEY,
@@ -8268,6 +8271,22 @@ registerFn('getPrepLists', async ({ user }: any) => {
   } catch {
     return { lists: [] };
   }
+});
+
+// Set the batch multiplier for one product/category on a prep list (shared —
+// the cook sees the same computed quantities the manager set).
+registerFn('setPrepCategoryMultiplier', async ({ user, body }: any) => {
+  if (!user?.id) throw new Error('unauthorized');
+  await ensurePrepItems();
+  const { list_id, category } = (body || {}) as any;
+  const mult = Number((body || {}).multiplier);
+  if (!list_id || !category) throw new Error('list_id + category required');
+  if (!Number.isFinite(mult) || mult <= 0 || mult > 100) throw new Error('multiplier must be > 0');
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT category_multipliers FROM "PrepList" WHERE id=$1 LIMIT 1`, list_id).catch(() => []);
+  const cur = (rows?.[0]?.category_multipliers && typeof rows[0].category_multipliers === 'object') ? rows[0].category_multipliers : {};
+  const next = { ...cur, [String(category)]: mult };
+  await (prisma as any).$executeRawUnsafe(`UPDATE "PrepList" SET category_multipliers=$1::jsonb, "updatedAt"=NOW() WHERE id=$2`, JSON.stringify(next), list_id);
+  return { ok: true, list_id, category, multiplier: mult };
 });
 
 // ── Order lists — same PrepItem mechanics (to_prep="needs ordering", done=

@@ -138,6 +138,25 @@ export default function PrepSheet() {
   };
 
   const activeName = useMemo(() => lists.find((l) => l.id === activeList)?.name || '', [lists, activeList]);
+  // Per-category batch multiplier ("מתכון כפול"): base "להכין" qty × multiplier,
+  // stored on the list (shared with the cook). scaleQty parses "10 ק\"ג" → 20.
+  const catMultipliers = useMemo(() => lists.find((l) => l.id === activeList)?.category_multipliers || {}, [lists, activeList]);
+  const setCatMult = async (cat, mult) => {
+    const m = Number(mult);
+    if (!Number.isFinite(m) || m <= 0) return;
+    setLists((prev) => prev.map((l) => (l.id === activeList ? { ...l, category_multipliers: { ...(l.category_multipliers || {}), [cat]: m } } : l)));
+    try { await base44.functions.setPrepCategoryMultiplier({ list_id: activeList, category: cat, multiplier: m }); }
+    catch { loadLists(activeList); }
+  };
+  const scaleQty = (baseStr, mult) => {
+    const s = String(baseStr || '').trim();
+    if (!s || !mult || Number(mult) === 1) return null;
+    const mm = s.match(/^([\d.]+)\s*(.*)$/);
+    if (!mm) return null;
+    const n = parseFloat(mm[1]);
+    if (!Number.isFinite(n)) return null;
+    return `${Math.round(n * Number(mult) * 100) / 100}${mm[2] ? ' ' + mm[2] : ''}`;
+  };
 
   // search + "only remaining" filter, then group by dish/category.
   const groups = useMemo(() => {
@@ -444,6 +463,16 @@ export default function PrepSheet() {
                 </CardHeader>
                 {!collapsedCats[cat] && (
                 <CardContent className="p-0">
+                  {/* Recipe multiplier for this product — scales every item's base qty */}
+                  <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-50/60 border-b flex-wrap">
+                    <span className="text-xs font-bold text-gray-500">כפולת מתכון:</span>
+                    {[0.5, 1, 1.5, 2, 3].map((mm) => (
+                      <button key={mm} onClick={() => setCatMult(cat, mm)}
+                        className={`px-2.5 h-7 rounded-full text-xs font-bold border transition-colors ${Number(catMultipliers[cat] || 1) === mm ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-300 hover:border-orange-400'}`}>×{mm}</button>
+                    ))}
+                    <input type="number" min="0" step="0.25" value={catMultipliers[cat] || 1} onChange={(e) => setCatMult(cat, e.target.value)} className="w-16 h-7 text-xs text-center border border-gray-300 rounded-full" title="כפולה חופשית" />
+                    {Number(catMultipliers[cat] || 1) !== 1 && <span className="text-[11px] text-orange-700 font-bold mr-auto">×{catMultipliers[cat]} — הכמויות למטה כבר מחושבות</span>}
+                  </div>
                   {/* Card-per-item layout — wraps to fit any width, so a kitchen
                       phone/tablet never has to scroll sideways. */}
                   <div className="divide-y">
@@ -479,9 +508,12 @@ export default function PrepSheet() {
                           <label className="flex items-center gap-1 text-xs text-gray-500">יש
                             <Input value={it.have || ''} onChange={(e) => patch(it.id, 'have', e.target.value)} onBlur={() => !editMode && saveOne(items.find((x) => x.id === it.id))} className="h-8 w-16 text-sm text-center" placeholder="—" />
                           </label>
-                          <label className="flex items-center gap-1 text-xs text-gray-500">להכין
+                          <label className="flex items-center gap-1 text-xs text-gray-500">{Number(catMultipliers[cat] || 1) !== 1 ? 'בסיס' : 'להכין'}
                             <Input value={it.prep || ''} onChange={(e) => patch(it.id, 'prep', e.target.value)} onBlur={() => !editMode && saveOne(items.find((x) => x.id === it.id))} className="h-8 w-16 text-sm text-center font-semibold text-orange-700" placeholder="—" />
                           </label>
+                          {scaleQty(it.prep, catMultipliers[cat]) && (
+                            <span className="text-sm font-black text-orange-700 whitespace-nowrap" title="כמות מחושבת לפי הכפולה">→ {scaleQty(it.prep, catMultipliers[cat])}</span>
+                          )}
                           <div className="flex items-center gap-1 mr-auto">
                             {it.photo_url && <a href={it.photo_url} target="_blank" rel="noreferrer"><img src={it.photo_url} alt="" className="w-8 h-8 rounded object-cover border border-gray-200" /></a>}
                             <label className="cursor-pointer text-gray-400 hover:text-orange-600" title="צרף תמונה">
