@@ -471,30 +471,34 @@ export default function PublicReservationPage() {
   const welcomeMessage = settings?.welcome_message || (isAlena ? 'בשר על האש, אווירה אחרת, אנשים נכונים' : '');
   const phone = settings?.phone || (isAlena ? '03-1234567' : '');
   const address = settings?.address || branding?.address || (isAlena ? 'רוטשילד 104, ראשון לציון' : '');
-  // Waze: prefer the tenant's own coordinates, then an address search (works for
-  // any business), and only Alena falls back to Alena's hardcoded location.
-  const wazeUrl = (settings?.lat && settings?.lng)
-    ? `https://waze.com/ul?ll=${settings.lat},${settings.lng}&navigate=yes`
+  // Owner-editable content, already configurable in /PublicReservationSettings:
+  // ReservationSettings.confirmation_config = { images, parking, policy, nearby, waze_url }.
+  const cc = settings?.confirmation_config || {};
+  // Waze: the owner's configured link → Alena's location for Alena → an address
+  // search (works for any business).
+  const wazeUrl = cc.waze_url
+    ? cc.waze_url
     : isAlena
       ? `https://waze.com/ul?ll=31.96,34.79&navigate=yes`
       : address
         ? `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`
         : `https://waze.com/ul`;
-  // Reservation policy — config-driven with universal fallbacks. The no-show
-  // deposit amount is only claimed when the tenant actually has one configured
-  // (Alena=30₪); other tenants never show a false "deposit" line.
+  // Reservation policy. late-grace is a universal 10-min default; the cancel
+  // window + no-show deposit come from the live deposit config, so the deposit
+  // line only appears when the tenant actually has one (Alena=30₪ fallback).
   const policy = {
-    lateGrace: settings?.late_grace_minutes ?? 10,
-    cancelHours: settings?.cancellation_hours ?? depositInfo?.cancel_hours ?? 3,
-    depositIls: settings?.no_show_deposit_ils ?? depositInfo?.amount_ils ?? (isAlena ? 30 : null),
+    lateGrace: 10,
+    cancelHours: depositInfo?.cancel_hours ?? 3,
+    depositIls: depositInfo?.amount_ils ?? (isAlena ? 30 : null),
   };
-  // Atmosphere gallery — Alena's own photos for Alena; a tenant's own uploaded
-  // images (settings.gallery_images) otherwise. Never show Alena's photos on
-  // another restaurant's page — the section simply hides if it has none.
-  const galleryLink = isAlena ? 'https://alena.topalena.com/gallery' : (settings?.gallery_url || null);
-  const galleryImages = isAlena
-    ? ['spread.jpg', 'burger-hero.jpg', 'carpaccio.jpg', 'IMG_6829.JPG', 'fries-side.jpg', 'IMG_4682.JPG'].map((f) => `https://alena.topalena.com/gallery/${f}`)
-    : (Array.isArray(settings?.gallery_images) ? settings.gallery_images.filter(Boolean).slice(0, 6) : []);
+  // Atmosphere gallery — the owner's own photos (confirmation_config.images).
+  // Alena keeps its curated set as a fallback; a tenant with no photos hides the
+  // section (never Alena's photos on another restaurant's page).
+  const ccImages = Array.isArray(cc.images) ? cc.images.filter(Boolean) : [];
+  const galleryImages = ccImages.length
+    ? ccImages.slice(0, 8)
+    : (isAlena ? ['spread.jpg', 'burger-hero.jpg', 'carpaccio.jpg', 'IMG_6829.JPG', 'fries-side.jpg', 'IMG_4682.JPG'].map((f) => `https://alena.topalena.com/gallery/${f}`) : []);
+  const galleryLink = ccImages.length ? null : (isAlena ? 'https://alena.topalena.com/gallery' : null);
   const social = {
     instagram: settings?.instagram_url || (isAlena ? 'https://instagram.com/alina_restaurant' : null),
     tiktok:    settings?.tiktok_url    || (isAlena ? 'https://tiktok.com/@alina_restaurant' : null),
@@ -571,8 +575,8 @@ export default function PublicReservationPage() {
           <div className="rounded-2xl p-4" style={{ background: 'rgba(68,81,44,0.07)', border: '1px solid rgba(68,81,44,0.25)' }}>
             <div className="font-bold flex items-center gap-2" style={{ color: '#44512C' }}><NavIcon className="w-4 h-4" /> איפה חונים?</div>
             <ul className="text-sm mt-2 space-y-1 list-disc pr-5 leading-relaxed" style={{ color: '#44512C' }}>
-              {settings?.parking_info ? (
-                <li>{settings.parking_info}</li>
+              {cc.parking ? (
+                <li>{cc.parking}</li>
               ) : isAlena ? (
                 <>
                   <li><b>חניון בן גוריון</b> — חינם אחר הצהריים, 2 דק׳ הליכה</li>
