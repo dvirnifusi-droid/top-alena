@@ -25,7 +25,13 @@ export async function twilioAuth(): Promise<{ sid?: string; token?: string }> {
   return { sid: _twCache.sid || envSid, token: _twCache.token || envToken };
 }
 
+// Global outbound kill-switch — set OUTBOUND_DISABLED=true on demo/staging
+// containers so they can share the live .env (Twilio creds) without ever
+// sending a real SMS/WhatsApp to a real person. Every send path checks it.
+export const OUTBOUND_DISABLED = () => process.env.OUTBOUND_DISABLED === 'true';
+
 export async function sendSms(to: string, body: string) {
+  if (OUTBOUND_DISABLED()) return { skipped: true, reason: 'outbound_disabled' };
   const { sid, token } = await twilioAuth();
   const from = process.env.TWILIO_PHONE_NUMBER;
   if (!sid || !token || !from) {
@@ -54,6 +60,7 @@ export async function sendWhatsAppTemplate(
   templateSid: string,
   variables: Record<string, string>,
 ) {
+  if (OUTBOUND_DISABLED()) return { skipped: true, reason: 'outbound_disabled' };
   const { sid, token } = await twilioAuth();
   const from =
     process.env.TWILIO_WHATSAPP_FROM ??
@@ -93,6 +100,7 @@ export async function sendWhatsApp(
   body: string,
   opts: { mediaUrl?: string; statusCallback?: string; recipientId?: string } = {},
 ) {
+  if (OUTBOUND_DISABLED()) return { skipped: true, reason: 'outbound_disabled' };
   const { sid, token } = await twilioAuth();
   const from =
     process.env.TWILIO_WHATSAPP_FROM ??
