@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import TimePicker from '@/components/shared/TimePicker';
 import PageHeader from '@/components/shared/PageHeader';
-import { ChefHat, Plus, Trash2, Save, RotateCcw, Upload, Loader2, Check, Camera, Search, History, Pencil, X, Printer, Share2, StickyNote, Bell } from 'lucide-react';
+import { ChefHat, Plus, Trash2, Save, RotateCcw, Upload, Loader2, Check, Camera, Search, History, Pencil, X, Printer, Share2, StickyNote, Bell, ChevronDown } from 'lucide-react';
 
 const fmtWhen = (iso) => {
   if (!iso) return '';
@@ -40,6 +40,8 @@ export default function PrepSheet() {
   const [importText, setImportText] = useState('');
   const [search, setSearch] = useState('');
   const [onlyRemaining, setOnlyRemaining] = useState(false);
+  const [collapsedCats, setCollapsedCats] = useState({}); // accordion — category → collapsed?
+  const toggleCat = (cat) => setCollapsedCats((p) => ({ ...p, [cat]: !p[cat] }));
   const [showArchive, setShowArchive] = useState(false);
   const [archive, setArchive] = useState([]);
   const [openSnap, setOpenSnap] = useState(null);
@@ -431,7 +433,16 @@ export default function PrepSheet() {
           <div className="space-y-5">
             {groups.map(([cat, rows]) => (
               <Card key={cat} className="overflow-hidden prep-card">
-                <CardHeader className="bg-gradient-to-l from-orange-100 to-amber-50 py-2.5"><CardTitle className="text-base text-[#7A3722]">{cat}</CardTitle></CardHeader>
+                <CardHeader className="bg-gradient-to-l from-orange-100 to-amber-50 py-2.5 cursor-pointer select-none" onClick={() => toggleCat(cat)}>
+                  <CardTitle className="text-base text-[#7A3722] flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2">
+                      <ChevronDown className={`w-4 h-4 transition-transform ${collapsedCats[cat] ? '-rotate-90' : ''}`} />
+                      {cat}
+                    </span>
+                    {(() => { const tp = rows.filter((r) => r.to_prep).length; const dn = rows.filter((r) => r.to_prep && r.done).length; return tp > 0 ? <span className="text-xs font-bold bg-white/70 rounded-full px-2 py-0.5 text-orange-700">{dn}/{tp} הוכנו</span> : <span className="text-xs text-gray-400 font-normal">{rows.length} פריטים</span>; })()}
+                  </CardTitle>
+                </CardHeader>
+                {!collapsedCats[cat] && (
                 <CardContent className="p-0">
                   {/* Card-per-item layout — wraps to fit any width, so a kitchen
                       phone/tablet never has to scroll sideways. */}
@@ -483,6 +494,7 @@ export default function PrepSheet() {
                     ))}
                   </div>
                 </CardContent>
+                )}
               </Card>
             ))}
             {editMode && <Button variant="outline" onClick={addRow} className="w-full border-dashed"><Plus className="w-4 h-4 ml-1" /> הוסף מוצר</Button>}
