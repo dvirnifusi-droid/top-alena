@@ -44,6 +44,11 @@ function storedChoice() {
 // guarded — any failure yields 'he' so the app just stays in Hebrew.
 async function fetchTenantDefault() {
   try {
+    // getAppSettings is auth-gated. On public pages (no session) it would fire a
+    // guaranteed 401 on every load — skip it and keep the Hebrew default.
+    let hasToken = false;
+    try { hasToken = !!localStorage.getItem('auth_token'); } catch { /* SSR / no storage */ }
+    if (!hasToken) return 'he';
     const res = await base44.functions.getAppSettings({});
     return res?.default_language || res?.data?.default_language || 'he';
   } catch { return 'he'; }

@@ -205,9 +205,12 @@ export default function PublicReservationPage() {
   ];
   const TICKER_MINUTES = [3, 6, 8, 12, 15, 18, 23, 27];
 
-  // --- SEO: declare alena.topalena.com/reserve as the canonical
+  // --- SEO: Alena points to its showcase URL; every other tenant is its OWN
+  // canonical (pointing them at Alena would hand their SEO to Alena).
   useEffect(() => {
-    const PRIMARY = 'https://alena.topalena.com/reserve';
+    const PRIMARY = isMainAlena()
+      ? 'https://alena.topalena.com/reserve'
+      : `${window.location.origin}${window.location.pathname}`;
     let canonical = document.querySelector('link[rel="canonical"]');
     if (!canonical) {
       canonical = document.createElement('link');
@@ -468,7 +471,30 @@ export default function PublicReservationPage() {
   const welcomeMessage = settings?.welcome_message || (isAlena ? 'בשר על האש, אווירה אחרת, אנשים נכונים' : '');
   const phone = settings?.phone || (isAlena ? '03-1234567' : '');
   const address = settings?.address || branding?.address || (isAlena ? 'רוטשילד 104, ראשון לציון' : '');
-  const wazeUrl = `https://waze.com/ul?ll=31.96,34.79&navigate=yes`;
+  // Waze: prefer the tenant's own coordinates, then an address search (works for
+  // any business), and only Alena falls back to Alena's hardcoded location.
+  const wazeUrl = (settings?.lat && settings?.lng)
+    ? `https://waze.com/ul?ll=${settings.lat},${settings.lng}&navigate=yes`
+    : isAlena
+      ? `https://waze.com/ul?ll=31.96,34.79&navigate=yes`
+      : address
+        ? `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`
+        : `https://waze.com/ul`;
+  // Reservation policy — config-driven with universal fallbacks. The no-show
+  // deposit amount is only claimed when the tenant actually has one configured
+  // (Alena=30₪); other tenants never show a false "deposit" line.
+  const policy = {
+    lateGrace: settings?.late_grace_minutes ?? 10,
+    cancelHours: settings?.cancellation_hours ?? depositInfo?.cancel_hours ?? 3,
+    depositIls: settings?.no_show_deposit_ils ?? depositInfo?.amount_ils ?? (isAlena ? 30 : null),
+  };
+  // Atmosphere gallery — Alena's own photos for Alena; a tenant's own uploaded
+  // images (settings.gallery_images) otherwise. Never show Alena's photos on
+  // another restaurant's page — the section simply hides if it has none.
+  const galleryLink = isAlena ? 'https://alena.topalena.com/gallery' : (settings?.gallery_url || null);
+  const galleryImages = isAlena
+    ? ['spread.jpg', 'burger-hero.jpg', 'carpaccio.jpg', 'IMG_6829.JPG', 'fries-side.jpg', 'IMG_4682.JPG'].map((f) => `https://alena.topalena.com/gallery/${f}`)
+    : (Array.isArray(settings?.gallery_images) ? settings.gallery_images.filter(Boolean).slice(0, 6) : []);
   const social = {
     instagram: settings?.instagram_url || (isAlena ? 'https://instagram.com/alina_restaurant' : null),
     tiktok:    settings?.tiktok_url    || (isAlena ? 'https://tiktok.com/@alina_restaurant' : null),
@@ -545,8 +571,14 @@ export default function PublicReservationPage() {
           <div className="rounded-2xl p-4" style={{ background: 'rgba(68,81,44,0.07)', border: '1px solid rgba(68,81,44,0.25)' }}>
             <div className="font-bold flex items-center gap-2" style={{ color: '#44512C' }}><NavIcon className="w-4 h-4" /> איפה חונים?</div>
             <ul className="text-sm mt-2 space-y-1 list-disc pr-5 leading-relaxed" style={{ color: '#44512C' }}>
-              <li><b>חניון בן גוריון</b> — חינם אחר הצהריים, 2 דק׳ הליכה</li>
-              <li>רחובות סמוכים: רוטשילד, הרצל, וייצמן — חניה בכחול-לבן</li>
+              {settings?.parking_info ? (
+                <li>{settings.parking_info}</li>
+              ) : isAlena ? (
+                <>
+                  <li><b>חניון בן גוריון</b> — חינם אחר הצהריים, 2 דק׳ הליכה</li>
+                  <li>רחובות סמוכים: רוטשילד, הרצל, וייצמן — חניה בכחול-לבן</li>
+                </>
+              ) : null}
               <li>{`ניווט ב-Waze ישר ל"${restaurantName}"`}</li>
             </ul>
           </div>
@@ -555,8 +587,8 @@ export default function PublicReservationPage() {
           <div className="rounded-2xl p-4 space-y-2 text-sm" style={{ background: 'rgba(184,149,86,0.10)', border: '1px solid rgba(184,149,86,0.35)' }}>
             <div className="font-bold" style={{ color: '#8B5A3A' }}>📋 מה חשוב לדעת</div>
             <div className="leading-relaxed" style={{ color: '#6B4626' }}>
-              ⏱ <b>איחור:</b> השולחן ממתין עד 10 דקות. לאיחור גדול יותר אנא הודע מראש.<br />
-              💳 <b>ביטול:</b> ניתן לבטל ללא חיוב <b>עד 3 שעות לפני</b>. אחרי זה — 30₪ פיקדון לסועד.<br />
+              ⏱ <b>איחור:</b> השולחן ממתין עד {policy.lateGrace} דקות. לאיחור גדול יותר אנא הודע מראש.<br />
+              💳 <b>ביטול:</b> ניתן לבטל ללא חיוב <b>עד {policy.cancelHours} שעות לפני</b>.{policy.depositIls ? ` אחרי זה — ${policy.depositIls}₪ פיקדון לסועד.` : ''}<br />
               📩 בקרוב יישלח אישור בוואטסאפ עם הקישור לעדכון/ביטול.
             </div>
           </div>
@@ -564,7 +596,7 @@ export default function PublicReservationPage() {
           {/* Actions */}
           <div className="flex gap-2">
             <a
-              href="https://waze.com/ul?ll=31.96,34.79&navigate=yes"
+              href={wazeUrl}
               target="_blank" rel="noopener noreferrer"
               className="flex-1 font-bold py-3 rounded-xl text-center text-sm flex items-center justify-center gap-2 transition-colors"
               style={{ background: '#1F1B17', color: '#F4ECD8' }}
@@ -1101,6 +1133,8 @@ export default function PublicReservationPage() {
                 value={customerName}
                 onChange={e => setCustomerName(e.target.value)}
                 placeholder="ישראל ישראלי"
+                autoComplete="name"
+                aria-label="שם מלא"
                 className="mt-1 w-full px-3 py-2.5 rounded-xl focus:outline-none text-base brand-input"
                 style={{ background: '#FFFEFB', border: '2px solid rgba(184,149,86,0.35)', color: '#1F1B17' }}
               />
@@ -1112,6 +1146,9 @@ export default function PublicReservationPage() {
                 value={customerPhone}
                 onChange={e => setCustomerPhone(e.target.value)}
                 placeholder="050-1234567"
+                autoComplete="tel"
+                inputMode="tel"
+                aria-label="טלפון"
                 dir="ltr"
                 className="mt-1 w-full px-3 py-2.5 rounded-xl focus:outline-none text-base text-right brand-input"
                 style={{ background: '#FFFEFB', border: '2px solid rgba(184,149,86,0.35)', color: '#1F1B17' }}
@@ -1128,6 +1165,9 @@ export default function PublicReservationPage() {
               value={customerEmail}
               onChange={e => setCustomerEmail(e.target.value)}
               placeholder="you@example.com"
+              autoComplete="email"
+              inputMode="email"
+              aria-label="אימייל"
               dir="ltr"
               className="mt-1 w-full px-3 py-2.5 rounded-xl focus:outline-none text-base text-right brand-input"
               style={{ background: '#FFFEFB', border: '2px solid rgba(184,149,86,0.35)', color: '#1F1B17' }}
@@ -1145,6 +1185,7 @@ export default function PublicReservationPage() {
               value={specialRequests}
               onChange={e => setSpecialRequests(e.target.value)}
               placeholder="יום הולדת, אלרגיות, בקשה מיוחדת..."
+              aria-label="הערה להזמנה"
               className="mt-2 w-full px-3 py-2 rounded-xl focus:outline-none text-sm brand-input"
               style={{ background: '#FFFEFB', border: '2px solid rgba(184,149,86,0.35)', color: '#1F1B17' }}
             />
@@ -1248,7 +1289,7 @@ export default function PublicReservationPage() {
           </button>
           <div className="text-center text-[11px] text-gray-400 leading-relaxed">
             <div>בלחיצה אתה מסכים לקבל אישור בוואטסאפ</div>
-            <div className="mt-1">השולחן ממתין עד 10 דק׳ איחור · ביטול חופשי עד 3 שעות לפני · אחר כך 30₪ פיקדון לסועד</div>
+            <div className="mt-1">השולחן ממתין עד {policy.lateGrace} דק׳ איחור · ביטול חופשי עד {policy.cancelHours} שעות לפני{policy.depositIls ? ` · אחר כך ${policy.depositIls}₪ פיקדון לסועד` : ''}</div>
           </div>
           </>}
       </main>
@@ -1412,6 +1453,7 @@ export default function PublicReservationPage() {
       </section>
 
       {/* ============ ATMOSPHERE GALLERY ============ */}
+      {galleryImages.length > 0 && (
       <section className="px-3 md:px-5 py-10" style={{ background: '#FAF5E8', borderTop: '1px solid rgba(184,149,86,0.25)' }}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-5">
@@ -1419,20 +1461,17 @@ export default function PublicReservationPage() {
             <h3 className="brand-display text-2xl md:text-3xl mt-1" style={{ color: '#1F1B17' }}>איך זה נראה אצלנו</h3>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3">
-            {[
-              'spread.jpg', 'burger-hero.jpg', 'carpaccio.jpg',
-              'IMG_6829.JPG', 'fries-side.jpg', 'IMG_4682.JPG',
-            ].map((file) => (
+            {galleryImages.map((src, i) => (
               <a
-                key={file}
-                href="https://alena.topalena.com/gallery"
+                key={i}
+                href={galleryLink || src}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block aspect-square rounded-2xl overflow-hidden transition-all hover:scale-[1.02]"
                 style={{ border: '1px solid rgba(184,149,86,0.30)' }}
               >
                 <img
-                  src={`https://alena.topalena.com/gallery/${file}`}
+                  src={src}
                   alt={restaurantName}
                   loading="lazy"
                   className="w-full h-full object-cover"
@@ -1440,13 +1479,16 @@ export default function PublicReservationPage() {
               </a>
             ))}
           </div>
+          {galleryLink && (
           <div className="text-center mt-5">
-            <a href="https://alena.topalena.com/gallery" target="_blank" rel="noopener noreferrer" className="inline-block font-bold text-sm rounded-xl px-5 py-3 transition-colors" style={{ background: 'rgba(68,81,44,0.10)', color: '#44512C', border: '1px solid rgba(68,81,44,0.30)' }}>
+            <a href={galleryLink} target="_blank" rel="noopener noreferrer" className="inline-block font-bold text-sm rounded-xl px-5 py-3 transition-colors" style={{ background: 'rgba(68,81,44,0.10)', color: '#44512C', border: '1px solid rgba(68,81,44,0.30)' }}>
               לכל הגלריה ←
             </a>
           </div>
+          )}
         </div>
       </section>
+      )}
 
       {/* ============ CONTACT / ADDRESS / HOURS ============ */}
       <section className="px-5 py-12" style={{ background: '#1F1B17', borderTop: '1px solid rgba(184,149,86,0.30)' }}>
