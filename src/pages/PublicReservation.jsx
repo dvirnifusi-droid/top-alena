@@ -1104,7 +1104,10 @@ export default function PublicReservationPage() {
                         <b>אפשר להירשם לשעה שרצית</b> — אם יתפנה שולחן נשמור לך אותו ונדבר איתך בוואטסאפ.
                       </div>
                       <div>
-                        <b>ובכל מקרה תמיד אפשר להגיע</b> ולהיכנס על בסיס מקום פנוי — רוב הערבים מתפנים שולחנות במהלך השירות.
+                        {/* Never promise a turnover rate. Tables do free up, but not on a
+                            schedule anyone can commit to — "על בסיס מקום פנוי" is the
+                            phrase that carries exactly that, and no more. */}
+                        <b>ובכל מקרה תמיד אפשר להגיע</b> ולהיכנס <b>על בסיס מקום פנוי</b> — שולחנות מתפנים במהלך הערב, בלי שנוכל להתחייב מתי.
                       </div>
                       <div style={{ color: '#D9BD83' }}>
                         ואם חשוב לך אישור מיידי — יש שעות אחרות פתוחות למעלה.
