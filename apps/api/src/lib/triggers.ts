@@ -164,12 +164,39 @@ on('Reservation', 'created', async (row) => {
       return `📊 היום: ${active.length} הזמנות · ${guests} סועדים`;
     } catch { return null; }
   })().catch(() => null);
+
+  // Same NAME, same day, DIFFERENT number. Could be one party that booked twice
+  // from two phones, could be two unrelated Cohens. Only the owner can tell, so
+  // this warns in-system and never blocks — unlike a repeat phone number, which
+  // createPublicReservation refuses outright.
+  const dupNameLine = await (async () => {
+    try {
+      const name = String(row.customer_name || '').trim();
+      if (!name) return null;
+      const d = new Date(row.date);
+      if (isNaN(d.getTime())) return null;
+      const from = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0));
+      const to = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999));
+      const dayRows = await db.reservation.findMany({ where: { date: { gte: from, lte: to } } }).catch(() => []);
+      const digits = (p: any) => String(p || '').replace(/\D/g, '').slice(-9);
+      const mine = digits(row.customer_phone);
+      const twins = (dayRows || []).filter((r: any) =>
+        r && r.id !== row.id
+        && r.status !== 'cancelled' && r.status !== 'no_show' && r.status !== 'deleted'
+        && String(r.customer_name || '').trim() === name
+        && digits(r.customer_phone) !== mine);
+      if (!twins.length) return null;
+      return `⚠️ שם כפול היום: ${twins.map((t: any) => `${t.time || '?'}${t.customer_phone ? ` (${t.customer_phone})` : ''}`).join(' · ')} — מספרים שונים, כדאי לוודא`;
+    } catch { return null; }
+  })().catch(() => null);
+
   // A waitlist signup is NOT a booking, and telling the owner "הזמנה חדשה" for
   // one is actively misleading: no table was taken, nothing is confirmed, and
   // somebody has to decide whether a table can be freed.
   const isStandby = !!row.is_standby;
   const lines = [
     isStandby ? `🟡 רשימת המתנה — טרם אושרה, ממתין להחלטת הצוות` : null,
+    dupNameLine,
     `👤 ${row.customer_name || '-'}${row.customer_phone ? ` · ${row.customer_phone}` : ''}`,
     `📅 ${fmtDate(row.date)} · 🕐 ${row.time || '-'}${row.reservation_end_time ? `-${row.reservation_end_time}` : ''}`,
     `👥 ${row.party_size || '-'} סועדים`,

@@ -187,6 +187,8 @@ export default function PublicReservationPage() {
   // guest got a cleared error, no alternatives, no waitlist offer: a silent dead
   // end on the busiest night of the year.
   const [slotFull, setSlotFull] = useState(false);
+  // Server refused because this phone already has a live booking/waitlist today.
+  const [duplicateInfo, setDuplicateInfo] = useState(null);
   const [depositInfo, setDepositInfo] = useState(null); // { required, amount_ils, reason, free_cancel_until_iso }
   // Large-group threshold is PER-TENANT (this business's max_party_size). Above it → event.
   const maxParty = Number(settings?.max_party_size) || 11;
@@ -388,6 +390,7 @@ export default function PublicReservationPage() {
     // the SyntheticEvent ends up in the request body.
     acceptStandby = acceptStandby === true;
     setErrorMsg('');
+    setDuplicateInfo(null);
     if (!acceptStandby) { setAlternatives([]); setSlotFull(false); } // reset on a fresh attempt
     if (Number(partySize) > maxParty) return setErrorMsg(`${maxParty + 1} סועדים ומעלה נחשב לאירוע — מלא את טופס האירועים`);
     if (!customerName.trim()) return setErrorMsg('יש למלא שם מלא');
@@ -426,6 +429,13 @@ export default function PublicReservationPage() {
           const alts = Array.isArray(res?.alternatives) ? res.alternatives : [];
           setAlternatives(alts);
           setSlotFull(true);
+          setErrorMsg('');
+        } else if (res?.reason === 'duplicate_reservation') {
+          // Already has something live today on this number — show it and point
+          // at the cancel/change link instead of stacking another row.
+          setDuplicateInfo(res.existing || {});
+          setAlternatives([]);
+          setSlotFull(false);
           setErrorMsg('');
         } else if (res?.reason === 'deposit_setup_failed') {
           setErrorMsg('לא הצלחנו לעבד את הפיקדון כרגע. נסה שוב בעוד רגע — ההזמנה תיסגר רק אחרי אבטחת הכרטיס.');
@@ -1271,11 +1281,38 @@ export default function PublicReservationPage() {
             </div>
           )}
 
+          {/* Already booked today on this number. */}
+          {duplicateInfo && (
+            <div className="rounded-2xl p-4 space-y-2" style={{ background: '#FFF8E6', border: '1px solid #B89556' }}>
+              <div className="font-black text-sm" style={{ color: '#1F1B17' }}>
+                ⚠️ כבר יש לכם {duplicateInfo.is_standby ? 'רישום לרשימת ההמתנה' : 'הזמנה'} להיום
+              </div>
+              <div className="text-[13px] leading-relaxed" style={{ color: '#44512C' }}>
+                המספר הזה כבר רשום אצלנו להיום
+                {duplicateInfo.time ? <> בשעה <b>{duplicateInfo.time}</b></> : null}
+                {duplicateInfo.party_size ? <> ל-{duplicateInfo.party_size} סועדים</> : null}.
+                <br />
+                כדי להזמין שעה אחרת — צריך קודם לבטל או לשנות את הרישום הקיים, כדי שלא ייווצרו
+                שתי הזמנות על אותו מספר.
+              </div>
+              {duplicateInfo.track_url && (
+                <a
+                  href={duplicateInfo.track_url}
+                  className="block w-full text-center font-bold py-3 rounded-xl text-sm"
+                  style={{ background: '#1F1B17', color: '#D9BD83', border: '1px solid #B89556' }}
+                >צפייה / ביטול / שינוי ההזמנה הקיימת</a>
+              )}
+              <div className="text-[11px]" style={{ color: '#8B7F65' }}>
+                טעות? אפשר להתקשר אלינו ונסדר את זה.
+              </div>
+            </div>
+          )}
+
           {/* Slot full → alternatives when there are any, and ALWAYS the standby
               waitlist. Gating this whole panel on alternatives.length > 0 meant a
               fully booked evening (backend only scans ±60 min) rendered nothing at
               all — the guest pressed "הזמן" and the page just went quiet. */}
-          {slotFull && (
+          {slotFull && !duplicateInfo && (
             <div className="rounded-2xl p-4 space-y-3" style={{ background: 'linear-gradient(135deg, rgba(184,149,86,0.10), rgba(160,74,46,0.08))', border: '1px solid rgba(184,149,86,0.45)' }}>
               <div>
                 <div className="font-bold text-sm flex items-center gap-2" style={{ color: '#1F1B17' }}>

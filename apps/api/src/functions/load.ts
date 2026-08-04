@@ -12306,6 +12306,40 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
 
   const acceptStandby = Boolean((body as any)?.accept_standby);
 
+  // ── ONE LIVE BOOKING PER PHONE PER DAY ──────────────────────────────────────
+  // A guest who hits a full slot naturally tries again — another hour, then the
+  // waitlist — and each attempt used to land as its own row. The result is a
+  // floor plan full of duplicates for one party, all on the same number.
+  // Same phone + same date + still live (booking OR waitlist) → refuse, and hand
+  // back the tracking link so they can cancel or change what they already have.
+  // Public path only: the hostess must still be able to book a guest who is
+  // standing in front of her, whatever the database thinks.
+  {
+    const { start: dayStart } = dayRange(date);
+    const phoneDigits = String(customer_phone).replace(/\D/g, '').slice(-9);
+    if (phoneDigits) {
+      const sameDay = await db.reservation.findMany({
+        where: { date: dayStart, status: { notIn: ['cancelled', 'no_show', 'completed', 'deleted'] } },
+      });
+      const dup = sameDay.find((r: any) =>
+        String(r.customer_phone || '').replace(/\D/g, '').slice(-9) === phoneDigits
+      );
+      if (dup) {
+        const baseUrl = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
+        return {
+          success: false,
+          reason: 'duplicate_reservation',
+          existing: {
+            time: dup.time,
+            party_size: dup.party_size,
+            is_standby: !!(dup as any).is_standby,
+            track_url: dup.tracking_token ? `${baseUrl}/ReservationView?token=${dup.tracking_token}` : null,
+          },
+        };
+      }
+    }
+  }
+
   // Re-find a table server-side (don't trust client).
   const avail: any = await (functionHandlers['searchReservationTable'] as any)({
     body: { date, time, party_size: size }, user: null, req: undefined,
