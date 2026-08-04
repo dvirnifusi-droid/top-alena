@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Reservation } from '@/entities/Reservation';
 import { Customer } from '@/entities/Customer';
 import { format } from 'date-fns';
@@ -59,6 +59,14 @@ const tierOf = (customer) => {
     return { label: 'לקוח חדש', cls: 'bg-gray-100 text-gray-600 border-gray-300' };
 };
 
+// The things a hostess actually needs to remember about a guest. One tap beats
+// typing "אלרגי לבוטנים" on a phone mid-service.
+const TAG_SUGGESTIONS = [
+    'אלרגיה לבוטנים', 'אלרגיה לגלוטן', 'אלרגיה לחלב', 'אלרגיה לדגים',
+    'צמחוני', 'טבעוני', 'כשר',
+    'ליד החלון', 'שולחן שקט', 'נגיש', 'כיסא תינוק', 'לא ליד מזגן',
+];
+
 const Stat = ({ value, label }) => (
     <div className="flex-1 min-w-0 text-center px-1">
         <div className="text-[15px] font-semibold text-slate-800 tabular-nums leading-tight truncate">{value}</div>
@@ -74,6 +82,8 @@ export default function GuestKnowledgePanel({ reservation, customer }) {
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [historyOpen, setHistoryOpen] = useState(false);
 
+    // tags is a Json column — it comes back as an array, a JSON string, or (from
+    // hand-edited rows) a comma-separated string. Normalise all three.
     const tags = useMemo(() => {
         const raw = customer?.tags;
         if (Array.isArray(raw)) return raw.filter(Boolean).map(String);
@@ -83,6 +93,36 @@ export default function GuestKnowledgePanel({ reservation, customer }) {
         }
         return [];
     }, [customer]);
+
+    const [tagsEditing, setTagsEditing] = useState(false);
+    const [tagInput, setTagInput] = useState('');
+    const [savingTags, setSavingTags] = useState(false);
+    const [draftTags, setDraftTags] = useState(tags);
+    const [tagsDirty, setTagsDirty] = useState(false);
+    // The sheet is remounted per reservation, but a background poll can refresh the
+    // customer row underneath us — re-sync only while there's nothing unsaved.
+    useEffect(() => { if (!tagsDirty) setDraftTags(tags); }, [tags, tagsDirty]);
+
+    const addTag = (raw) => {
+        const v = String(raw || '').trim();
+        if (!v) return;
+        setDraftTags(prev => (prev.includes(v) ? prev : [...prev, v]));
+        setTagInput('');
+        setTagsDirty(true);
+    };
+
+    const saveTags = async () => {
+        setSavingTags(true);
+        try {
+            await Customer.update(customer.id, { tags: draftTags });
+            setTagsDirty(false);
+        } catch (e) {
+            console.error('save customer tags failed', e);
+            alert('שגיאה בשמירת התוויות');
+        } finally {
+            setSavingTags(false);
+        }
+    };
 
     if (!customer) {
         return (
@@ -153,8 +193,8 @@ export default function GuestKnowledgePanel({ reservation, customer }) {
                 </div>
             </div>
 
-            {/* Anything that changes how you greet them */}
-            {(bdayIn !== null && bdayIn <= 14) || (annivIn !== null && annivIn <= 14) || tags.length > 0 || customer.satisfaction_status || customer.city ? (
+            {/* Context that changes how you greet them — read-only, derived */}
+            {(bdayIn !== null && bdayIn <= 14) || (annivIn !== null && annivIn <= 14) || customer.satisfaction_status || customer.city ? (
                 <div className="px-3 pb-2 flex flex-wrap gap-1.5">
                     {bdayIn !== null && bdayIn <= 14 && (
                         <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 border border-pink-200">
@@ -166,11 +206,6 @@ export default function GuestKnowledgePanel({ reservation, customer }) {
                             💜 {customer.anniversary_label || 'יום נישואים'} {annivIn === 0 ? 'היום!' : `בעוד ${annivIn} ימים`}
                         </span>
                     )}
-                    {tags.map(t => (
-                        <span key={t} className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white text-slate-700 border border-slate-200">
-                            {t}
-                        </span>
-                    ))}
                     {customer.satisfaction_status && (
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white text-slate-600 border border-slate-200">
                             שביעות רצון: {customer.satisfaction_status}
@@ -183,6 +218,76 @@ export default function GuestKnowledgePanel({ reservation, customer }) {
                     )}
                 </div>
             ) : null}
+
+            {/* Tags — allergies and preferences. The column existed on Customer with
+                no UI anywhere and nothing writing to it, so it was empty for every
+                tenant. It's the natural home for "אלרגי לבוטנים", so it gets an
+                editor here, where the hostess actually learns these things. */}
+            <div className="px-3 pb-2">
+                <div className="flex items-center justify-between mb-1">
+                    <button
+                        onClick={() => setTagsEditing(v => !v)}
+                        className="text-[11px] font-semibold text-[#A04A2E] hover:underline"
+                    >{tagsEditing ? 'סיום' : '✏️ ערוך'}</button>
+                    <label className="text-[10px] text-slate-500">אלרגיות והעדפות</label>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                    {draftTags.length === 0 && !tagsEditing && (
+                        <span className="text-[11px] text-slate-400">אין תוויות</span>
+                    )}
+                    {draftTags.map(t => (
+                        <span key={t} className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white text-slate-700 border border-slate-200 inline-flex items-center gap-1">
+                            {t}
+                            {tagsEditing && (
+                                <button
+                                    onClick={() => { setDraftTags(prev => prev.filter(x => x !== t)); setTagsDirty(true); }}
+                                    className="text-slate-400 hover:text-rose-600"
+                                    title="הסר"
+                                >✕</button>
+                            )}
+                        </span>
+                    ))}
+                </div>
+
+                {tagsEditing && (
+                    <div className="mt-2 space-y-1.5">
+                        <div className="flex gap-1.5">
+                            <input
+                                value={tagInput}
+                                onChange={e => setTagInput(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag(tagInput); } }}
+                                placeholder="תווית חדשה…"
+                                className="flex-1 h-9 px-2 rounded-lg border border-gray-200 text-[13px] bg-white focus:outline-none focus:border-[#A04A2E]"
+                            />
+                            <button
+                                onClick={() => addTag(tagInput)}
+                                disabled={!tagInput.trim()}
+                                className="h-9 px-3 rounded-lg bg-[#44512C] text-white text-[13px] font-bold disabled:opacity-40"
+                            >הוסף</button>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                            {TAG_SUGGESTIONS.filter(s => !draftTags.includes(s)).map(s => (
+                                <button
+                                    key={s}
+                                    onClick={() => addTag(s)}
+                                    className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                >+ {s}</button>
+                            ))}
+                        </div>
+                        {tagsDirty && (
+                            <button
+                                onClick={saveTags}
+                                disabled={savingTags}
+                                className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-[#44512C] text-white disabled:opacity-50 inline-flex items-center gap-1"
+                            >
+                                {savingTags && <Loader2 className="w-3 h-3 animate-spin" />}
+                                שמור תוויות
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
 
             {/* Standing notes about the guest — separate from this booking's requests */}
             <div className="px-3 pb-2">
