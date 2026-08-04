@@ -567,10 +567,16 @@ export default function PublicReservationPage() {
                 : `${success.customer_name}, נשמח לראותך 🔥`}
             </p>
             {success.is_standby && (
-              <p className="text-sm leading-relaxed pt-1" style={{ color: '#8B7F65' }}>
-                <b>שים לב:</b> ההזמנה עוד לא מאושרת. השעה שביקשת ({success.time}) מלאה ברגע זה.
-                <br />אם בתוך זמן קצר יתפנה שולחן — נשלח לך וואטסאפ עם אישור.
-              </p>
+              <>
+                <p className="text-sm leading-relaxed pt-1" style={{ color: '#8B7F65' }}>
+                  <b>שים לב:</b> ההזמנה עוד לא מאושרת. השעה שביקשת ({success.time}) מלאה ברגע זה.
+                  <br />אם יתפנה שולחן — נשמור לך אותו ונשלח וואטסאפ עם אישור.
+                </p>
+                {/* Without this line a waitlist confirmation reads as "don't come". */}
+                <div className="rounded-xl px-3 py-2 mt-2 text-[13px] leading-relaxed" style={{ background: 'rgba(68,81,44,0.08)', border: '1px solid rgba(68,81,44,0.25)', color: '#44512C' }}>
+                  ובכל מקרה — <b>אתם מוזמנים להגיע</b> ולהיכנס על בסיס מקום פנוי.
+                </div>
+              </>
             )}
           </div>
 
@@ -1002,12 +1008,16 @@ export default function PublicReservationPage() {
                                 : { background: '#FFFEFB', color: '#1F1B17', border: '1px solid rgba(184,149,86,0.35)' }}
                         >
                           {slot}
-                          {av && !isHourActive && !isFinal && !isPast && (
-                            <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full
-                              ${av === 'open' ? 'bg-emerald-400' : av === 'tight' ? 'bg-amber-400' : 'bg-red-400'}`}></span>
-                          )}
-                          {isFull && !isHourActive && !isFinal && !isPast && (
-                            <span className="absolute bottom-0.5 left-0 right-0 text-[8px] font-normal opacity-70">המתנה</span>
+                          {/* Words, not coloured dots. A grid of green dots advertises an
+                              empty room, which is the last thing a booking page should
+                              sell. "open" and "tight" both collapse into אישור מיידי —
+                              the guest only cares that it's confirmed on the spot, and we
+                              never broadcast how much space is left. */}
+                          {av && !isPast && (
+                            <span
+                              className="absolute bottom-0.5 left-0 right-0 text-[8px] font-normal"
+                              style={{ color: (isHourActive || isFinal) ? 'rgba(244,236,216,0.85)' : (isFull ? '#8B7F65' : '#44512C'), opacity: 0.9 }}
+                            >{isFull ? 'המתנה' : 'אישור מיידי'}</span>
                           )}
                           {isPast && (
                             <span className="absolute top-0.5 right-1 text-[8px] text-gray-400">עבר</span>
@@ -1021,10 +1031,18 @@ export default function PublicReservationPage() {
                 {/* Step 2: quarter-hour drill-down strip (appears after hour is picked) */}
                 {selectedHour && (() => {
                   const strip = buildQuarterStrip(selectedHour, openingHours.start, openingHours.end).filter(s => !timeInBlocks(dayBlocks, s));
+                  // The heading said "רבעי שעה זמינים" over a row where every single
+                  // one was full. Say what's actually there.
+                  const freeQuarters = strip.filter(s => quarterStripAvail[s] && quarterStripAvail[s] !== 'full').length;
+                  const anyKnown = strip.some(s => quarterStripAvail[s]);
                   return (
                     <div className="mt-3 rounded-xl p-2.5" style={{ background: 'rgba(68,81,44,0.06)', border: '1px solid rgba(68,81,44,0.25)' }}>
                       <div className="text-[10px] font-bold mb-1.5 text-center tracking-wider" style={{ color: '#44512C' }}>
-                        רבעי שעה זמינים סביב {selectedHour}
+                        {!anyKnown
+                          ? `רבעי שעה סביב ${selectedHour}`
+                          : freeQuarters > 0
+                            ? `רבעי שעה עם אישור מיידי סביב ${selectedHour}`
+                            : `כל רבעי השעה סביב ${selectedHour} מלאים — אפשר להירשם להמתנה`}
                       </div>
                       <div className="grid grid-cols-5 gap-1.5">
                         {(() => {
@@ -1058,9 +1076,8 @@ export default function PublicReservationPage() {
                                       : { background: '#FFFEFB', color: '#44512C', border: '1px solid rgba(68,81,44,0.30)' }}
                               >
                                 {s}
-                                {av && !active && !isPast && (
-                                  <span className={`absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full
-                                    ${av === 'open' ? 'bg-emerald-400' : av === 'tight' ? 'bg-amber-400' : 'bg-red-400'}`}></span>
+                                {isFull && !active && !isPast && (
+                                  <span className="absolute bottom-0 left-0 right-0 text-[7px] font-normal" style={{ color: '#8B7F65' }}>המתנה</span>
                                 )}
                               </button>
                             );
@@ -1079,19 +1096,22 @@ export default function PublicReservationPage() {
                     <div className="font-black text-sm flex items-center gap-2" style={{ color: '#D9BD83' }}>
                       <span className="text-lg">🟡</span> {time} — אין אישור מיידי
                     </div>
-                    <div className="text-[12px] mt-1.5 leading-relaxed" style={{ color: '#E8D9B5' }}>
-                      השעה הזו מלאה ברגע זה. אפשר <b>להירשם לרשימת המתנה</b> — אם יתפנה שולחן
-                      נשלח לך וואטסאפ ונאשר — או פשוט <b>לבחור שעה אחרת</b> למעלה. שעות עם נקודה
-                      ירוקה פנויות עכשיו.
+                    {/* Three ways forward, and the middle one matters most: a waitlist
+                        alone reads as "don't come". Walk-in is always open, and saying
+                        so keeps the guest rather than sending them to book elsewhere. */}
+                    <div className="text-[12px] mt-2 leading-relaxed space-y-1.5" style={{ color: '#E8D9B5' }}>
+                      <div>
+                        <b>אפשר להירשם לשעה שרצית</b> — אם יתפנה שולחן נשמור לך אותו ונדבר איתך בוואטסאפ.
+                      </div>
+                      <div>
+                        <b>ובכל מקרה תמיד אפשר להגיע</b> ולהיכנס על בסיס מקום פנוי — רוב הערבים מתפנים שולחנות במהלך השירות.
+                      </div>
+                      <div style={{ color: '#D9BD83' }}>
+                        ואם חשוב לך אישור מיידי — יש שעות אחרות פתוחות למעלה.
+                      </div>
                     </div>
                   </div>
                 )}
-
-                <div className="flex gap-3 mt-2 text-[11px] text-gray-500">
-                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span> פתוח</span>
-                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-amber-400 rounded-full"></span> מעט מקום</span>
-                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span> מלא</span>
-                </div>
                 {time && (
                   <div className="mt-2 text-[11px] rounded-lg px-2 py-1.5 text-center" style={{ color: '#44512C', background: 'rgba(184,149,86,0.10)', border: '1px solid rgba(184,149,86,0.25)' }}>
                     שעת סיום משוערת: <span className="font-bold" style={{ color: '#1F1B17' }}>{estimateEndTime(time, partySize)}</span>
