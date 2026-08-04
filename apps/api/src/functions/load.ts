@@ -12324,31 +12324,32 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       const sameDay = await db.reservation.findMany({
         where: { date: dayStart, status: { notIn: ['cancelled', 'no_show', 'completed', 'deleted'] } },
       });
-      const dup = sameDay.find((r: any) =>
+      // ALL of them, not the first match: a number can carry several live rows
+      // (that's the mess this guard exists to stop). Picking one meant a real
+      // booking could be missed because a waitlist row happened to come first,
+      // and the guest was let through again as an "upgrade".
+      const dups = sameDay.filter((r: any) =>
         String(r.customer_phone || '').replace(/\D/g, '').slice(-9) === phoneDigits
       );
-      if (dup) {
-        // A waitlist entry is not a booking, so booking a real table is an
-        // UPGRADE, not a duplicate — let it through and retire the waitlist
-        // entry once the confirmed one exists. Making the guest cancel first
-        // would be asking them to give up what they have before they know they
-        // can have something better, which is how you lose the booking.
-        if ((dup as any).is_standby) {
-          standbyToSupersede = dup;
-        } else {
-          const baseUrl = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
-          return {
-            success: false,
-            reason: 'duplicate_reservation',
-            existing: {
-              time: dup.time,
-              party_size: dup.party_size,
-              is_standby: false,
-              track_url: dup.tracking_token ? `${baseUrl}/ReservationView?token=${dup.tracking_token}` : null,
-            },
-          };
-        }
+      const realBooking = dups.find((r: any) => !r.is_standby);
+      if (realBooking) {
+        const baseUrl = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
+        return {
+          success: false,
+          reason: 'duplicate_reservation',
+          existing: {
+            time: realBooking.time,
+            party_size: realBooking.party_size,
+            is_standby: false,
+            track_url: realBooking.tracking_token ? `${baseUrl}/ReservationView?token=${realBooking.tracking_token}` : null,
+          },
+        };
       }
+      // Only waitlist entries left → booking a real table is an UPGRADE, not a
+      // duplicate. Making the guest cancel first would be asking them to give up
+      // what they have before they know they can have something better, which is
+      // how you lose the booking. Every one of them gets retired below.
+      if (dups.length) standbyToSupersede = dups;
     }
   }
 
@@ -12375,17 +12376,18 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
 
   // Already waitlisted, and this attempt is another waitlist entry — that's the
   // duplicate, not an upgrade. Only a real table earns the pass-through.
-  if (standbyToSupersede && isStandby) {
+  if (standbyToSupersede?.length && isStandby) {
+    const first = standbyToSupersede[0];
     const baseUrl = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
     return {
       success: false,
       reason: 'duplicate_reservation',
       existing: {
-        time: standbyToSupersede.time,
-        party_size: standbyToSupersede.party_size,
+        time: first.time,
+        party_size: first.party_size,
         is_standby: true,
-        track_url: standbyToSupersede.tracking_token
-          ? `${baseUrl}/ReservationView?token=${standbyToSupersede.tracking_token}`
+        track_url: first.tracking_token
+          ? `${baseUrl}/ReservationView?token=${first.tracking_token}`
           : null,
       },
     };
@@ -12550,10 +12552,10 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   // The confirmed booking exists — retire the waitlist entry it replaced, so the
   // hostess doesn't call this guest about a table they already have.
   let supersededStandbyTime: string | null = null;
-  if (standbyToSupersede) {
+  if (standbyToSupersede?.length) {
     try {
-      await db.reservation.update({
-        where: { id: standbyToSupersede.id },
+      await db.reservation.updateMany({
+        where: { id: { in: standbyToSupersede.map((r: any) => r.id) } },
         data: {
           status: 'cancelled',
           cancelled_at: new Date(),
@@ -12561,7 +12563,7 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
           is_standby: false,
         } as any,
       });
-      supersededStandbyTime = standbyToSupersede.time || null;
+      supersededStandbyTime = standbyToSupersede.map((r: any) => r.time).filter(Boolean).join(', ') || null;
     } catch (e: any) {
       console.warn('[reservation] failed to retire superseded standby', e?.message);
     }
