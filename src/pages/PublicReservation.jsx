@@ -460,6 +460,7 @@ export default function PublicReservationPage() {
         party_size: parseInt(partySize),
         table_number: res.table_number,
         is_standby: Boolean(res.is_standby),
+        superseded_standby_time: res.superseded_standby_time || null,
         occasion,
       });
       // Log popup conversion if this reservation came from a clicked popup
@@ -576,6 +577,13 @@ export default function PublicReservationPage() {
                 ? `${success.customer_name}, אם יתפנה שולחן ניצור איתך קשר מיד 📱`
                 : `${success.customer_name}, נשמח לראותך 🔥`}
             </p>
+            {/* Upgraded off the waitlist — say the old entry is gone, or they'll
+                wonder whether they're now on the list twice. */}
+            {!success.is_standby && success.superseded_standby_time && (
+              <div className="rounded-xl px-3 py-2 mt-2 text-[13px] leading-relaxed" style={{ background: 'rgba(68,81,44,0.08)', border: '1px solid rgba(68,81,44,0.25)', color: '#44512C' }}>
+                ✓ רישום ההמתנה שלכם ל-{success.superseded_standby_time} בוטל אוטומטית — יש לכם עכשיו הזמנה מאושרת.
+              </div>
+            )}
             {success.is_standby && (
               <>
                 {/* Same words as the SMS, the email and the tracking page. */}
