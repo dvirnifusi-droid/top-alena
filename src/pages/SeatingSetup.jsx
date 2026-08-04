@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { SeatingLayout } from '@/entities/SeatingLayout';
 import { TableSession } from '@/entities/TableSession';
 import { ServiceStep } from '@/entities/ServiceStep';
@@ -28,6 +28,7 @@ import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
 import TimePicker from '@/components/shared/TimePicker';
 import TablePicker from '@/components/dashboard/TablePicker';
 import ZoneTablePicker from '@/components/seating/ZoneTablePicker';
+import GuestKnowledgePanel from '@/components/seating/GuestKnowledgePanel';
 import { base44 } from '@/api/base44Client';
 import VoiceControl from '@/components/voice/VoiceControl';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
@@ -162,8 +163,22 @@ function DepositSection({ reservation, onDone }) {
     );
 }
 
-function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, reservations }) {
+// Israeli numbers get stored as 052…, +97252…, 052-218-1900 — compare on the
+// last 9 digits so a reservation still finds its club record.
+const phoneKey = (p) => String(p || '').replace(/\D/g, '').slice(-9);
+
+function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, reservations, customers = [] }) {
     const [editedReservation, setEditedReservation] = useState(null);
+
+    const customer = useMemo(() => {
+        if (!reservation) return null;
+        if (reservation.customer_id) {
+            const byId = customers.find(c => c.id === reservation.customer_id);
+            if (byId) return byId;
+        }
+        const k = phoneKey(reservation.customer_phone);
+        return k ? customers.find(c => phoneKey(c.phone) === k) || null : null;
+    }, [reservation, customers]);
 
     useEffect(() => {
         if (reservation) {
@@ -237,8 +252,9 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                 dir="rtl"
             >
                 <SheetHeader className="sticky top-0 bg-white z-10 -mt-1 pb-2">
-                    <SheetTitle className="text-center bg-emerald-500 text-white py-2.5 rounded-lg text-base">
-                        {editedReservation.customer_name || 'עריכת הזמנה'}
+                    <SheetTitle className="bg-emerald-500 text-white py-2.5 px-3 rounded-lg text-base flex items-center justify-between gap-2">
+                        <ReservationSourceBadge source={reservation.source} campaign={reservation.campaign} compact />
+                        <span className="truncate">{editedReservation.customer_name || 'עריכת הזמנה'}</span>
                     </SheetTitle>
                 </SheetHeader>
 
@@ -282,6 +298,29 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                 </div>
                     );
                 })()}
+
+                {/* Reaching the guest was a copy-the-number-by-hand job. */}
+                {editedReservation.customer_phone && (
+                    <div className="flex gap-2 mt-2">
+                        <a
+                            href={`tel:${String(editedReservation.customer_phone).replace(/\s/g, '')}`}
+                            className="flex-1 h-10 rounded-lg border border-gray-200 bg-white flex items-center justify-center gap-1.5 text-[13px] font-semibold text-slate-700 active:bg-gray-50"
+                        ><Phone className="w-4 h-4" /> חייג</a>
+                        <a
+                            href={`https://wa.me/972${phoneKey(editedReservation.customer_phone)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex-1 h-10 rounded-lg border border-green-200 bg-green-50 flex items-center justify-center gap-1.5 text-[13px] font-semibold text-green-700 active:bg-green-100"
+                        >💬 וואטסאפ</a>
+                    </div>
+                )}
+
+                {/* Who is this? — visits, last visit, spend, coins, birthday, tags,
+                    standing notes and (on demand) past bookings. All of it already
+                    existed on the Customer record and was shown nowhere here. */}
+                <div className="mt-2">
+                    <GuestKnowledgePanel reservation={reservation} customer={customer} />
+                </div>
 
                 <DepositSection reservation={reservation} onDone={() => { onUpdate(); setOpen(false); }} />
 
@@ -398,22 +437,62 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                         </div>
                     </div>
 
-                    <div className="mt-4">
-                        <div className="text-right mb-2">
-                            <span>בקשות ישיבה</span>
+                    {/* Was two read-only 💳🎁 squares under a "בקשות ישיבה" heading — an
+                        indicator of data you could not actually see or change. The
+                        reservation's own special_requests text had no UI at all. */}
+                    <div className="bg-gray-50 border rounded-xl p-3 mt-4">
+                        <label className="text-[11px] text-gray-500">אירוע מיוחד</label>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                            {['יום הולדת', 'יום נישואים', 'עסקי', 'הצעת נישואים', 'משפחתי'].map(occ => {
+                                const active = editedReservation.special_occasion === occ;
+                                return (
+                                    <button
+                                        key={occ}
+                                        type="button"
+                                        onClick={() => setEditedReservation({
+                                            ...editedReservation,
+                                            special_occasion: active ? null : occ,
+                                        })}
+                                        className={`text-[12px] font-semibold px-2.5 h-8 rounded-lg border transition-colors ${
+                                            active
+                                                ? 'bg-[#44512C] text-white border-[#44512C]'
+                                                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                                        }`}
+                                    >{occ}</button>
+                                );
+                            })}
                         </div>
-                        <div className="flex gap-2">
-                            {(() => {
-                                const ds = reservation?.deposit_status;
-                                const noShow = reservation?.status === 'no_show';
-                                const cfg = ds === 'authorized' ? { c: 'bg-green-100 border-green-400', t: 'אשראי נתפס 🟢' }
-                                    : ds === 'captured' ? { c: 'bg-blue-100 border-blue-400', t: 'פיקדון חויב 💰' }
-                                    : (noShow && reservation?.deposit_required) ? { c: 'bg-rose-100 border-rose-400', t: 'הבריז — ניתן לחייב 🔴' }
-                                    : ds === 'pending' ? { c: 'bg-amber-100 border-amber-400', t: 'ממתין לאשראי 🟡' }
-                                    : { c: 'bg-gray-100 border-gray-300', t: 'ללא פיקדון' };
-                                return <div className={`border p-2 rounded ${cfg.c}`} title={`פיקדון: ${cfg.t}`}>💳</div>;
-                            })()}
-                            <div className={`border p-2 rounded ${reservation?.special_occasion ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'}`} title={reservation?.special_occasion ? `אירוע: ${reservation.special_occasion}` : 'ללא אירוע'}>🎁</div>
+
+                        <label className="text-[11px] text-gray-500 block mt-3">בקשות מיוחדות להזמנה הזו</label>
+                        <textarea
+                            value={editedReservation.special_requests || ''}
+                            onChange={e => setEditedReservation({ ...editedReservation, special_requests: e.target.value })}
+                            rows={2}
+                            placeholder="ליד החלון, כיסא תינוק, אלרגיה, שולחן שקט…"
+                            className="w-full mt-0.5 border border-gray-200 rounded-lg px-2 py-1.5 text-[13px] bg-white resize-y focus:outline-none focus:border-[#A04A2E]"
+                        />
+
+                        <label className="text-[11px] text-gray-500 block mt-3">סימון מארחת</label>
+                        <div className="flex gap-1.5 mt-1">
+                            {[
+                                { v: null, label: 'ללא', cls: 'bg-white text-gray-500 border-gray-200' },
+                                { v: 'green', label: '🟢 אושר', cls: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
+                                { v: 'orange', label: '🟠 מאחר', cls: 'bg-amber-50 text-amber-700 border-amber-300' },
+                                { v: 'red', label: '🔴 לא ענה', cls: 'bg-rose-50 text-rose-700 border-rose-300' },
+                                { v: 'black', label: '⚫ בעייתי', cls: 'bg-slate-800 text-white border-slate-800' },
+                            ].map(f => {
+                                const active = (editedReservation.hostess_flag || null) === f.v;
+                                return (
+                                    <button
+                                        key={f.label}
+                                        type="button"
+                                        onClick={() => setEditedReservation({ ...editedReservation, hostess_flag: f.v })}
+                                        className={`text-[11px] font-semibold px-2 h-8 rounded-lg border transition-all ${f.cls} ${
+                                            active ? 'ring-2 ring-offset-1 ring-slate-400' : 'opacity-70'
+                                        }`}
+                                    >{f.label}</button>
+                                );
+                            })}
                         </div>
                     </div>
 
@@ -526,6 +605,24 @@ export default function SeatingSetup() {
     const [mapFilter, setMapFilter] = useState('all'); // all | free_now | free_long | arriving
     const [collapsedCatsMobile, setCollapsedCatsMobile] = useState([]); // phone list: collapsed areas
     const [legendOpen, setLegendOpen] = useState(false); // map colour key — collapsed by default
+    // Table-details accordions. Page-level on purpose: TableDetailsDialog is
+    // re-created on every render of this component, so local state there would be
+    // wiped by the live-data poll every few seconds.
+    const [tableSettingsOpen, setTableSettingsOpen] = useState(false);
+    const [tableIncidentsOpen, setTableIncidentsOpen] = useState(false);
+    // 🔍 peek — enlarged read-only view of a table, without opening its card.
+    const [peekTable, setPeekTable] = useState(null);
+    const longPress = useRef({ timer: null, fired: false });
+    const startLongPress = (table) => {
+        clearTimeout(longPress.current.timer);
+        longPress.current.fired = false;
+        longPress.current.timer = setTimeout(() => {
+            longPress.current.fired = true;
+            setPeekTable(table);
+        }, 450);
+    };
+    const cancelLongPress = () => clearTimeout(longPress.current.timer);
+    useEffect(() => () => clearTimeout(longPress.current.timer), []);
     // Phone "🔀 העבר" — moving a party from the area list, which IS the map on a
     // phone. Shape: { from, name, partySize, reservation, upcoming }
     const [moveSheet, setMoveSheet] = useState(null);
@@ -2333,75 +2430,19 @@ export default function SeatingSetup() {
 
         return (
             <DialogContent className="w-full h-full sm:h-auto max-w-full sm:max-w-[700px] sm:max-h-[85vh] overflow-y-auto rounded-none sm:rounded-lg" dir="rtl">
+                {/* The dialog used to open on "🚨 פתח תקרית" and "הסר שולחן מהמערכת" —
+                    an emergency and a destructive setup action — with "who is sitting
+                    here" buried below them. Live state first; setup collapses at the
+                    bottom. */}
                 <DialogHeader>
-                    <DialogTitle className="text-xl">פרטי שולחן {table.table_number}</DialogTitle>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full mt-2 bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
-                        onClick={() => { setTableDetailsOpen(false); setIncidentTableNumber(table.table_number); }}
-                    >
-                        🚨 פתח תקרית
-                    </Button>
+                    <DialogTitle className="text-xl">שולחן {table.table_number}</DialogTitle>
+                    <div className="text-[13px] text-gray-500">
+                        {table.area || 'ללא אזור'} · {table.location === 'indoor' ? '🏠 פנים' : '🌿 חוץ'} ·{' '}
+                        {table.min_capacity === table.max_capacity ? table.max_capacity : `${table.min_capacity}-${table.max_capacity}`} מקומות
+                    </div>
                 </DialogHeader>
-                
-                <div className="space-y-6 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                            <Label className="text-sm font-semibold text-gray-600">מיקום</Label>
-                            <div className="text-lg">{table.location === 'indoor' ? '🏠 פנים' : '🌿 חוץ'}</div>
-                        </div>
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                            <Label className="text-sm font-semibold text-gray-600">קיבולת</Label>
-                            <div className="text-lg">{table.min_capacity === table.max_capacity ? table.max_capacity : `${table.min_capacity}-${table.max_capacity}`} מקומות</div>
-                        </div>
-                    </div>
 
-                    {/* Table shape — moved here from the card hover menu (freed that spot for "move table") */}
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <Label className="text-sm font-semibold text-gray-600">צורת שולחן</Label>
-                        <div className="flex gap-2">
-                            <Button
-                                size="sm"
-                                variant={table.shape !== 'round' ? 'default' : 'outline'}
-                                onClick={() => setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, shape: 'rect' } : t))}
-                            >⬛ מרובע</Button>
-                            <Button
-                                size="sm"
-                                variant={table.shape === 'round' ? 'default' : 'outline'}
-                                onClick={() => setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, shape: 'round' } : t))}
-                            >⭕ עגול</Button>
-                        </div>
-                    </div>
-                    <p className="text-[11px] text-gray-400 -mt-4 px-1">שינוי הצורה נשמר בלחיצה על "שמור מפה".</p>
-
-                    {/* Remove this table from the WHOLE system — map, every priority list, auto-assign */}
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <Button
-                            variant="outline"
-                            className="w-full text-red-700 border-red-300 hover:bg-red-100"
-                            onClick={() => {
-                                const num = String(table.table_number);
-                                if (session || seatedRes) {
-                                    alert('לא ניתן להסיר שולחן שיושבים עליו כרגע. שחרר אותו קודם.');
-                                    return;
-                                }
-                                if (!window.confirm(`להסיר את שולחן ${num} מהמערכת לגמרי?\n\nהוא ייעלם מהמפה, מכל רשימות העדיפות ומהשיבוץ האוטומטי.\n(יש ללחוץ "שמור מפה" אחר כך כדי לשמור.)`)) return;
-                                // Drop the table, scrub it from every other table's combinable_with,
-                                // and remove any priority entry (combo) that referenced it.
-                                setTables(prev => prev
-                                    .filter(t => String(t.table_number) !== num)
-                                    .map(t => ({ ...t, combinable_with: (Array.isArray(t.combinable_with) ? t.combinable_with : []).filter(x => String(x) !== num) })));
-                                setCombos(prev => prev.filter(c => !((Array.isArray(c.tables) ? c.tables : []).map(String).includes(num))));
-                                setTableDetailsOpen(false);
-                            }}
-                        >
-                            <Trash2 className="w-4 h-4 ml-2" />
-                            הסר שולחן מהמערכת
-                        </Button>
-                        <p className="text-[11px] text-red-500 mt-1.5 text-center">לשולחן שכבר לא קיים במסעדה. נשמר בלחיצה על "שמור מפה".</p>
-                    </div>
-
+                <div className="space-y-4 py-3">
                     {futureReservations.length > 0 && (
                         <div className="border rounded-lg p-4 bg-[#F4ECD8]">
                             <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
@@ -2455,7 +2496,7 @@ export default function SeatingSetup() {
                         </div>
                     )}
 
-                    {session ? (
+                    {session && (
                         <>
                             <div className="border rounded-lg p-4 bg-[#F4ECD8]">
                                 <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
@@ -2617,36 +2658,21 @@ export default function SeatingSetup() {
                                 </div>
                             </div>
                         </>
-                    ) : (
-                        <div className="text-center py-8">
-                            <div className="text-6xl mb-4">😴</div>
-                            <h3 className="text-xl font-bold text-gray-600 mb-2">השולחן פנוי</h3>
-                            <p className="text-gray-500 mb-4">אין פעילות כרגע בשולחן זה</p>
+                    )}
+
+                    {/* Free — and it really is free. This used to render alongside
+                        "יושבים כעת" whenever a guest was seated straight off a
+                        reservation (no TableSession), so the same dialog said the table
+                        was both occupied and empty. */}
+                    {!session && !seatedRes && (
+                        <div className="text-center py-6">
+                            <div className="text-5xl mb-3">😴</div>
+                            <h3 className="text-xl font-bold text-gray-600 mb-1">השולחן פנוי</h3>
+                            <p className="text-gray-500 mb-4 text-sm">אין פעילות כרגע בשולחן זה</p>
                             {/* The most common hostess gesture — "guest at the door, this table
                                 is open" — had no path from the map at all: the empty state was a
                                 dead end and she had to leave the table, open הושבה מהירה and find
                                 it again in a grid. */}
-                            {/* Move a table between zones — or out of all of them. Zone
-                                backdrops are drawn from their members' bounding box, so one
-                                stray table stretches a zone across the room and its colour
-                                bleeds over everything. Reassigning is the real fix. */}
-                            <div className="mb-4 flex items-center justify-center gap-2 text-sm">
-                                <span className="text-gray-500">אזור:</span>
-                                <select
-                                    value={table.area || ''}
-                                    onChange={(e) => {
-                                        const area = e.target.value || null;
-                                        setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, area } : t));
-                                        alert(`שולחן ${table.table_number} הועבר ל${area || 'ללא אזור'}.\nלחץ "שמור מפה" כדי לשמור.`);
-                                    }}
-                                    className="border rounded-lg px-2 py-1 text-sm bg-white"
-                                >
-                                    <option value="">ללא אזור</option>
-                                    {[...new Set(tables.map(t => t.area).filter(Boolean))].map(a => (
-                                        <option key={a} value={a}>{a}</option>
-                                    ))}
-                                </select>
-                            </div>
                             <Button
                                 onClick={() => {
                                     setQuickSeatTable(table);
@@ -2663,11 +2689,107 @@ export default function SeatingSetup() {
                         </div>
                     )}
 
-                    <div className="border rounded-lg p-4 bg-red-50">
-                        <h3 className="font-bold text-base mb-3 flex items-center gap-2 text-red-700">
-                            📜 היסטוריית תקריות
-                        </h3>
-                        <TableIncidentHistory tableNumber={table.table_number} />
+                    {/* ── Setup, collapsed. Shape, zone and "remove from the system" are
+                        things you touch when building the map, not during service. */}
+                    <div className="border rounded-lg overflow-hidden">
+                        <button
+                            onClick={() => setTableSettingsOpen(v => !v)}
+                            className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 text-[13px] font-semibold text-gray-700"
+                        >
+                            <span className="text-gray-400 text-[11px]">{tableSettingsOpen ? '▲' : '▼'}</span>
+                            <span>⚙️ הגדרות השולחן</span>
+                        </button>
+                        {tableSettingsOpen && (
+                            <div className="p-3 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant={table.shape !== 'round' ? 'default' : 'outline'}
+                                            onClick={() => setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, shape: 'rect' } : t))}
+                                        >⬛ מרובע</Button>
+                                        <Button
+                                            size="sm"
+                                            variant={table.shape === 'round' ? 'default' : 'outline'}
+                                            onClick={() => setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, shape: 'round' } : t))}
+                                        >⭕ עגול</Button>
+                                    </div>
+                                    <Label className="text-sm font-semibold text-gray-600">צורה</Label>
+                                </div>
+
+                                {/* Move a table between zones — or out of all of them. Zone
+                                    backdrops are drawn from their members' bounding box, so one
+                                    stray table stretches a zone across the room and its colour
+                                    bleeds over everything. Reassigning is the real fix. */}
+                                <div className="flex items-center justify-between">
+                                    <select
+                                        value={table.area || ''}
+                                        onChange={(e) => {
+                                            const area = e.target.value || null;
+                                            setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, area } : t));
+                                            showToast(`שולחן ${table.table_number} הועבר ל${area || 'ללא אזור'} — לחץ "שמור" במפה`);
+                                        }}
+                                        className="border rounded-lg px-2 py-1.5 text-sm bg-white"
+                                    >
+                                        <option value="">ללא אזור</option>
+                                        {[...new Set(tables.map(t => t.area).filter(Boolean))].map(a => (
+                                            <option key={a} value={a}>{a}</option>
+                                        ))}
+                                    </select>
+                                    <Label className="text-sm font-semibold text-gray-600">אזור</Label>
+                                </div>
+
+                                <p className="text-[11px] text-gray-400">שינוי צורה או אזור נשמר בלחיצה על "שמור" בפס המפה.</p>
+
+                                {/* Remove this table from the WHOLE system — map, every priority list, auto-assign */}
+                                <Button
+                                    variant="outline"
+                                    className="w-full text-red-700 border-red-300 hover:bg-red-50"
+                                    onClick={() => {
+                                        const num = String(table.table_number);
+                                        if (session || seatedRes) {
+                                            alert('לא ניתן להסיר שולחן שיושבים עליו כרגע. שחרר אותו קודם.');
+                                            return;
+                                        }
+                                        if (!window.confirm(`להסיר את שולחן ${num} מהמערכת לגמרי?\n\nהוא ייעלם מהמפה, מכל רשימות העדיפות ומהשיבוץ האוטומטי.\n(יש ללחוץ "שמור" אחר כך כדי לשמור.)`)) return;
+                                        // Drop the table, scrub it from every other table's combinable_with,
+                                        // and remove any priority entry (combo) that referenced it.
+                                        setTables(prev => prev
+                                            .filter(t => String(t.table_number) !== num)
+                                            .map(t => ({ ...t, combinable_with: (Array.isArray(t.combinable_with) ? t.combinable_with : []).filter(x => String(x) !== num) })));
+                                        setCombos(prev => prev.filter(c => !((Array.isArray(c.tables) ? c.tables : []).map(String).includes(num))));
+                                        setTableDetailsOpen(false);
+                                    }}
+                                >
+                                    <Trash2 className="w-4 h-4 ml-2" />
+                                    הסר שולחן מהמערכת
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Incidents, collapsed — opening one is rare and reading the log rarer. */}
+                    <div className="border rounded-lg overflow-hidden">
+                        <button
+                            onClick={() => setTableIncidentsOpen(v => !v)}
+                            className="w-full flex items-center justify-between px-3 py-2.5 bg-red-50 text-[13px] font-semibold text-red-700"
+                        >
+                            <span className="text-red-300 text-[11px]">{tableIncidentsOpen ? '▲' : '▼'}</span>
+                            <span>🚨 תקריות</span>
+                        </button>
+                        {tableIncidentsOpen && (
+                            <div className="p-3 space-y-3">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
+                                    onClick={() => { setTableDetailsOpen(false); setIncidentTableNumber(table.table_number); }}
+                                >
+                                    🚨 פתח תקרית חדשה
+                                </Button>
+                                <TableIncidentHistory tableNumber={table.table_number} />
+                            </div>
+                        )}
                     </div>
                 </div>
             </DialogContent>
@@ -3758,7 +3880,16 @@ export default function SeatingSetup() {
                                                             {info.map(({ t, sess, seated, next, cleaning, busy }) => (
                                                                 <div key={t.table_number} className="flex items-stretch">
                                                                     <button
-                                                                        onClick={() => showTableDetails(t)}
+                                                                        onPointerDown={() => startLongPress(t)}
+                                                                        onPointerMove={cancelLongPress}
+                                                                        onPointerUp={cancelLongPress}
+                                                                        onPointerLeave={cancelLongPress}
+                                                                        onPointerCancel={cancelLongPress}
+                                                                        onClick={() => {
+                                                                            // Long press already opened the 🔍 peek.
+                                                                            if (longPress.current.fired) { longPress.current.fired = false; return; }
+                                                                            showTableDetails(t);
+                                                                        }}
                                                                         className="flex-1 min-w-0 flex items-center gap-3 px-3 py-3 text-right active:bg-gray-50"
                                                                     >
                                                                         <span className={`w-11 h-11 shrink-0 rounded-lg flex items-center justify-center font-semibold text-[15px] tabular-nums ${
@@ -4148,7 +4279,17 @@ export default function SeatingSetup() {
                                                 key={table.table_number}
                                                 draggable={!mapLocked && !isResizing && !swapping && !assigningTable && !isSelectingTables && !isBlockedForInteraction}
                                                 onDragEnd={(e) => handleTableDragEnd(table.table_number, e)}
+                                                // Long-press = 🔍 peek. Any movement cancels it so a drag
+                                                // (unlocked map) or a scroll-pan never turns into a peek.
+                                                onPointerDown={() => startLongPress(table)}
+                                                onPointerMove={cancelLongPress}
+                                                onPointerUp={cancelLongPress}
+                                                onPointerLeave={cancelLongPress}
+                                                onPointerCancel={cancelLongPress}
+                                                onContextMenu={(e) => { if (longPress.current.fired) e.preventDefault(); }}
                                                 onClick={() => {
+                                                    // Swallow the click the browser fires after a long press.
+                                                    if (longPress.current.fired) { longPress.current.fired = false; return; }
                                                     if (!isBlockedForInteraction) {
                                                         handleTableClick(table);
                                                     }
@@ -4177,6 +4318,12 @@ export default function SeatingSetup() {
                                                 {!isBlockedForInteraction && (
                                                     <div className="absolute -top-8 left-0 right-0 flex justify-center opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity z-10">
                                                         <div className="bg-white border shadow-lg rounded-lg p-1 flex gap-1">
+                                                            {/* 🔍 peek — see the table bigger without opening its card */}
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); setPeekTable(table); }}
+                                                                className="px-2 py-1 text-xs rounded bg-slate-100 hover:bg-slate-200 text-slate-700"
+                                                                title="הצצה מוגדלת — בלי להיכנס לכרטיס"
+                                                            >🔍</button>
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
@@ -4471,6 +4618,7 @@ export default function SeatingSetup() {
                         onUpdate={handleUpdateReservation}
                         tables={tables}
                         reservations={reservations}
+                        customers={customers}
                     />
                 </CardContent>
             </Card>
@@ -4566,6 +4714,153 @@ export default function SeatingSetup() {
                     </SheetContent>
                 </Sheet>
             )}
+
+            {/* 🔍 PEEK — the table, bigger, read-only. Opened from the 🔍 in the card's
+                hover menu or by long-pressing the table. Deliberately NOT the details
+                dialog: this answers "what's going on there?" at a glance and closes. */}
+            {peekTable && (() => {
+                const t = peekTable;
+                const nowHHmm = format(clockTick, 'HH:mm');
+                const sess = getTableSession(t.table_number);
+                const dayRes = reservations
+                    .filter(r => Array.isArray(r.assigned_table) && r.assigned_table.map(String).includes(String(t.table_number))
+                        && !['cancelled', 'deleted'].includes(r.status))
+                    .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+                const seated = dayRes.find(r => r.status === 'seated');
+                const cleaning = (!sess && !seated) ? getCleaningSession(t.table_number) : null;
+                const occupant = sess || seated;
+                const upcoming = dayRes.filter(r => ['confirmed', 'pending', 'standby'].includes(r.status));
+                const nextRes = upcoming.find(r => r.time && r.time.slice(0, 5) >= nowHHmm);
+                const focusRes = seated || nextRes || upcoming[0] || null;
+                const endTime = seated?.reservation_end_time || null;
+                const minsLeft = endTime ? Math.round((clockToDate(endTime, clockTick) - clockTick) / 60000) : null;
+
+                return (
+                    <div
+                        className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+                        onClick={() => setPeekTable(null)}
+                        dir="rtl"
+                    >
+                        <div
+                            className="w-full max-w-[360px] bg-white rounded-2xl shadow-2xl overflow-hidden"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            {/* Same header language as the map card, just legible */}
+                            <div className={`flex items-center justify-between px-4 py-3 ${
+                                occupant ? 'bg-green-100 border-b-2 border-green-400'
+                                    : cleaning ? 'bg-slate-200 border-b-2 border-slate-400'
+                                        : 'bg-[#F4ECD8] border-b-2 border-[#D9BD83]'
+                            }`}>
+                                <button
+                                    onClick={() => setPeekTable(null)}
+                                    className="w-8 h-8 rounded-full bg-white/70 hover:bg-white flex items-center justify-center text-slate-600"
+                                    title="סגור"
+                                ><X className="w-4 h-4" /></button>
+                                <div className="text-left">
+                                    <div className="text-[28px] font-semibold leading-none tabular-nums text-slate-900">{t.table_number}</div>
+                                    <div className="text-[11px] text-slate-600 mt-1 tabular-nums">
+                                        {t.area || 'ללא אזור'} · {t.min_capacity}-{t.max_capacity} סועדים
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-4 space-y-3">
+                                {/* State right now */}
+                                {occupant ? (
+                                    <div>
+                                        <div className="text-[18px] font-semibold text-slate-900">
+                                            {occupant.customer_name || 'תפוס'}
+                                            <span className="text-[13px] font-normal text-slate-500 mr-2">
+                                                {occupant.party_size} סועדים
+                                            </span>
+                                        </div>
+                                        <div className="text-[13px] text-slate-600 tabular-nums mt-0.5" dir="ltr">
+                                            {seated?.time ? `${seated.time.slice(0, 5)}${endTime ? ` – ${endTime}` : ''}` : ''}
+                                        </div>
+                                        {minsLeft !== null && (
+                                            <div className={`inline-block mt-1.5 text-[12px] font-bold px-2 py-0.5 rounded-full ${
+                                                minsLeft < 0 ? 'bg-rose-100 text-rose-700'
+                                                    : minsLeft <= 15 ? 'bg-amber-100 text-amber-800'
+                                                        : 'bg-emerald-100 text-emerald-700'
+                                            }`}>
+                                                {minsLeft < 0 ? `חריגה ${Math.abs(minsLeft)} דק׳` : `נשארו ${minsLeft} דק׳`}
+                                            </div>
+                                        )}
+                                        {sess?.waiter_name && (
+                                            <div className="text-[12px] text-slate-500 mt-1">מלצר: {sess.waiter_name}</div>
+                                        )}
+                                    </div>
+                                ) : cleaning ? (
+                                    <div className="text-[16px] font-semibold text-slate-600">🧹 ממתין לניקוי</div>
+                                ) : (
+                                    <div className="text-[16px] font-semibold text-emerald-700">
+                                        פנוי {nextRes ? `עד ${nextRes.time.slice(0, 5)}` : 'כל הערב'}
+                                    </div>
+                                )}
+
+                                {/* Everything booked on this table today — the map card
+                                    truncates to the rows setting; here you see all of it. */}
+                                <div className="border-t pt-2">
+                                    <div className="text-[10px] font-bold text-slate-400 mb-1">היום · {dayRes.length} הזמנות</div>
+                                    {dayRes.length === 0 ? (
+                                        <div className="text-[12px] text-slate-400">אין הזמנות</div>
+                                    ) : (
+                                        <div className="space-y-1">
+                                            {dayRes.map(r => (
+                                                <div key={r.id} className="flex items-center justify-between gap-2 text-[13px]">
+                                                    <span className="text-slate-500 tabular-nums shrink-0">{r.party_size}×</span>
+                                                    <span className="flex-1 min-w-0 truncate text-slate-800 text-right">{r.customer_name}</span>
+                                                    <span className="text-slate-600 tabular-nums shrink-0" dir="ltr">
+                                                        {String(r.time || '').slice(0, 5)}{r.reservation_end_time ? `–${r.reservation_end_time}` : ''}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Requests worth knowing before you walk over */}
+                                {(focusRes?.special_requests || focusRes?.special_occasion) && (
+                                    <div className="border-t pt-2 space-y-1">
+                                        {focusRes.special_occasion && (
+                                            <div className="text-[12px] font-semibold text-purple-700">🎁 {focusRes.special_occasion}</div>
+                                        )}
+                                        {focusRes.special_requests && (
+                                            <div className="text-[12px] text-slate-600">💬 {focusRes.special_requests}</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex gap-2 p-3 bg-gray-50 border-t">
+                                {!occupant && !cleaning && (
+                                    <Button
+                                        className="flex-1 bg-[#A04A2E] hover:bg-[#7A3722]"
+                                        onClick={() => { setPeekTable(null); setQuickSeatTable(t); setQuickSeatOpen(true); }}
+                                    >🪑 הושב כאן</Button>
+                                )}
+                                {(seated || nextRes) && (
+                                    <Button
+                                        variant="outline"
+                                        className="flex-1"
+                                        onClick={() => {
+                                            const r = seated || nextRes;
+                                            setPeekTable(null);
+                                            setEditingReservation(r);
+                                            setIsEditReservationOpen(true);
+                                        }}
+                                    ><Edit className="w-4 h-4 ml-1" /> ההזמנה</Button>
+                                )}
+                                <Button
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={() => { setPeekTable(null); showTableDetails(t); }}
+                                >כרטיס השולחן</Button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {quickSeatOpen && (
                 <QuickSeatDialog
