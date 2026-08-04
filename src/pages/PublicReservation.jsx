@@ -180,6 +180,13 @@ export default function PublicReservationPage() {
   // Slot-full helper: when backend says no_availability we surface
   // nearby open slots and a standby-waitlist button.
   const [alternatives, setAlternatives] = useState([]); // [{ time, offset_min }]
+  // "The slot is full" is its own fact, NOT `alternatives.length > 0`. On a fully
+  // booked night the backend legitimately returns an EMPTY alternatives array
+  // (findNearbyAvailableSlots checks only ±15..±60 min), and the panel that
+  // carries the standby button was gated on that array being non-empty — so the
+  // guest got a cleared error, no alternatives, no waitlist offer: a silent dead
+  // end on the busiest night of the year.
+  const [slotFull, setSlotFull] = useState(false);
   const [depositInfo, setDepositInfo] = useState(null); // { required, amount_ils, reason, free_cancel_until_iso }
   // Large-group threshold is PER-TENANT (this business's max_party_size). Above it → event.
   const maxParty = Number(settings?.max_party_size) || 11;
@@ -376,7 +383,7 @@ export default function PublicReservationPage() {
     // the SyntheticEvent ends up in the request body.
     acceptStandby = acceptStandby === true;
     setErrorMsg('');
-    if (!acceptStandby) setAlternatives([]); // reset any prior alts on a fresh attempt
+    if (!acceptStandby) { setAlternatives([]); setSlotFull(false); } // reset on a fresh attempt
     if (Number(partySize) > maxParty) return setErrorMsg(`${maxParty + 1} סועדים ומעלה נחשב לאירוע — מלא את טופס האירועים`);
     if (!customerName.trim()) return setErrorMsg('יש למלא שם מלא');
     if (!customerPhone.trim() || customerPhone.replace(/\D/g, '').length < 9) return setErrorMsg('יש למלא מספר טלפון תקין');
@@ -408,9 +415,12 @@ export default function PublicReservationPage() {
         if (res?.reason === 'too_large_use_events') {
           setErrorMsg('יותר מ-12 סועדים נחשב לאירוע — אנא מלא את טופס האירועים');
         } else if (res?.reason === 'no_availability') {
-          // Surface backend-suggested alternative slots (if any) instead of a flat error.
+          // Surface backend-suggested alternative slots (if any) instead of a flat
+          // error — and mark the slot full either way, so the standby offer shows
+          // even when there are no nearby openings left to suggest.
           const alts = Array.isArray(res?.alternatives) ? res.alternatives : [];
           setAlternatives(alts);
+          setSlotFull(true);
           setErrorMsg('');
         } else if (res?.reason === 'deposit_setup_failed') {
           setErrorMsg('לא הצלחנו לעבד את הפיקדון כרגע. נסה שוב בעוד רגע — ההזמנה תיסגר רק אחרי אבטחת הכרטיס.');
@@ -420,6 +430,7 @@ export default function PublicReservationPage() {
         return;
       }
       setAlternatives([]);
+      setSlotFull(false);
       // Deposit required → send the guest straight to PayPlus to place the hold.
       // After payment PayPlus redirects to ReservationView and the webhook confirms it.
       if (res.requires_deposit && res.deposit_link) {
@@ -1202,41 +1213,45 @@ export default function PublicReservationPage() {
             </div>
           )}
 
-          {/* Slot-full → propose alternatives + standby waitlist */}
-          {alternatives !== null && alternatives.length >= 0 && !errorMsg && (
-            <>{Array.isArray(alternatives) && (alternatives.length > 0 || (alternatives.length === 0 && time && false))}</>
-          )}
-          {alternatives && alternatives.length > 0 && (
+          {/* Slot full → alternatives when there are any, and ALWAYS the standby
+              waitlist. Gating this whole panel on alternatives.length > 0 meant a
+              fully booked evening (backend only scans ±60 min) rendered nothing at
+              all — the guest pressed "הזמן" and the page just went quiet. */}
+          {slotFull && (
             <div className="rounded-2xl p-4 space-y-3" style={{ background: 'linear-gradient(135deg, rgba(184,149,86,0.10), rgba(160,74,46,0.08))', border: '1px solid rgba(184,149,86,0.45)' }}>
               <div>
                 <div className="font-bold text-sm flex items-center gap-2" style={{ color: '#1F1B17' }}>
                   <span className="text-lg">🟡</span> {time} מלא ברגע זה
                 </div>
                 <div className="text-xs mt-1" style={{ color: '#44512C' }}>
-                  השעות הקרובות עוד פנויות — אפשר לבחור אחת:
+                  {alternatives.length > 0
+                    ? 'השעות הקרובות עוד פנויות — אפשר לבחור אחת:'
+                    : 'גם השעות הסמוכות תפוסות. אפשר לנסות תאריך אחר, או להירשם לרשימת ההמתנה:'}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {alternatives.map(a => (
-                  <button
-                    key={a.time}
-                    type="button"
-                    onClick={() => { setTime(a.time); setSelectedHour(`${a.time.slice(0,2)}:00`); setAlternatives([]); }}
-                    className="rounded-xl px-3.5 py-2 text-sm font-bold transition-transform hover:scale-105"
-                    style={{ background: '#FFFEFB', color: '#1F1B17', border: '1px solid rgba(184,149,86,0.45)', boxShadow: '0 4px 10px -4px rgba(31,27,23,0.12)' }}
-                  >
-                    {a.time}
-                    {a.offset_min ? (
-                      <span className="block text-[10px] font-normal opacity-60 mt-0.5">
-                        {a.offset_min > 0 ? `+${a.offset_min}` : a.offset_min} דק׳
-                      </span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-              <div className="pt-2 border-t" style={{ borderColor: 'rgba(184,149,86,0.30)' }}>
+              {alternatives.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {alternatives.map(a => (
+                    <button
+                      key={a.time}
+                      type="button"
+                      onClick={() => { setTime(a.time); setSelectedHour(`${a.time.slice(0,2)}:00`); setAlternatives([]); setSlotFull(false); }}
+                      className="rounded-xl px-3.5 py-2 text-sm font-bold transition-transform hover:scale-105"
+                      style={{ background: '#FFFEFB', color: '#1F1B17', border: '1px solid rgba(184,149,86,0.45)', boxShadow: '0 4px 10px -4px rgba(31,27,23,0.12)' }}
+                    >
+                      {a.time}
+                      {a.offset_min ? (
+                        <span className="block text-[10px] font-normal opacity-60 mt-0.5">
+                          {a.offset_min > 0 ? `+${a.offset_min}` : a.offset_min} דק׳
+                        </span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className={alternatives.length > 0 ? 'pt-2 border-t' : ''} style={alternatives.length > 0 ? { borderColor: 'rgba(184,149,86,0.30)' } : undefined}>
                 <div className="text-xs mb-2 leading-snug" style={{ color: '#44512C' }}>
-                  או הירשמו לרשימת המתנה ב-{time} — אם יתפנה שולחן ניצור איתכם קשר בוואטסאפ.
+                  {alternatives.length > 0 ? 'או הירשמו' : 'הירשמו'} לרשימת המתנה ב-{time} — אם יתפנה שולחן ניצור איתכם קשר בוואטסאפ.
                 </div>
                 <button
                   type="button"
