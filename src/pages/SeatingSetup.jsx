@@ -5,12 +5,12 @@ import { ServiceStep } from '@/entities/ServiceStep';
 import { Reservation } from '@/entities/Reservation';
 import { Customer } from '@/entities/Customer';
 import { QueueEntry } from '@/entities/all';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, Save, Loader2, Wand2, Eye, Edit, Wrench, ArrowRight, Settings, Sparkles, Upload } from "lucide-react";
+import { Trash2, Plus, Save, Loader2, Wand2, Eye, Edit, Wrench, ArrowRight, Sparkles, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -27,6 +27,7 @@ import TableIncidentHistory from '../components/seating/TableIncidentHistory';
 import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
 import TimePicker from '@/components/shared/TimePicker';
 import TablePicker from '@/components/dashboard/TablePicker';
+import ZoneTablePicker from '@/components/seating/ZoneTablePicker';
 import { base44 } from '@/api/base44Client';
 import VoiceControl from '@/components/voice/VoiceControl';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
@@ -340,40 +341,19 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                         hard to hit, so moving a guest had to be possible from here. */}
                     <div className="mt-3">
                         <label className="text-[11px] text-gray-500">שולחן</label>
-                        <select
+                        {/* One zone open at a time. A flat list of 57 tables — which is what
+                            the native <select> + <optgroup> gave — is a wall you have to
+                            read; the real question is "which section?" before "which
+                            table?". ⭐ marks the tables that fit this party size. */}
+                        <ZoneTablePicker
+                            tables={tables}
                             value={(editedReservation.assigned_table || [])[0] || ''}
-                            onChange={e => setEditedReservation({
+                            partySize={editedReservation.party_size}
+                            onChange={(tableNumber) => setEditedReservation({
                                 ...editedReservation,
-                                assigned_table: e.target.value ? [e.target.value] : null,
+                                assigned_table: tableNumber ? [tableNumber] : null,
                             })}
-                            className="w-full h-11 mt-0.5 border rounded-lg px-2 bg-white text-base font-semibold"
-                        >
-                            <option value="">כללי / ללא שולחן</option>
-                            {/* Grouped by area so you pick a section first, then a table in
-                                it — a flat list of 57 is unusable on a phone. ⭐ marks the
-                                tables that actually fit this party size. */}
-                            {Object.entries(
-                                [...tables]
-                                    .sort((a, b) => String(a.table_number).localeCompare(String(b.table_number), 'he', { numeric: true }))
-                                    .reduce((acc, t) => {
-                                        const k = t.area || 'ללא אזור';
-                                        (acc[k] = acc[k] || []).push(t);
-                                        return acc;
-                                    }, {})
-                            ).map(([area, list]) => (
-                                <optgroup key={area} label={area}>
-                                    {list.map(t => {
-                                        const size = Number(editedReservation.party_size) || 0;
-                                        const fits = size > 0 && Number(t.min_capacity) <= size && Number(t.max_capacity) >= size;
-                                        return (
-                                            <option key={t.table_number} value={t.table_number}>
-                                                {fits ? '⭐ ' : ''}{t.table_number} · {t.min_capacity}-{t.max_capacity} סועדים
-                                            </option>
-                                        );
-                                    })}
-                                </optgroup>
-                            ))}
-                        </select>
+                        />
                         {(() => {
                             const size = Number(editedReservation.party_size) || 0;
                             const cur = (editedReservation.assigned_table || [])[0];
@@ -454,6 +434,12 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
 
 const GRID_SIZE = 4; // fine snap so tables can be placed precisely (was 20px = too coarse)
 
+// Shared look for the rows inside the toolbar's ⋯ menu. RTL: label on the right,
+// state pill on the left, so the eye scans one column of labels.
+const MENU_ROW = 'w-full flex flex-row-reverse items-center justify-between gap-2 px-2 py-2 rounded-lg text-[13px] text-gray-700 hover:bg-gray-100 text-right';
+const MENU_ON = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700';
+const MENU_OFF = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500';
+
 const FACILITY_TYPES = {
     restroom: { name: 'שירותים', icon: '🚻', color: 'bg-gray-300 border-gray-500 text-gray-900' },
     kitchen: { name: 'מטבח', icon: '👨‍🍳', color: 'bg-red-300 border-red-500 text-red-900' },
@@ -474,6 +460,12 @@ export default function SeatingSetup() {
     // Explicit table-combinations the owner saved per party size.
     // Shape: [{ id, party_size, tables: ['10','11'] }]
     const [combos, setCombos] = useState([]);
+    // "שמור" only earns a permanent slot in the toolbar when something is really
+    // unsaved — otherwise it's a button that does nothing 99% of the time, in a
+    // strip where every slot has to be worth its space. Snapshot on load + save.
+    const savedLayoutRef = useRef('');
+    const layoutFingerprint = JSON.stringify({ tables, facilities, combos });
+    const layoutDirty = savedLayoutRef.current !== '' && savedLayoutRef.current !== layoutFingerprint;
     const [activeSessions, setActiveSessions] = useState([]);
     const [serviceSteps, setServiceSteps] = useState([]);
     const [reservations, setReservations] = useState([]);
@@ -533,7 +525,10 @@ export default function SeatingSetup() {
     // to "where can I put this walk-in?" is visible without reading every card.
     const [mapFilter, setMapFilter] = useState('all'); // all | free_now | free_long | arriving
     const [collapsedCatsMobile, setCollapsedCatsMobile] = useState([]); // phone list: collapsed areas
-    const [showMapTools, setShowMapTools] = useState(false); // phone: reveal layout-editing tools
+    const [legendOpen, setLegendOpen] = useState(false); // map colour key — collapsed by default
+    // Phone "🔀 העבר" — moving a party from the area list, which IS the map on a
+    // phone. Shape: { from, name, partySize, reservation, upcoming }
+    const [moveSheet, setMoveSheet] = useState(null);
     // Locked by DEFAULT: during service the map is a board to read, not to edit.
     // A stray drag on a tablet silently relocated table 300 and the change stuck
     // on the next save. Unlock deliberately to rearrange.
@@ -587,15 +582,20 @@ export default function SeatingSetup() {
             ]);
             
             if (layouts.length > 0) {
+                const t = layouts[0].tables || [];
+                const f = layouts[0].facilities || [];
+                const c = Array.isArray(layouts[0].combos) ? layouts[0].combos : [];
                 setLayout(layouts[0]);
-                setTables(layouts[0].tables || []);
-                setFacilities(layouts[0].facilities || []);
-                setCombos(Array.isArray(layouts[0].combos) ? layouts[0].combos : []);
+                setTables(t);
+                setFacilities(f);
+                setCombos(c);
+                savedLayoutRef.current = JSON.stringify({ tables: t, facilities: f, combos: c });
             } else {
                 setLayout(null);
                 setTables([]);
                 setFacilities([]);
                 setCombos([]);
+                savedLayoutRef.current = JSON.stringify({ tables: [], facilities: [], combos: [] });
             }
             
             setActiveSessions(sessions);
@@ -1266,7 +1266,8 @@ export default function SeatingSetup() {
             } else {
                 await SeatingLayout.create(layoutData);
             }
-            alert("מפת ההושבה נשמרה בהצלחה!");
+            savedLayoutRef.current = JSON.stringify({ tables, facilities, combos });
+            showToast('מפת ההושבה נשמרה ✓');
         } catch (error) {
             console.error('Error saving layout:', error);
             alert("שגיאה בשמירת המפה.");
@@ -2324,25 +2325,10 @@ export default function SeatingSetup() {
             setTableDetailsOpen(false);
         };
         
+        // Shared with the phone list's 🔀 button — see moveOccupantToTable.
         const handleMoveToSpecificTable = async (targetTable) => {
-            if (!session) return;
-
-            try {
-                await TableSession.update(session.id, {
-                    table_number: targetTable,
-                    notes: (session.notes ? session.notes + ' | ' : '') + `הועבר משולחן ${table.table_number} בשעה ${new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', hour12: false })}`
-                });
-                // Move a seated reservation's assignment too, so it doesn't stay on the old table.
-                if (seatedRes && Array.isArray(seatedRes.assigned_table)) {
-                    const next = [...new Set(seatedRes.assigned_table.map(String).map(t => t === String(table.table_number) ? String(targetTable) : t))];
-                    await Reservation.update(seatedRes.id, { assigned_table: next });
-                }
-                setTableDetailsOpen(false);
-                loadLiveData();
-            } catch (error) {
-                console.error('Error moving table:', error);
-                alert('שגיאה בהעברת השולחן');
-            }
+            setTableDetailsOpen(false);
+            await moveOccupantToTable(table.table_number, targetTable);
         };
 
         return (
@@ -2788,6 +2774,46 @@ export default function SeatingSetup() {
         setMultiAssignReservationId(null);
     };
 
+    /**
+     * Move whoever holds `fromTableNumber` onto `targetTableNumber` — the live
+     * TableSession, today's seated reservation, or (for an empty table) a specific
+     * upcoming booking passed in explicitly.
+     *
+     * Hoisted out of TableDetailsDialog so the phone list can reuse the exact same
+     * path. The old copy also bailed out when there was no TableSession, which
+     * silently did nothing for guests seated straight off a reservation.
+     */
+    const moveOccupantToTable = async (fromTableNumber, targetTableNumber, explicitReservation = null) => {
+        const from = String(fromTableNumber);
+        const to = String(targetTableNumber);
+        if (!to || from === to) return;
+        const session = getTableSession(from);
+        const reservation = explicitReservation || reservations.find(r =>
+            Array.isArray(r.assigned_table) && r.assigned_table.map(String).includes(from)
+            && r.date === format(new Date(), 'yyyy-MM-dd') && r.status === 'seated'
+        );
+        if (!session && !reservation) { showToast('אין את מי להעביר מהשולחן הזה'); return; }
+        try {
+            if (session) {
+                await TableSession.update(session.id, {
+                    table_number: to,
+                    notes: (session.notes ? session.notes + ' | ' : '') + `הועבר משולחן ${from} בשעה ${format(new Date(), 'HH:mm')}`,
+                });
+            }
+            if (reservation) {
+                const next = [...new Set((reservation.assigned_table || []).map(String).map(t => (t === from ? to : t)))];
+                patchReservationLocal(reservation.id, { assigned_table: next });  // instant list/map update
+                await Reservation.update(reservation.id, { assigned_table: next });
+            }
+            showToast(`הועבר משולחן ${from} לשולחן ${to}`);
+            loadLiveData();
+        } catch (error) {
+            console.error('Error moving occupant:', error);
+            alert('שגיאה בהעברת השולחן');
+            loadLiveData();
+        }
+    };
+
     const handleTableClick = async (table) => {
         const tableNumber = table.table_number;
 
@@ -3043,85 +3069,12 @@ export default function SeatingSetup() {
                     מצב החלפה: בחר שולחן להחלפה עם שולחן {swapping.from}. <Button variant="ghost" size="sm" onClick={() => setSwapping(null)}>בטל</Button>
                 </div>
             )}
+            {/* The card header ("ניהול הושבה" + 5 buttons) is gone on purpose: during
+                service this screen should be the floor and nothing else. Everything it
+                held now lives in the single toolbar strip below the rail, or one level
+                down inside its ⋯ menu. */}
             <Card className={bigMapMode ? 'border-0 shadow-none bg-transparent' : ''}>
-                {!bigMapMode && (
-                <CardHeader className="pb-3">
-                    <div className="flex flex-col gap-3">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <CardTitle className="text-base sm:text-xl">ניהול הושבה</CardTitle>
-                                <CardDescription className="hidden sm:block">כל השולחנות והאלמנטים הפיזיים במסעדה.</CardDescription>
-                            </div>
-                            <div className="flex gap-1 sm:gap-2">
-                                {viewMode === 'map' && (
-                                    <Button
-                                        variant={bigMapMode ? 'default' : 'outline'}
-                                        size="sm"
-                                        onClick={() => setBigMapMode(v => !v)}
-                                        className={`hidden md:flex ${bigMapMode ? 'bg-[#A04A2E] hover:bg-[#7A3722] text-white' : ''}`}
-                                    >
-                                        <Maximize2 className="w-4 h-4 ml-1" />
-                                        {bigMapMode ? 'צא ממפה גדולה' : 'מפה גדולה'}
-                                    </Button>
-                                )}
-                                <Button variant={viewMode === 'list' ? 'secondary' : 'outline'} size="icon" className="h-9 w-9" onClick={() => { setViewMode('list'); setBigMapMode(false); }}><Edit className="w-4 h-4"/></Button>
-                                <Button variant={viewMode === 'map' ? 'secondary' : 'outline'} size="icon" className="h-9 w-9" onClick={() => setViewMode('map')}><Eye className="w-4 h-4"/></Button>
-                                {/* ⚙️ Settings — every setup action in ONE menu (scan, reservation settings, reset map) */}
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button variant="outline" size="sm" className="h-9">
-                                            <Settings className="w-4 h-4 sm:ml-1" />
-                                            <span className="hidden sm:inline text-xs">הגדרות</span>
-                                            <span className="hidden sm:inline text-[10px] opacity-60 mr-1">▾</span>
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-64" dir="rtl">
-                                        <div className="space-y-2 p-1">
-                                            <label className="flex items-center gap-2 w-full h-9 px-3 rounded-md border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 text-sm cursor-pointer">
-                                                <Sparkles className="w-4 h-4" /> סרוק מפה מתמונה (AI)
-                                                <input
-                                                    type="file"
-                                                    accept="image/*,.pdf"
-                                                    onChange={async (e) => { const file = e.target.files?.[0]; await runMapScan(file); e.target.value = ''; }}
-                                                    className="hidden"
-                                                />
-                                            </label>
-                                            <Button
-                                                variant="outline"
-                                                className="w-full justify-start h-9 bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
-                                                onClick={() => window.open(window.location.origin + '/ReservationsAnalytics', '_blank')}
-                                            >
-                                                📊 דאשבורד הזמנות
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                className="w-full justify-start h-9 bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
-                                                onClick={() => window.open(window.location.origin + '/PublicReservationSettings', '_blank')}
-                                            >
-                                                <Settings className="w-4 h-4 ml-2" /> הגדרות הזמנות
-                                            </Button>
-                                            {isAlena && (
-                                                <Button
-                                                    variant="outline"
-                                                    className="w-full justify-start h-9 text-red-700 border-red-300 hover:bg-red-50"
-                                                    onClick={createAllTables}
-                                                >
-                                                    <Wand2 className="w-4 h-4 ml-2" /> איפוס מפה
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </PopoverContent>
-                                </Popover>
-                                <Button onClick={handleSaveLayout} disabled={isSaving} size="sm">
-                                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                    <span className="hidden sm:inline mr-1">שמור</span>
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                </CardHeader>
-                )}
-                <CardContent className={bigMapMode ? 'p-0' : ''}>
+                <CardContent className={bigMapMode ? 'p-0' : 'pt-4'}>
                     {tables.length === 0 && facilities.length === 0 ? (
                         <div className="max-w-3xl mx-auto py-10 px-4">
                             <div className="text-center mb-8">
@@ -3162,8 +3115,20 @@ export default function SeatingSetup() {
                     ) : (
                         viewMode === 'list' ? (
                             <div className="space-y-4">
-                                <div className="text-sm text-gray-600 mb-4">
-                                    סה"כ: {tables.length} שולחנות | פנים: {tables.filter(t => t.location === 'indoor').length} | חוץ: {tables.filter(t => t.location === 'outdoor').length} | אלמנטים: {facilities.length}
+                                {/* The map/list toggle used to live in the card header we removed,
+                                    so list mode carries its own way back — plus save, since this
+                                    is the one view where you're always editing. */}
+                                <div className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-xl p-2 sticky top-0 z-20">
+                                    <Button variant="outline" size="sm" onClick={() => setViewMode('map')}>
+                                        <Eye className="w-4 h-4 ml-1" /> חזרה למפה
+                                    </Button>
+                                    <span className="text-[11px] text-gray-500 tabular-nums hidden sm:inline">
+                                        {tables.length} שולחנות · פנים {tables.filter(t => t.location === 'indoor').length} · חוץ {tables.filter(t => t.location === 'outdoor').length} · אלמנטים {facilities.length}
+                                    </span>
+                                    <Button onClick={handleSaveLayout} disabled={isSaving} size="sm" className={layoutDirty ? 'bg-[#A04A2E] hover:bg-[#7A3722]' : ''}>
+                                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                        <span className="mr-1">שמור</span>
+                                    </Button>
                                 </div>
                                 {tables.map((table, index) => (
                                     <div key={index} className="grid grid-cols-1 md:grid-cols-7 gap-3 items-center p-3 border rounded-lg">
@@ -3510,54 +3475,45 @@ export default function SeatingSetup() {
                                 <div className={`${bigMapMode ? 'lg:col-span-3 lg:order-2' : 'lg:col-span-2 lg:order-2'} space-y-3 ${
                                     mobileView === 'map' ? 'block' : 'hidden lg:block'
                                 }`}>
-                                    {/* UNIFIED HEADER BAR — actions, area filter, tools all in one strip */}
-                                    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-2 flex flex-wrap items-center gap-2">
-                                        {/* Section 1 — Primary actions */}
-                                        <div className="flex gap-1.5 shrink-0">
-                                            {bigMapMode && (
-                                                <button
-                                                    onClick={() => setBigMapMode(false)}
-                                                    title="צא ממצב מפה גדולה"
-                                                    className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1"
-                                                >
-                                                    <X className="w-3.5 h-3.5" />
-                                                    צא ממפה גדולה
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={() => setSmartReserveOpen(true)}
-                                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1"
-                                            >
-                                                <Plus className="w-3.5 h-3.5" />
-                                                הזמנה חדשה
-                                            </button>
-                                            <button
-                                                onClick={() => setQuickSeatOpen(true)}
-                                                className="bg-[#44512C] hover:bg-[#44512C] text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1"
-                                            >
-                                                <Plus className="w-3.5 h-3.5" />
-                                                הושבה מהירה
-                                            </button>
-                                            <button
-                                                onClick={handleAutoAssignAll}
-                                                disabled={isAutoAssigning}
-                                                title="משבץ אוטומטית את כל ההזמנות של היום שאין להן שולחן — לפי סדר העדיפות שהגדרת, בלי כפילות"
-                                                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1"
-                                            >
-                                                {isAutoAssigning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
-                                                שבץ הכל
-                                            </button>
-                                        </div>
+                                    {/* ── THE STRIP ────────────────────────────────────────────
+                                        One row. It used to be three (card header + actions +
+                                        zoom/tools), ~22 controls competing with the floor plan.
+                                        What stays visible is only what gets touched during a
+                                        service; everything an owner uses once a month is one
+                                        level down behind ⋯, and zoom floats on the map itself. */}
+                                    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-2 flex flex-wrap items-center gap-1.5">
+                                        <button
+                                            onClick={() => setSmartReserveOpen(true)}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1 shrink-0"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                            הזמנה חדשה
+                                        </button>
+                                        <button
+                                            onClick={() => setQuickSeatOpen(true)}
+                                            className="bg-[#44512C] hover:bg-[#3A4525] text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1 shrink-0"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                            הושבה מהירה
+                                        </button>
+                                        <button
+                                            onClick={handleAutoAssignAll}
+                                            disabled={isAutoAssigning}
+                                            title="משבץ אוטומטית את כל ההזמנות של היום שאין להן שולחן — לפי סדר העדיפות שהגדרת, בלי כפילות"
+                                            className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold text-xs sm:text-sm px-3 h-9 rounded-lg flex items-center gap-1 shrink-0"
+                                        >
+                                            {isAutoAssigning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                                            שבץ הכל
+                                        </button>
 
-                                        {/* Divider */}
-                                        <div className="hidden md:block h-7 w-px bg-gray-200" />
+                                        <div className="hidden md:block h-7 w-px bg-gray-200 mx-0.5" />
 
-                                        {/* Section 2 — Area filter grouped into ONE dropdown (was 8 inline buttons) */}
+                                        {/* Area filter */}
                                         <Popover>
                                             <PopoverTrigger asChild>
                                                 <Button variant="outline" size="sm" className="h-9 shrink-0">
                                                     <MapPin className="w-3.5 h-3.5 ml-1" />
-                                                    <span className="text-xs max-w-[130px] truncate">
+                                                    <span className="text-xs max-w-[110px] truncate">
                                                         {selectedAreas.includes('all') ? 'כל האזורים' : selectedAreas.join(', ')}
                                                     </span>
                                                     <span className="text-[10px] opacity-60 mr-1">▾</span>
@@ -3583,105 +3539,13 @@ export default function SeatingSetup() {
                                             </PopoverContent>
                                         </Popover>
 
-                                        {/* Spacer — pushes tools + clock to the far edge */}
-                                        <div className="flex-1 min-w-0" />
-
-                                        {/* Section 3 — ALL tools in one menu + clock */}
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                            <Popover>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant="outline" size="sm" className="h-9">
-                                                        <Wrench className="w-3.5 h-3.5 ml-1" />
-                                                        <span className="text-xs">כלים</span>
-                                                        <span className="text-[10px] opacity-60 mr-1">▾</span>
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-64" dir="rtl">
-                                                    <div className="space-y-2 p-1">
-                                                        <Button variant="outline" className="w-full justify-start h-9 border-[#D9BD83] text-[#7A3722] hover:bg-[#F4ECD8]" onClick={autoTidyArea} title="יישר את שולחנות האזור לשורות מסודרות (נשמר על הסקיצה)">
-                                                            📐 יישר שורות
-                                                        </Button>
-                                                        <Button variant="outline" className="w-full justify-start h-9 bg-[#F4ECD8] border-[#E8D9B5] text-[#44512C] hover:bg-[#F4ECD8]" onClick={() => window.open(window.location.origin + '/PublicReservation', '_blank')}>
-                                                            <Eye className="w-3.5 h-3.5 ml-1.5" /> עמוד הזמנות ציבורי
-                                                        </Button>
-                                                        <div className="border-t pt-2 mt-1 space-y-2">
-                                                            <h4 className="font-bold text-sm">הוסף אלמנט למפה</h4>
-                                                            <Select value={selectedFacilityType} onValueChange={setSelectedFacilityType}>
-                                                                <SelectTrigger>
-                                                                    <SelectValue placeholder="בחר סוג אלמנט" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {Object.entries(FACILITY_TYPES).map(([key, facility]) => (
-                                                                        <SelectItem key={key} value={key}>
-                                                                            {facility.icon} {facility.name}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                            <Button onClick={handleAddFacility} variant="outline" className="w-full">
-                                                                <Plus className="w-4 h-4 ml-2" />
-                                                                הוסף
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                </PopoverContent>
-                                            </Popover>
-                                            {/* Realtime push status — green "live" when the SSE stream is
-                                                delivering, muted "syncing" when it's on the poll fallback. */}
-                                            <div
-                                                className={`hidden sm:flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] font-bold shrink-0 border ${
-                                                    realtimeConnected
-                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                        : 'bg-gray-100 text-gray-500 border-gray-200'
-                                                }`}
-                                                title={realtimeConnected
-                                                    ? 'עדכונים בזמן אמת פעילים — הזמנות נכנסות לבד'
-                                                    : 'מסתנכרן ברקע — מתחבר מחדש'}
-                                            >
-                                                <span className={`w-2 h-2 rounded-full ${realtimeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`}></span>
-                                                {realtimeConnected ? 'חי' : 'מסתנכרן'}
-                                            </div>
-                                            {/* Clock */}
-                                            <div className="hidden sm:block text-center px-2.5 py-1 bg-gradient-to-bl from-slate-900 to-slate-700 text-white rounded-lg shrink-0">
-                                                <div className="text-base font-black tabular-nums leading-none">{format(clockTick, 'HH:mm')}</div>
-                                                <div className="text-[9px] opacity-80 mt-0.5">{format(clockTick, 'EEE dd/MM', { locale: he })}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Zoom + map controls. This was a single non-wrapping row of a
-                                        fixed width, so on an iPhone the right-hand controls (יישר מפה,
-                                        שרטוט, AI) simply ran off the screen with no way to reach them.
-                                        Wraps on small screens, scrolls horizontally as a last resort. */}
-                                    <div className="flex flex-wrap items-center gap-1 bg-white border rounded-lg p-1 shadow-sm w-full sm:w-fit max-w-full overflow-x-auto">
-                                        <button
-                                            onClick={() => setMapZoom(z => Math.max(0.2, z - 0.1))}
-                                            className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100"
-                                            title="הקטן"
-                                        ><ZoomOut className="w-4 h-4"/></button>
-                                        <button
-                                            onClick={() => {
-                                                // התאם למסך: phone→0.32, tablet→0.55, desktop→1.0
-                                                const w = typeof window !== 'undefined' ? window.innerWidth : 1280;
-                                                setMapZoom(w < 500 ? 0.32 : w < 900 ? 0.55 : 1);
-                                            }}
-                                            className="px-2 h-8 text-xs font-bold hover:bg-gray-100 rounded min-w-[3rem]"
-                                            title="התאם למסך"
-                                        >{Math.round(mapZoom * 100)}%</button>
-                                        <button
-                                            onClick={() => setMapZoom(z => Math.min(1.6, z + 0.1))}
-                                            className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100"
-                                            title="הגדל"
-                                        ><ZoomIn className="w-4 h-4"/></button>
-                                        <span className="text-[10px] text-gray-400 mr-2 hidden md:inline">גרור לתזוזה</span>
-                                        <span className="w-px h-5 bg-gray-200 mx-1"></span>
-
-                                        {/* HOSTESS LENS — "where can I seat them, and for how long?" as one
-                                            menu instead of a row of chips, so the runway thresholds all fit. */}
+                                        {/* Hostess lens — promoted out of the old zoom strip; it answers
+                                            "where can I seat them, and for how long?", which is a service
+                                            question, not a layout one. */}
                                         <select
                                             value={mapFilter}
                                             onChange={(e) => setMapFilter(e.target.value)}
-                                            className={`text-[10px] font-bold rounded px-1.5 py-1 border transition-colors ${
+                                            className={`h-9 text-xs font-bold rounded-lg px-2 border transition-colors shrink-0 ${
                                                 mapFilter === 'all'
                                                     ? 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                                                     : 'bg-[#A04A2E] text-white border-[#A04A2E]'
@@ -3699,70 +3563,154 @@ export default function SeatingSetup() {
                                             <option value="arriving">מגיעים בשעה הקרובה</option>
                                         </select>
 
-                                        {/* How many bookings each card lists */}
-                                        <span className="text-[10px] text-gray-400 mr-1 hidden md:inline">שורות</span>
-                                        <select
-                                            value={rowsPerTable}
-                                            onChange={(e) => setRowsPerTable(parseInt(e.target.value, 10))}
-                                            className="text-[10px] font-bold border border-gray-200 rounded px-1 py-1 bg-white text-gray-600 hover:border-gray-400"
-                                            title="כמה הזמנות להציג בכל שולחן"
+                                        <div className="flex-1 min-w-0" />
+
+                                        {/* Unlocked map is a state you must not forget you're in — a stray
+                                            drag on a tablet silently relocates a table. It gets a loud chip
+                                            with its own way out, instead of a toggle buried in a strip. */}
+                                        {!mapLocked && (
+                                            <div className="flex items-center gap-1.5 h-9 px-2 rounded-lg bg-amber-50 border border-amber-300 text-amber-800 text-[11px] font-bold shrink-0">
+                                                🔓 עריכה פתוחה
+                                                <button
+                                                    onClick={() => setMapLocked(true)}
+                                                    className="bg-amber-500 hover:bg-amber-600 text-white rounded px-2 py-0.5"
+                                                >סיים</button>
+                                            </div>
+                                        )}
+
+                                        {layoutDirty && (
+                                            <Button
+                                                onClick={handleSaveLayout}
+                                                disabled={isSaving}
+                                                size="sm"
+                                                className="h-9 bg-[#A04A2E] hover:bg-[#7A3722] shrink-0"
+                                                title="יש שינויים במפה שלא נשמרו"
+                                            >
+                                                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                                <span className="mr-1 text-xs">שמור</span>
+                                            </Button>
+                                        )}
+
+                                        <button
+                                            onClick={() => setBigMapMode(v => !v)}
+                                            title={bigMapMode ? 'צא ממצב מפה גדולה' : 'מפה גדולה'}
+                                            className={`hidden md:flex h-9 w-9 items-center justify-center rounded-lg border shrink-0 ${
+                                                bigMapMode
+                                                    ? 'bg-zinc-900 text-white border-zinc-900'
+                                                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                                            }`}
                                         >
-                                            {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
-                                        </select>
-                                        <span className="w-px h-5 bg-gray-200 mx-1"></span>
-                                        {/* Lock is the primary control during service — first, and unmissable. */}
-                                        <button
-                                            onClick={() => setMapLocked(v => !v)}
-                                            className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
-                                                mapLocked
-                                                    ? 'bg-emerald-600 text-white border border-emerald-600'
-                                                    : 'bg-amber-500 text-white border border-amber-500 animate-pulse'
-                                            }`}
-                                            title={mapLocked
-                                                ? 'המפה נעולה — אי אפשר להזיז שולחנות בטעות. לחץ כדי לפתוח לעריכה'
-                                                : 'המפה פתוחה לעריכה — שולחנות ניתנים לגרירה. לחץ כדי לנעול'}
-                                        >{mapLocked ? '🔒 נעול' : '🔓 עריכה'}</button>
-                                        <button
-                                            onClick={() => setShowZoneColors(v => !v)}
-                                            className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
-                                                showZoneColors ? 'bg-white text-gray-600 border border-gray-200 hover:border-gray-400' : 'bg-zinc-800 text-white border border-zinc-800'
-                                            } ${showMapTools ? '' : 'hidden md:inline-block'}`}
-                                            title="הצג/הסתר את צבעי האזורים ברקע"
-                                        >🎨 {showZoneColors ? 'צבעים' : 'ללא צבע'}</button>
-                                        {/* On a phone only the controls used DURING service stay out
-                                            (lock + runway filter + rows); the layout tools live behind
-                                            one button so the strip stops wrapping into three rows. */}
-                                        <button
-                                            onClick={() => setShowMapTools(v => !v)}
-                                            className={`md:hidden text-[10px] font-bold px-2 py-1 rounded border transition-colors ${
-                                                showMapTools ? 'bg-zinc-800 text-white border-zinc-800' : 'bg-white text-gray-600 border-gray-200'
-                                            }`}
-                                        >🛠 עריכת מפה {showMapTools ? '▲' : '▼'}</button>
-                                        <button
-                                            onClick={handleTidyMap}
-                                            className={`${showMapTools ? '' : 'hidden md:inline-block'} text-[10px] font-bold px-2 py-1 rounded transition-colors bg-white text-gray-600 border border-gray-200 hover:border-[#A04A2E] hover:text-[#A04A2E]`}
-                                            title="הצמד את כל השולחנות לרשת, גודל אחיד, וכל אזור כבלוק נפרד בלי חפיפה"
-                                        >📐 יישר מפה</button>
-                                        <button
-                                            onClick={handleAddCustomFacility}
-                                            className={`${showMapTools ? '' : 'hidden md:inline-block'} text-[10px] font-bold px-2 py-1 rounded transition-colors bg-white text-gray-600 border border-gray-200 hover:border-[#A04A2E] hover:text-[#A04A2E]`}
-                                            title="הוסף אלמנט משלך למפה — עמדת מארחת, עמוד, ויטרינה…"
-                                        >➕ אלמנט</button>
-                                        <button
-                                            onClick={() => setShowBlueprint(v => !v)}
-                                            className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
-                                                showBlueprint ? 'bg-zinc-900 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-400'
-                                            } ${showMapTools ? '' : 'hidden md:inline-block'}`}
-                                            title="הצג/הסתר שרטוט רקע"
-                                        >🗺️ שרטוט</button>
-                                        <button
-                                            onClick={() => setIsSmartMapMode(v => !v)}
-                                            className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
-                                                isSmartMapMode ? 'bg-[#A04A2E] text-white' : 'bg-white text-gray-500 border border-gray-200 hover:border-indigo-400'
-                                            }`}
-                                            title="הצג המלצות AI"
-                                        >✨ AI</button>
+                                            {bigMapMode ? <X className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                                        </button>
+
+                                        {/* ⋯ — display / map-editing / settings, all one level down */}
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" size="sm" className="h-9 w-9 p-0 shrink-0" title="עוד">
+                                                    <span className="text-lg leading-none">⋯</span>
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-72 max-h-[75vh] overflow-y-auto" dir="rtl">
+                                                <div className="p-1">
+                                                    <div className="text-[10px] font-bold text-gray-400 px-2 mb-1">תצוגה</div>
+                                                    <div className={MENU_ROW}>
+                                                        <select
+                                                            value={rowsPerTable}
+                                                            onChange={(e) => setRowsPerTable(parseInt(e.target.value, 10))}
+                                                            className="text-xs font-bold border border-gray-200 rounded px-1.5 py-1 bg-white"
+                                                        >
+                                                            {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}</option>)}
+                                                        </select>
+                                                        <span>שורות בכל כרטיס</span>
+                                                    </div>
+                                                    <button className={MENU_ROW} onClick={() => setShowZoneColors(v => !v)}>
+                                                        <span className={showZoneColors ? MENU_ON : MENU_OFF}>{showZoneColors ? 'פעיל' : 'כבוי'}</span>
+                                                        <span>🎨 צבעי אזורים</span>
+                                                    </button>
+                                                    <button className={MENU_ROW} onClick={() => setShowBlueprint(v => !v)}>
+                                                        <span className={showBlueprint ? MENU_ON : MENU_OFF}>{showBlueprint ? 'פעיל' : 'כבוי'}</span>
+                                                        <span>🗺️ שרטוט רקע</span>
+                                                    </button>
+                                                    <button className={MENU_ROW} onClick={() => setIsSmartMapMode(v => !v)}>
+                                                        <span className={isSmartMapMode ? MENU_ON : MENU_OFF}>{isSmartMapMode ? 'פעיל' : 'כבוי'}</span>
+                                                        <span>✨ המלצות AI על המפה</span>
+                                                    </button>
+
+                                                    <div className="text-[10px] font-bold text-gray-400 px-2 mt-3 mb-1 border-t pt-2">עריכת מפה</div>
+                                                    <button className={MENU_ROW} onClick={() => setMapLocked(v => !v)}>
+                                                        <span className={!mapLocked ? MENU_ON : MENU_OFF}>{mapLocked ? 'נעול' : 'פתוח'}</span>
+                                                        <span>{mapLocked ? '🔒 פתח לגרירת שולחנות' : '🔓 נעל את המפה'}</span>
+                                                    </button>
+                                                    <button className={MENU_ROW} onClick={handleTidyMap} title="הצמד את כל השולחנות לרשת, גודל אחיד, וכל אזור כבלוק נפרד בלי חפיפה">
+                                                        <span /><span>📐 יישר מפה</span>
+                                                    </button>
+                                                    <button className={MENU_ROW} onClick={autoTidyArea} title="יישר את שולחנות האזור לשורות מסודרות">
+                                                        <span /><span>📏 יישר שורות באזור</span>
+                                                    </button>
+                                                    <button className={MENU_ROW} onClick={handleAddCustomFacility} title="עמדת מארחת, עמוד, ויטרינה…">
+                                                        <span /><span>➕ הוסף אלמנט משלך</span>
+                                                    </button>
+                                                    <div className="flex gap-1.5 px-2 py-1.5">
+                                                        <Select value={selectedFacilityType} onValueChange={setSelectedFacilityType}>
+                                                            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="סוג אלמנט" /></SelectTrigger>
+                                                            <SelectContent>
+                                                                {Object.entries(FACILITY_TYPES).map(([key, facility]) => (
+                                                                    <SelectItem key={key} value={key}>{facility.icon} {facility.name}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <Button onClick={handleAddFacility} variant="outline" size="sm" className="h-9 shrink-0">הוסף</Button>
+                                                    </div>
+                                                    <button className={MENU_ROW} onClick={() => { setViewMode('list'); setBigMapMode(false); }}>
+                                                        <span /><span>✏️ עריכת רשימת השולחנות</span>
+                                                    </button>
+                                                    <button className={MENU_ROW} onClick={handleSaveLayout} disabled={isSaving}>
+                                                        <span className={layoutDirty ? MENU_ON : MENU_OFF}>{layoutDirty ? 'יש שינויים' : 'שמור'}</span>
+                                                        <span>💾 שמור מפה</span>
+                                                    </button>
+
+                                                    <div className="text-[10px] font-bold text-gray-400 px-2 mt-3 mb-1 border-t pt-2">הגדרות</div>
+                                                    <label className={`${MENU_ROW} cursor-pointer`}>
+                                                        <span /><span>✨ סרוק מפה מתמונה (AI)</span>
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*,.pdf"
+                                                            onChange={async (e) => { const file = e.target.files?.[0]; await runMapScan(file); e.target.value = ''; }}
+                                                            className="hidden"
+                                                        />
+                                                    </label>
+                                                    <button className={MENU_ROW} onClick={() => window.open(window.location.origin + '/PublicReservationSettings', '_blank')}>
+                                                        <span /><span>⚙️ הגדרות הזמנות</span>
+                                                    </button>
+                                                    <button className={MENU_ROW} onClick={() => window.open(window.location.origin + '/ReservationsAnalytics', '_blank')}>
+                                                        <span /><span>📊 דאשבורד הזמנות</span>
+                                                    </button>
+                                                    <button className={MENU_ROW} onClick={() => window.open(window.location.origin + '/PublicReservation', '_blank')}>
+                                                        <span /><span>👁 עמוד הזמנות ציבורי</span>
+                                                    </button>
+                                                    {isAlena && (
+                                                        <button className={`${MENU_ROW} text-red-700 hover:bg-red-50`} onClick={createAllTables}>
+                                                            <span /><span>♻️ איפוס מפה</span>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+
+                                        {/* Live-push status + clock, merged into one chip so the strip's
+                                            far edge is a single object instead of two. */}
+                                        <div
+                                            className="hidden sm:flex items-center gap-2 pr-2 pl-2.5 h-9 bg-gradient-to-bl from-slate-900 to-slate-700 text-white rounded-lg shrink-0"
+                                            title={realtimeConnected
+                                                ? 'עדכונים בזמן אמת פעילים — הזמנות נכנסות לבד'
+                                                : 'מסתנכרן ברקע — מתחבר מחדש'}
+                                        >
+                                            <span className={`w-2 h-2 rounded-full ${realtimeConnected ? 'bg-emerald-400 animate-pulse' : 'bg-gray-400'}`}></span>
+                                            <span className="text-sm font-bold tabular-nums leading-none">{format(clockTick, 'HH:mm')}</span>
+                                            <span className="text-[9px] opacity-70 leading-none">{format(clockTick, 'EEE dd/MM', { locale: he })}</span>
+                                        </div>
                                     </div>
+
                                     {/* ── PHONE VIEW ────────────────────────────────────────────
                                         A 1400×850 spatial canvas can't be operated on a 375px screen:
                                         tables end up 30px wide, some are unreachable, and rotating
@@ -3808,29 +3756,57 @@ export default function SeatingSetup() {
                                                     {open && (
                                                         <div className="divide-y">
                                                             {info.map(({ t, sess, seated, next, cleaning, busy }) => (
-                                                                <button
-                                                                    key={t.table_number}
-                                                                    onClick={() => showTableDetails(t)}
-                                                                    className="w-full flex items-center gap-3 px-3 py-3 text-right active:bg-gray-50"
-                                                                >
-                                                                    <span className={`w-11 h-11 shrink-0 rounded-lg flex items-center justify-center font-semibold text-[15px] tabular-nums ${
-                                                                        busy ? 'bg-green-100 text-green-900 border border-green-400'
-                                                                        : cleaning ? 'bg-slate-200 text-slate-700 border border-slate-400 border-dashed'
-                                                                        : 'bg-white text-gray-800 border'
-                                                                    }`}>{t.table_number}</span>
-                                                                    <span className="flex-1 min-w-0">
-                                                                        <span className="block text-[14px] font-medium truncate">
-                                                                            {busy ? (getFirstName(sess?.customer_name || seated?.customer_name) || 'תפוס')
-                                                                                : cleaning ? '🧹 ממתין לניקוי' : 'פנוי'}
+                                                                <div key={t.table_number} className="flex items-stretch">
+                                                                    <button
+                                                                        onClick={() => showTableDetails(t)}
+                                                                        className="flex-1 min-w-0 flex items-center gap-3 px-3 py-3 text-right active:bg-gray-50"
+                                                                    >
+                                                                        <span className={`w-11 h-11 shrink-0 rounded-lg flex items-center justify-center font-semibold text-[15px] tabular-nums ${
+                                                                            busy ? 'bg-green-100 text-green-900 border border-green-400'
+                                                                            : cleaning ? 'bg-slate-200 text-slate-700 border border-slate-400 border-dashed'
+                                                                            : 'bg-white text-gray-800 border'
+                                                                        }`}>{t.table_number}</span>
+                                                                        <span className="flex-1 min-w-0">
+                                                                            <span className="block text-[14px] font-medium truncate">
+                                                                                {busy ? (getFirstName(sess?.customer_name || seated?.customer_name) || 'תפוס')
+                                                                                    : cleaning ? '🧹 ממתין לניקוי' : 'פנוי'}
+                                                                            </span>
+                                                                            <span className="block text-[12px] text-gray-500 truncate tabular-nums" dir="rtl">
+                                                                                {t.min_capacity}-{t.max_capacity} סועדים
+                                                                                {busy && seated?.reservation_end_time ? ` · עד ${seated.reservation_end_time}` : ''}
+                                                                                {next ? ` · הבא ${next.time.slice(0, 5)} ${getFirstName(next.customer_name) || ''}` : (!busy && !cleaning ? ' · כל הערב' : '')}
+                                                                            </span>
                                                                         </span>
-                                                                        <span className="block text-[12px] text-gray-500 truncate tabular-nums" dir="rtl">
-                                                                            {t.min_capacity}-{t.max_capacity} סועדים
-                                                                            {busy && seated?.reservation_end_time ? ` · עד ${seated.reservation_end_time}` : ''}
-                                                                            {next ? ` · הבא ${next.time.slice(0, 5)} ${getFirstName(next.customer_name) || ''}` : (!busy && !cleaning ? ' · כל הערב' : '')}
-                                                                        </span>
-                                                                    </span>
-                                                                    <span className="text-gray-300 text-lg shrink-0">‹</span>
-                                                                </button>
+                                                                        <span className="text-gray-300 text-lg shrink-0">‹</span>
+                                                                    </button>
+                                                                    {/* On a phone this list IS the map, so moving a party has to
+                                                                        live right next to the table — not three taps deep inside
+                                                                        the table-details dialog. */}
+                                                                    {(busy || next) && (
+                                                                        <button
+                                                                            onClick={() => setMoveSheet(busy
+                                                                                ? {
+                                                                                    from: t.table_number,
+                                                                                    name: getFirstName(sess?.customer_name || seated?.customer_name) || 'האורחים',
+                                                                                    partySize: sess?.party_size || seated?.party_size || 0,
+                                                                                    reservation: seated || null,
+                                                                                    upcoming: false,
+                                                                                }
+                                                                                : {
+                                                                                    from: t.table_number,
+                                                                                    name: getFirstName(next.customer_name) || 'ההזמנה',
+                                                                                    partySize: next.party_size || 0,
+                                                                                    reservation: next,
+                                                                                    upcoming: true,
+                                                                                })}
+                                                                            className="shrink-0 w-16 border-r border-gray-100 flex flex-col items-center justify-center gap-0.5 text-[#A04A2E] active:bg-[#F4ECD8]"
+                                                                            title={busy ? 'העבר את היושבים לשולחן אחר' : 'העבר את ההזמנה הקרובה לשולחן אחר'}
+                                                                        >
+                                                                            <span className="text-lg leading-none">🔀</span>
+                                                                            <span className="text-[10px] font-semibold">העבר</span>
+                                                                        </button>
+                                                                    )}
+                                                                </div>
                                                             ))}
                                                         </div>
                                                     )}
@@ -3839,7 +3815,9 @@ export default function SeatingSetup() {
                                         })}
                                     </div>
 
-                                    <div className="hidden md:block w-full border rounded-lg bg-gray-100 overscroll-contain" style={{
+                                    {/* Relative shell so the zoom control can float ON the map. */}
+                                    <div className="hidden md:block relative">
+                                    <div className="w-full border rounded-lg bg-gray-100 overscroll-contain" style={{
                                         // Bounded scroll inside the card; iOS momentum + horizontal+vertical pan.
                                         height: bigMapMode ? 'calc(100vh - 110px)' : '70vh',
                                         minHeight: '55vh',
@@ -4422,18 +4400,53 @@ export default function SeatingSetup() {
                                         );
                                     })}
                                         
-                                        <div className="absolute bottom-2 left-2 text-[11px] text-gray-700 bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg shadow-sm border border-gray-200 flex items-center gap-x-2.5 gap-y-1 flex-wrap max-w-[95%]">
-                                            <span className="text-gray-400">🖱️ גרור / לחץ</span>
-                                            <span className="w-px h-3 bg-gray-300"></span>
-                                            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-white border-emerald-300 inline-block"></span>פנוי</span>
-                                            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-[#FAF5E8] border-yellow-400 inline-block"></span>שמור</span>
-                                            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-green-100 border-green-500 inline-block"></span>יושבים</span>
-                                            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-amber-200 border-amber-500 inline-block"></span>מסיים</span>
-                                            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-[#A04A2E] border-rose-700 inline-block"></span>חריגה</span>
-                                        </div>
+                                        {/* Legend, collapsed by default — you learn five colours once,
+                                            then it's just a bar sitting on the floor plan forever. */}
+                                        <button
+                                            onClick={() => setLegendOpen(v => !v)}
+                                            className="absolute bottom-2 left-2 text-[11px] text-gray-700 bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg shadow-sm border border-gray-200 flex items-center gap-x-2.5 gap-y-1 flex-wrap max-w-[95%]"
+                                        >
+                                            <span className="text-gray-400">מקרא {legendOpen ? '▾' : '▸'}</span>
+                                            {legendOpen && (
+                                                <>
+                                                    <span className="w-px h-3 bg-gray-300"></span>
+                                                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-white border-emerald-300 inline-block"></span>פנוי</span>
+                                                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-[#FAF5E8] border-yellow-400 inline-block"></span>שמור</span>
+                                                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-green-100 border-green-500 inline-block"></span>יושבים</span>
+                                                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-amber-200 border-amber-500 inline-block"></span>מסיים</span>
+                                                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border-2 bg-[#A04A2E] border-rose-700 inline-block"></span>חריגה</span>
+                                                    <span className="text-gray-400">🖱️ גרור / לחץ</span>
+                                                </>
+                                            )}
+                                        </button>
                                     </div> {/* close inner map */}
                                     </div> {/* close dimensional wrapper */}
                                     </div> {/* close overflow scroll wrapper */}
+
+                                    {/* Zoom floats on the map, where every map app puts it — it was
+                                        eating three slots in a toolbar strip that had none to spare. */}
+                                    <div className="absolute top-3 left-3 z-30 flex flex-col bg-white/95 backdrop-blur border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                                        <button
+                                            onClick={() => setMapZoom(z => Math.min(1.6, z + 0.1))}
+                                            className="w-9 h-9 flex items-center justify-center hover:bg-gray-100 text-gray-700"
+                                            title="הגדל"
+                                        ><ZoomIn className="w-4 h-4" /></button>
+                                        <button
+                                            onClick={() => {
+                                                // התאם למסך: phone→0.32, tablet→0.55, desktop→1.0
+                                                const w = typeof window !== 'undefined' ? window.innerWidth : 1280;
+                                                setMapZoom(w < 500 ? 0.32 : w < 900 ? 0.55 : 1);
+                                            }}
+                                            className="w-9 h-7 text-[10px] font-bold tabular-nums border-y border-gray-200 hover:bg-gray-100 text-gray-600"
+                                            title="התאם למסך"
+                                        >{Math.round(mapZoom * 100)}%</button>
+                                        <button
+                                            onClick={() => setMapZoom(z => Math.max(0.2, z - 0.1))}
+                                            className="w-9 h-9 flex items-center justify-center hover:bg-gray-100 text-gray-700"
+                                            title="הקטן"
+                                        ><ZoomOut className="w-4 h-4" /></button>
+                                    </div>
+                                    </div> {/* close relative map shell */}
                                 </div>
                             </div>
                             </>
@@ -4505,6 +4518,53 @@ export default function SeatingSetup() {
                         <ReservationTool customers={customers} onReservationCreated={() => { loadLiveData(); setSmartReserveOpen(false); }} />
                     </DialogContent>
                 </Dialog>
+            )}
+
+            {/* 🔀 העבר — from the phone area list, which is the map on a phone. */}
+            {moveSheet && (
+                <Sheet open onOpenChange={(o) => { if (!o) setMoveSheet(null); }}>
+                    <SheetContent side="bottom" className="h-[80vh] rounded-t-2xl overflow-y-auto overscroll-contain p-4" dir="rtl">
+                        <SheetHeader className="text-right">
+                            <SheetTitle className="text-base">
+                                העברת {moveSheet.name} משולחן {moveSheet.from}
+                            </SheetTitle>
+                        </SheetHeader>
+                        <p className="text-[12px] text-gray-500 mt-1 mb-3">
+                            {moveSheet.upcoming ? 'הזמנה קרובה — ' : ''}
+                            {moveSheet.partySize ? `${moveSheet.partySize} סועדים · ` : ''}
+                            בחר שולחן יעד. שולחנות תפוסים מסומנים ולא ניתנים לבחירה.
+                        </p>
+                        {(() => {
+                            const today = format(new Date(), 'yyyy-MM-dd');
+                            const busyNums = tables
+                                .filter(x => {
+                                    const n = String(x.table_number);
+                                    if (n === String(moveSheet.from)) return false;
+                                    if (getTableSession(n)) return true;
+                                    return reservations.some(r => Array.isArray(r.assigned_table)
+                                        && r.assigned_table.map(String).includes(n)
+                                        && r.date === today && r.status === 'seated');
+                                })
+                                .map(x => x.table_number);
+                            return (
+                                <ZoneTablePicker
+                                    inline
+                                    allowNone={false}
+                                    tables={tables}
+                                    value=""
+                                    partySize={moveSheet.partySize}
+                                    busyTableNumbers={busyNums}
+                                    excludeTableNumbers={[moveSheet.from]}
+                                    onChange={async (target) => {
+                                        const payload = moveSheet;
+                                        setMoveSheet(null);
+                                        await moveOccupantToTable(payload.from, target, payload.upcoming ? payload.reservation : null);
+                                    }}
+                                />
+                            );
+                        })()}
+                    </SheetContent>
+                </Sheet>
             )}
 
             {quickSeatOpen && (
