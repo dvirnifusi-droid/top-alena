@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Customer } from '@/entities/Customer';
+import CustomerTagsEditor from '@/components/shared/CustomerTagsEditor';
 import { TableSession } from '@/entities/TableSession';
 import { CustomerBenefit } from '@/entities/CustomerBenefit';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -222,8 +223,16 @@ export default function CustomerDetailsPage() {
                         </div>
                     </CardHeader>
                     {/* Inline edit for birthday/anniversary */}
-                    <CardContent className="pt-0">
+                    <CardContent className="pt-0 space-y-4">
                         <CelebrationsEditor customer={customer} onUpdate={(patch) => setCustomer({ ...customer, ...patch })} />
+                        {/* Allergies + seating preferences. Same component the hostess
+                            uses on the seating page — this page could neither show nor
+                            edit them, so anything recorded mid-service was invisible
+                            to whoever later opened the customer's card. */}
+                        <CustomerTagsEditor
+                            customer={customer}
+                            onSaved={(tags) => setCustomer({ ...customer, tags })}
+                        />
                     </CardContent>
                 </Card>
 

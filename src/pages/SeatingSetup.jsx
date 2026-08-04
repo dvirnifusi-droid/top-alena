@@ -168,18 +168,23 @@ function DepositSection({ reservation, onDone }) {
 // last 9 digits so a reservation still finds its club record.
 const phoneKey = (p) => String(p || '').replace(/\D/g, '').slice(-9);
 
-function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, reservations, customers = [] }) {
+function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, reservations }) {
     const [editedReservation, setEditedReservation] = useState(null);
 
-    const customer = useMemo(() => {
-        if (!reservation) return null;
-        if (reservation.customer_id) {
-            const byId = customers.find(c => c.id === reservation.customer_id);
-            if (byId) return byId;
-        }
-        const k = phoneKey(reservation.customer_phone);
-        return k ? customers.find(c => phoneKey(c.phone) === k) || null : null;
-    }, [reservation, customers]);
+    // One guest, fetched when the sheet opens. This used to be a .find() over the
+    // entire customer table, which is why the page loaded all 19k of them.
+    const [customer, setCustomer] = useState(null);
+    useEffect(() => {
+        if (!open || !reservation) { setCustomer(null); return; }
+        let alive = true;
+        base44.functions.getCustomerFull({
+            customer_id: reservation.customer_id || null,
+            phone: reservation.customer_phone || null,
+        })
+            .then(res => { if (alive) setCustomer((res?.data || res || {}).customer || null); })
+            .catch(() => { if (alive) setCustomer(null); });
+        return () => { alive = false; };
+    }, [open, reservation]);
 
     useEffect(() => {
         if (reservation) {
@@ -549,7 +554,10 @@ export default function SeatingSetup() {
     const [activeSessions, setActiveSessions] = useState([]);
     const [serviceSteps, setServiceSteps] = useState([]);
     const [reservations, setReservations] = useState([]);
-    const [customers, setCustomers] = useState([]);
+    // phoneKey(last 9 digits) -> visit count, for the "returning guest" markers.
+    // Replaced a full Customer.list() (19k rows / 15.4 MB) on every page load.
+    const [visitsByPhone, setVisitsByPhone] = useState({});
+    const visitsFor = (phone) => visitsByPhone[phoneKey(phone)] || 0;
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [viewMode, setViewMode] = useState('map');
@@ -671,12 +679,14 @@ export default function SeatingSetup() {
         if (!initialLoadedRef.current) setIsLoading(true);
         try {
             const dateString = format(selectedDate, 'yyyy-MM-dd');
-            const [layouts, sessions, steps, dateReservations, allCustomers] = await Promise.all([
+            // NOTE: no Customer.list() here. It was 19,296 rows / 15.4 MB / 1.6s on
+            // every load of this page, for three features that each need a visit
+            // count or one record. See loadCustomerVisits below.
+            const [layouts, sessions, steps, dateReservations] = await Promise.all([
                 SeatingLayout.list(),
                 TableSession.filter({ status: 'active' }),
                 ServiceStep.list('step_number'),
                 Reservation.filter({ date: dateString }, 'time'),
-                Customer.list()
             ]);
             
             if (layouts.length > 0) {
@@ -699,7 +709,6 @@ export default function SeatingSetup() {
             setActiveSessions(sessions);
             setServiceSteps(steps);
             setReservations((dateReservations || []).map(r => ({ ...r, date: typeof r.date === 'string' ? r.date.slice(0, 10) : r.date })));
-            setCustomers(allCustomers);
         } catch (error) {
             console.error('Error loading layout:', error);
         } finally {
@@ -764,13 +773,21 @@ export default function SeatingSetup() {
     // hot path — loaded once on mount (via loadLayout) and refreshed on a slow
     // 5-minute cadence so returning-guest badges stay reasonably fresh without
     // taxing every seating action.
-    const loadCustomers = useCallback(async () => {
+    // Only the visit counts, and only for numbers actually on screen today —
+    // a few hundred, a few KB. Everything that used the full customer table here
+    // was really asking one question: "has this guest been here before?"
+    const loadCustomerVisits = useCallback(async (phones) => {
+        const list = [...new Set((phones || []).filter(Boolean).map(String))];
+        if (!list.length) return;
         try {
-            const all = await Customer.list();
-            const next = all || [];
-            setCustomers(prev => fingerprintCustomers(prev) === fingerprintCustomers(next) ? prev : next);
+            const res = await base44.functions.getCustomerVisitsByPhones({ phones: list });
+            const map = (res?.data || res || {}).visits || {};
+            setVisitsByPhone(prev => {
+                const merged = { ...prev, ...map };
+                return JSON.stringify(merged) === JSON.stringify(prev) ? prev : merged;
+            });
         } catch (error) {
-            console.error('Error loading customers:', error);
+            console.error('Error loading customer visits:', error);
         }
     }, []);
 
@@ -798,11 +815,19 @@ export default function SeatingSetup() {
         };
     }, [loadLiveData, realtimeConnected]);
 
-    // Slow refresh of the rarely-changing customers table — off the action path.
+    // Fetch visit counts for exactly the numbers on screen, and only when that set
+    // actually changes — not on a timer. A guest's visit count doesn't move while
+    // you're looking at the map.
+    const phoneSetKey = [
+        ...new Set([
+            ...(reservations || []).map(r => phoneKey(r.customer_phone)),
+            ...(queueEntries || []).map(q => phoneKey(q.phone)),
+        ].filter(Boolean)),
+    ].sort().join(',');
     useEffect(() => {
-        const interval = setInterval(loadCustomers, 5 * 60000);
-        return () => clearInterval(interval);
-    }, [loadCustomers]);
+        if (!phoneSetKey) return;
+        loadCustomerVisits(phoneSetKey.split(','));
+    }, [phoneSetKey, loadCustomerVisits]);
 
     // The 'voice:data-changed' useEffect moved further down — AFTER loadQueue
     // is declared (otherwise TDZ error 'Cannot access loadQueue before init').
@@ -1810,8 +1835,7 @@ export default function SeatingSetup() {
         const statusConfig = getReservationStatusConfig(reservation.status, reservation.assigned_table);
         const customerInfo = reservation.customer_name || `לקוח ${reservation.id?.slice(-4)}`;
 
-        const customer = customers.find(c => c.phone === reservation.customer_phone);
-        const isReturning = customer && customer.total_visits > 1;
+        const isReturning = visitsFor(reservation.customer_phone) > 1;
         const flag = reservation.hostess_flag || '';
         const flagMeta = FLAG_CONFIGS[flag];
 
@@ -3423,7 +3447,7 @@ export default function SeatingSetup() {
                                         : 'hidden lg:block'
                                 }`}>
                                     <ReservationsDashboard />
-                                    <ReservationTool customers={customers} onReservationCreated={loadLayout} />
+                                    <ReservationTool onReservationCreated={loadLayout} />
                                 </div>
                                 )}
 
@@ -3503,7 +3527,7 @@ export default function SeatingSetup() {
                                                 reservations={reservations}
                                                 activeSessions={activeSessions}
                                                 queueEntries={queueEntries}
-                                                customers={customers}
+                                                visitsByPhone={visitsByPhone}
                                                 combos={combos}
                                                 onSeatReservation={async (tableNums, reservationId) => {
                                                     if (!reservationId || !tableNums?.length) return;
@@ -3589,7 +3613,7 @@ export default function SeatingSetup() {
                                     {/* Collapsible Smart Booker */}
                                     {smartBookerOpen && (
                                         <div className="bg-[#F4ECD8] border border-[#E8D9B5] rounded-lg p-2">
-                                            <ReservationTool customers={customers} onReservationCreated={() => { loadLiveData(); setSmartBookerOpen(false); }} />
+                                            <ReservationTool onReservationCreated={() => { loadLiveData(); setSmartBookerOpen(false); }} />
                                         </div>
                                     )}
 
@@ -4656,7 +4680,7 @@ export default function SeatingSetup() {
                         onUpdate={handleUpdateReservation}
                         tables={tables}
                         reservations={reservations}
-                        customers={customers}
+                        visitsByPhone={visitsByPhone}
                     />
                 </CardContent>
             </Card>
@@ -4682,7 +4706,7 @@ export default function SeatingSetup() {
                             reservations={reservations}
                             activeSessions={activeSessions}
                             queueEntries={queueEntries}
-                            customers={customers}
+                            visitsByPhone={visitsByPhone}
                             onSwitchToListMode={() => { setViewMode('list'); setBigMapMode(false); setAiOpen(false); }}
                             prefillQuestion={aiPrefillQuestion}
                             onClose={() => { setAiOpen(false); setAiPrefillQuestion(''); }}
@@ -4701,7 +4725,7 @@ export default function SeatingSetup() {
                         <DialogHeader>
                             <DialogTitle>הזמנה חדשה</DialogTitle>
                         </DialogHeader>
-                        <ReservationTool customers={customers} onReservationCreated={() => { loadLiveData(); setSmartReserveOpen(false); }} />
+                        <ReservationTool onReservationCreated={() => { loadLiveData(); setSmartReserveOpen(false); }} />
                     </DialogContent>
                 </Dialog>
             )}
@@ -4979,7 +5003,7 @@ export default function SeatingSetup() {
                         </div>
                         <div className="space-y-4">
                             <ReservationsDashboard />
-                            <ReservationTool customers={customers} onReservationCreated={loadLayout} />
+                            <ReservationTool onReservationCreated={loadLayout} />
                         </div>
                     </div>
                 </div>
@@ -5851,7 +5875,7 @@ function QueueApprovalBanner({ banner, onApprove, onReject, onDismiss, onOpenTab
 //   - Returning customer in queue → suggest area
 //   - Critical wait times in queue
 //   - Empty hot zone in busy hour
-function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, customers, combos, onSwitchToListMode, prefillQuestion, onClose, inDrawer, inlinePanel, onSeatReservation, onSeatWalkIn }) {
+function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, visitsByPhone = {}, combos, onSwitchToListMode, prefillQuestion, onClose, inDrawer, inlinePanel, onSeatReservation, onSeatWalkIn }) {
     // State for "הושב" flow per action
     const [seatActionFor, setSeatActionFor] = useState(null); // { tableNums, label }
     const [seatMode, setSeatMode] = useState('pick'); // 'pick' | 'existing' | 'walkin'
@@ -6003,12 +6027,12 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
 
     // 3. Returning customers in queue
     (queueEntries || []).forEach(q => {
-        const customer = customers.find(c => c.phone === q.phone);
-        if (customer && (customer.total_visits || customer.visit_count || 0) >= 3) {
+        const visits = visitsByPhone[String(q.phone || '').replace(/\D/g, '').slice(-9)] || 0;
+        if (visits >= 3) {
             recs.push({
                 icon: '⭐',
                 level: 'violet',
-                title: `${q.customer_name} — לקוח חוזר (${customer.total_visits || customer.visit_count} ביקורים)`,
+                title: `${q.customer_name} — לקוח חוזר (${visits} ביקורים)`,
                 detail: 'שווה תשומת לב מיוחדת',
             });
         }

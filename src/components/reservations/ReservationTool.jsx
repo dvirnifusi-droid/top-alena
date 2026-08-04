@@ -48,7 +48,7 @@ function nextQuarterHour() {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export default function ReservationTool({ onReservationCreated, customers }) {
+export default function ReservationTool({ onReservationCreated }) {
     const [date, setDate] = useState(new Date());
     const [time, setTime] = useState(() => nextQuarterHour());
     const [partySize, setPartySize] = useState(2);
@@ -59,29 +59,28 @@ export default function ReservationTool({ onReservationCreated, customers }) {
     // a name or phone, so a returning guest is one tap to fill. Uses the list
     // passed from the parent (already loaded on the seating page); falls back to
     // fetching once if used standalone.
-    const [fetchedCustomers, setFetchedCustomers] = useState([]);
-    const custList = (customers && customers.length) ? customers : fetchedCustomers;
-    useEffect(() => {
-        if (customers && customers.length) return;
-        let alive = true;
-        Customer.list(undefined, 2000).then(list => { if (alive) setFetchedCustomers(list || []); }).catch(() => {});
-        return () => { alive = false; };
-    }, [customers]);
+    // Server-side search, debounced. This used to filter a client-side array that
+    // the parent had loaded in full — on Alena that was 19,296 customers and
+    // 15.4 MB downloaded on every page load, to answer a 3-character lookup.
     const [activeField, setActiveField] = useState(null); // 'name' | 'phone' | null
     const digitsOnly = (s) => String(s || '').replace(/\D/g, '');
-    const custMatches = useMemo(() => {
-        if (activeField === 'name') {
-            const q = customerName.toLowerCase().trim();
-            if (q.length < 2) return [];
-            return custList.filter(c => (c.name || '').toLowerCase().includes(q)).slice(0, 6);
+    const [custMatches, setCustMatches] = useState([]);
+    const q = activeField === 'name' ? customerName.trim()
+        : activeField === 'phone' ? digitsOnly(customerPhone)
+            : '';
+    useEffect(() => {
+        if (!activeField || q.length < 2 || (activeField === 'phone' && q.length < 3)) {
+            setCustMatches([]);
+            return;
         }
-        if (activeField === 'phone') {
-            const q = digitsOnly(customerPhone);
-            if (q.length < 3) return [];
-            return custList.filter(c => digitsOnly(c.phone).includes(q)).slice(0, 6);
-        }
-        return [];
-    }, [activeField, customerName, customerPhone, custList]);
+        let alive = true;
+        const t = setTimeout(() => {
+            base44.functions.searchCustomers({ q })
+                .then(res => { if (alive) setCustMatches(((res?.data || res || {}).customers || []).slice(0, 6)); })
+                .catch(() => { if (alive) setCustMatches([]); });
+        }, 220);
+        return () => { alive = false; clearTimeout(t); };
+    }, [activeField, q]);
     const pickCustomer = (c) => {
         setCustomerName(c.name || '');
         setCustomerPhone(c.phone || '');

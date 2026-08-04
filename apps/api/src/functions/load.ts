@@ -12972,6 +12972,62 @@ registerFn('promoteStandbyReservation', async ({ body, user }) => {
 });
 
 // Admin: list standby reservations (queue view).
+// ── Customer lookups that don't require shipping the whole table ─────────────
+// SeatingSetup used to call Customer.list() on every page load: on Alena that is
+// 19,296 rows and 15.4 MB of JSON, 1.6s, on a hostess tablet, every time — for
+// three features that each needed a visit count or a single record. The generic
+// list route has no default cap, so it happily served all of it.
+
+// Autocomplete: "she typed 3 characters, give me a few matches."
+registerFn('searchCustomers', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const q = String((body as any)?.q || '').trim();
+  if (q.length < 2) return { customers: [] };
+  const digits = q.replace(/\D/g, '');
+  const where: any = digits.length >= 3
+    ? { phone: { contains: digits.slice(-9) } }
+    : { name: { contains: q, mode: 'insensitive' } };
+  const rows = await db.customer.findMany({
+    where,
+    take: 12,
+    orderBy: [{ total_visits: 'desc' }],
+    select: { id: true, name: true, phone: true, total_visits: true, visit_count: true },
+  });
+  return { customers: rows };
+}, {});
+
+// Visit counts for a KNOWN set of phones — the "returning guest" badge on the
+// day's reservations and on the queue. A few hundred numbers instead of 19k rows.
+registerFn('getCustomerVisitsByPhones', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const raw = Array.isArray((body as any)?.phones) ? (body as any).phones : [];
+  const keys = [...new Set(raw.map((p: any) => String(p || '').replace(/\D/g, '').slice(-9)).filter(Boolean))].slice(0, 500);
+  if (!keys.length) return { visits: {} };
+  // Match on the last 9 digits — numbers are stored as 052…, +97252…, 052-218-1900.
+  const rows = await db.customer.findMany({
+    where: { OR: keys.map((k) => ({ phone: { contains: k as string } })) },
+    select: { phone: true, total_visits: true, visit_count: true },
+  });
+  const visits: Record<string, number> = {};
+  for (const r of rows) {
+    const k = String(r.phone || '').replace(/\D/g, '').slice(-9);
+    if (!k) continue;
+    visits[k] = Math.max(visits[k] || 0, Number(r.total_visits || r.visit_count || 0));
+  }
+  return { visits };
+}, {});
+
+// The full record for ONE guest — everything GuestKnowledgePanel shows.
+registerFn('getCustomerFull', async ({ body, user }) => {
+  if (!user) throw new Error('auth required');
+  const id = String((body as any)?.customer_id || '').trim();
+  const phone = String((body as any)?.phone || '').replace(/\D/g, '').slice(-9);
+  let row: any = null;
+  if (id) row = await db.customer.findUnique({ where: { id } }).catch(() => null);
+  if (!row && phone) row = await db.customer.findFirst({ where: { phone: { contains: phone } } }).catch(() => null);
+  return { customer: row };
+}, {});
+
 registerFn('listStandbyReservations', async ({ user }) => {
   if (!user) throw new Error('auth required');
   const { start } = dayRange(new Date());
