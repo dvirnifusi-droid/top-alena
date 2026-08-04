@@ -164,19 +164,26 @@ on('Reservation', 'created', async (row) => {
       return `📊 היום: ${active.length} הזמנות · ${guests} סועדים`;
     } catch { return null; }
   })().catch(() => null);
+  // A waitlist signup is NOT a booking, and telling the owner "הזמנה חדשה" for
+  // one is actively misleading: no table was taken, nothing is confirmed, and
+  // somebody has to decide whether a table can be freed.
+  const isStandby = !!row.is_standby;
   const lines = [
+    isStandby ? `🟡 רשימת המתנה — טרם אושרה, ממתין להחלטת הצוות` : null,
     `👤 ${row.customer_name || '-'}${row.customer_phone ? ` · ${row.customer_phone}` : ''}`,
     `📅 ${fmtDate(row.date)} · 🕐 ${row.time || '-'}${row.reservation_end_time ? `-${row.reservation_end_time}` : ''}`,
     `👥 ${row.party_size || '-'} סועדים`,
     row.table_preference ? `🪑 העדפת שולחן: ${row.table_preference}` : null,
     row.special_occasion ? `🎉 ${row.special_occasion}` : null,
     row.special_requests ? `📝 ${shortText(row.special_requests, 120)}` : null,
-    row.status && row.status !== 'pending' ? `סטטוס: ${statusLabel(row.status)}` : null,
+    !isStandby && row.status && row.status !== 'pending' ? `סטטוס: ${statusLabel(row.status)}` : null,
     dayCtx,
-    link('/Reservations'),
+    link(isStandby ? '/SeatingSetup' : '/Reservations'),
   ];
   await pushoverToAdmins(
-    `📅 הזמנה חדשה — ${fmtDate(row.date)} ${row.time || ''}`.trim(),
+    isStandby
+      ? `🟡 בקשת רשימת המתנה — ${fmtDate(row.date)} ${row.time || ''}`.trim()
+      : `📅 הזמנה חדשה — ${fmtDate(row.date)} ${row.time || ''}`.trim(),
     join(lines),
   );
 });

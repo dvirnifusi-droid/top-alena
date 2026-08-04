@@ -12506,16 +12506,32 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
     : (rp?.address ? `📍 ${[rp.address, rp.city].filter(Boolean).join(', ')}` : '');
   const parkingLine = isAlena ? `חניון מול מרכז בן גוריון (חינם מ-17:00 ובסופ"ש)` : '';
   const restaurantPhone = isAlena ? (process.env.RESTAURANT_PHONE || '03-6228055 שלוחה 3') : (rp?.phone || '');
+  // Standby copy, written once and reused by SMS, WhatsApp and email so the three
+  // can't drift apart. Three things it has to get right:
+  //  - the RESTAURANT is full at that hour, not "the table" — the guest never
+  //    picked a table, and "your table is full" reads like a booking exists;
+  //  - it is not a promise. The team looks at whether a table can be freed;
+  //  - it is the advance waitlist, NOT the physical queue at the door. Those are
+  //    different things: a waitlist can be long while nobody actually turns up.
+  const standbyLines = [
+    `המסעדה מלאה בשעה שביקשת.`,
+    `צוות האירוח שלנו בודק את הבקשה ואם אפשר לפנות עבורכם שולחן — ואם נצליח, ניצור איתכם קשר.`,
+    ``,
+    `בכל מקרה, וללא קשר לרשימת ההמתנה:`,
+    `• אפשר להזמין שעה אחרת עם אישור מיידי`,
+    `• ואפשר תמיד להגיע ולהיכנס על בסיס מקום פנוי`,
+    ``,
+    `שימו לב: זו רשימת המתנה מראש — לא התור בכניסה למסעדה.`,
+  ];
   const smsBody = isStandby
     ? [
         `שלום ${customer_name} 👋`,
         ``,
-        `נרשמת לרשימת המתנה ב${brand} 🟡`,
+        `נרשמת לרשימת ההמתנה ב${brand} 🟡`,
         `📅 ${dateStr} בשעה ${time} (השעה שביקשת)`,
         `👥 ${size} סועדים`,
         ``,
-        `השולחן מלא ברגע זה — אם יתפנה מקום נצור איתך קשר מיד.`,
-        `אין הזמנה מאושרת עד שנחזור אליך.`,
+        ...standbyLines,
         ``,
         `📋 לבדיקת סטטוס: ${trackUrl}`,
       ].join('\n')
@@ -12571,15 +12587,49 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
     sendTemplated({
       kind: 'guest_table_ready',
       to: String(customer_phone).trim(),
-      vars: [customer_name, brand, 'נרשמת לרשימת ההמתנה. נעדכן אותך ברגע שמתפנה שולחן.', trackUrl],
+      vars: [customer_name, brand, 'נרשמת לרשימת ההמתנה — זו אינה הזמנה מאושרת. צוות האירוח בודק אם אפשר לפנות שולחן ויעדכן אותך.', trackUrl],
       freeformText: smsBody,
       smsText: smsBody,
       smsFallback: true,
     }).catch((e) => console.warn('[reservation] standby notify failed', e?.message));
   }
-  // Email — best-effort if address provided (held until card is placed for deposit bookings)
+  // Email — best-effort if address provided (held until card is placed for deposit bookings).
+  // A standby signup used to get this same "ההזמנה שלך אושרה ✅" email, subject line
+  // included. Nothing was approved: no table was held and the guest may never be
+  // seated at that hour. It gets its own email now.
   if (customer_email && !willCollectDeposit) {
-    const html = `
+    const html = isStandby
+      ? `
+      <div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding:24px;background:#fafafa;border-radius:12px;color:#1f1b17">
+        <p style="font-size:18px;margin:0 0 4px">שלום ${customer_name} 👋</p>
+        <p style="margin:0 0 4px;color:#8a6d1f;font-size:20px;font-weight:bold">🟡 נרשמת לרשימת ההמתנה ב${brand}</p>
+        <p style="margin:0 0 20px;color:#a04a2e;font-weight:bold">זו אינה הזמנה מאושרת.</p>
+
+        <div style="background:#fff;border:1px solid #e5d9c4;border-radius:10px;padding:16px;margin-bottom:16px">
+          <p style="margin:4px 0">📅 <b>${dateStr}</b> בשעה <b>${time}</b> <span style="color:#666">(השעה שביקשת)</span></p>
+          <p style="margin:4px 0">👥 <b>${size} סועדים</b></p>
+        </div>
+
+        <div style="background:#fff8e6;border:1px solid #e8d9b5;border-radius:10px;padding:16px;margin-bottom:16px;line-height:1.7">
+          <p style="margin:0 0 8px">המסעדה מלאה בשעה שביקשת. צוות האירוח שלנו בודק את הבקשה ואם אפשר לפנות עבורכם שולחן — ואם נצליח, ניצור איתכם קשר.</p>
+          <p style="margin:8px 0 4px;font-weight:bold">בכל מקרה, וללא קשר לרשימת ההמתנה:</p>
+          <p style="margin:0 0 2px">• אפשר להזמין שעה אחרת עם אישור מיידי</p>
+          <p style="margin:0">• ואפשר תמיד להגיע ולהיכנס על בסיס מקום פנוי</p>
+        </div>
+
+        <p style="margin:0 0 16px;color:#666;font-size:13px">שימו לב: זו רשימת המתנה מראש — לא התור בכניסה למסעדה.</p>
+
+        ${restaurantPhone ? `<p style="margin:16px 0 4px;font-weight:bold">💬 שאלות?</p>
+        <p style="margin:0 0 16px">${restaurantPhone} (במסעדה)</p>` : ''}
+
+        <p style="margin:0 0 16px;text-align:center;color:#666">צוות ${brand}</p>
+
+        <p style="margin:24px 0 0;text-align:center">
+          <a href="${trackUrl}" style="background:#a04a2e;color:#F4ECD8;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">📋 בדיקת סטטוס</a>
+        </p>
+      </div>
+    `
+      : `
       <div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding:24px;background:#fafafa;border-radius:12px;color:#1f1b17">
         <p style="font-size:18px;margin:0 0 4px">שלום ${customer_name} 👋</p>
         <p style="margin:0 0 24px;color:#a04a2e;font-size:20px;font-weight:bold">ההזמנה שלך ב${brand} אושרה ✅</p>
@@ -12609,7 +12659,9 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
     `;
     sendEmail({
       to: customer_email,
-      subject: `אישור הזמנה - ${dateStr} בשעה ${time} - ${brand}`,
+      subject: isStandby
+        ? `🟡 נרשמת לרשימת ההמתנה - ${dateStr} בשעה ${time} - ${brand}`
+        : `אישור הזמנה - ${dateStr} בשעה ${time} - ${brand}`,
       html,
     }).catch((e) => console.warn('[reservation] email failed', e?.message));
   }
@@ -24117,6 +24169,10 @@ registerFn('getReservationByToken', async ({ body }) => {
     cancelled_at: r.cancelled_at,
     special_occasion: r.special_occasion,
     special_requests: r.special_requests,
+    // Without this the tracking page had no way to tell a waitlist signup from a
+    // real booking, so it greeted every standby guest with "✅ ההזמנה אושרה".
+    is_standby: !!r.is_standby,
+    standby_requested_time: r.standby_requested_time,
   };
 }, { public: true });
 

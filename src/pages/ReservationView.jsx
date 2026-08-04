@@ -68,6 +68,10 @@ export default function ReservationView() {
   const dateLabel = format(dateObj, 'EEEE · dd/MM/yyyy', { locale: he });
   const isCancelled = reservation.status === 'cancelled' || reservation.status === 'no_show';
   const isNoShow = reservation.status === 'no_show';
+  // A waitlist signup is not an approved booking. This page told every standby
+  // guest "✅ ההזמנה אושרה" — the one page they open from the message that just
+  // told them it isn't confirmed.
+  const isStandby = !!reservation.is_standby;
 
   // Hours until reservation (for showing late-cancel warning in the dialog)
   const dateStr = format(dateObj, 'yyyy-MM-dd');
@@ -121,8 +125,12 @@ export default function ReservationView() {
           <div className="relative px-6 pt-7 pb-6 text-center text-white">
             <div className="rv-display text-3xl font-black tracking-tight" style={{ color: '#F4ECD8', textShadow: (cc.header_image || cc.header_video) ? '0 2px 12px rgba(0,0,0,0.5)' : 'none' }}>{isAlena ? 'עלינא' : brandName}</div>
             <div className="mt-1 text-[11px] tracking-[0.25em]" style={{ color: '#D9BD83' }}>אוכל · אלכוהול · אווירה · אנשים</div>
-            <div className="mt-5 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold" style={{ background: isCancelled ? 'rgba(160,74,46,0.25)' : 'rgba(217,189,131,0.22)', color: '#FAF5E8' }}>
-              {isCancelled ? (isNoShow ? '⚠️ ההזמנה בוטלה (איחור)' : '❌ ההזמנה בוטלה') : <><CheckCircle className="w-4 h-4" style={{ color: '#D9BD83' }} /> ההזמנה אושרה</>}
+            <div className="mt-5 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold" style={{ background: isCancelled ? 'rgba(160,74,46,0.25)' : isStandby ? 'rgba(184,149,86,0.30)' : 'rgba(217,189,131,0.22)', color: '#FAF5E8' }}>
+              {isCancelled
+                ? (isNoShow ? '⚠️ ההזמנה בוטלה (איחור)' : '❌ ההזמנה בוטלה')
+                : isStandby
+                  ? <>🟡 ברשימת המתנה — טרם אושרה</>
+                  : <><CheckCircle className="w-4 h-4" style={{ color: '#D9BD83' }} /> ההזמנה אושרה</>}
             </div>
           </div>
         </div>
@@ -131,8 +139,26 @@ export default function ReservationView() {
         <div className="bg-white rounded-3xl shadow-lg p-6">
           <div className="text-center">
             <div className="rv-display text-2xl font-black" style={{ color: '#1F1B17' }}>שלום {reservation.customer_name}</div>
-            {!isCancelled && <div className="text-sm mt-1" style={{ color: '#A04A2E' }}>שמורים לכם מקום ✨</div>}
+            {!isCancelled && !isStandby && <div className="text-sm mt-1" style={{ color: '#A04A2E' }}>שמורים לכם מקום ✨</div>}
+            {!isCancelled && isStandby && <div className="text-sm mt-1 font-bold" style={{ color: '#8a6d1f' }}>אתם ברשימת ההמתנה — עדיין לא שמור לכם שולחן</div>}
           </div>
+
+          {/* Same words the SMS and the email use, so the guest doesn't land on a
+              page that contradicts the message that sent them here. */}
+          {isStandby && !isCancelled && (
+            <div className="mt-4 rounded-2xl p-4 text-[13px] leading-relaxed" style={{ background: '#FFF8E6', border: '1px solid #E8D9B5', color: '#1F1B17' }}>
+              <div>
+                המסעדה מלאה בשעה שביקשתם. צוות האירוח שלנו בודק את הבקשה ואם אפשר לפנות
+                עבורכם שולחן — ואם נצליח, ניצור איתכם קשר.
+              </div>
+              <div className="mt-2.5 font-bold">בכל מקרה, וללא קשר לרשימת ההמתנה:</div>
+              <div>• אפשר להזמין שעה אחרת עם אישור מיידי</div>
+              <div>• ואפשר תמיד להגיע ולהיכנס על בסיס מקום פנוי</div>
+              <div className="mt-2.5 text-[11px]" style={{ color: '#8B7F65' }}>
+                שימו לב: זו רשימת המתנה מראש — לא התור בכניסה למסעדה.
+              </div>
+            </div>
+          )}
           <div className="mt-5 grid grid-cols-3 gap-2 text-center">
             <Stat icon={<Calendar className="w-4 h-4" />} label="תאריך" value={format(dateObj, 'dd/MM', { locale: he })} sub={format(dateObj, 'EEEE', { locale: he })} />
             <Stat icon={<Clock className="w-4 h-4" />} label="שעה" value={reservation.time} sub={reservation.reservation_end_time ? `עד ${reservation.reservation_end_time}` : ''} />

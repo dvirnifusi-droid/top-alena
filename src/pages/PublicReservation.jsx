@@ -568,13 +568,18 @@ export default function PublicReservationPage() {
             </p>
             {success.is_standby && (
               <>
+                {/* Same words as the SMS, the email and the tracking page. */}
                 <p className="text-sm leading-relaxed pt-1" style={{ color: '#8B7F65' }}>
-                  <b>שים לב:</b> ההזמנה עוד לא מאושרת. השעה שביקשת ({success.time}) מלאה ברגע זה.
-                  <br />אם יתפנה שולחן — נשמור לך אותו ונשלח וואטסאפ עם אישור.
+                  <b>זו אינה הזמנה מאושרת.</b> המסעדה מלאה בשעה שביקשת ({success.time}).
+                  <br />צוות האירוח שלנו בודק את הבקשה ואם אפשר לפנות עבורך שולחן — ואם נצליח, ניצור איתך קשר.
                 </p>
-                {/* Without this line a waitlist confirmation reads as "don't come". */}
-                <div className="rounded-xl px-3 py-2 mt-2 text-[13px] leading-relaxed" style={{ background: 'rgba(68,81,44,0.08)', border: '1px solid rgba(68,81,44,0.25)', color: '#44512C' }}>
-                  ובכל מקרה — <b>אתם מוזמנים להגיע</b> ולהיכנס על בסיס מקום פנוי.
+                <div className="rounded-xl px-3 py-2.5 mt-2 text-[13px] leading-relaxed text-right" style={{ background: 'rgba(68,81,44,0.08)', border: '1px solid rgba(68,81,44,0.25)', color: '#44512C' }}>
+                  <div className="font-bold">בכל מקרה, וללא קשר לרשימת ההמתנה:</div>
+                  <div>• אפשר להזמין שעה אחרת עם אישור מיידי</div>
+                  <div>• ואפשר תמיד להגיע ולהיכנס על בסיס מקום פנוי</div>
+                  <div className="mt-1.5 text-[11px]" style={{ color: '#8B7F65' }}>
+                    שימו לב: זו רשימת המתנה מראש — לא התור בכניסה למסעדה.
+                  </div>
                 </div>
               </>
             )}
