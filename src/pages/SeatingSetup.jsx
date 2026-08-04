@@ -532,6 +532,8 @@ export default function SeatingSetup() {
     // Hostess lens: which tables to spotlight. Non-matching tables dim so the answer
     // to "where can I put this walk-in?" is visible without reading every card.
     const [mapFilter, setMapFilter] = useState('all'); // all | free_now | free_long | arriving
+    const [collapsedCatsMobile, setCollapsedCatsMobile] = useState([]); // phone list: collapsed areas
+    const [showMapTools, setShowMapTools] = useState(false); // phone: reveal layout-editing tools
     // Locked by DEFAULT: during service the map is a board to read, not to edit.
     // A stray drag on a tablet silently relocated table 300 and the change stuck
     // on the next save. Unlock deliberately to rearrange.
@@ -3724,24 +3726,33 @@ export default function SeatingSetup() {
                                             onClick={() => setShowZoneColors(v => !v)}
                                             className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
                                                 showZoneColors ? 'bg-white text-gray-600 border border-gray-200 hover:border-gray-400' : 'bg-zinc-800 text-white border border-zinc-800'
-                                            }`}
+                                            } ${showMapTools ? '' : 'hidden md:inline-block'}`}
                                             title="הצג/הסתר את צבעי האזורים ברקע"
                                         >🎨 {showZoneColors ? 'צבעים' : 'ללא צבע'}</button>
+                                        {/* On a phone only the controls used DURING service stay out
+                                            (lock + runway filter + rows); the layout tools live behind
+                                            one button so the strip stops wrapping into three rows. */}
+                                        <button
+                                            onClick={() => setShowMapTools(v => !v)}
+                                            className={`md:hidden text-[10px] font-bold px-2 py-1 rounded border transition-colors ${
+                                                showMapTools ? 'bg-zinc-800 text-white border-zinc-800' : 'bg-white text-gray-600 border-gray-200'
+                                            }`}
+                                        >🛠 עריכת מפה {showMapTools ? '▲' : '▼'}</button>
                                         <button
                                             onClick={handleTidyMap}
-                                            className="text-[10px] font-bold px-2 py-1 rounded transition-colors bg-white text-gray-600 border border-gray-200 hover:border-[#A04A2E] hover:text-[#A04A2E]"
+                                            className={`${showMapTools ? '' : 'hidden md:inline-block'} text-[10px] font-bold px-2 py-1 rounded transition-colors bg-white text-gray-600 border border-gray-200 hover:border-[#A04A2E] hover:text-[#A04A2E]`}
                                             title="הצמד את כל השולחנות לרשת, גודל אחיד, וכל אזור כבלוק נפרד בלי חפיפה"
                                         >📐 יישר מפה</button>
                                         <button
                                             onClick={handleAddCustomFacility}
-                                            className="text-[10px] font-bold px-2 py-1 rounded transition-colors bg-white text-gray-600 border border-gray-200 hover:border-[#A04A2E] hover:text-[#A04A2E]"
+                                            className={`${showMapTools ? '' : 'hidden md:inline-block'} text-[10px] font-bold px-2 py-1 rounded transition-colors bg-white text-gray-600 border border-gray-200 hover:border-[#A04A2E] hover:text-[#A04A2E]`}
                                             title="הוסף אלמנט משלך למפה — עמדת מארחת, עמוד, ויטרינה…"
                                         >➕ אלמנט</button>
                                         <button
                                             onClick={() => setShowBlueprint(v => !v)}
                                             className={`text-[10px] font-bold px-2 py-1 rounded transition-colors ${
                                                 showBlueprint ? 'bg-zinc-900 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-400'
-                                            }`}
+                                            } ${showMapTools ? '' : 'hidden md:inline-block'}`}
                                             title="הצג/הסתר שרטוט רקע"
                                         >🗺️ שרטוט</button>
                                         <button
@@ -3752,7 +3763,83 @@ export default function SeatingSetup() {
                                             title="הצג המלצות AI"
                                         >✨ AI</button>
                                     </div>
-                                    <div className="w-full border rounded-lg bg-gray-100 overscroll-contain" style={{
+                                    {/* ── PHONE VIEW ────────────────────────────────────────────
+                                        A 1400×850 spatial canvas can't be operated on a 375px screen:
+                                        tables end up 30px wide, some are unreachable, and rotating
+                                        doesn't help. Below md we show the same rooms as a list grouped
+                                        by area — the layout every reservation app falls back to on a
+                                        phone. Same data, same tap target (showTableDetails), so seating
+                                        and editing work exactly as they do on the map. */}
+                                    <div className="md:hidden space-y-2">
+                                        {Object.entries(
+                                            tables
+                                                .filter(t => selectedAreas.includes('all') || selectedAreas.includes(t.area))
+                                                .sort((a, b) => String(a.table_number).localeCompare(String(b.table_number), 'he', { numeric: true }))
+                                                .reduce((acc, t) => { const k = t.area || 'ללא אזור'; (acc[k] = acc[k] || []).push(t); return acc; }, {})
+                                        ).map(([area, list]) => {
+                                            const mapIsToday2 = format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                                            const info = list.map(t => {
+                                                const sess = mapIsToday2 ? getTableSession(t.table_number) : null;
+                                                const seated = reservations.find(r => Array.isArray(r.assigned_table)
+                                                    && r.assigned_table.includes(t.table_number)
+                                                    && r.date === format(new Date(), 'yyyy-MM-dd') && r.status === 'seated');
+                                                const upcoming = reservations
+                                                    .filter(r => Array.isArray(r.assigned_table) && r.assigned_table.includes(t.table_number)
+                                                        && r.date === format(new Date(), 'yyyy-MM-dd')
+                                                        && ['confirmed', 'pending'].includes(r.status) && r.time
+                                                        && r.time.slice(0, 5) >= format(new Date(), 'HH:mm'))
+                                                    .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+                                                const cleaning = (!sess && !seated) ? getCleaningSession(t.table_number) : null;
+                                                return { t, sess, seated, next: upcoming[0], cleaning, busy: !!(sess || seated) };
+                                            });
+                                            const free = info.filter(i => !i.busy && !i.cleaning).length;
+                                            const open = !collapsedCatsMobile.includes(area);
+                                            return (
+                                                <div key={area} className="border rounded-xl overflow-hidden bg-white">
+                                                    <button
+                                                        onClick={() => setCollapsedCatsMobile(p => p.includes(area) ? p.filter(x => x !== area) : [...p, area])}
+                                                        className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 border-b"
+                                                    >
+                                                        <span className="text-xs text-gray-500">{free}/{info.length} פנויים</span>
+                                                        <span className="font-semibold text-[15px] flex items-center gap-2">
+                                                            {area} <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
+                                                        </span>
+                                                    </button>
+                                                    {open && (
+                                                        <div className="divide-y">
+                                                            {info.map(({ t, sess, seated, next, cleaning, busy }) => (
+                                                                <button
+                                                                    key={t.table_number}
+                                                                    onClick={() => showTableDetails(t)}
+                                                                    className="w-full flex items-center gap-3 px-3 py-3 text-right active:bg-gray-50"
+                                                                >
+                                                                    <span className={`w-11 h-11 shrink-0 rounded-lg flex items-center justify-center font-semibold text-[15px] tabular-nums ${
+                                                                        busy ? 'bg-green-100 text-green-900 border border-green-400'
+                                                                        : cleaning ? 'bg-slate-200 text-slate-700 border border-slate-400 border-dashed'
+                                                                        : 'bg-white text-gray-800 border'
+                                                                    }`}>{t.table_number}</span>
+                                                                    <span className="flex-1 min-w-0">
+                                                                        <span className="block text-[14px] font-medium truncate">
+                                                                            {busy ? (getFirstName(sess?.customer_name || seated?.customer_name) || 'תפוס')
+                                                                                : cleaning ? '🧹 ממתין לניקוי' : 'פנוי'}
+                                                                        </span>
+                                                                        <span className="block text-[12px] text-gray-500 truncate tabular-nums" dir="rtl">
+                                                                            {t.min_capacity}-{t.max_capacity} סועדים
+                                                                            {busy && seated?.reservation_end_time ? ` · עד ${seated.reservation_end_time}` : ''}
+                                                                            {next ? ` · הבא ${next.time.slice(0, 5)} ${getFirstName(next.customer_name) || ''}` : (!busy && !cleaning ? ' · כל הערב' : '')}
+                                                                        </span>
+                                                                    </span>
+                                                                    <span className="text-gray-300 text-lg shrink-0">‹</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="hidden md:block w-full border rounded-lg bg-gray-100 overscroll-contain" style={{
                                         // Bounded scroll inside the card; iOS momentum + horizontal+vertical pan.
                                         height: bigMapMode ? 'calc(100vh - 110px)' : '70vh',
                                         minHeight: '55vh',
