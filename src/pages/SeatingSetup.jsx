@@ -30,6 +30,7 @@ import ZoneTablePicker from '@/components/seating/ZoneTablePicker';
 import { pendingLabel, pendingExplanation, bookedLabel, confirmationState } from '@/lib/reservationStatus';
 import GuestKnowledgePanel from '@/components/seating/GuestKnowledgePanel';
 import StandbyPanel from '@/components/seating/StandbyPanel';
+import ConfirmationsPanel from '@/components/seating/ConfirmationsPanel';
 import { base44 } from '@/api/base44Client';
 import VoiceControl from '@/components/voice/VoiceControl';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
@@ -3171,6 +3172,11 @@ export default function SeatingSetup() {
     const standbyCount = (reservations || []).filter(r =>
         r.is_standby && !['cancelled', 'deleted', 'no_show', 'completed'].includes(r.status)
     ).length;
+    // Asked to confirm and still open — undelivered counts too, because that one
+    // is ours to chase, not the guest's to answer.
+    const unconfirmedCount = (reservations || []).filter(r =>
+        r.status === 'confirmed' && !r.guest_confirmed_at && !r.guest_declined_at && r.confirm_request_sent_at
+    ).length;
 
     // ─── LIVE STATUS computed from current state ────────────────────────────
     // Tables actively seated, guests inside now, and reservations arriving in
@@ -3555,6 +3561,21 @@ export default function SeatingSetup() {
                                             )}
                                         </button>
                                         <button
+                                            onClick={() => { setRailTab('confirm'); setDashboardDrawerOpen(false); }}
+                                            className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
+                                                ${railTab === 'confirm'
+                                                    ? 'bg-sky-600 border-sky-700 text-white shadow'
+                                                    : unconfirmedCount > 0
+                                                        ? 'bg-sky-50 border-sky-300 text-sky-800 hover:border-sky-400'
+                                                        : 'bg-white border-gray-200 text-gray-600 hover:border-[#D9BD83]'}`}
+                                        >
+                                            ✓ אישורים {unconfirmedCount > 0 && (
+                                                <span className={`ml-0.5 inline-block min-w-[18px] h-4 px-1 rounded-full text-[10px] font-black ${
+                                                    railTab === 'confirm' ? 'bg-white text-sky-700' : 'bg-sky-500 text-white'
+                                                }`}>{unconfirmedCount}</span>
+                                            )}
+                                        </button>
+                                        <button
                                             onClick={() => { setRailTab('ai'); setDashboardDrawerOpen(false); }}
                                             className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
                                                 ${railTab === 'ai'
@@ -3680,6 +3701,15 @@ export default function SeatingSetup() {
                                             onRefresh={loadQueue}
                                             onApprove={approveQueueEntry}
                                             onReject={rejectQueueEntry}
+                                        />
+                                    )}
+                                    {railTab === 'confirm' && (
+                                        <ConfirmationsPanel
+                                            reservations={reservations}
+                                            selectedDate={selectedDate}
+                                            isToday={format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')}
+                                            onRefresh={loadLiveData}
+                                            onEditReservation={(r) => { setEditingReservation(r); setIsEditReservationOpen(true); }}
                                         />
                                     )}
                                     {railTab === 'standby' && (
