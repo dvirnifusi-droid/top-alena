@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SeatingLayout } from '@/entities/SeatingLayout';
 import { TableSession } from '@/entities/TableSession';
 import { ServiceStep } from '@/entities/ServiceStep';
 import { Reservation } from '@/entities/Reservation';
-import { Customer } from '@/entities/Customer';
 import { QueueEntry } from '@/entities/all';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +27,7 @@ import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
 import TimePicker from '@/components/shared/TimePicker';
 import TablePicker from '@/components/dashboard/TablePicker';
 import ZoneTablePicker from '@/components/seating/ZoneTablePicker';
+import { pendingLabel, pendingExplanation } from '@/lib/reservationStatus';
 import GuestKnowledgePanel from '@/components/seating/GuestKnowledgePanel';
 import StandbyPanel from '@/components/seating/StandbyPanel';
 import { base44 } from '@/api/base44Client';
@@ -304,6 +304,15 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                 </div>
                     );
                 })()}
+
+                {/* "ממתין" is a question until you say who is being waited on. The two
+                    cases are opposites: a deposit waits on the guest and HOLDS the
+                    table; a waitlist entry waits on the restaurant and holds nothing. */}
+                {pendingExplanation(editedReservation) && (
+                    <div className="mt-1.5 rounded-lg px-3 py-2 text-[12px] leading-relaxed bg-amber-50 border border-amber-200 text-amber-900">
+                        <b>{pendingLabel(editedReservation)}</b> — {pendingExplanation(editedReservation)}
+                    </div>
+                )}
 
                 {/* Reaching the guest was a copy-the-number-by-hand job. */}
                 {editedReservation.customer_phone && (
@@ -725,8 +734,6 @@ export default function SeatingSetup() {
         (arr || []).map(r => `${r.id}|${r.status}|${r.assigned_table}|${r.hostess_flag}|${r.time}|${r.party_size}|${r.customer_name}`).join('§');
     const fingerprintSessions = (arr) =>
         (arr || []).map(s => `${s.id}|${s.current_step}|${s.table_number}`).join('§');
-    const fingerprintCustomers = (arr) =>
-        (arr || []).map(c => `${c.id}|${c.total_visits}`).join('§');
 
     // True while the SSE push stream is delivering events end-to-end. When live,
     // we slow the safety-net poll right down; when the stream drops we fall back
@@ -1595,8 +1602,18 @@ export default function SeatingSetup() {
         no_show:         { label: 'הבריז',          color: 'bg-rose-100 text-rose-900',        bgColor: 'bg-[#F4ECD8]',      cardBg: 'bg-rose-800',      cardText: 'text-white' },
         deleted:         { label: 'מחוק',           color: 'bg-zinc-200 text-zinc-700',        bgColor: 'bg-zinc-100',     cardBg: 'bg-slate-600',     cardText: 'text-white' },
     };
-    const getReservationStatusConfig = (status, assigned) => {
-        if (status && STATUS_CONFIGS[status]) return STATUS_CONFIGS[status];
+    // `reservation` is optional, and only used to say WHY something is pending —
+    // "ממתין" alone doesn't tell the hostess whether she's waiting on the guest's
+    // card or on her own decision. See lib/reservationStatus.
+    const getReservationStatusConfig = (status, assigned, reservation) => {
+        if (status && STATUS_CONFIGS[status]) {
+            const cfg = STATUS_CONFIGS[status];
+            if (status === 'pending') {
+                const label = pendingLabel(reservation);
+                if (label && label !== cfg.label) return { ...cfg, label };
+            }
+            return cfg;
+        }
         if (!assigned || assigned.length === 0) {
             return { label: 'לא משויך', color: 'bg-orange-100 text-orange-800', bgColor: 'bg-orange-50' };
         }
@@ -1832,7 +1849,7 @@ export default function SeatingSetup() {
 
 
     const ReservationCard = ({ reservation, compact = false }) => {
-        const statusConfig = getReservationStatusConfig(reservation.status, reservation.assigned_table);
+        const statusConfig = getReservationStatusConfig(reservation.status, reservation.assigned_table, reservation);
         const customerInfo = reservation.customer_name || `לקוח ${reservation.id?.slice(-4)}`;
 
         const isReturning = visitsFor(reservation.customer_phone) > 1;
@@ -5049,10 +5066,13 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
         if (s === 'pending') return 'bg-amber-100 text-amber-700 border-amber-200';
         return 'bg-gray-100 text-gray-600 border-gray-200';
     };
-    const statusLabel = (s) => {
+    // Takes the reservation, not just the status — 'ממתין' has two opposite
+    // meanings and the row is too narrow to explain either, so name the reason.
+    const statusLabel = (r) => {
+        const s = r?.status;
         if (s === 'seated') return 'יושב';
         if (s === 'confirmed') return 'אושר';
-        if (s === 'pending') return 'ממתין';
+        if (s === 'pending') return pendingLabel(r) || 'ממתין';
         return s || '—';
     };
 
@@ -5109,7 +5129,7 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
                         <div className="flex items-center justify-between gap-2">
                             <div className="font-black text-sm text-gray-900 leading-tight">{r.time || '--:--'}</div>
                             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${statusPill(r.status)}`}>
-                                {statusLabel(r.status)}
+                                {statusLabel(r)}
                             </span>
                         </div>
                         <div className="font-bold text-sm text-gray-800 truncate mt-0.5">{r.customer_name || 'אורח'}</div>

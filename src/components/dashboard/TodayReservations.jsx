@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Users, Clock } from "lucide-react";
 import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
+import { pendingLabel } from '@/lib/reservationStatus';
 
 const statusConfig = {
     confirmed: { label: "אושר", color: "bg-green-100 text-green-800" },
@@ -71,7 +72,11 @@ export default function TodayReservations({ reservations = [], isLoading = false
                                     <span className="font-semibold text-slate-800">{reservation.time}</span>
                                 </div>
                                 <Badge className={statusConfig[reservation.status]?.color}>
-                                    {statusConfig[reservation.status]?.label}
+                                    {/* 'ממתין' means either "waiting on the guest's card"
+                                        or "waiting on us to free a table" — say which. */}
+                                    {reservation.status === 'pending'
+                                        ? (pendingLabel(reservation) || statusConfig.pending.label)
+                                        : statusConfig[reservation.status]?.label}
                                 </Badge>
                             </div>
                             <div className="flex items-center justify-between">
