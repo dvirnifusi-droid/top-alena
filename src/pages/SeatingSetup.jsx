@@ -29,6 +29,7 @@ import TimePicker from '@/components/shared/TimePicker';
 import TablePicker from '@/components/dashboard/TablePicker';
 import ZoneTablePicker from '@/components/seating/ZoneTablePicker';
 import GuestKnowledgePanel from '@/components/seating/GuestKnowledgePanel';
+import StandbyPanel from '@/components/seating/StandbyPanel';
 import { base44 } from '@/api/base44Client';
 import VoiceControl from '@/components/voice/VoiceControl';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
@@ -645,7 +646,7 @@ export default function SeatingSetup() {
     const [isAutoAssigning, setIsAutoAssigning] = useState(false);  // "שבץ הכל" — batch auto-assignment in flight
     const [mobileView, setMobileView] = useState('reservations');  // 'reservations' | 'map' — tab switcher on mobile
     const [queueEntries, setQueueEntries] = useState([]);        // live restaurant queue (walk-ins waiting)
-    const [railTab, setRailTab] = useState('tonight');           // 'tonight' | 'full' | 'queue'
+    const [railTab, setRailTab] = useState('tonight');           // 'tonight' | 'full' | 'queue' | 'live' | 'standby' | 'ai'
     const [queueNewBanner, setQueueNewBanner] = useState(null);   // {id, name, party_size} popup data
     const pageLoadTimeRef = useRef(Date.now());                  // any entry registered AFTER this is "new"
     const seenQueueIdsRef = useRef(new Set());                   // ids we've already shown the banner for
@@ -3096,6 +3097,13 @@ export default function SeatingSetup() {
         }
     };
 
+    // Waitlist size for the rail badge. is_standby is the ONLY reliable marker —
+    // a real standby booking carries status 'pending', so filtering on status
+    // 'standby' finds nothing (or, worse, finds seeded rows that aren't standby).
+    const standbyCount = (reservations || []).filter(r =>
+        r.is_standby && !['cancelled', 'deleted', 'no_show', 'completed'].includes(r.status)
+    ).length;
+
     // ─── LIVE STATUS computed from current state ────────────────────────────
     // Tables actively seated, guests inside now, and reservations arriving in
     // the next 60 / 240 minutes. The hostess sees this AT A GLANCE.
@@ -3425,8 +3433,8 @@ export default function SeatingSetup() {
                                 <div className="hidden md:flex flex-col gap-2 lg:order-1 overflow-y-auto pl-1" style={{ maxHeight: 'calc(100vh - 110px)' }}>
                                     {/* AI Assistant moved to a floating widget — see bottom of page render */}
 
-                                    {/* Tab toggle at top — 3 tabs: tonight / full / queue */}
-                                    <div className="sticky top-0 z-20 bg-gray-50 pt-1 pb-1.5 flex gap-1">
+                                    {/* Tab toggle at top. Wraps — 'standby' made six. */}
+                                    <div className="sticky top-0 z-20 bg-gray-50 pt-1 pb-1.5 flex flex-wrap gap-1">
                                         <button
                                             onClick={() => { setRailTab('tonight'); setDashboardDrawerOpen(false); }}
                                             className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
@@ -3460,6 +3468,24 @@ export default function SeatingSetup() {
                                                     ? 'bg-[#A04A2E] border-[#7A3722] text-white shadow'
                                                     : 'bg-white border-gray-200 text-gray-600 hover:border-[#D9BD83]'}`}
                                         >📋 חי</button>
+                                        {/* Waitlist. Amber and always visible when someone is on it —
+                                            every one of them was promised a WhatsApp callback, so this
+                                            must not be a tab you only find by accident. */}
+                                        <button
+                                            onClick={() => { setRailTab('standby'); setDashboardDrawerOpen(false); }}
+                                            className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
+                                                ${railTab === 'standby'
+                                                    ? 'bg-[#1F1B17] border-[#B89556] text-[#D9BD83] shadow'
+                                                    : standbyCount > 0
+                                                        ? 'bg-amber-50 border-amber-300 text-amber-800 hover:border-amber-400'
+                                                        : 'bg-white border-gray-200 text-gray-600 hover:border-[#D9BD83]'}`}
+                                        >
+                                            🟡 המתנה {standbyCount > 0 && (
+                                                <span className={`ml-0.5 inline-block min-w-[18px] h-4 px-1 rounded-full text-[10px] font-black ${
+                                                    railTab === 'standby' ? 'bg-[#D9BD83] text-[#1F1B17]' : 'bg-amber-500 text-white'
+                                                }`}>{standbyCount}</span>
+                                            )}
+                                        </button>
                                         <button
                                             onClick={() => { setRailTab('ai'); setDashboardDrawerOpen(false); }}
                                             className={`flex-1 text-xs font-bold py-1.5 rounded-lg border transition-colors
@@ -3586,6 +3612,13 @@ export default function SeatingSetup() {
                                             onRefresh={loadQueue}
                                             onApprove={approveQueueEntry}
                                             onReject={rejectQueueEntry}
+                                        />
+                                    )}
+                                    {railTab === 'standby' && (
+                                        <StandbyPanel
+                                            reservations={reservations}
+                                            onRefresh={loadLiveData}
+                                            onEditReservation={(r) => { setEditingReservation(r); setIsEditReservationOpen(true); }}
                                         />
                                     )}
                                     {railTab === 'live' && (
