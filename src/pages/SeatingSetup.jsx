@@ -225,10 +225,20 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
     };
     
     return (
+        // A right-side sheet is a desktop pattern — on a phone it slid in over the
+        // full width and fought the browser's own edge-swipe, which is what made it
+        // feel stuck. Bottom sheet on mobile, side sheet from sm: up.
         <Sheet open={open} onOpenChange={setOpen}>
-            <SheetContent side="right" className="sm:max-w-[420px] w-full overflow-y-auto p-4" dir="rtl">
-                <SheetHeader>
-                    <SheetTitle className="text-center bg-emerald-500 text-white py-2 rounded">עריכת הזמנה</SheetTitle>
+            <SheetContent
+                side="bottom"
+                className="h-[92vh] rounded-t-2xl overflow-y-auto overscroll-contain p-4
+                           sm:h-full sm:rounded-none sm:max-w-[440px] sm:data-[side=bottom]:inset-y-0 sm:data-[side=bottom]:right-0 sm:data-[side=bottom]:left-auto"
+                dir="rtl"
+            >
+                <SheetHeader className="sticky top-0 bg-white z-10 -mt-1 pb-2">
+                    <SheetTitle className="text-center bg-emerald-500 text-white py-2.5 rounded-lg text-base">
+                        {editedReservation.customer_name || 'עריכת הזמנה'}
+                    </SheetTitle>
                 </SheetHeader>
 
                 <div className="bg-[#B89556] text-white p-3 rounded flex items-center justify-between mt-2">
@@ -254,56 +264,86 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
 
                 <DepositSection reservation={reservation} onDone={() => { onUpdate(); setOpen(false); }} />
 
-                <div className="bg-gray-100 p-4 rounded mt-4">
-                    <h3 className="font-bold text-center mb-4">פרטי ההזמנה</h3>
-                    
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div className="text-right">
-                            <span className="text-[#44512C]">תאריך</span>
-                        </div>
-                        <div className="text-left">
-                            <span>יום ה, {editedReservation.date}</span>
-                        </div>
-
-                        <div className="text-right">
-                            <span className="text-green-600">מספר אורחים</span>
-                        </div>
-                        <div className="text-left">
-                            <Input 
-                                type="number" 
-                                value={editedReservation.party_size || 0} 
-                                onChange={e => setEditedReservation({...editedReservation, party_size: parseInt(e.target.value)})} 
-                                className="h-8"
+                {/* Guest first — the card is about a PERSON. Name/phone used to sit at the
+                    very bottom under the logistics, so on a phone you scrolled past
+                    everything to find out who you were even looking at. */}
+                <div className="bg-white border rounded-xl p-3 mt-3">
+                    <label className="text-[11px] text-gray-500">שם הלקוח</label>
+                    <Input
+                        value={editedReservation.customer_name || ''}
+                        onChange={e => setEditedReservation({ ...editedReservation, customer_name: e.target.value })}
+                        className="h-11 text-lg font-semibold mt-0.5"
+                        placeholder="שם מלא"
+                    />
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div>
+                            <label className="text-[11px] text-gray-500">טלפון</label>
+                            <Input
+                                value={editedReservation.customer_phone || ''}
+                                onChange={e => setEditedReservation({ ...editedReservation, customer_phone: e.target.value })}
+                                className="h-10 mt-0.5" dir="ltr" type="tel" inputMode="tel"
                             />
                         </div>
-
-                        <div className="text-right">
-                            <span>זמן התחלה</span>
-                        </div>
-                        <div className="text-left">
-                            <TimePicker
-                                value={editedReservation.time || ''}
-                                onChange={v => setEditedReservation({...editedReservation, time: v})}
+                        <div>
+                            <label className="text-[11px] text-gray-500">סועדים</label>
+                            <Input
+                                type="number" inputMode="numeric"
+                                value={editedReservation.party_size || 0}
+                                onChange={e => setEditedReservation({ ...editedReservation, party_size: parseInt(e.target.value) })}
+                                className="h-10 mt-0.5"
                             />
-                        </div>
-
-                        <div className="text-right">
-                            <span>זמן סיום</span>
-                        </div>
-                        <div className="text-left">
-                            <TimePicker
-                                value={editedReservation.reservation_end_time || ''}
-                                onChange={v => setEditedReservation({...editedReservation, reservation_end_time: v})}
-                            />
-                        </div>
-
-                        <div className="text-right">
-                            <span className="text-green-600">שולחן</span>
-                        </div>
-                        <div className="text-left">
-                            <span>{editedReservation.assigned_table?.join(', ') || 'כללי'}</span>
                         </div>
                     </div>
+                </div>
+
+                <div className="bg-gray-50 border rounded-xl p-3 mt-3">
+                    <div className="text-[11px] text-gray-500 mb-2">יום ה, {editedReservation.date}</div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <label className="text-[11px] text-gray-500">משעה</label>
+                            <TimePicker
+                                value={editedReservation.time || ''}
+                                onChange={v => setEditedReservation({ ...editedReservation, time: v })}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[11px] text-gray-500">עד שעה</label>
+                            <TimePicker
+                                value={editedReservation.reservation_end_time || ''}
+                                onChange={v => setEditedReservation({ ...editedReservation, reservation_end_time: v })}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Table as a PICKER, not a read-only label — on a phone the map is
+                        hard to hit, so moving a guest had to be possible from here. */}
+                    <div className="mt-3">
+                        <label className="text-[11px] text-gray-500">שולחן</label>
+                        <select
+                            value={(editedReservation.assigned_table || [])[0] || ''}
+                            onChange={e => setEditedReservation({
+                                ...editedReservation,
+                                assigned_table: e.target.value ? [e.target.value] : null,
+                            })}
+                            className="w-full h-11 mt-0.5 border rounded-lg px-2 bg-white text-base font-semibold"
+                        >
+                            <option value="">כללי / ללא שולחן</option>
+                            {[...tables]
+                                .sort((a, b) => String(a.table_number).localeCompare(String(b.table_number), 'he', { numeric: true }))
+                                .map(t => (
+                                    <option key={t.table_number} value={t.table_number}>
+                                        {t.table_number} · {t.min_capacity}-{t.max_capacity} סועדים{t.area ? ` · ${t.area}` : ''}
+                                    </option>
+                                ))}
+                        </select>
+                        {(editedReservation.assigned_table || []).length > 1 && (
+                            <div className="text-[11px] text-gray-500 mt-1">
+                                שולחנות מחוברים: {editedReservation.assigned_table.join(' + ')}
+                            </div>
+                        )}
+                    </div>
+                </div>
 
                     <div className="mt-4 space-y-2">
                         <div className="text-right mb-2">
@@ -347,41 +387,14 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                             <div className={`border p-2 rounded ${reservation?.special_occasion ? 'bg-green-100 border-green-400' : 'bg-gray-100 border-gray-300'}`} title={reservation?.special_occasion ? `אירוע: ${reservation.special_occasion}` : 'ללא אירוע'}>🎁</div>
                         </div>
                     </div>
-                </div>
 
-                <div className="bg-gray-100 p-4 rounded mt-4">
-                    <h3 className="font-bold text-center mb-4">אורח</h3>
-                    
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                            <span className="text-green-600">שם</span>
-                            <Input 
-                                value={editedReservation.customer_name || ''} 
-                                onChange={e => setEditedReservation({...editedReservation, customer_name: e.target.value})} 
-                                className="w-1/2 h-8"
-                            />
-                        </div>
-                        
-                        <div className="flex justify-between items-center">
-                            <span>טלפון</span>
-                            <Input 
-                                value={editedReservation.customer_phone || ''} 
-                                onChange={e => setEditedReservation({...editedReservation, customer_phone: e.target.value})} 
-                                className="w-1/2 h-8"
-                            />
-                        </div>
-                        
-                        <div className="text-right">
-                            <span className="text-green-600">הערת אורח</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex gap-2 mt-4">
-                    <Button onClick={handleSave} className="flex-1 bg-emerald-500 hover:bg-emerald-600">
+                {/* Save/cancel stick to the bottom of the sheet so they're always
+                    reachable on a phone without scrolling the whole card. */}
+                <div className="flex gap-2 mt-4 sticky bottom-0 bg-white pt-2 pb-1 -mx-1 px-1">
+                    <Button onClick={handleSave} className="flex-1 h-12 text-base bg-emerald-500 hover:bg-emerald-600">
                         שמור
                     </Button>
-                    <Button variant="outline" onClick={() => setOpen(false)} className="flex-1">
+                    <Button variant="outline" onClick={() => setOpen(false)} className="flex-1 h-12 text-base">
                         בטל
                     </Button>
                 </div>
@@ -3573,8 +3586,11 @@ export default function SeatingSetup() {
                                         </div>
                                     </div>
 
-                                    {/* Zoom controls — small floating cluster, hidden on print */}
-                                    <div className="flex items-center gap-1 bg-white border rounded-lg p-1 shadow-sm w-fit">
+                                    {/* Zoom + map controls. This was a single non-wrapping row of a
+                                        fixed width, so on an iPhone the right-hand controls (יישר מפה,
+                                        שרטוט, AI) simply ran off the screen with no way to reach them.
+                                        Wraps on small screens, scrolls horizontally as a last resort. */}
+                                    <div className="flex flex-wrap items-center gap-1 bg-white border rounded-lg p-1 shadow-sm w-full sm:w-fit max-w-full overflow-x-auto">
                                         <button
                                             onClick={() => setMapZoom(z => Math.max(0.2, z - 0.1))}
                                             className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100"

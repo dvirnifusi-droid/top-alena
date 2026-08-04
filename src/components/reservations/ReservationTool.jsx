@@ -117,6 +117,8 @@ export default function ReservationTool({ onReservationCreated, customers }) {
     const [suggestion, setSuggestion] = useState(null);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    // Open on desktop, collapsed on a phone (see CardHeader below).
+    const [toolOpen, setToolOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 768 : true));
 
     const getOpeningHours = (selectedDate) => {
         const dayOfWeek = selectedDate.getDay();
@@ -263,14 +265,21 @@ export default function ReservationTool({ onReservationCreated, customers }) {
 
     return (
         <Card>
-            <CardHeader>
+            {/* Collapsed by default on a phone: the booking form was permanently
+                expanded under the reservation list, so the list itself was pushed
+                off-screen. Tap to open. Desktop keeps it open. */}
+            <CardHeader
+                className="cursor-pointer md:cursor-default select-none"
+                onClick={() => { if (window.innerWidth < 768) setToolOpen(v => !v); }}
+            >
                 <CardTitle className="flex items-center gap-2">
                     <Wand2 className="w-5 h-5 text-blue-600" />
                     הזמנה חכמה
+                    <span className="md:hidden mr-auto text-sm text-gray-400">{toolOpen ? '▲' : '▼'}</span>
                 </CardTitle>
                 <CardDescription>מצא שולחן פנוי אוטומטית</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className={toolOpen ? '' : 'hidden md:block'}>
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="relative">
