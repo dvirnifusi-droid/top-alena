@@ -3062,6 +3062,11 @@ export default function SeatingSetup() {
             const d = res?.data || res || {};
             await loadLiveData();
             let msg = `✅ שובצו ${d.assigned_count || 0} הזמנות.`;
+            // Standby entries are deliberately left alone — say so, or they look
+            // like an unexplained failure to assign.
+            if (d.skipped_standby > 0) {
+                msg += `\n\n🟡 ${d.skipped_standby} ברשימת המתנה — לא שובצו בכוונה. קידום שלהן חייב לעבור דרך "קדם מרשימת המתנה" כדי שהלקוח יקבל הודעה.`;
+            }
             if (d.failed_count > 0) {
                 const names = (d.failed || []).map(f => `${f.customer_name} (${f.time}, ${f.party_size})`).join('\n');
                 msg += `\n\n⚠️ ${d.failed_count} ללא שולחן פנוי מתאים:\n${names}`;

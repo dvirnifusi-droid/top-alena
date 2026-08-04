@@ -11902,11 +11902,20 @@ registerFn('autoAssignAllReservations', async ({ body, user }: any) => {
   const needsTable = (r: any) => {
     const at = r.assigned_table;
     const hasTable = Array.isArray(at) ? at.length > 0 : !!at;
+    // A standby entry is a WAITLIST entry, not a booking waiting for a table.
+    // It looks identical here — status 'pending', no assigned_table — so it used
+    // to be swept up and silently given a table: is_standby stayed true,
+    // standby_promoted_at was never stamped, and the guest, who was told "we'll
+    // call you if something frees up", was never called. A held table and a
+    // no-show. Promoting a standby has to go through promoteStandbyReservation,
+    // which assigns AND notifies.
+    if (r.is_standby) return false;
     return isActive(r) && !hasTable && r.time && r.party_size;
   };
   const toAssign = all
     .filter(needsTable)
     .sort((a, b) => toMin(a.time) - toMin(b.time));
+  const skippedStandby = all.filter((r: any) => r.is_standby && isActive(r)).length;
 
   const assigned: any[] = [];
   const failed: any[] = [];
@@ -11929,7 +11938,7 @@ registerFn('autoAssignAllReservations', async ({ body, user }: any) => {
     if (idx >= 0) all[idx] = { ...all[idx], assigned_table: pick.table_numbers, reservation_end_time: end_time };
     assigned.push({ id: r.id, customer_name: r.customer_name, time: r.time, party_size: r.party_size, tables: pick.table_numbers });
   }
-  return { assigned_count: assigned.length, failed_count: failed.length, assigned, failed };
+  return { assigned_count: assigned.length, failed_count: failed.length, assigned, failed, skipped_standby: skippedStandby };
 });
 
 // Public: create a reservation. Re-validates server-side, upserts the customer
