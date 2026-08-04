@@ -27,7 +27,7 @@ import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
 import TimePicker from '@/components/shared/TimePicker';
 import TablePicker from '@/components/dashboard/TablePicker';
 import ZoneTablePicker from '@/components/seating/ZoneTablePicker';
-import { pendingLabel, pendingExplanation, bookedLabel, confirmationState } from '@/lib/reservationStatus';
+import { pendingLabel, pendingExplanation, bookedLabel, confirmationState, findTableConflicts } from '@/lib/reservationStatus';
 import GuestKnowledgePanel from '@/components/seating/GuestKnowledgePanel';
 import StandbyPanel from '@/components/seating/StandbyPanel';
 import ConfirmationsPanel from '@/components/seating/ConfirmationsPanel';
@@ -2520,8 +2520,15 @@ export default function SeatingSetup() {
                                 הזמנות עתידיות ({futureReservations.length})
                             </h3>
                             <div className="space-y-2">
-                                {futureReservations.map((reservation) => (
-                                    <div key={reservation.id} className="bg-white p-3 rounded border border-[#E8D9B5] flex justify-between items-center group">
+                                {futureReservations.map((reservation) => {
+                                    // Two parties on one table at the same time is physically
+                                    // impossible; listing them as an ordinary row let it pass
+                                    // unnoticed. Flag it where the manager is already looking.
+                                    const clashes = findTableConflicts(reservations, table.table_number, reservation);
+                                    return (
+                                    <div key={reservation.id} className={`bg-white p-3 rounded border flex justify-between items-center group ${
+                                        clashes.length ? 'border-rose-300 bg-rose-50' : 'border-[#E8D9B5]'
+                                    }`}>
                                         <div>
                                             <div className="flex items-center gap-2">
                                                 <span className="font-semibold text-[#2E3819]">{reservation.customer_name}</span>
@@ -2533,6 +2540,11 @@ export default function SeatingSetup() {
                                             {reservation.special_requests && (
                                                 <div className="text-xs text-gray-500 mt-1">"{reservation.special_requests}"</div>
                                             )}
+                                            {clashes.length > 0 && (
+                                                <div className="text-[11px] text-rose-700 font-semibold mt-1">
+                                                    ⚠️ מתנגש עם {clashes.map(c => `${c.customer_name} ${String(c.time).slice(0, 5)}`).join(' · ')} — אותו שולחן באותו זמן
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => handleEditReservation(reservation)}>
@@ -2543,7 +2555,8 @@ export default function SeatingSetup() {
                                             </Button>
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
@@ -2948,6 +2961,26 @@ export default function SeatingSetup() {
         if (!multiAssignReservationId) return;
         const id = multiAssignReservationId;
         const chosen = [...selectedTablesForReservation];
+
+        // The public booking path re-checks capacity atomically and auto-assign
+        // picks a free table, but assigning by hand wrote straight through — which
+        // is how one 2-4 seater ended up with three parties fifteen minutes apart.
+        // Warn, don't block: a hostess who knows the first party is leaving early
+        // is allowed to overlap on purpose.
+        const target = reservations.find(r => r.id === id);
+        if (target) {
+            const clashes = chosen.flatMap(t =>
+                findTableConflicts(reservations, t, target).map(c => ({ table: t, c })));
+            if (clashes.length) {
+                const lines = clashes.map(({ table, c }) =>
+                    `• שולחן ${table}: ${c.customer_name} ב-${String(c.time).slice(0, 5)} (${c.party_size} סועדים)`).join('\n');
+                if (!window.confirm(
+                    `⚠️ התנגשות — השולחן כבר תפוס בזמן הזה:\n\n${lines}\n\n` +
+                    `שתי חבורות לא יכולות לשבת על אותו שולחן במקביל.\nלשבץ בכל זאת?`
+                )) return;
+            }
+        }
+
         patchReservationLocal(id, { assigned_table: chosen });  // instant map update
         cancelMultiTableAssignment();
         try {

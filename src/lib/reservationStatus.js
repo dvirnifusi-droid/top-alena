@@ -37,6 +37,58 @@ export function pendingLabel(reservation) {
 }
 
 /**
+ * Two parties can't sit at one table at the same time, but nothing stopped the
+ * app from recording it: the public booking path checks capacity and re-checks
+ * atomically, and auto-assign picks a free table — but a hostess assigning by
+ * hand writes assigned_table directly, and the table card listed the result as a
+ * neutral "הזמנות עתידיות (3)". Three parties, one 2-4 seater, fifteen minutes
+ * apart, no warning anywhere.
+ *
+ * TURNAROUND_MIN is the gap needed to clear and reset a table; two bookings
+ * closer than that are treated as a clash even if the clock times don't strictly
+ * overlap.
+ */
+export const TURNAROUND_MIN = 15;
+
+const toMin = (hhmm) => {
+    const [h, m] = String(hhmm || '').split(':').map(Number);
+    if (Number.isNaN(h)) return null;
+    return h * 60 + (m || 0);
+};
+
+/** Minutes a party of this size is expected to stay, when no end time is set. */
+const fallbackDuration = (size) => (size <= 2 ? 90 : size <= 4 ? 105 : size <= 6 ? 120 : 150);
+
+export function reservationWindow(r) {
+    const start = toMin(r?.time);
+    if (start == null) return null;
+    let end = toMin(r?.reservation_end_time);
+    if (end == null) end = start + fallbackDuration(Number(r?.party_size) || 2);
+    if (end <= start) end += 24 * 60;   // after-midnight, not a typo
+    return { start, end };
+}
+
+const LIVE = (r) => !['cancelled', 'no_show', 'deleted', 'completed'].includes(r?.status);
+
+/**
+ * Other live bookings that would share `tableNumber` with `target` in time.
+ * Standby entries hold no table and are never a clash.
+ */
+export function findTableConflicts(reservations, tableNumber, target) {
+    const win = reservationWindow(target);
+    if (!win || !tableNumber) return [];
+    const num = String(tableNumber);
+    return (reservations || []).filter(r => {
+        if (!r || r.id === target?.id) return false;
+        if (!LIVE(r) || r.is_standby) return false;
+        if (!(Array.isArray(r.assigned_table) ? r.assigned_table.map(String).includes(num) : false)) return false;
+        const w = reservationWindow(r);
+        if (!w) return false;
+        return win.start < w.end + TURNAROUND_MIN && win.end + TURNAROUND_MIN > w.start;
+    });
+}
+
+/**
  * A booked table and a table someone has actually promised to show up for are
  * not the same asset, and the floor plan should never pretend they are. Split
  * 'confirmed' the way WhatsApp splits its ticks:
