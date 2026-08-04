@@ -241,9 +241,27 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                     </SheetTitle>
                 </SheetHeader>
 
-                <div className="bg-[#B89556] text-white p-3 rounded flex items-center justify-between mt-2">
-                    <Select value={editedReservation.status || 'pending'} onValueChange={value => setEditedReservation({...editedReservation, status: value})}>
-                        <SelectTrigger className="w-[180px] bg-[#B89556] text-white border-0 font-bold">
+                {/* Status strip — the whole bar is the control, and it takes the colour
+                    of the status. It used to be a fixed gold bar with a small select
+                    inside it, so most taps on the bar did nothing and the colour never
+                    told you anything. */}
+                {(() => {
+                    const st = editedReservation.status || 'pending';
+                    const STATUS_BAR = {
+                        request:   'bg-slate-500',
+                        pending:   'bg-amber-500',
+                        confirmed: 'bg-emerald-600',
+                        standby:   'bg-sky-600',
+                        seated:    'bg-green-700',
+                        completed: 'bg-stone-500',
+                        no_show:   'bg-rose-600',
+                        cancelled: 'bg-gray-500',
+                        deleted:   'bg-gray-600',
+                    };
+                    return (
+                <div className={`${STATUS_BAR[st] || 'bg-[#B89556]'} text-white rounded-lg flex items-center justify-between mt-2 transition-colors`}>
+                    <Select value={st} onValueChange={value => setEditedReservation({...editedReservation, status: value})}>
+                        <SelectTrigger className="flex-1 h-14 bg-transparent text-white border-0 font-bold text-base px-3 focus:ring-0">
                             <SelectValue placeholder="בחר סטטוס" />
                         </SelectTrigger>
                         <SelectContent>
@@ -259,8 +277,10 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                             <SelectItem value="deleted">מחוק</SelectItem>
                         </SelectContent>
                     </Select>
-                    <CheckCircle className="w-5 h-5" />
+                    <CheckCircle className="w-5 h-5 ml-3 shrink-0" />
                 </div>
+                    );
+                })()}
 
                 <DepositSection reservation={reservation} onDone={() => { onUpdate(); setOpen(false); }} />
 
@@ -329,14 +349,43 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                             className="w-full h-11 mt-0.5 border rounded-lg px-2 bg-white text-base font-semibold"
                         >
                             <option value="">כללי / ללא שולחן</option>
-                            {[...tables]
-                                .sort((a, b) => String(a.table_number).localeCompare(String(b.table_number), 'he', { numeric: true }))
-                                .map(t => (
-                                    <option key={t.table_number} value={t.table_number}>
-                                        {t.table_number} · {t.min_capacity}-{t.max_capacity} סועדים{t.area ? ` · ${t.area}` : ''}
-                                    </option>
-                                ))}
+                            {/* Grouped by area so you pick a section first, then a table in
+                                it — a flat list of 57 is unusable on a phone. ⭐ marks the
+                                tables that actually fit this party size. */}
+                            {Object.entries(
+                                [...tables]
+                                    .sort((a, b) => String(a.table_number).localeCompare(String(b.table_number), 'he', { numeric: true }))
+                                    .reduce((acc, t) => {
+                                        const k = t.area || 'ללא אזור';
+                                        (acc[k] = acc[k] || []).push(t);
+                                        return acc;
+                                    }, {})
+                            ).map(([area, list]) => (
+                                <optgroup key={area} label={area}>
+                                    {list.map(t => {
+                                        const size = Number(editedReservation.party_size) || 0;
+                                        const fits = size > 0 && Number(t.min_capacity) <= size && Number(t.max_capacity) >= size;
+                                        return (
+                                            <option key={t.table_number} value={t.table_number}>
+                                                {fits ? '⭐ ' : ''}{t.table_number} · {t.min_capacity}-{t.max_capacity} סועדים
+                                            </option>
+                                        );
+                                    })}
+                                </optgroup>
+                            ))}
                         </select>
+                        {(() => {
+                            const size = Number(editedReservation.party_size) || 0;
+                            const cur = (editedReservation.assigned_table || [])[0];
+                            const t = tables.find(x => String(x.table_number) === String(cur));
+                            if (!size || !t) return null;
+                            const fits = Number(t.min_capacity) <= size && Number(t.max_capacity) >= size;
+                            return fits ? null : (
+                                <div className="text-[11px] text-amber-700 mt-1">
+                                    ⚠️ שולחן {t.table_number} מיועד ל-{t.min_capacity}-{t.max_capacity} סועדים ({size} בהזמנה)
+                                </div>
+                            );
+                        })()}
                         {(editedReservation.assigned_table || []).length > 1 && (
                             <div className="text-[11px] text-gray-500 mt-1">
                                 שולחנות מחוברים: {editedReservation.assigned_table.join(' + ')}
@@ -2101,12 +2150,24 @@ export default function SeatingSetup() {
                 </div>
 
                 <div className="flex gap-2 mb-4">
+                    {/* A native time input renders in the BROWSER's locale — on an iPhone
+                        set to English that's a 12-hour AM/PM field ("--:-- --"), while
+                        reservations store 24-hour "HH:mm". The filter then matched nothing.
+                        Plain text + 24h pattern keeps both sides in the same format. */}
                     <Input
-                        type="time"
+                        type="text"
+                        inputMode="numeric"
+                        dir="ltr"
+                        maxLength={5}
                         value={timeFilter}
-                        onChange={e => setTimeFilter(e.target.value)}
-                        className="w-24"
-                        placeholder="שעה"
+                        onChange={e => {
+                            let v = e.target.value.replace(/[^\d:]/g, '');
+                            if (v.length === 2 && !v.includes(':') && timeFilter.length < 2) v += ':';
+                            setTimeFilter(v.slice(0, 5));
+                        }}
+                        className="w-24 text-center tabular-nums"
+                        placeholder="20:00"
+                        title="סינון לפי שעה — פורמט 24 שעות, למשל 20:00"
                     />
                     <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                         <SelectTrigger className="flex-1">
