@@ -36,6 +36,37 @@ export function pendingLabel(reservation) {
     }
 }
 
+/**
+ * A booked table and a table someone has actually promised to show up for are
+ * not the same asset, and the floor plan should never pretend they are. Split
+ * 'confirmed' the way WhatsApp splits its ticks:
+ *   ✓  מוזמן  — booked, and the same-day question hasn't been answered
+ *   ✓✓ מאושר  — the guest replied that they're coming
+ */
+export function isGuestConfirmed(reservation) {
+    return !!reservation?.guest_confirmed_at;
+}
+
+export function bookedLabel(reservation) {
+    return isGuestConfirmed(reservation) ? 'מאושר ✓✓' : 'מוזמן ✓';
+}
+
+/**
+ * Did the same-day question actually reach them? Business-initiated WhatsApp is
+ * silently undelivered often enough (Twilio 63016) that "didn't answer" and
+ * "never got the message" have to stay separate — one is a guest to chase, the
+ * other is our problem.
+ */
+export function confirmationState(reservation) {
+    if (!reservation) return null;
+    if (reservation.guest_declined_at) return { key: 'declined', label: 'ביטל', tone: 'rose' };
+    if (reservation.guest_confirmed_at) return { key: 'confirmed', label: 'אישר הגעה', tone: 'sky' };
+    if (!reservation.confirm_request_sent_at) return { key: 'not_asked', label: 'טרם נשלחה בקשה', tone: 'slate' };
+    if (reservation.confirm_request_delivered === false) return { key: 'undelivered', label: '⚠️ ההודעה לא הגיעה', tone: 'amber' };
+    if (reservation.confirm_request_delivered == null) return { key: 'sent', label: 'נשלח, טרם אומת', tone: 'slate' };
+    return { key: 'no_reply', label: 'לא ענה', tone: 'amber' };
+}
+
 /** One sentence saying who is being waited on, and what happens next. */
 export function pendingExplanation(reservation) {
     switch (pendingReason(reservation)) {

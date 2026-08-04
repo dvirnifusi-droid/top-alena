@@ -3,10 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Users, Clock } from "lucide-react";
 import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
-import { pendingLabel } from '@/lib/reservationStatus';
+import { pendingLabel, bookedLabel } from '@/lib/reservationStatus';
 
 const statusConfig = {
-    confirmed: { label: "אושר", color: "bg-green-100 text-green-800" },
+    confirmed: { label: "מוזמן", color: "bg-sky-100 text-sky-800" },
     pending: { label: "ממתין", color: "bg-[#F4ECD8] text-yellow-800" },
     seated: { label: "הושב", color: "bg-[#F4ECD8] text-[#2E3819]" }
 };
@@ -76,7 +76,9 @@ export default function TodayReservations({ reservations = [], isLoading = false
                                         or "waiting on us to free a table" — say which. */}
                                     {reservation.status === 'pending'
                                         ? (pendingLabel(reservation) || statusConfig.pending.label)
-                                        : statusConfig[reservation.status]?.label}
+                                        : reservation.status === 'confirmed'
+                                            ? bookedLabel(reservation)
+                                            : statusConfig[reservation.status]?.label}
                                 </Badge>
                             </div>
                             <div className="flex items-center justify-between">

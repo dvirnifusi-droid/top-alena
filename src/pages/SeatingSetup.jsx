@@ -27,7 +27,7 @@ import ReservationSourceBadge from '@/components/shared/ReservationSourceBadge';
 import TimePicker from '@/components/shared/TimePicker';
 import TablePicker from '@/components/dashboard/TablePicker';
 import ZoneTablePicker from '@/components/seating/ZoneTablePicker';
-import { pendingLabel, pendingExplanation } from '@/lib/reservationStatus';
+import { pendingLabel, pendingExplanation, bookedLabel, confirmationState } from '@/lib/reservationStatus';
 import GuestKnowledgePanel from '@/components/seating/GuestKnowledgePanel';
 import StandbyPanel from '@/components/seating/StandbyPanel';
 import { base44 } from '@/api/base44Client';
@@ -313,6 +313,27 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                         <b>{pendingLabel(editedReservation)}</b> — {pendingExplanation(editedReservation)}
                     </div>
                 )}
+
+                {/* Same-day reconfirmation. "לא ענה" and "ההודעה לא הגיעה" are kept
+                    apart on purpose: one is a guest to chase, the other is ours to
+                    fix, and treating them alike is how you cancel a real booking. */}
+                {editedReservation.status === 'confirmed' && (() => {
+                    const cs = confirmationState(editedReservation);
+                    if (!cs || cs.key === 'not_asked') return null;
+                    const TONE = {
+                        sky: 'bg-sky-50 border-sky-200 text-sky-900',
+                        amber: 'bg-amber-50 border-amber-200 text-amber-900',
+                        rose: 'bg-rose-50 border-rose-200 text-rose-900',
+                        slate: 'bg-slate-50 border-slate-200 text-slate-700',
+                    };
+                    return (
+                        <div className={`mt-1.5 rounded-lg px-3 py-2 text-[12px] leading-relaxed border ${TONE[cs.tone] || TONE.slate}`}>
+                            <b>אישור הגעה: {cs.label}</b>
+                            {cs.key === 'undelivered' && ' — הודעת האישור לא נמסרה לוואטסאפ שלו, אז אי אפשר להסיק שהוא לא מתכוון להגיע. עדיף להתקשר.'}
+                            {cs.key === 'no_reply' && ' — ההודעה נמסרה והוא לא השיב.'}
+                        </div>
+                    );
+                })()}
 
                 {/* Reaching the guest was a copy-the-number-by-hand job. */}
                 {editedReservation.customer_phone && (
@@ -1593,7 +1614,10 @@ export default function SeatingSetup() {
     const STATUS_CONFIGS = {
         request:         { label: 'בקשה',          color: 'bg-orange-100 text-orange-800',    bgColor: 'bg-orange-50',    cardBg: 'bg-orange-500',    cardText: 'text-white' },
         pending:         { label: 'ממתין',          color: 'bg-[#F4ECD8] text-yellow-800',    bgColor: 'bg-[#FAF5E8]',    cardBg: 'bg-amber-400',     cardText: 'text-amber-950' },
-        confirmed:       { label: 'מאושר',         color: 'bg-[#F4ECD8] text-[#2E3819]',        bgColor: 'bg-[#F4ECD8]',      cardBg: 'bg-[#B89556]',       cardText: 'text-white' },
+        // תכלת for booked-but-not-yet-seated. Label is split at render time into
+        // מוזמן ✓ / מאושר ✓✓ depending on whether the guest answered today's
+        // question — see lib/reservationStatus.
+        confirmed:       { label: 'מוזמן',          color: 'bg-sky-100 text-sky-800',         bgColor: 'bg-sky-50',        cardBg: 'bg-sky-400',        cardText: 'text-white' },
         standby:         { label: 'סטנדבי',        color: 'bg-[#F4ECD8] text-[#7A3722]',    bgColor: 'bg-[#F4ECD8]',    cardBg: 'bg-[#A04A2E]',    cardText: 'text-white' },
         seated:          { label: 'יושב',           color: 'bg-green-100 text-green-800',      bgColor: 'bg-green-50',     cardBg: 'bg-emerald-500',   cardText: 'text-white' },
         finishing_soon:  { label: 'מסיים בקרוב',   color: 'bg-amber-100 text-amber-800',      bgColor: 'bg-amber-50',     cardBg: 'bg-amber-500',     cardText: 'text-white' },
@@ -1611,6 +1635,9 @@ export default function SeatingSetup() {
             if (status === 'pending') {
                 const label = pendingLabel(reservation);
                 if (label && label !== cfg.label) return { ...cfg, label };
+            }
+            if (status === 'confirmed' && reservation) {
+                return { ...cfg, label: bookedLabel(reservation) };
             }
             return cfg;
         }
@@ -5062,7 +5089,7 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
     // Status pill color
     const statusPill = (s) => {
         if (s === 'seated') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-        if (s === 'confirmed') return 'bg-[#F4ECD8] text-[#44512C] border-[#E8D9B5]';
+        if (s === 'confirmed') return 'bg-sky-100 text-sky-700 border-sky-200';
         if (s === 'pending') return 'bg-amber-100 text-amber-700 border-amber-200';
         return 'bg-gray-100 text-gray-600 border-gray-200';
     };
@@ -5071,7 +5098,7 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
     const statusLabel = (r) => {
         const s = r?.status;
         if (s === 'seated') return 'יושב';
-        if (s === 'confirmed') return 'אושר';
+        if (s === 'confirmed') return bookedLabel(r);
         if (s === 'pending') return pendingLabel(r) || 'ממתין';
         return s || '—';
     };

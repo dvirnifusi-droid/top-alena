@@ -20,6 +20,7 @@ import { transcribeWhatsAppVoice } from '../lib/whatsappVoice.js';
 import { runConversationAgent } from '../lib/whatsappConversation.js';
 import { tryHandleOnboardingMessage, tryHandleOnboardingMedia, isOnboardingActive } from '../lib/whatsappOnboarding.js';
 import { sendWhatsApp } from '../lib/twilio.js';
+import { handleGuestConfirmationReply } from '../functions/load.js';
 import {
   resolveTenantFromMessage,
   setLastTenant,
@@ -197,8 +198,29 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             error_code: errorCode || null,
           },
         });
+        // Same-day reconfirmation: record whether the question actually REACHED
+        // the guest. "Didn't answer" only means something if it did — Twilio
+        // reports the send as successful and then fails asynchronously, so this
+        // callback is the only trustworthy signal.
+        if (sid && ['delivered', 'read', 'failed', 'undelivered'].includes(messageStatus)) {
+          await (prisma as any).reservation.updateMany({
+            where: { confirm_request_sid: sid },
+            data: { confirm_request_delivered: ['delivered', 'read'].includes(messageStatus) },
+          }).catch(() => {});
+        }
         req.log.info({ sid, messageStatus }, '[twilio-webhook] status update');
       } else if (from && (body || numMedia > 0)) {
+        // A guest answering "מאשר" / "מבטל" to today's reconfirmation is handled
+        // here and goes no further — it must never reach the staff agent.
+        try {
+          const ack = await handleGuestConfirmationReply(from, body);
+          if (ack) {
+            await sendWhatsApp(from, ack).catch(() => {});
+            return reply.code(200).type('text/xml').send('<Response></Response>');
+          }
+        } catch (e: any) {
+          req.log.warn({ err: e?.message }, '[twilio-webhook] guest confirmation failed');
+        }
         // Media-only messages have an empty body — without the numMedia guard
         // they'd silently fall out of the entire handler. That's why sending
         // an invoice photo with no caption produced no reply.

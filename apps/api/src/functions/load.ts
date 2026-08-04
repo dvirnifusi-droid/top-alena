@@ -12054,6 +12054,63 @@ async function notifyReservationConfirmed(r: any): Promise<void> {
 // Day-of reservation reminder. Cron pings /api/cron/reservation-reminder every
 // ~15 min; this sends a single reminder (SMS + WhatsApp + email) to each of
 // TODAY's confirmed guests whose seating is 90 min – 6 h away and who hasn't
+/**
+ * Guest replied to the same-day reconfirmation. Returns an acknowledgement to
+ * send back, or null when this number/message isn't a reconfirmation at all (in
+ * which case the webhook carries on to the normal agent routing).
+ *
+ * Deliberately narrow: it only matches a booking TODAY on that number which we
+ * actually asked, and only the words we asked for. Anything else falls through
+ * — a guest writing a sentence should reach a human, not be parsed as an answer.
+ */
+export async function handleGuestConfirmationReply(fromPhone: string, text: string): Promise<string | null> {
+  const digits = String(fromPhone || '').replace(/\D/g, '').slice(-9);
+  if (!digits) return null;
+  const t = String(text || '').trim().toLowerCase();
+  const YES = ['מאשר', 'מאשרת', 'מאושר', 'כן', 'מגיע', 'מגיעים', 'מגיעה', '1', 'yes', 'ok'];
+  const NO = ['מבטל', 'מבטלת', 'ביטול', 'לא', 'לא מגיע', 'לא מגיעים', '2', 'no', 'cancel'];
+  const isYes = YES.includes(t);
+  const isNo = NO.includes(t);
+  if (!isYes && !isNo) return null;
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const g = (k: string) => parts.find((p) => p.type === k)?.value || '';
+  const dayStart = new Date(`${g('year')}-${g('month')}-${g('day')}T00:00:00.000Z`);
+  const dayEnd = new Date(`${g('year')}-${g('month')}-${g('day')}T23:59:59.999Z`);
+
+  const todays = await (db as any).reservation.findMany({
+    where: {
+      date: { gte: dayStart, lte: dayEnd },
+      status: { notIn: ['cancelled', 'no_show', 'completed', 'deleted'] },
+      confirm_request_sent_at: { not: null },
+    },
+  }).catch(() => []);
+  const match = (todays || []).find((r: any) =>
+    String(r.customer_phone || '').replace(/\D/g, '').slice(-9) === digits);
+  if (!match) return null;
+
+  const brand = await getBrandName();
+  if (isYes) {
+    await (db as any).reservation.update({
+      where: { id: match.id },
+      data: { guest_confirmed_at: new Date(), guest_declined_at: null } as any,
+    });
+    return `תודה! ההגעה שלך ל-${match.time} אושרה ✅ נתראה ב${brand}.`;
+  }
+  // Declined — free the table and tell the floor, rather than discovering it at 21:00.
+  await (db as any).reservation.update({
+    where: { id: match.id },
+    data: { guest_declined_at: new Date(), status: 'cancelled', cancelled_at: new Date(), cancellation_reason: 'הלקוח ביטל בתשובה לבקשת אישור' } as any,
+  });
+  pushoverToAdmins(
+    `❌ ביטול בתשובה לאישור — ${match.time}`,
+    `${match.customer_name || ''} · ${match.party_size || '?'} סועדים · ${match.customer_phone || ''}\nהשולחן התפנה.`,
+  ).catch(() => {});
+  return `הבנו, ההזמנה ל-${match.time} בוטלה. תודה שעדכנת — נשמח לראותך בפעם אחרת 🙏`;
+}
+
 // been reminded yet. Idempotent via Reservation.reminder_sent_at. Includes the
 // tracking link so the guest can confirm or cancel — cuts no-shows.
 export async function sendReservationReminders() {
@@ -12103,18 +12160,33 @@ export async function sendReservationReminders() {
       const trackUrl = r.tracking_token ? `${base}/ReservationView?token=${r.tracking_token}` : base;
       const dateStr = (r.date instanceof Date ? r.date.toISOString() : String(r.date)).slice(0, 10).split('-').reverse().join('/');
       const phone = String(r.customer_phone || '').trim();
+      // Ask, don't just remind. A reminder tells the guest something they already
+      // know; a question is what turns a held table into either a seated party or
+      // a table you can sell to someone else.
       const body = [
         `שלום ${r.customer_name || ''} 👋`, ``,
-        `תזכורת: ההזמנה שלך ב${brand} היום`,
+        `ההזמנה שלך ב${brand} היום`,
         `📅 ${dateStr} בשעה ${r.time}`,
         `👥 ${r.party_size} סועדים`,
-        ``, `מחכים לך! לצפייה / ביטול: ${trackUrl}`,
+        ``,
+        `מגיעים? השיבו *מאשר* ✅`,
+        `לא מסתדר? השיבו *מבטל* — נשחרר את השולחן למישהו אחר.`,
+        ``, `לצפייה בפרטים: ${trackUrl}`,
       ].join('\n');
       sendSms(phone, body).catch((e: any) => console.warn('[reminder sms]', e?.message));
       const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
-      sendWhatsAppTemplate(phone, waTemplateSid, {
-        '1': r.customer_name || '', '2': dateStr, '3': r.time || '', '4': String(r.party_size || ''), '5': trackUrl, '6': 'לצפייה או ביטול בקישור',
-      }).catch(() => { sendWhatsApp(phone, body).catch(() => {}); });
+      // Keep the SID: "didn't answer" is only meaningful once the message is known
+      // to have ARRIVED, and ~47% of business-initiated WhatsApp silently doesn't
+      // (Twilio 63016). The status callback flips confirm_request_delivered.
+      let confirmSid: string | null = null;
+      try {
+        const sent: any = await sendWhatsAppTemplate(phone, waTemplateSid, {
+          '1': r.customer_name || '', '2': dateStr, '3': r.time || '', '4': String(r.party_size || ''), '5': trackUrl, '6': 'השיבו מאשר או מבטל',
+        });
+        confirmSid = sent?.sid || null;
+      } catch {
+        await sendWhatsApp(phone, body).then((s: any) => { confirmSid = s?.sid || null; }).catch(() => {});
+      }
       if (r.customer_email) {
         sendEmail({
           to: r.customer_email,
@@ -12122,7 +12194,14 @@ export async function sendReservationReminders() {
           html: `<div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding:24px;background:#fafafa;border-radius:12px;color:#1f1b17"><p style="font-size:18px;margin:0 0 4px">שלום ${r.customer_name || ''} 👋</p><p style="margin:0 0 16px;color:#a04a2e;font-size:20px;font-weight:bold">תזכורת: ההזמנה שלך ב${brand} היום</p><div style="background:#fff;border:1px solid #e5d9c4;border-radius:10px;padding:16px"><p style="margin:4px 0">📅 <b>${dateStr}</b> בשעה <b>${r.time}</b></p><p style="margin:4px 0">👥 <b>${r.party_size} סועדים</b></p></div><p style="margin:24px 0 0;text-align:center"><a href="${trackUrl}" style="background:#a04a2e;color:#F4ECD8;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">📋 לצפייה או ביטול</a></p></div>`,
         }).catch((e: any) => console.warn('[reminder email]', e?.message));
       }
-      await (db as any).reservation.update({ where: { id: r.id }, data: { reminder_sent_at: new Date() } });
+      await (db as any).reservation.update({
+        where: { id: r.id },
+        data: {
+          reminder_sent_at: new Date(),
+          confirm_request_sent_at: new Date(),
+          confirm_request_sid: confirmSid,
+        } as any,
+      });
       reminded++;
     } catch (e: any) {
       console.warn('[reservation-reminder] send failed', r?.id, e?.message);
