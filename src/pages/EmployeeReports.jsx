@@ -404,7 +404,7 @@ function EmployeeReportsInner() {
         workShifts.forEach(ws => {
             if (!inPeriod(ws.date)) return;
             if (ws.date > todayStr) return; // future shift — not worked yet, never counts
-            (ws.assigned_staff || []).forEach(a => {
+            (ws.assigned_staff || []).forEach((a, staffIdx) => {
                 // Match by id OR normalized name (id can diverge for Google-auth
                 // users; name is the stable link the manager sees).
                 const idMatch = a.employee_id && a.employee_id === selectedEmployeeId;
@@ -442,6 +442,21 @@ function EmployeeReportsInner() {
                     position: a.position,
                     start_time: a.start_time,
                     end_time: clockEnd,
+                    // The row DISPLAYS the clock-out, but assigned_staff holds the
+                    // SCHEDULED end. The edit dialog used to look the staff entry up
+                    // by (start_time, end_time) taken from the row, so on any shift
+                    // with a real clock-out the two never matched: the save wrote the
+                    // array back unchanged and reported success, and a shift-type
+                    // change added a copy without removing the original. Carry the
+                    // scheduled values and the index so the lookup is exact.
+                    sched_start_time: a.start_time,
+                    sched_end_time: a.end_time,
+                    staffIdx,
+                    // When the hours came off the clock, the NUMBER in this row is
+                    // computed from ShiftTracking — editing the scheduled shift
+                    // alone can't change it. Carry the clock row so the editor can
+                    // fix the thing the manager is actually looking at.
+                    trackingId: fromClock ? (t?.id || null) : null,
                     hours,
                     fromClock,
                     break_minutes: fromClock ? (Number(t?.total_break_minutes) || 0) : (Number(a.total_break_minutes) || 0),
