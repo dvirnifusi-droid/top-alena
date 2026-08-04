@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Loader2, Phone, Edit } from 'lucide-react';
+import TimePicker from '@/components/shared/TimePicker';
 
 /**
  * The waitlist the hostess never saw.
@@ -136,13 +137,11 @@ export default function StandbyPanel({ reservations, onRefresh, onEditReservatio
                             realistic outcome of the callback: "20:00 is gone, 21:15 works?" */}
                         {retimeId === r.id && (
                             <div className="px-3 pb-2 flex gap-1.5 items-center">
-                                <input
-                                    type="time"
-                                    value={newTime}
-                                    onChange={e => setNewTime(e.target.value)}
-                                    className="h-8 px-2 rounded-lg border border-gray-200 text-[13px] tabular-nums"
-                                    dir="ltr"
-                                />
+                                {/* Not <input type="time"> — the native control follows the
+                                    device locale and shows 11:30 PM to anyone whose phone is
+                                    set to 12-hour. TimePicker is two numeric fields, always
+                                    24h, and doesn't snap to 5-minute steps on iOS. */}
+                                <TimePicker value={newTime} onChange={setNewTime} size="sm" />
                                 <button
                                     onClick={() => newTime && promote(r, newTime)}
                                     disabled={!newTime || busy}

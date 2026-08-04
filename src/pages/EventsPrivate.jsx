@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import TimePicker from '@/components/shared/TimePicker';
 import { Plus, Pencil, CreditCard } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
@@ -201,7 +202,8 @@ function AddEventLeadDialog({ open, onOpenChange, onCreated, lead }) {
             </div>
             <div>
               <Label className="text-xs">שעה</Label>
-              <Input type="time" value={form.event_time} onChange={(e) => set('event_time', e.target.value)} />
+              {/* 24h always — the native time input follows the device locale. */}
+              <TimePicker value={form.event_time} onChange={(v) => set('event_time', v)} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -998,7 +1000,7 @@ function CloseEventDialog({ lead, booking, onClose, onSaved }) {
           </div>
           <div className="grid grid-cols-3 gap-2">
             <div><Label className="text-xs">תאריך *</Label><Input type="date" value={f.event_date || ''} onChange={(e) => set('event_date', e.target.value)} /></div>
-            <div><Label className="text-xs">שעה</Label><Input type="time" value={f.event_time || ''} onChange={(e) => set('event_time', e.target.value)} /></div>
+            <div><Label className="text-xs">שעה</Label><TimePicker value={f.event_time || ''} onChange={(v) => set('event_time', v)} size="sm" /></div>
             <div><Label className="text-xs">אורחים</Label><Input type="number" value={f.guest_count || ''} onChange={(e) => set('guest_count', e.target.value)} /></div>
           </div>
           <div className="grid grid-cols-2 gap-2">

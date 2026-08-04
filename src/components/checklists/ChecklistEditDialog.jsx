@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import TimePicker from "@/components/shared/TimePicker";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Plus, ChevronRight, ChevronLeft, Settings, ListChecks, ArrowUp, ArrowDown } from "lucide-react";
 import { UploadFile } from "@/integrations/Core";
@@ -289,7 +290,8 @@ export default function ChecklistEditDialog({ isOpen, checklist, employees, onCl
                                 ) : (
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <Label className="text-sm whitespace-nowrap">שעת שליחה</Label>
-                                        <Input type="time" value={formData.send_time || ''} onChange={e => setFormData(prev => ({ ...prev, send_time: e.target.value }))} className="w-32" />
+                                        {/* 24h always — the native time input follows the device locale. */}
+                                        <TimePicker value={formData.send_time || ''} onChange={v => setFormData(prev => ({ ...prev, send_time: v }))} size="sm" />
                                         <span className="text-[11px] text-slate-400">ריק = לפי משמרת בוקר/ערב</span>
                                     </div>
                                 )}

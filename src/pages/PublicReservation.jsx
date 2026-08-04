@@ -356,6 +356,11 @@ export default function PublicReservationPage() {
 
   // --- When user picks an HOUR, fetch quarter-strip availability
   const [quarterStripAvail, setQuarterStripAvail] = useState({});
+  // Is the time the guest currently has selected already known to be full?
+  // Quarter-level answer wins when we have one — it's the more specific probe.
+  const selectedIsFull = !!time && (
+    quarterStripAvail[time] ? quarterStripAvail[time] === 'full' : availability[time] === 'full'
+  );
   useEffect(() => {
     if (!selectedHour) { setQuarterStripAvail({}); return; }
     if (Number(partySize) > maxParty) return;
@@ -974,26 +979,35 @@ export default function PublicReservationPage() {
                       const [h, m] = String(slot).split(':').map(Number);
                       const slotMin = h * 60 + (m || 0);
                       const isPast = pastCutoffMin >= 0 && slotMin < pastCutoffMin;
-                      const disabled = av === 'full' || isPast;
+                      // A FULL hour stays selectable — only the past is unbookable.
+                      // Disabling full hours made the waitlist unreachable: you could
+                      // only ever pick an hour that would succeed, so the standby
+                      // offer appeared solely if the slot filled mid-submit. Picking
+                      // 20:00 and being told "no immediate table, want the waitlist?"
+                      // is the whole point of having one.
+                      const isFull = av === 'full';
                       return (
                         <button
                           key={slot}
-                          disabled={disabled}
+                          disabled={isPast}
                           onClick={() => { setSelectedHour(slot); setTime(slot); }}
-                          title={isPast ? 'שעה זו כבר עברה' : (av === 'full' ? 'מלא' : '')}
+                          title={isPast ? 'שעה זו כבר עברה' : (isFull ? 'מלא — אפשר להירשם לרשימת המתנה' : '')}
                           className="relative rounded-xl py-3 text-sm font-bold transition-all min-h-[48px]"
                           style={(isHourActive || isFinal)
                             ? { background: '#A04A2E', color: '#F4ECD8', border: '1px solid #8B3D24', boxShadow: '0 6px 14px -5px rgba(160,74,46,0.55)' }
                             : isPast
                               ? { background: '#F1ECE2', color: '#A89882', border: '1px solid rgba(184,149,86,0.15)', cursor: 'not-allowed', textDecoration: 'line-through' }
-                              : disabled
-                                ? { background: '#F4ECD8', color: '#C8B889', border: '1px solid rgba(184,149,86,0.15)', cursor: 'not-allowed' }
+                              : isFull
+                                ? { background: '#F4ECD8', color: '#8B7F65', border: '1px dashed rgba(184,149,86,0.55)' }
                                 : { background: '#FFFEFB', color: '#1F1B17', border: '1px solid rgba(184,149,86,0.35)' }}
                         >
                           {slot}
                           {av && !isHourActive && !isFinal && !isPast && (
                             <span className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full
                               ${av === 'open' ? 'bg-emerald-400' : av === 'tight' ? 'bg-amber-400' : 'bg-red-400'}`}></span>
+                          )}
+                          {isFull && !isHourActive && !isFinal && !isPast && (
+                            <span className="absolute bottom-0.5 left-0 right-0 text-[8px] font-normal opacity-70">המתנה</span>
                           )}
                           {isPast && (
                             <span className="absolute top-0.5 right-1 text-[8px] text-gray-400">עבר</span>
@@ -1027,20 +1041,20 @@ export default function PublicReservationPage() {
                             const [h, m] = String(s).split(':').map(Number);
                             const slotMin = h * 60 + (m || 0);
                             const isPast = pastCutoffMin >= 0 && slotMin < pastCutoffMin;
-                            const disabled = av === 'full' || isPast;
+                            const isFull = av === 'full';   // selectable — leads to the waitlist
                             return (
                               <button
                                 key={s}
-                                disabled={disabled}
+                                disabled={isPast}
                                 onClick={() => setTime(s)}
-                                title={isPast ? 'שעה זו כבר עברה' : (av === 'full' ? 'מלא' : '')}
+                                title={isPast ? 'שעה זו כבר עברה' : (isFull ? 'מלא — אפשר להירשם לרשימת המתנה' : '')}
                                 className="relative rounded-lg py-1.5 text-[13px] font-bold transition-all"
                                 style={active
                                   ? { background: '#44512C', color: '#F4ECD8', border: '1px solid #2F3A1E', boxShadow: '0 5px 12px -4px rgba(68,81,44,0.55)', transform: 'scale(1.05)' }
                                   : isPast
                                     ? { background: '#F1ECE2', color: '#A89882', border: '1px solid rgba(184,149,86,0.15)', cursor: 'not-allowed', textDecoration: 'line-through' }
-                                    : disabled
-                                      ? { background: '#FFFEFB', color: '#C8B889', border: '1px solid rgba(184,149,86,0.15)', cursor: 'not-allowed' }
+                                    : isFull
+                                      ? { background: '#FFFEFB', color: '#8B7F65', border: '1px dashed rgba(184,149,86,0.55)' }
                                       : { background: '#FFFEFB', color: '#44512C', border: '1px solid rgba(68,81,44,0.30)' }}
                               >
                                 {s}
@@ -1056,6 +1070,22 @@ export default function PublicReservationPage() {
                     </div>
                   );
                 })()}
+
+                {/* Chosen a full slot → say so HERE, before any submit. The guest
+                    asked for 20:00 and deserves the answer at the moment they
+                    tapped it, with both ways forward in front of them. */}
+                {selectedIsFull && (
+                  <div className="mt-3 rounded-2xl p-3.5" style={{ background: '#1F1B17', border: '1px solid #B89556' }}>
+                    <div className="font-black text-sm flex items-center gap-2" style={{ color: '#D9BD83' }}>
+                      <span className="text-lg">🟡</span> {time} — אין אישור מיידי
+                    </div>
+                    <div className="text-[12px] mt-1.5 leading-relaxed" style={{ color: '#E8D9B5' }}>
+                      השעה הזו מלאה ברגע זה. אפשר <b>להירשם לרשימת המתנה</b> — אם יתפנה שולחן
+                      נשלח לך וואטסאפ ונאשר — או פשוט <b>לבחור שעה אחרת</b> למעלה. שעות עם נקודה
+                      ירוקה פנויות עכשיו.
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex gap-3 mt-2 text-[11px] text-gray-500">
                   <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span> פתוח</span>
@@ -1291,20 +1321,26 @@ export default function PublicReservationPage() {
             </span>
           </label>
 
-          {/* CTA — brand terracotta */}
+          {/* CTA. When the chosen slot is already known to be full, the button IS
+              the waitlist — one action, in the place the eye already expects it,
+              instead of asking the guest to submit and fail first. */}
           <button
-            onClick={() => submitBooking(false)}
+            onClick={() => submitBooking(selectedIsFull)}
             disabled={isBooking || !time}
             className="cta-pulse w-full font-black py-4 rounded-2xl text-lg shadow-xl flex items-center justify-center gap-2 transition-all disabled:cursor-not-allowed disabled:animate-none"
             style={{
               background: (isBooking || !time)
                 ? 'linear-gradient(to left, #d1d5db, #d1d5db)'
-                : 'linear-gradient(to left, #A04A2E, #8B3D24)',
-              color: '#F4ECD8',
+                : selectedIsFull
+                  ? 'linear-gradient(to left, #1F1B17, #3a332b)'
+                  : 'linear-gradient(to left, #A04A2E, #8B3D24)',
+              color: selectedIsFull ? '#D9BD83' : '#F4ECD8',
             }}
           >
-            {isBooking ? <Loader2 className="w-5 h-5 animate-spin" /> : <Flame className="w-5 h-5" />}
-            {isBooking ? 'מבצע הזמנה...' : '🔥 תפוס מקום עכשיו'}
+            {isBooking ? <Loader2 className="w-5 h-5 animate-spin" /> : (selectedIsFull ? <span className="text-lg">🟡</span> : <Flame className="w-5 h-5" />)}
+            {isBooking
+              ? (selectedIsFull ? 'רושם לרשימת המתנה...' : 'מבצע הזמנה...')
+              : (selectedIsFull ? `הירשם לרשימת המתנה ל-${time}` : '🔥 תפוס מקום עכשיו')}
           </button>
           <div className="text-center text-[11px] text-gray-400 leading-relaxed">
             <div>בלחיצה אתה מסכים לקבל אישור בוואטסאפ</div>
