@@ -153,6 +153,10 @@ import AdminWhatsApp from './pages/AdminWhatsApp';
 import AdminWhatsAppInbox from './pages/AdminWhatsAppInbox';
 import AdminSettings from './pages/AdminSettings';
 import AppBuilder from './pages/AppBuilder';
+import AgreementAdmin from './pages/AgreementAdmin';
+import Form101 from './pages/Form101';
+import Form101Admin from './pages/Form101Admin';
+import MyAgreement from './pages/MyAgreement';
 import NotificationSettings from './pages/NotificationSettings';
 import EventsHub from './pages/EventsHub';
 import MarketingHub from './pages/MarketingHub';
@@ -301,6 +305,10 @@ export const PAGES = {
     "AdminWhatsAppInbox": AdminWhatsAppInbox,
     "AdminSettings": AdminSettings,
     "AppBuilder": AppBuilder,
+    "AgreementAdmin": AgreementAdmin,
+    "Form101": Form101,
+    "Form101Admin": Form101Admin,
+    "MyAgreement": MyAgreement,
     "NotificationSettings": NotificationSettings,
     "EventsHub": EventsHub,
     "MarketingHub": MarketingHub,

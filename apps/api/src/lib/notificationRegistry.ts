@@ -216,6 +216,22 @@ export const NOTIFICATIONS: NotifDef[] = [
     note: 'השעה נקבעת בהגדרות הצוות', source: 'teamNudges.ts:161',
   },
   {
+    key: 'agreement_request', audience: 'staff', kind: 'event',
+    label: 'הסכם עבודה לחתימה', description: 'לעובד שההסכם שויך אליו — נשלח בעת השיוך',
+    defaultEnabled: true, scheduleShape: 'none',
+    textEditability: 'full',
+    defaultText: 'היי {first} 👋\nמחכה לך הסכם עבודה לקריאה ולחתימה ב{brand}.\nהיכנס/י לאפליקציה, קרא/י אותו עד הסוף וחתום/י:\n🔗 {link}',
+    variables: [FIRST, BRAND, LINK], source: 'load.ts:assignAgreement',
+  },
+  {
+    key: 'form101_request', audience: 'staff', kind: 'event',
+    label: 'טופס 101 למילוי', description: 'לעובד שנדרש למלא טופס 101 לשנת המס',
+    defaultEnabled: true, scheduleShape: 'none',
+    textEditability: 'full',
+    defaultText: 'היי {first} 👋\nצריך למלא טופס 101 (כרטיס עובד) לשנת המס {year}.\nזה לוקח כמה דקות מהטלפון:\n🔗 {link}',
+    variables: [FIRST, V('year', 'שנת מס'), LINK], source: 'load.ts:sendForm101Request',
+  },
+  {
     key: 'nudge_clockin', audience: 'staff', kind: 'cron',
     label: 'תזכורת החתמת כניסה', description: 'לעובד משובץ שלא החתים — כמה דקות אחרי תחילת המשמרת (ניתן לשינוי)',
     defaultEnabled: true, scheduleShape: 'none',

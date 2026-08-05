@@ -1,7 +1,7 @@
 // Employees & scheduling hub.
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Users, Briefcase, Calendar, CalendarDays, MessageSquare, Lock } from 'lucide-react';
+import { Users, Briefcase, Calendar, CalendarDays, MessageSquare, Lock, FileText } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import useMyPermissions from '@/hooks/useMyPermissions';
 import Employees from './Employees';
@@ -11,6 +11,8 @@ import AvailabilityRequests from './AvailabilityRequests';
 import LeaveRequests from './LeaveRequests';
 import ShiftChat from './ShiftChat';
 import EmployeeFeedback from './EmployeeFeedback';
+import AgreementAdmin from './AgreementAdmin';
+import Form101Admin from './Form101Admin';
 
 // Each tab is a separately-guarded page. We show only the tabs the user can
 // access (their permission tier) so an employee sees just their functions
@@ -23,6 +25,8 @@ const TABS = [
     { id: 'leave', label: 'בקשות חופשה', icon: CalendarDays, C: LeaveRequests, page: 'LeaveRequests' },
     { id: 'chat', label: 'צ׳אט משמרת', icon: MessageSquare, C: ShiftChat, page: 'ShiftChat' },
     { id: 'feedback', label: 'משוב עובדים', icon: MessageSquare, C: EmployeeFeedback, page: 'EmployeeFeedback' },
+    { id: 'agreement', label: 'הסכם עבודה', icon: FileText, C: AgreementAdmin, page: 'AgreementAdmin' },
+    { id: 'form101', label: 'טופס 101', icon: FileText, C: Form101Admin, page: 'Form101Admin' },
 ];
 
 export default function EmployeesHub() {

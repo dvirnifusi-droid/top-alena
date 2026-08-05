@@ -145,6 +145,8 @@ export const employeeLinks = [
   { title: "הגשת זמינות", url: createPageUrl("AvailabilityForm"), icon: Calendar, isSubItem: true, color: "olive" },
   { title: "בקשות חופשה", url: createPageUrl("LeaveRequests"), icon: CalendarDays, isSubItem: true, color: "olive" },
   { title: "צ'אט משמרת", url: createPageUrl("ShiftChat"), icon: MessageSquare, isSubItem: true, color: "olive" },
+  { title: "הסכם העבודה שלי", url: createPageUrl("MyAgreement"), icon: FileText, isSubItem: true, color: "olive" },
+  { title: "טופס 101", url: createPageUrl("Form101"), icon: FileText, isSubItem: true, color: "olive" },
 
   { title: "פיתוח וגמיפיקציה", url: "#", icon: GraduationCap, isCategory: true, color: "gold" },
   { title: "הכשרות ואימונים", url: createPageUrl("Training"), icon: GraduationCap, isSubItem: true, color: "gold" },

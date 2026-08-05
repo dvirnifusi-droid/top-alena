@@ -27,6 +27,10 @@ import { pushover, pushoverToAdmins, pushoverEventsOwners } from '../lib/pushove
 import { appBaseUrl } from '../lib/appUrl.js';
 import { checkDailyHoursReportSchedule, sendDailyHoursReport, buildDailyHoursReport } from '../lib/dailyHoursReport.js';
 import { registerEmailTenant } from '../lib/emailTenantMap.js';
+import {
+  isValidIsraeliId, FORM101_SECTIONS, FORM101_DECLARATION, validateForm101, prefillFromPrevious,
+} from '../lib/form101.js';
+import { AGREEMENT_FIELDS, DEFAULT_AGREEMENT_BODY, renderAgreement, placeholdersIn } from '../lib/employeeAgreement.js';
 import { fireTriggers } from '../lib/triggers.js';
 import { sendTelegramMessage } from '../lib/telegram.js';
 import { sendEmail } from '../lib/email.js';
@@ -9172,9 +9176,62 @@ async function ensureEmployee360(): Promise<void> {
      )`,
   ).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "EmployeeForm" ADD COLUMN IF NOT EXISTS "form_data" JSONB`).catch(() => {});
+  // Digital טופס 101 (docs/SPEC_FORM101.md). 101 renews every tax year, so a
+  // form is keyed by (employee, type, tax_year) — tax_year 0 means "not yearly"
+  // (work agreement, safety training, and any 101 filled manually before this).
+  // identified = the employee was logged in when they signed; the Tax Authority
+  // rules for an electronic 101 require unique identification, and the token
+  // link can't provide it, so it's recorded rather than assumed.
+  for (const col of [
+    `"tax_year" INTEGER`,
+    `"status" TEXT`,
+    `"sent_at" TIMESTAMP(3)`,
+    `"locked_at" TIMESTAMP(3)`,
+    `"signed_ip" TEXT`,
+    `"signed_user_agent" TEXT`,
+    `"public_token" TEXT`,
+    `"token_expires_at" TIMESTAMP(3)`,
+    `"identified" BOOLEAN`,
+  ]) {
+    await (prisma as any).$executeRawUnsafe(`ALTER TABLE "EmployeeForm" ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
+  }
+  // Backfill BEFORE the unique index below: Postgres counts NULLs as distinct,
+  // so indexing a still-NULL column would enforce nothing. Then retire the old
+  // 2-column index — it permits one row per employee per form type, forever,
+  // which is exactly what blocks the yearly renewal.
+  await (prisma as any).$executeRawUnsafe(`UPDATE "EmployeeForm" SET "tax_year" = 0 WHERE "tax_year" IS NULL`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "EmployeeForm" ALTER COLUMN "tax_year" SET DEFAULT 0`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(
-    `CREATE UNIQUE INDEX IF NOT EXISTS "EmployeeForm_emp_type" ON "EmployeeForm" ("employee_id","form_type")`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "EmployeeForm_emp_type_year" ON "EmployeeForm" ("employee_id","form_type","tax_year")`,
   ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`DROP INDEX IF EXISTS "EmployeeForm_emp_type"`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "EmployeeForm_public_token" ON "EmployeeForm" ("public_token") WHERE "public_token" IS NOT NULL`,
+  ).catch(() => {});
+  // Signable text templates (the employment agreement): body carries the text
+  // with {{placeholders}}, fields says who fills each one — manager or employee.
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "EmployeeFormTemplate" ADD COLUMN IF NOT EXISTS "body" TEXT`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "EmployeeFormTemplate" ADD COLUMN IF NOT EXISTS "fields" JSONB`).catch(() => {});
+  // Part א of form 101. Deliberately NOT a RestaurantProfile column — that's a
+  // Prisma model, and a new column there breaks every query on the table until
+  // the schema script has run on every tenant. This table is raw-SQL only.
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "EmployeeFormTemplate" ADD COLUMN IF NOT EXISTS "employer" JSONB`).catch(() => {});
+  // The rules require every previous version of a submitted form to be kept and
+  // retrievable — so a correction appends, it never overwrites.
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "EmployeeFormVersion" (
+       "id" TEXT PRIMARY KEY,
+       "form_id" TEXT NOT NULL,
+       "employee_id" TEXT NOT NULL,
+       "form_type" TEXT,
+       "tax_year" INTEGER,
+       "form_data" JSONB,
+       "reason" TEXT,
+       "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`,
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "EmployeeFormVersion_form" ON "EmployeeFormVersion" ("form_id")`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "EmployeeFormVersion_emp" ON "EmployeeFormVersion" ("employee_id")`).catch(() => {});
   // Tenant-level blank-form library: the owner uploads the blank PDF (or a link)
   // once per form_type, so every employee card can open/print the real form.
   await (prisma as any).$executeRawUnsafe(
@@ -9305,12 +9362,33 @@ registerFn('getEmployee360', async ({ user, body }: any) => {
   const tplRows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "EmployeeFormTemplate"`).catch(() => []);
   const tplByType: Record<string, any> = {};
   for (const t of tplRows) tplByType[t.form_type] = t;
+  // A form type can now hold several rows — one per tax year (101 renews every
+  // January). The card shows the LATEST year as the live row; earlier years are
+  // history hanging off it, not separate "custom forms".
   const byType: Record<string, any> = {};
-  for (const r of formRows) byType[r.form_type] = r;
+  for (const r of formRows) {
+    const cur = byType[r.form_type];
+    if (!cur || Number(r.tax_year || 0) > Number(cur.tax_year || 0)) byType[r.form_type] = r;
+  }
+  const historyByType: Record<string, any[]> = {};
+  for (const r of formRows) {
+    if (byType[r.form_type]?.id === r.id) continue;
+    (historyByType[r.form_type] ||= []).push({
+      id: r.id, tax_year: r.tax_year || 0, signed: !!r.signed, signed_at: r.signed_at || null,
+      file_url: r.file_url || null, identified: r.identified ?? null,
+    });
+  }
+  for (const list of Object.values(historyByType)) list.sort((a, b) => b.tax_year - a.tax_year);
   const decorate = (form_type: string, form_label: string, required: boolean, r: any) => ({
     form_type, form_label, required,
     signed: !!r?.signed, signed_at: r?.signed_at || null, file_url: r?.file_url || null, note: r?.note || null,
     form_data: r?.form_data || null,
+    tax_year: r?.tax_year ?? null,
+    status: r?.status || null,
+    // null on legacy rows filled before the digital flow — the UI shows the
+    // "filled without identification" tag only on an explicit false.
+    identified: r?.identified ?? null,
+    history: historyByType[form_type] || [],
     fields: FORM_FIELDS[form_type] || [],
     template_url: tplByType[form_type]?.template_url || null,
     link: tplByType[form_type]?.link || null,
@@ -9319,7 +9397,7 @@ registerFn('getEmployee360', async ({ user, body }: any) => {
   // Merge stored rows over the required template, then append any extra custom
   // forms the manager added that aren't in the default list.
   const forms = REQUIRED_FORMS.map((f) => decorate(f.type, f.label, true, byType[f.type]));
-  for (const r of formRows) {
+  for (const r of Object.values(byType)) {
     if (!REQUIRED_FORMS.some((f) => f.type === r.form_type)) {
       forms.push(decorate(r.form_type, r.form_label || r.form_type, false, r));
     }
@@ -9355,9 +9433,14 @@ registerFn('setEmployeeForm', async ({ user, body }: any) => {
   const note = String(b.note || '').trim() || null;
   const hasFormData = Object.prototype.hasOwnProperty.call(b, 'form_data');
   const formData = hasFormData && b.form_data && typeof b.form_data === 'object' ? JSON.stringify(b.form_data) : null;
+  // tax_year defaults to 0 = the non-yearly row, which is where every form that
+  // existed before the digital 101 was backfilled. Without this the manual
+  // toggle would find and overwrite whichever year happened to sort first.
+  const taxYear = Number.isFinite(Number(b.tax_year)) ? Math.trunc(Number(b.tax_year)) : 0;
   const { randomUUID } = await import('node:crypto');
   const existing: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT id FROM "EmployeeForm" WHERE employee_id=$1 AND form_type=$2 LIMIT 1`, employeeId, formType,
+    `SELECT id FROM "EmployeeForm" WHERE employee_id=$1 AND form_type=$2 AND COALESCE(tax_year,0)=$3 LIMIT 1`,
+    employeeId, formType, taxYear,
   ).catch(() => []);
   if (existing.length) {
     // form_data only overwritten when the caller sent it (so a plain sign toggle keeps the filled data).
@@ -9374,9 +9457,9 @@ registerFn('setEmployeeForm', async ({ user, body }: any) => {
     }
   } else {
     await (prisma as any).$executeRawUnsafe(
-      `INSERT INTO "EmployeeForm" ("id","employee_id","form_type","form_label","signed","signed_at","file_url","note","form_data","updatedAt")
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,NOW())`,
-      randomUUID(), employeeId, formType, label, signed, signed ? new Date() : null, fileUrl, note, formData,
+      `INSERT INTO "EmployeeForm" ("id","employee_id","form_type","form_label","signed","signed_at","file_url","note","form_data","tax_year","updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,NOW())`,
+      randomUUID(), employeeId, formType, label, signed, signed ? new Date() : null, fileUrl, note, formData, taxYear,
     );
   }
   return { ok: true };
@@ -9401,6 +9484,528 @@ registerFn('setEmployeeFormTemplate', async ({ user, body }: any) => {
     formType, label, templateUrl, link, instructions,
   );
   return { ok: true };
+});
+
+// ── Employment agreement — signable text template ──────────────────────────
+// One body of text per form_type with {{placeholders}}. The owner sets the wage
+// and role values when assigning it; the employee fills only their own details
+// and signs the COMPLETE document. Order matters and is enforced below: §9.8 of
+// the agreement makes it the written notice of terms required by חוק הודעה
+// לעובד, and that notice has to state the wage — so a document whose wage
+// clauses are still blank must never reach a signature.
+
+const AGREEMENT_FORM_TYPE = 'work_agreement';
+
+async function loadAgreementTemplate(): Promise<{ body: string; fields: any[]; form_label: string }> {
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT * FROM "EmployeeFormTemplate" WHERE form_type=$1 LIMIT 1`, AGREEMENT_FORM_TYPE,
+  ).catch(() => []);
+  const row = rows[0];
+  return {
+    // The bundled default seeds an empty tenant; once the owner edits it their
+    // version wins and the default is never re-applied over it.
+    body: row?.body || DEFAULT_AGREEMENT_BODY,
+    fields: Array.isArray(row?.fields) ? row.fields : AGREEMENT_FIELDS,
+    form_label: row?.form_label || 'הסכם עבודה',
+  };
+}
+
+registerFn('getAgreementTemplate', async ({ user }: any) => {
+  await requireBackOffice(user, 'getAgreementTemplate');
+  await ensureEmployee360();
+  const tpl = await loadAgreementTemplate();
+  return { ok: true, ...tpl, placeholders: placeholdersIn(tpl.body) };
+});
+
+registerFn('setAgreementTemplate', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'setAgreementTemplate');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const text = String(b.body || '').trim();
+  if (!text) throw new Error('missing_body');
+  const fields = Array.isArray(b.fields) ? b.fields : AGREEMENT_FIELDS;
+  // An edit that drops a {{placeholder}} silently turns a filled field into text
+  // nobody notices is missing — report it rather than let it through unseen.
+  const declared = new Set<string>(fields.map((f: any) => String(f.key)));
+  const used = placeholdersIn(text);
+  const orphaned = used.filter((k) => !declared.has(k) && !k.startsWith('signing_'));
+  const unused = [...declared].filter((k) => !used.includes(k));
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "EmployeeFormTemplate" ("form_type","form_label","body","fields","updatedAt")
+     VALUES ($1,$2,$3,$4::jsonb,NOW())
+     ON CONFLICT ("form_type") DO UPDATE SET form_label=$2, body=$3, fields=$4::jsonb, "updatedAt"=NOW()`,
+    AGREEMENT_FORM_TYPE, String(b.form_label || 'הסכם עבודה'), text, JSON.stringify(fields),
+  );
+  return { ok: true, orphaned, unused };
+});
+
+// Manager assigns the agreement to specific employees, filling the terms.
+registerFn('assignAgreement', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'assignAgreement');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const ids: string[] = Array.isArray(b.employee_ids) ? b.employee_ids.map(String).filter(Boolean) : [];
+  if (!ids.length) throw new Error('missing_employees');
+  const values = (b.values && typeof b.values === 'object') ? b.values : {};
+  const tpl = await loadAgreementTemplate();
+
+  // Every manager-owned field must carry a value before this can be sent.
+  const missing = tpl.fields
+    .filter((f: any) => f.filled_by === 'manager' && f.required)
+    .filter((f: any) => {
+      const v = values[f.key];
+      return v === undefined || v === null || String(v).trim() === '';
+    })
+    .map((f: any) => f.label);
+  if (missing.length) {
+    throw new Error(`חסרים פרטים שעליך למלא לפני שליחה: ${missing.join(', ')}`);
+  }
+
+  const { randomUUID } = await import('node:crypto');
+  const notify = await isNotifEnabled('agreement_request');
+  // appBaseUrl(), not the APP_BASE_URL const — that one falls back to
+  // topalena.com, which would send every other tenant's staff to Alena.
+  const link = `${appBaseUrl()}/MyAgreement`;
+  const brand = await getBrandName().catch(() => 'העסק');
+  const assigned: string[] = [];
+  const skipped: { employee_id: string; reason: string }[] = [];
+  let notified = 0;
+  for (const employeeId of ids) {
+    const existing: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT id, signed FROM "EmployeeForm" WHERE employee_id=$1 AND form_type=$2 AND COALESCE(tax_year,0)=0 LIMIT 1`,
+      employeeId, AGREEMENT_FORM_TYPE,
+    ).catch(() => []);
+    // Re-sending would blank a signed agreement. A new one has to be a
+    // deliberate act, not a side effect of ticking a name in a list again.
+    if (existing[0]?.signed) { skipped.push({ employee_id: employeeId, reason: 'כבר חתום' }); continue; }
+    const token = randomUUID().replace(/-/g, '');
+    const expires = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    const formData = JSON.stringify({ manager_values: values, template_body: tpl.body, template_fields: tpl.fields });
+    if (existing.length) {
+      await (prisma as any).$executeRawUnsafe(
+        `UPDATE "EmployeeForm" SET form_data=$1::jsonb, status='sent', sent_at=NOW(), public_token=$2,
+           token_expires_at=$3, form_label=$4, "updatedAt"=NOW() WHERE id=$5`,
+        formData, token, expires, tpl.form_label, existing[0].id,
+      );
+    } else {
+      await (prisma as any).$executeRawUnsafe(
+        `INSERT INTO "EmployeeForm" ("id","employee_id","form_type","form_label","signed","form_data","tax_year","status","sent_at","public_token","token_expires_at","updatedAt")
+         VALUES ($1,$2,$3,$4,false,$5::jsonb,0,'sent',NOW(),$6,$7,NOW())`,
+        randomUUID(), employeeId, AGREEMENT_FORM_TYPE, tpl.form_label, formData, token, expires,
+      );
+    }
+    assigned.push(employeeId);
+
+    // The WhatsApp is a nudge, not the delivery mechanism — the agreement is
+    // already waiting in the app either way. ~47% of outgoing WhatsApp is
+    // silently dropped by the 24h-window rule (project_whatsapp_24h_window), so
+    // a failure here must never fail the assignment.
+    if (notify) {
+      try {
+        const emp = await (prisma as any).employee.findUnique({ where: { id: employeeId } }).catch(() => null);
+        if (emp?.phone) {
+          const first = String(emp.full_name || '').split(' ')[0] || 'שלום';
+          const fallback = `היי ${first} 👋\nמחכה לך הסכם עבודה לקריאה ולחתימה ב${brand}.\nהיכנס/י לאפליקציה, קרא/י אותו עד הסוף וחתום/י:\n🔗 ${link}`;
+          const msg = await notifText('agreement_request', fallback, { first, brand, link });
+          const r: any = await notifyStaff(emp.phone, first, msg);
+          if (r?.sent) notified++;
+        }
+      } catch (e: any) {
+        console.warn('[assignAgreement] notify failed', employeeId, e?.message);
+      }
+    }
+  }
+  return { ok: true, assigned: assigned.length, skipped, notified };
+});
+
+/** Resolves the Employee row for the signed-in user. Never trust a client-sent id here. */
+async function myEmployeeRow(user: any): Promise<any> {
+  if (!user?.email) throw new Error('auth required');
+  const emp = await (prisma as any).employee.findFirst({
+    where: { email: { equals: String(user.email), mode: 'insensitive' } },
+  }).catch(() => null);
+  if (!emp) throw new Error('לא נמצא עובד המשויך למשתמש הזה');
+  return emp;
+}
+
+registerFn('getMyAgreement', async ({ user }: any) => {
+  await ensureEmployee360();
+  const emp = await myEmployeeRow(user);
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT * FROM "EmployeeForm" WHERE employee_id=$1 AND form_type=$2 AND COALESCE(tax_year,0)=0 LIMIT 1`,
+    emp.id, AGREEMENT_FORM_TYPE,
+  ).catch(() => []);
+  const row = rows[0];
+  if (!row) return { ok: true, assigned: false };
+  const data = row.form_data || {};
+  const fields = Array.isArray(data.template_fields) ? data.template_fields : AGREEMENT_FIELDS;
+  const values = { ...(data.manager_values || {}), ...(data.employee_values || {}) };
+  return {
+    ok: true,
+    assigned: true,
+    signed: !!row.signed,
+    signed_at: row.signed_at || null,
+    form_label: row.form_label,
+    // Rendered with what's known so far — the employee reads the real terms,
+    // with their own blanks still showing as blanks.
+    rendered: renderAgreement(data.template_body || DEFAULT_AGREEMENT_BODY, values),
+    my_fields: fields.filter((f: any) => f.filled_by === 'employee'),
+    my_values: data.employee_values || {},
+    signature_data_url: row.signed ? (data.signature_data_url || null) : null,
+  };
+});
+
+registerFn('submitMyAgreement', async ({ user, body, req }: any) => {
+  await ensureEmployee360();
+  const emp = await myEmployeeRow(user);
+  const b = (body || {}) as any;
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT * FROM "EmployeeForm" WHERE employee_id=$1 AND form_type=$2 AND COALESCE(tax_year,0)=0 LIMIT 1`,
+    emp.id, AGREEMENT_FORM_TYPE,
+  ).catch(() => []);
+  const row = rows[0];
+  if (!row) throw new Error('לא שויך אליך הסכם עבודה');
+  if (row.signed) throw new Error('ההסכם כבר חתום');
+
+  const data = row.form_data || {};
+  const fields = Array.isArray(data.template_fields) ? data.template_fields : AGREEMENT_FIELDS;
+  const values = (b.values && typeof b.values === 'object') ? b.values : {};
+
+  const missing = fields
+    .filter((f: any) => f.filled_by === 'employee' && f.required)
+    .filter((f: any) => { const v = values[f.key]; return v === undefined || v === null || String(v).trim() === ''; })
+    .map((f: any) => f.label);
+  if (missing.length) throw new Error(`חסרים פרטים: ${missing.join(', ')}`);
+
+  for (const f of fields) {
+    if (f.type === 'id' && values[f.key] && !isValidIsraeliId(String(values[f.key]))) {
+      throw new Error(`${f.label} — מספר זהות אינו תקין`);
+    }
+  }
+
+  const sig = String(b.signature_data_url || '');
+  if (!sig.startsWith('data:image/')) throw new Error('חסרה חתימה');
+  if (sig.length > 250_000) throw new Error('החתימה גדולה מדי');
+
+  const now = new Date();
+  const ip = (req as any)?.ip || (req as any)?.headers?.['x-forwarded-for'] || null;
+  const ua = (req as any)?.headers?.['user-agent'] || null;
+  // The signing date is stamped here, not typed by anyone — the date on the
+  // document is the date it was actually signed.
+  const stamped = {
+    signing_day: String(now.getDate()),
+    signing_month: String(now.getMonth() + 1),
+    signing_year: String(now.getFullYear()),
+  };
+  const merged = { ...(data.manager_values || {}), ...values, ...stamped };
+  const nextData = {
+    ...data,
+    employee_values: values,
+    signed_values: merged,
+    signature_data_url: sig,
+    // Frozen at signature: the exact text signed, so a later template edit can
+    // never retroactively change what this employee agreed to.
+    signed_body: renderAgreement(data.template_body || DEFAULT_AGREEMENT_BODY, merged),
+  };
+  const { randomUUID } = await import('node:crypto');
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "EmployeeFormVersion" ("id","form_id","employee_id","form_type","tax_year","form_data","reason","created_at")
+     VALUES ($1,$2,$3,$4,0,$5::jsonb,'submit',NOW())`,
+    randomUUID(), row.id, emp.id, AGREEMENT_FORM_TYPE, JSON.stringify(nextData),
+  ).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "EmployeeForm" SET form_data=$1::jsonb, signed=true, signed_at=$2, status='locked', locked_at=$2,
+       signed_ip=$3, signed_user_agent=$4, identified=true, public_token=NULL, "updatedAt"=NOW() WHERE id=$5`,
+    JSON.stringify(nextData), now, ip ? String(ip).slice(0, 60) : null, ua ? String(ua).slice(0, 200) : null, row.id,
+  );
+  // Returned so the client can stamp the PDF with the same values that were
+  // actually recorded here, rather than re-deriving a time and an IP it can't see.
+  return {
+    ok: true,
+    signed_at: now,
+    form_id: row.id,
+    signed_ip: ip ? String(ip).slice(0, 60) : null,
+    signed_body: nextData.signed_body,
+  };
+});
+
+// Stores the PDF the browser generated at signing time. Employee-scoped: it can
+// only ever touch the caller's own row, and only one that is already signed —
+// so this can't be used to slip a file onto someone else's record.
+registerFn('attachSignedFormPdf', async ({ user, body }: any) => {
+  await ensureEmployee360();
+  const emp = await myEmployeeRow(user);
+  const b = (body || {}) as any;
+  const formType = String(b.form_type || '').trim();
+  const taxYear = Number.isFinite(Number(b.tax_year)) ? Math.trunc(Number(b.tax_year)) : 0;
+  const fileUrl = String(b.file_url || '').trim();
+  if (!formType || !fileUrl) throw new Error('missing_fields');
+  if (!/^https?:\/\//i.test(fileUrl)) throw new Error('bad_file_url');
+  const res: any = await (prisma as any).$executeRawUnsafe(
+    `UPDATE "EmployeeForm" SET file_url=$1, "updatedAt"=NOW()
+     WHERE employee_id=$2 AND form_type=$3 AND COALESCE(tax_year,0)=$4 AND signed=true`,
+    fileUrl, emp.id, formType, taxYear,
+  );
+  if (!res) throw new Error('לא נמצא טופס חתום לצרף אליו');
+  // Mirrored into the documents folder so it shows up where the manager already
+  // looks for an employee's paperwork.
+  const { randomUUID } = await import('node:crypto');
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "EmployeeDocument" ("id","employee_id","doc_type","label","file_url","uploaded_by_name","sign_status","signed_at","createdAt")
+     VALUES ($1,$2,$3,$4,$5,$6,'signed',NOW(),NOW())`,
+    randomUUID(), emp.id, formType === '101' ? '101' : 'work_agreement',
+    formType === '101' ? 'טופס 101 חתום' : 'הסכם עבודה חתום',
+    fileUrl, String(emp.full_name || ''),
+  ).catch((e: any) => {
+    // The authoritative link is file_url on EmployeeForm, already written above.
+    // This row only mirrors it into the documents folder — worth logging when it
+    // fails, not worth failing the signature over.
+    console.warn('[attachSignedFormPdf] document mirror failed', emp.id, e?.message);
+  });
+  return { ok: true };
+});
+
+// ── טופס 101 — the official employee tax card ───────────────────────────────
+// Spec: docs/SPEC_FORM101.md. Structured data (not a text template), renewed
+// every tax year, and filled only by the identified employee themselves.
+
+const ISRAEL_YEAR = () => Number(
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric' }).format(new Date()),
+);
+
+const form101Row = async (employeeId: string, taxYear: number) => {
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT * FROM "EmployeeForm" WHERE employee_id=$1 AND form_type='101' AND COALESCE(tax_year,0)=$2 LIMIT 1`,
+    employeeId, taxYear,
+  ).catch(() => []);
+  return rows[0] || null;
+};
+
+registerFn('getMyForm101', async ({ user, body }: any) => {
+  await ensureEmployee360();
+  const emp = await myEmployeeRow(user);
+  const taxYear = Number((body || {}).tax_year) || ISRAEL_YEAR();
+  const row = await form101Row(emp.id, taxYear);
+
+  // Part א is the business's, never the employee's — read from settings so the
+  // employee sees a complete form rather than blanks they'd be tempted to fill.
+  const empRows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT employer FROM "EmployeeFormTemplate" WHERE form_type='101' LIMIT 1`,
+  ).catch(() => []);
+  const saved = empRows[0]?.employer || {};
+  const employer = {
+    name: saved.name || await getBrandName().catch(() => ''),
+    address: saved.address || '',
+    phone: saved.phone || '',
+    deductions_file: saved.deductions_file || '',
+  };
+
+  let data = row?.form_data || null;
+  let prefilled = false;
+  if (!data) {
+    // First fill of a new tax year starts from last year's ב/ג/ו — the electronic
+    // 101 rules both allow this and require the employee to confirm it.
+    const prev = await form101Row(emp.id, taxYear - 1);
+    const carried = prefillFromPrevious(prev?.form_data || null);
+    if (Object.keys(carried).length) { data = carried; prefilled = true; }
+  }
+  // Seed what we already know about the employee so they aren't retyping it.
+  data = data || {};
+  data.personal = {
+    first_name: String(emp.full_name || '').split(' ')[0] || '',
+    last_name: String(emp.full_name || '').split(' ').slice(1).join(' ') || '',
+    id_number: emp.id_number || '',
+    birth_date: emp.birth_date ? String(emp.birth_date).slice(0, 10) : '',
+    email: emp.email || '',
+    phone_mobile: emp.phone || '',
+    ...(data.personal || {}),
+  };
+  if (!data.income_this?.start_date && emp.hire_date) {
+    data.income_this = { ...(data.income_this || {}), start_date: String(emp.hire_date).slice(0, 10) };
+  }
+
+  return {
+    ok: true,
+    tax_year: taxYear,
+    sections: FORM101_SECTIONS,
+    declaration_text: FORM101_DECLARATION,
+    employer,
+    form_data: data,
+    prefilled_from_last_year: prefilled,
+    status: row?.status || (row ? 'draft' : 'none'),
+    signed: !!row?.signed,
+    signed_at: row?.signed_at || null,
+    file_url: row?.file_url || null,
+  };
+});
+
+registerFn('saveMyForm101Draft', async ({ user, body }: any) => {
+  await ensureEmployee360();
+  const emp = await myEmployeeRow(user);
+  const b = (body || {}) as any;
+  const taxYear = Number(b.tax_year) || ISRAEL_YEAR();
+  const data = (b.form_data && typeof b.form_data === 'object') ? b.form_data : {};
+  const row = await form101Row(emp.id, taxYear);
+  if (row?.signed) throw new Error('הטופס כבר נחתם ואינו ניתן לעריכה');
+
+  // Lenient on completeness, strict on format — a half-filled draft must save,
+  // but a malformed ID is wrong the moment it's typed.
+  const { errors } = validateForm101(data, { draft: true, tax_year: taxYear });
+  if (errors.length) throw new Error(errors[0].message);
+
+  const { randomUUID } = await import('node:crypto');
+  if (row) {
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "EmployeeForm" SET form_data=$1::jsonb, status='draft', "updatedAt"=NOW() WHERE id=$2`,
+      JSON.stringify(data), row.id,
+    );
+  } else {
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "EmployeeForm" ("id","employee_id","form_type","form_label","signed","form_data","tax_year","status","updatedAt")
+       VALUES ($1,$2,'101',$3,false,$4::jsonb,$5,'draft',NOW())`,
+      randomUUID(), emp.id, `טופס 101 — ${taxYear}`, JSON.stringify(data), taxYear,
+    );
+  }
+  return { ok: true };
+});
+
+registerFn('submitMyForm101', async ({ user, body, req }: any) => {
+  await ensureEmployee360();
+  const emp = await myEmployeeRow(user);
+  const b = (body || {}) as any;
+  const taxYear = Number(b.tax_year) || ISRAEL_YEAR();
+  const data = (b.form_data && typeof b.form_data === 'object') ? b.form_data : {};
+  const row = await form101Row(emp.id, taxYear);
+  if (row?.signed) throw new Error('הטופס כבר נחתם');
+
+  const { errors, warnings } = validateForm101(data, { tax_year: taxYear });
+  if (errors.length) {
+    return { ok: false, errors, warnings, message: errors[0].message };
+  }
+
+  const now = new Date();
+  const ip = (req as any)?.ip || (req as any)?.headers?.['x-forwarded-for'] || null;
+  const ua = (req as any)?.headers?.['user-agent'] || null;
+  const stored = { ...data, submitted_at: now.toISOString() };
+  const { randomUUID } = await import('node:crypto');
+
+  let formId = row?.id;
+  if (row) {
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "EmployeeForm" SET form_data=$1::jsonb, signed=true, signed_at=$2, status='locked', locked_at=$2,
+         signed_ip=$3, signed_user_agent=$4, identified=true, "updatedAt"=NOW() WHERE id=$5`,
+      JSON.stringify(stored), now, ip ? String(ip).slice(0, 60) : null, ua ? String(ua).slice(0, 200) : null, row.id,
+    );
+  } else {
+    formId = randomUUID();
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "EmployeeForm" ("id","employee_id","form_type","form_label","signed","signed_at","form_data","tax_year","status","locked_at","signed_ip","signed_user_agent","identified","updatedAt")
+       VALUES ($1,$2,'101',$3,true,$4,$5::jsonb,$6,'locked',$4,$7,$8,true,NOW())`,
+      formId, emp.id, `טופס 101 — ${taxYear}`, now, JSON.stringify(stored), taxYear,
+      ip ? String(ip).slice(0, 60) : null, ua ? String(ua).slice(0, 200) : null,
+    );
+  }
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "EmployeeFormVersion" ("id","form_id","employee_id","form_type","tax_year","form_data","reason","created_at")
+     VALUES ($1,$2,$3,'101',$4,$5::jsonb,'submit',NOW())`,
+    randomUUID(), formId, emp.id, taxYear, JSON.stringify(stored),
+  ).catch(() => {});
+
+  // Close the onboarding step so the two don't disagree about the same fact.
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "EmployeeOnboardingStep" SET done=true, done_at=NOW() WHERE employee_id=$1 AND step_key='form_101_done'`,
+    emp.id,
+  ).catch(() => {});
+
+  return { ok: true, signed_at: now, form_id: formId, signed_ip: ip ? String(ip).slice(0, 60) : null, warnings };
+});
+
+// Part א of the form — the business's own details, set once by the owner.
+registerFn('setForm101Employer', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'setForm101Employer');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const employer = {
+    name: String(b.name || '').trim(),
+    address: String(b.address || '').trim(),
+    phone: String(b.phone || '').trim(),
+    deductions_file: String(b.deductions_file || '').trim(),
+  };
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "EmployeeFormTemplate" ("form_type","form_label","employer","updatedAt")
+     VALUES ('101','טופס 101',$1::jsonb,NOW())
+     ON CONFLICT ("form_type") DO UPDATE SET employer=$1::jsonb, "updatedAt"=NOW()`,
+    JSON.stringify(employer),
+  );
+  return { ok: true };
+});
+
+// Manager view: who still owes a 101 for the tax year.
+registerFn('listForm101Status', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'listForm101Status');
+  await ensureEmployee360();
+  const taxYear = Number((body || {}).tax_year) || ISRAEL_YEAR();
+  const employees: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, full_name, role, phone, status FROM "Employee" WHERE COALESCE(status,'') <> 'terminated' ORDER BY full_name`,
+  ).catch(() => []);
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT employee_id, signed, signed_at, status, identified, file_url FROM "EmployeeForm"
+     WHERE form_type='101' AND COALESCE(tax_year,0)=$1`, taxYear,
+  ).catch(() => []);
+  const byEmp: Record<string, any> = {};
+  for (const r of rows) byEmp[r.employee_id] = r;
+  // Returned so the settings form loads with what's stored. Without it the page
+  // would render blank inputs and a save would silently wipe part א.
+  const tplRows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT employer FROM "EmployeeFormTemplate" WHERE form_type='101' LIMIT 1`,
+  ).catch(() => []);
+  return {
+    ok: true,
+    tax_year: taxYear,
+    employer: tplRows[0]?.employer || { name: '', address: '', phone: '', deductions_file: '' },
+    employees: employees.map((e) => {
+      const r = byEmp[e.id];
+      return {
+        id: e.id, full_name: e.full_name, role: e.role, phone: e.phone,
+        signed: !!r?.signed, signed_at: r?.signed_at || null,
+        status: r?.status || 'none', identified: r?.identified ?? null, file_url: r?.file_url || null,
+      };
+    }),
+  };
+});
+
+// Nudge the employees who haven't filled it in yet.
+registerFn('sendForm101Request', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'sendForm101Request');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const taxYear = Number(b.tax_year) || ISRAEL_YEAR();
+  const ids: string[] = Array.isArray(b.employee_ids) ? b.employee_ids.map(String).filter(Boolean) : [];
+  if (!ids.length) throw new Error('missing_employees');
+  if (!(await isNotifEnabled('form101_request'))) return { ok: true, notified: 0, reason: 'disabled' };
+  const link = `${appBaseUrl()}/Form101`;
+  let notified = 0;
+  for (const employeeId of ids) {
+    try {
+      const emp = await (prisma as any).employee.findUnique({ where: { id: employeeId } }).catch(() => null);
+      if (!emp?.phone) continue;
+      const existing = await form101Row(employeeId, taxYear);
+      if (existing?.signed) continue;
+      const first = String(emp.full_name || '').split(' ')[0] || 'שלום';
+      const fallback = `היי ${first} 👋\nצריך למלא טופס 101 (כרטיס עובד) לשנת המס ${taxYear}.\nזה לוקח כמה דקות מהטלפון:\n🔗 ${link}`;
+      const msg = await notifText('form101_request', fallback, { first, year: String(taxYear), link });
+      const r: any = await notifyStaff(emp.phone, first, msg);
+      if (r?.sent) notified++;
+      if (existing) {
+        await (prisma as any).$executeRawUnsafe(
+          `UPDATE "EmployeeForm" SET sent_at=NOW(), status=COALESCE(NULLIF(status,''),'sent') WHERE id=$1`, existing.id,
+        ).catch(() => {});
+      }
+    } catch (e: any) {
+      console.warn('[sendForm101Request] failed', employeeId, e?.message);
+    }
+  }
+  return { ok: true, notified, total: ids.length };
 });
 
 // Add a timeline event: hire / role / promotion / rating / hearing / note /
