@@ -70,6 +70,12 @@ const normEmpName = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCa
 // treated as a mistake and shown at the scheduled hours instead.
 const MAX_SHIFT_HOURS = 16;
 
+// ...and the mirror image, which had no guard at all: clocking in and straight
+// back out (a double tap on the clock) leaves a 0-2 minute record that the report
+// took at face value and reported as 0.01 hours for a full shift. 38 such rows
+// exist across the real employees. Anything under this is a mis-tap, not a shift.
+const MIN_SHIFT_MINUTES = 6;
+
 // Actual worked hours from a ShiftTracking (clock) record — the source of truth
 // when the schedule assignment is missing an end_time. Returns {gross, net}.
 function trackHours(t) {
@@ -493,8 +499,9 @@ function EmployeeReportsInner() {
                 if (completedClock) {
                     const th = trackHours(t);
                     let gross = th.gross, net = th.net;
-                    if (gross > MAX_SHIFT_HOURS) {
-                        // forgotten clock-out → fall back to the scheduled hours
+                    if (gross > MAX_SHIFT_HOURS || gross * 60 < MIN_SHIFT_MINUTES) {
+                        // forgotten clock-out, or a double-tap that clocked in and
+                        // out again → fall back to the scheduled hours either way.
                         stale = true;
                         gross = sched > 0 ? sched : MAX_SHIFT_HOURS;
                         net = Math.max(0, gross - (Number(t?.total_break_minutes) || 0) / 60);
@@ -1444,7 +1451,49 @@ function EmployeeReportsInner() {
                                         <Loader2 className="w-8 h-8 animate-spin text-[#44512C]" />
                                     </div>
                                 ) : filteredData.hourlyShiftEntries.length === 0 ? (
-                                    <p className="text-center text-gray-500 py-8">אין משמרות בסידור העבודה לתקופה זו לעובד זה</p>
+                                    (() => {
+                                        // "0 שעות" for someone with 13 shifts in the rota is a
+                                        // question, not an answer. Count what IS in the schedule
+                                        // and name the reason the hours table is empty — almost
+                                        // always an incomplete clock (in, never out) or a
+                                        // tip-position shift that lives in the טיפים tab.
+                                        const selName = normEmpName(employees.find(e => e.id === selectedEmployeeId)?.full_name);
+                                        const inRange = (dateStr) => {
+                                            const d = new Date(dateStr);
+                                            if (filterPeriod === 'week') return d >= startOfWeek(new Date(), { weekStartsOn: 0 }) && d <= endOfWeek(new Date(), { weekStartsOn: 0 });
+                                            if (filterPeriod === 'month') return d >= startOfMonth(selectedMonth) && d <= endOfMonth(selectedMonth);
+                                            return true;
+                                        };
+                                        let scheduled = 0, tipRole = 0;
+                                        (workShifts || []).forEach(ws => {
+                                            if (!inRange(ws.date)) return;
+                                            (ws.assigned_staff || []).forEach(a => {
+                                                const mine = (a.employee_id && a.employee_id === selectedEmployeeId)
+                                                    || (a.employee_name && selName && normEmpName(a.employee_name) === selName);
+                                                if (!mine) return;
+                                                scheduled++;
+                                                if (isTipPosition(a.position)) tipRole++;
+                                            });
+                                        });
+                                        if (!scheduled) {
+                                            return <p className="text-center text-gray-500 py-8">אין משמרות בסידור העבודה לתקופה זו לעובד זה</p>;
+                                        }
+                                        return (
+                                            <div className="py-8 px-4 text-center space-y-2">
+                                                <p className="text-gray-700 font-bold">
+                                                    יש {scheduled} משמרות בסידור לתקופה הזו — אבל אף אחת לא נספרת כשעות עבודה.
+                                                </p>
+                                                <p className="text-sm text-gray-500 leading-relaxed max-w-lg mx-auto">
+                                                    משמרת נספרת רק עם <b>החתמת כניסה ויציאה מלאה</b>, או כרישום ידני.
+                                                    כניסה בלי יציאה לא נספרת.
+                                                    {tipRole > 0 && <> בנוסף, {tipRole} מהן בתפקיד טיפים ומופיעות בלשונית <b>טיפים</b>.</>}
+                                                </p>
+                                                <p className="text-sm text-gray-500">
+                                                    אפשר להוסיף את השעות ידנית עם <b>+ הוסף משמרת ידנית</b>.
+                                                </p>
+                                            </div>
+                                        );
+                                    })()
                                 ) : (
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm">
