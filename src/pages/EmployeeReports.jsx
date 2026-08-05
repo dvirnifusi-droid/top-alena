@@ -512,7 +512,7 @@ function EmployeeReportsInner() {
                 const t = pickClockForShift(ws, a);
                 const completedClock = !!(t && t.shift_end);
                 const sched = calcHours(a.start_time, a.end_time);
-                let hours, netHours, fromClock = false, clockEnd = a.end_time, clockStart = a.start_time, stale = false;
+                let hours, netHours, fromClock = false, fromSchedule = false, clockEnd = a.end_time, clockStart = a.start_time, stale = false;
                 if (completedClock) {
                     const th = trackHours(t);
                     let gross = th.gross, net = th.net;
@@ -531,10 +531,13 @@ function EmployeeReportsInner() {
                     // 2.69h". The hours were right; the start column was lying.
                     try { if (t?.shift_end && !stale) clockEnd = format(new Date(t.shift_end), 'HH:mm'); } catch { /* noop */ }
                     try { if (t?.shift_start && !stale) clockStart = format(new Date(t.shift_start), 'HH:mm'); } catch { /* noop */ }
-                } else if (a.manual_entry && sched > 0) {
+                } else if (sched > 0 && sched <= MAX_SHIFT_HOURS) {
+                    // No usable clock → take the rota. Tagged below so the row
+                    // reads "מהסידור" and a genuine no-show stays spottable.
                     hours = sched; netHours = sched - (Number(a.total_break_minutes) || 0) / 60;
+                    fromSchedule = true;
                 } else {
-                    return; // not clocked-and-finished, not manual → not worked
+                    return; // no clock and no sane scheduled span → nothing to count
                 }
                 if (hours <= 0) return;
                 hourlyShiftEntries.push({
@@ -560,6 +563,8 @@ function EmployeeReportsInner() {
                     trackingId: fromClock ? (t?.id || null) : null,
                     hours,
                     fromClock,
+                    fromSchedule,
+                    manualConfirmed: !!a.manual_entry,
                     break_minutes: fromClock ? (Number(t?.total_break_minutes) || 0) : (Number(a.total_break_minutes) || 0),
                     net_hours: netHours,
                     workShiftId: ws.id,
@@ -1522,6 +1527,19 @@ function EmployeeReportsInner() {
                                     })()
                                 ) : (
                                     <div className="overflow-x-auto">
+                                        {/* Say how many of these hours nobody clocked for. Paying
+                                            from the rota is the default now — this is what keeps a
+                                            no-show visible instead of silently paid. */}
+                                        {filteredData.hourlyShiftEntries.some(e => e.fromSchedule) && (() => {
+                                            const rows = filteredData.hourlyShiftEntries.filter(e => e.fromSchedule);
+                                            const h = rows.reduce((sum, e) => sum + (e.net_hours || 0), 0);
+                                            return (
+                                                <div className="mb-3 rounded-lg px-3 py-2 text-[12px] leading-relaxed bg-amber-50 border border-amber-200 text-amber-900">
+                                                    <b>{rows.length} משמרות ללא החתמת שעון</b> ({h.toFixed(2)} שעות) — נספרו לפי הסידור ומסומנות <b>מהסידור</b>.
+                                                    <br />אם עובד לא הגיע במשמרת כזו — מחק את השורה כדי שלא תשולם.
+                                                </div>
+                                            );
+                                        })()}
                                         <table className="w-full text-sm">
                                             <thead className="border-b-2 border-gray-300 bg-slate-50">
                                                 <tr>
@@ -1549,7 +1567,17 @@ function EmployeeReportsInner() {
                                                                          };
                                                                          return sorted.map((entry, idx) => (
                                                                          <tr key={idx} className={rowClass(entry, idx)}>
-                                                                         <td className="py-3 px-4">{format(new Date(entry.date), 'dd/MM/yyyy', { locale: he })}</td>
+                                                                         <td className="py-3 px-4">
+                                                                         {format(new Date(entry.date), 'dd/MM/yyyy', { locale: he })}
+                                                                         {entry.fromSchedule && (
+                                                                         <span
+                                                                         className="ms-2 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 align-middle"
+                                                                         title={entry.manualConfirmed
+                                                                         ? 'אין החתמת שעון תקינה — השעות נלקחו מהסידור ואושרו ידנית'
+                                                                         : 'אין החתמת שעון — השעות נלקחו אוטומטית מהסידור. אם העובד לא הגיע, מחק את השורה.'}
+                                                                         >מהסידור</span>
+                                                                         )}
+                                                                         </td>
                                                                          <td className="py-3 px-4">
                                                                          <Badge variant={entry.shift_type === 'lunch' ? 'default' : 'secondary'}>
                                                                          {entry.shift_type === 'lunch' ? 'צהריים' : 'ערב'}

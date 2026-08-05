@@ -68,8 +68,16 @@ export function resolveShiftHours({ staffEntry, clock }) {
         // Unusable clock (mis-tap or forgotten clock-out) falls through to the
         // schedule, but only if a manager stood behind those hours.
     }
-    if (staffEntry?.manual_entry && sched > 0 && sched <= MAX_SHIFT_HOURS) {
-        return { gross: sched, net: Math.max(0, sched - brk), source: 'manual' };
+    // No usable clock → fall back to the rota automatically. Kitchen staff in
+    // particular don't reliably clock, and making the owner confirm every shift
+    // by hand was the actual bottleneck. The row is TAGGED as coming from the
+    // schedule so a no-show is still visible instead of being paid silently.
+    if (sched > 0 && sched <= MAX_SHIFT_HOURS) {
+        return {
+            gross: sched,
+            net: Math.max(0, sched - brk),
+            source: staffEntry?.manual_entry ? 'manual' : 'schedule',
+        };
     }
     return null;
 }
