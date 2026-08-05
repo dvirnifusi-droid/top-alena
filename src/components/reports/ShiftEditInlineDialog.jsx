@@ -87,6 +87,13 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
                 notes: form.notes,
                 position: form.position || shiftEntry.position,
                 status: 'scheduled',
+                // A manager editing hours here IS the final word — that's the whole
+                // point of correcting in the report. Without this flag the report
+                // only counts a completed clock or a row created by "הוסף משמרת
+                // ידנית", so a corrected shift for someone who never clocked out
+                // was silently dropped and showed 0 hours.
+                manual_entry: true,
+                manual_edited_at: new Date().toISOString(),
             };
 
             if (dateChanged || typeChanged) {
@@ -116,6 +123,9 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
                     total_break_minutes: Number(form.total_break_minutes) || 0,
                     notes: form.notes,
                     position: form.position || shiftEntry.position,
+                    // See above — the manager's correction is the authority.
+                    manual_entry: true,
+                    manual_edited_at: new Date().toISOString(),
                 } : a));
                 await base44.entities.WorkShift.update(workShiftId, { assigned_staff: updatedStaff });
             }
