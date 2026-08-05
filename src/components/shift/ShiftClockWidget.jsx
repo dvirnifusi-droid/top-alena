@@ -533,12 +533,25 @@ export default function ShiftClockWidget() {
                     (s.employee_name && employeeName && s.employee_name.toLowerCase() === employeeName.toLowerCase())
                 );
                 if (idx !== -1) {
+                    // Only write the hours back when they describe a real shift.
+                    // These two fields are HH:mm, so a clock left open for days
+                    // collapses into a same-day pair and destroys the scheduled
+                    // hours: a clock-in 12/07 13:01 with a clock-out 19/07 10:48
+                    // was stored as "13:01-10:48" and read as a 21.8 hour shift.
+                    // Four people carried rows like that. When the span is
+                    // implausible we keep the bookkeeping (break, meal) and leave
+                    // the scheduled times alone — a planned time is worth more
+                    // than a fabricated one.
+                    const spanH = (new Date(now) - new Date(activeShift.shift_start)) / 3600000;
+                    const sane = spanH > 0 && spanH <= 20;
                     const updatedStaff = [...staff];
                     updatedStaff[idx] = {
                         ...updatedStaff[idx],
                         employee_id: employeeId,
-                        start_time: format(new Date(activeShift.shift_start), 'HH:mm'),
-                        end_time: format(new Date(now), 'HH:mm'),
+                        ...(sane ? {
+                            start_time: format(new Date(activeShift.shift_start), 'HH:mm'),
+                            end_time: format(new Date(now), 'HH:mm'),
+                        } : {}),
                         total_break_minutes: finalBreakMinutes,
                         had_meal: activeShift.had_meal || false,
                         meal_details: activeShift.meal_details || '',
