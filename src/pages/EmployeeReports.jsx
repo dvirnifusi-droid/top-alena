@@ -239,20 +239,32 @@ function EmployeeReportsInner() {
         if (!confirm(`למחוק את המשמרת מתאריך ${entry.date}?`)) return;
         const ws = workShifts.find(w => w.id === entry.workShiftId);
         if (!ws) return;
-        // Match the assigned_staff row by employee (id OR name — id can diverge for
-        // Google-auth users) + the SCHEDULED start_time + position. Deliberately do
-        // NOT compare end_time: for clock-sourced rows entry.end_time is the actual
-        // clock-out (clockEnd), which differs from the scheduled a.end_time, so an
-        // end_time match silently removed nothing — the exact garbage 2-min rows the
-        // owner is trying to delete. start_time+position uniquely identifies the row.
+        // Identify the assigned_staff row the way the edit dialog does, and for the
+        // same reason: the table's start/end columns show the CLOCK times, while
+        // assigned_staff holds the SCHEDULED ones. This used to match on
+        // entry.start_time because that WAS the scheduled value — until the display
+        // was changed to show the clock-in, at which point delete silently removed
+        // nothing. Index first, then the scheduled times, then the displayed ones.
         const selEmp = employees.find(e => e.id === selectedEmployeeId);
         const selName = normEmpName(selEmp?.full_name);
         const sameEmp = (a) =>
             (a.employee_id && a.employee_id === selectedEmployeeId) ||
             (a.employee_name && selName && normEmpName(a.employee_name) === selName);
-        const updatedStaff = (ws.assigned_staff || []).filter(a =>
-            !(sameEmp(a) && a.start_time === entry.start_time && (a.position || '') === (entry.position || ''))
-        );
+        const staffList = ws.assigned_staff || [];
+        const samePos = (a) => (a.position || '') === (entry.position || '');
+        let idx = -1;
+        if (Number.isInteger(entry.staffIdx) && staffList[entry.staffIdx] && sameEmp(staffList[entry.staffIdx])) {
+            idx = entry.staffIdx;
+        }
+        if (idx < 0) idx = staffList.findIndex(a => sameEmp(a) && samePos(a)
+            && a.start_time === (entry.sched_start_time ?? entry.start_time));
+        if (idx < 0) idx = staffList.findIndex(a => sameEmp(a) && samePos(a) && a.start_time === entry.start_time);
+        if (idx < 0) idx = staffList.findIndex(a => sameEmp(a) && samePos(a));
+        if (idx < 0) {
+            alert('לא הצלחנו לאתר את המשמרת הזו ברשומה. רענן את הדף ונסה שוב.');
+            return;
+        }
+        const updatedStaff = staffList.filter((_, i) => i !== idx);
         await base44.entities.WorkShift.update(ws.id, { assigned_staff: updatedStaff });
         await loadReportData();
     };
