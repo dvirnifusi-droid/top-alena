@@ -129,6 +129,18 @@ export default function QuickAssignDialog({ isOpen, onOpenChange, context, emplo
         }, 'save');
     };
 
+    // Editing the hours of an assignment on a date that has already happened is a
+    // CORRECTION, and the report only counts a shift that carries a completed
+    // clock or an owner-confirmed manual entry. Without this flag a manager could
+    // fix someone's hours in the rota and the report would keep showing 0.
+    // Deliberately NOT set for future dates — that's planning, and marking a plan
+    // as confirmed hours would pay people for shifts they haven't worked yet.
+    const isCorrection = () => {
+        if (!isEditMode || !context?.date) return false;
+        const d = format(context.date, 'yyyy-MM-dd');
+        return d <= format(new Date(), 'yyyy-MM-dd');
+    };
+
     const handleSubmit = () => {
         if (!selectedEmployeeId || !selectedPosition) {
             alert('אנא בחר עובד ותפקיד');
@@ -140,7 +152,8 @@ export default function QuickAssignDialog({ isOpen, onOpenChange, context, emplo
             employee_id: selectedEmployeeId,
             position: selectedPosition,
             start_time: isUnassigned ? '' : startTime,
-            end_time: isUnassigned ? '' : endTime
+            end_time: isUnassigned ? '' : endTime,
+            ...(isCorrection() ? { manual_entry: true, manual_edited_at: new Date().toISOString() } : {}),
         }, 'save');
     };
 
