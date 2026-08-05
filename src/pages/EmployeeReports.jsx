@@ -394,12 +394,68 @@ function EmployeeReportsInner() {
             (s.employee_id && s.employee_id === selectedEmployeeId) ||
             (s.employee_name && selName && normEmpName(s.employee_name) === selName)
         );
-        const clockByKey = new Map();      // 'date|shift_type' → ShiftTracking
-        const clockByDate = new Map();     // 'date' → ShiftTracking (fallback)
+        // Match a clock record to a SHIFT, not just to a day.
+        //
+        // The old code keyed on `date|shift_type` and fell back to the first clock
+        // of that date. In practice every ShiftTracking row carries shift_type
+        // null, so the precise key never hit and the fallback ALWAYS ran — which
+        // means one clock was applied to every shift that person had that day.
+        // Real consequences on 09/07: אסתר worked lunch and dinner with one 1.25h
+        // clock and both shifts were reported as 1.25h; זיו had two dinner shifts
+        // and one 6.39h clock and was credited 12.78h; איה had TWO clocks and the
+        // second was never used. These are payroll numbers.
+        //
+        // A clock belongs to the shift whose scheduled window it overlaps most,
+        // and each clock is consumed at most once.
+        const dayKey = (d) => String(d instanceof Date ? d.toISOString() : d).slice(0, 10);
+        const toMinOfDay = (hhmm) => {
+            const [h, m] = String(hhmm || '').split(':').map(Number);
+            return Number.isNaN(h) ? null : h * 60 + (m || 0);
+        };
+        const clocksByDay = new Map();     // 'YYYY-MM-DD' → [ShiftTracking]
         empClock.forEach(s => {
-            if (s.shift_type) clockByKey.set(`${s.date}|${s.shift_type}`, s);
-            if (!clockByDate.has(s.date)) clockByDate.set(s.date, s);
+            const k = dayKey(s.date);
+            if (!clocksByDay.has(k)) clocksByDay.set(k, []);
+            clocksByDay.get(k).push(s);
         });
+        const usedClockIds = new Set();
+        // Clock start/end as minutes-from-midnight in Israel wall time, which is
+        // what the scheduled strings are in.
+        const clockMinutes = (s) => {
+            try {
+                const f = new Intl.DateTimeFormat('en-GB', {
+                    timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false,
+                });
+                const at = (iso) => {
+                    const p = f.formatToParts(new Date(iso));
+                    const g = (t) => Number(p.find(x => x.type === t)?.value || 0);
+                    return g('hour') * 60 + g('minute');
+                };
+                let st = at(s.shift_start);
+                let en = s.shift_end ? at(s.shift_end) : st;
+                if (en < st) en += 24 * 60;      // crossed midnight
+                return { st, en };
+            } catch { return null; }
+        };
+        const pickClockForShift = (ws, a) => {
+            const list = clocksByDay.get(dayKey(ws.date)) || [];
+            const free = list.filter(s => !usedClockIds.has(s.id) && s.shift_end);
+            if (!free.length) return null;
+            if (free.length === 1) { usedClockIds.add(free[0].id); return free[0]; }
+            let ss = toMinOfDay(a.start_time), se = toMinOfDay(a.end_time);
+            if (ss == null) { usedClockIds.add(free[0].id); return free[0]; }
+            if (se == null || se <= ss) se = ss + 240;
+            let best = null, bestOverlap = -1;
+            for (const s of free) {
+                const cm = clockMinutes(s);
+                if (!cm) continue;
+                const overlap = Math.min(se, cm.en) - Math.max(ss, cm.st);
+                if (overlap > bestOverlap) { bestOverlap = overlap; best = s; }
+            }
+            const chosen = best || free[0];
+            usedClockIds.add(chosen.id);
+            return chosen;
+        };
         const hourlyShiftEntries = [];
         workShifts.forEach(ws => {
             if (!inPeriod(ws.date)) return;
@@ -415,10 +471,10 @@ function EmployeeReportsInner() {
                 // Worked hours = a COMPLETED clock (in AND out) or a manual entry.
                 // Planned-only / in-progress (clocked in, not out) / no-show shifts
                 // are NOT worked hours — they never enter the report (owner rule).
-                const t = clockByKey.get(`${ws.date}|${ws.shift_type}`) || clockByDate.get(ws.date);
+                const t = pickClockForShift(ws, a);
                 const completedClock = !!(t && t.shift_end);
                 const sched = calcHours(a.start_time, a.end_time);
-                let hours, netHours, fromClock = false, clockEnd = a.end_time, stale = false;
+                let hours, netHours, fromClock = false, clockEnd = a.end_time, clockStart = a.start_time, stale = false;
                 if (completedClock) {
                     const th = trackHours(t);
                     let gross = th.gross, net = th.net;
@@ -429,7 +485,13 @@ function EmployeeReportsInner() {
                         net = Math.max(0, gross - (Number(t?.total_break_minutes) || 0) / 60);
                     }
                     hours = gross; netHours = net; fromClock = true;
+                    // Show the CLOCK start next to the clock end. The row used to
+                    // print the SCHEDULED start beside the clocked end, so a
+                    // correct number looked impossible: אופיר was scheduled 19:18,
+                    // actually clocked in 23:53, and the row read "19:18 → 03:04 =
+                    // 2.69h". The hours were right; the start column was lying.
                     try { if (t?.shift_end && !stale) clockEnd = format(new Date(t.shift_end), 'HH:mm'); } catch { /* noop */ }
+                    try { if (t?.shift_start && !stale) clockStart = format(new Date(t.shift_start), 'HH:mm'); } catch { /* noop */ }
                 } else if (a.manual_entry && sched > 0) {
                     hours = sched; netHours = sched - (Number(a.total_break_minutes) || 0) / 60;
                 } else {
@@ -440,7 +502,7 @@ function EmployeeReportsInner() {
                     date: ws.date,
                     shift_type: ws.shift_type,
                     position: a.position,
-                    start_time: a.start_time,
+                    start_time: clockStart,
                     end_time: clockEnd,
                     // The row DISPLAYS the clock-out, but assigned_staff holds the
                     // SCHEDULED end. The edit dialog used to look the staff entry up
