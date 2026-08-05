@@ -74,15 +74,30 @@ const MAX_SHIFT_HOURS = 16;
 // when the schedule assignment is missing an end_time. Returns {gross, net}.
 function trackHours(t) {
     if (!t) return { gross: 0, net: 0 };
-    let gross = 0;
-    if (t.total_hours != null) gross = Number(t.total_hours) || 0;
-    else if (t.shift_start && t.shift_end) {
-        const h = (new Date(t.shift_end) - new Date(t.shift_start)) / 3600000;
-        gross = h > 0 ? h : 0;
-    }
     const breaksH = (Number(t.total_break_minutes) || 0) / 60;
-    const net = t.effective_hours != null ? (Number(t.effective_hours) || 0) : Math.max(0, gross - breaksH);
-    return { gross: gross || net, net };
+
+    // THE TIMESTAMPS WIN. total_hours / effective_hours are derived columns that
+    // are written once and then go stale the moment anyone corrects a clock —
+    // and correcting clocks is exactly what a manager does when reviewing the
+    // month. Measured on July: 40 of 312 rows disagreed with their own
+    // timestamps, 54.5 hours of drift. Aya's 15/07 read 11:00→17:00 (6.00h) and
+    // reported 10.15, because 10.15 was the value stored against an older,
+    // longer clock-out that had since been fixed.
+    //
+    // The stored columns stay as a fallback for rows whose timestamps can't
+    // produce a number at all (missing shift_end, legacy imports).
+    let gross = 0;
+    if (t.shift_start && t.shift_end) {
+        const h = (new Date(t.shift_end) - new Date(t.shift_start)) / 3600000;
+        if (h > 0) gross = h;
+    }
+    if (gross > 0) return { gross, net: Math.max(0, gross - breaksH) };
+
+    const storedGross = t.total_hours != null ? (Number(t.total_hours) || 0) : 0;
+    const storedNet = t.effective_hours != null
+        ? (Number(t.effective_hours) || 0)
+        : Math.max(0, storedGross - breaksH);
+    return { gross: storedGross || storedNet, net: storedNet };
 }
 
 // Split daily hours into regular / 125% / 150% overtime buckets

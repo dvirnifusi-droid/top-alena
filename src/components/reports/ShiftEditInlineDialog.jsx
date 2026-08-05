@@ -141,6 +141,20 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
                         : e;
                 }
                 patch.total_break_minutes = Number(form.total_break_minutes) || 0;
+                // Recompute the derived columns in the same write. Moving the
+                // timestamps and leaving total_hours / effective_hours behind is
+                // exactly how the report drifted 54.5 hours in one month: the
+                // stored value stayed frozen against the OLD clock-out and won
+                // over the corrected times.
+                const gs = patch.shift_start || null;
+                const ge = patch.shift_end || null;
+                if (gs && ge) {
+                    const gross = (new Date(ge) - new Date(gs)) / 3600000;
+                    if (gross > 0) {
+                        patch.total_hours = Number(gross.toFixed(2));
+                        patch.effective_hours = Number(Math.max(0, gross - patch.total_break_minutes / 60).toFixed(2));
+                    }
+                }
                 if (Object.keys(patch).length) {
                     await base44.entities.ShiftTracking.update(shiftEntry.trackingId, patch);
                 }
