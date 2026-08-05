@@ -69,7 +69,7 @@ const normEmpName = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCa
 // A single clock shift can't realistically exceed this. Anything longer is a
 // forgotten clock-out (e.g. clocked in Sun, auto-closed 6 days later = 138h) —
 // treated as a mistake and shown at the scheduled hours instead.
-const MAX_SHIFT_HOURS = 16;
+const MAX_SHIFT_HOURS = 20;
 
 // ...and the mirror image, which had no guard at all: clocking in and straight
 // back out (a double tap on the clock) leaves a 0-2 minute record that the report

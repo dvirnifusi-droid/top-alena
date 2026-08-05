@@ -7,9 +7,11 @@
  * Same data, two rules, two answers.
  */
 
-// A shift crossing midnight is real. A shift longer than this is a typo or a
-// forgotten clock-out, and 21.78 hours has no business landing in payroll.
-export const MAX_SHIFT_HOURS = 16;
+// A shift crossing midnight is real, and a kitchen double (10:00 → 02:30) is a
+// genuine 16 hours — the ceiling has to clear those. What it must still stop is
+// a reversed pair: an end a few minutes BEFORE the start reads as ~24 hours.
+// 20 is the owner's number: it passes real long shifts, blocks the reversals.
+export const MAX_SHIFT_HOURS = 20;
 
 export const toMin = (hhmm) => {
     const [h, m] = String(hhmm || '').split(':').map(Number);
