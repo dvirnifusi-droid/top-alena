@@ -512,7 +512,7 @@ function EmployeeReportsInner() {
                 const t = pickClockForShift(ws, a);
                 const completedClock = !!(t && t.shift_end);
                 const sched = calcHours(a.start_time, a.end_time);
-                let hours, netHours, fromClock = false, fromSchedule = false, clockEnd = a.end_time, clockStart = a.start_time, stale = false;
+                let hours, netHours, fromClock = false, fromSchedule = false, needsReview = false, clockEnd = a.end_time, clockStart = a.start_time, stale = false;
                 if (completedClock) {
                     const th = trackHours(t);
                     let gross = th.gross, net = th.net;
@@ -536,10 +536,16 @@ function EmployeeReportsInner() {
                     // reads "מהסידור" and a genuine no-show stays spottable.
                     hours = sched; netHours = sched - (Number(a.total_break_minutes) || 0) / 60;
                     fromSchedule = true;
+                } else if (a.needs_review) {
+                    // The rota lost this shift's hours to a corrupted clock write-back.
+                    // Guessing a number would quietly land in someone's pay, so the row
+                    // is surfaced at ZERO with a flag: the date is visible, the manager
+                    // decides the hours, and nothing is paid until they do.
+                    hours = 0; netHours = 0; needsReview = true;
                 } else {
                     return; // no clock and no sane scheduled span → nothing to count
                 }
-                if (hours <= 0) return;
+                if (hours <= 0 && !needsReview) return;
                 hourlyShiftEntries.push({
                     date: ws.date,
                     shift_type: ws.shift_type,
@@ -564,6 +570,8 @@ function EmployeeReportsInner() {
                     hours,
                     fromClock,
                     fromSchedule,
+                    needsReview,
+                    reviewReason: a.review_reason || '',
                     manualConfirmed: !!a.manual_entry,
                     break_minutes: fromClock ? (Number(t?.total_break_minutes) || 0) : (Number(a.total_break_minutes) || 0),
                     net_hours: netHours,
@@ -1530,6 +1538,16 @@ function EmployeeReportsInner() {
                                         {/* Say how many of these hours nobody clocked for. Paying
                                             from the rota is the default now — this is what keeps a
                                             no-show visible instead of silently paid. */}
+                                        {filteredData.hourlyShiftEntries.some(e => e.needsReview) && (() => {
+                                            const n = filteredData.hourlyShiftEntries.filter(e => e.needsReview).length;
+                                            return (
+                                                <div className="mb-3 rounded-lg px-3 py-2 text-[12px] leading-relaxed bg-rose-50 border border-rose-300 text-rose-900">
+                                                    <b>{n} משמרות דורשות בדיקה</b> — נתוני השעון נכתבו פגומים ושעות המשמרת אבדו.
+                                                    הן מופיעות עם <b>0 שעות ולא משולמות</b>.
+                                                    <br />לחץ על העיפרון וקבע את השעות, או מחק את השורה אם העובד לא הגיע.
+                                                </div>
+                                            );
+                                        })()}
                                         {filteredData.hourlyShiftEntries.some(e => e.fromSchedule) && (() => {
                                             const rows = filteredData.hourlyShiftEntries.filter(e => e.fromSchedule);
                                             const h = rows.reduce((sum, e) => sum + (e.net_hours || 0), 0);
@@ -1569,7 +1587,13 @@ function EmployeeReportsInner() {
                                                                          <tr key={idx} className={rowClass(entry, idx)}>
                                                                          <td className="py-3 px-4">
                                                                          {format(new Date(entry.date), 'dd/MM/yyyy', { locale: he })}
-                                                                         {entry.fromSchedule && (
+                                                                         {entry.needsReview && (
+                                                                         <span
+                                                                         className="ms-2 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-400 align-middle"
+                                                                         title={entry.reviewReason || 'שעות המשמרת אבדו — יש לקבוע אותן ידנית'}
+                                                                         >⚠️ לבדיקה — היה אמור להיות משמרת</span>
+                                                                         )}
+                                                                         {entry.fromSchedule && !entry.needsReview && (
                                                                          <span
                                                                          className="ms-2 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 align-middle"
                                                                          title={entry.manualConfirmed
