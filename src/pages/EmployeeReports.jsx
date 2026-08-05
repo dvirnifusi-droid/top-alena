@@ -517,20 +517,35 @@ function EmployeeReportsInner() {
                     const th = trackHours(t);
                     let gross = th.gross, net = th.net;
                     if (gross > MAX_SHIFT_HOURS || gross * 60 < MIN_SHIFT_MINUTES) {
-                        // forgotten clock-out, or a double-tap that clocked in and
-                        // out again → fall back to the scheduled hours either way.
-                        stale = true;
-                        gross = sched > 0 ? sched : MAX_SHIFT_HOURS;
-                        net = Math.max(0, gross - (Number(t?.total_break_minutes) || 0) / 60);
+                        // Forgotten clock-out, or a double-tap that clocked in and
+                        // out again. Fall back to the SCHEDULED hours — and when
+                        // there are none, fall back to nothing.
+                        //
+                        // This used to default to MAX_SHIFT_HOURS, which meant a
+                        // shift with a broken clock and no scheduled hours was
+                        // silently paid a flat 20 hours. Uriel 21/07 and Michel
+                        // 12/07 both read exactly 20.00 for precisely that reason.
+                        // A number nobody chose is worse than no number at all.
+                        if (!(sched > 0)) {
+                            hours = 0; netHours = 0; needsReview = true;
+                            fromClock = false;
+                            clockStart = a.start_time; clockEnd = a.end_time;
+                        } else {
+                            stale = true;
+                            gross = sched;
+                            net = Math.max(0, gross - (Number(t?.total_break_minutes) || 0) / 60);
+                            hours = gross; netHours = net; fromClock = true;
+                        }
+                    } else {
+                        hours = gross; netHours = net; fromClock = true;
                     }
-                    hours = gross; netHours = net; fromClock = true;
                     // Show the CLOCK start next to the clock end. The row used to
                     // print the SCHEDULED start beside the clocked end, so a
                     // correct number looked impossible: אופיר was scheduled 19:18,
                     // actually clocked in 23:53, and the row read "19:18 → 03:04 =
                     // 2.69h". The hours were right; the start column was lying.
-                    try { if (t?.shift_end && !stale) clockEnd = format(new Date(t.shift_end), 'HH:mm'); } catch { /* noop */ }
-                    try { if (t?.shift_start && !stale) clockStart = format(new Date(t.shift_start), 'HH:mm'); } catch { /* noop */ }
+                    try { if (t?.shift_end && !stale && !needsReview) clockEnd = format(new Date(t.shift_end), 'HH:mm'); } catch { /* noop */ }
+                    try { if (t?.shift_start && !stale && !needsReview) clockStart = format(new Date(t.shift_start), 'HH:mm'); } catch { /* noop */ }
                 } else if (sched > 0 && sched <= MAX_SHIFT_HOURS) {
                     // No usable clock → take the rota. Tagged below so the row
                     // reads "מהסידור" and a genuine no-show stays spottable.
