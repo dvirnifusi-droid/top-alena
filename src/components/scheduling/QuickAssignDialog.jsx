@@ -1,3 +1,4 @@
+import { validateShiftTimes } from '@/lib/shiftTime';
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -142,6 +143,10 @@ export default function QuickAssignDialog({ isOpen, onOpenChange, context, emplo
     };
 
     const handleSubmit = () => {
+        if (startTime && endTime) {
+            const v = validateShiftTimes(startTime, endTime);
+            if (!v.ok) { alert(v.error); return; }
+        }
         if (!selectedEmployeeId || !selectedPosition) {
             alert('אנא בחר עובד ותפקיד');
             return;

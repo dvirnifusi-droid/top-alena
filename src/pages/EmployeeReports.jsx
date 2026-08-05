@@ -13,6 +13,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { validateShiftTimes, resolveShiftHours } from '@/lib/shiftTime';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, eachWeekOfInterval, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -219,6 +220,10 @@ function EmployeeReportsInner() {
         if (!addShiftForm.date) { toast({ title: 'שגיאה', description: 'חסר תאריך', variant: 'destructive' }); return; }
         if (!addShiftForm.start_time) { toast({ title: 'שגיאה', description: 'חסרה שעת כניסה', variant: 'destructive' }); return; }
         if (!addShiftForm.end_time) { toast({ title: 'שגיאה', description: 'חסרה שעת יציאה', variant: 'destructive' }); return; }
+        {
+            const v = validateShiftTimes(addShiftForm.start_time, addShiftForm.end_time);
+            if (!v.ok) { toast({ title: 'שעות לא הגיוניות', description: v.error, variant: 'destructive' }); return; }
+        }
         setSavingAddShift(true);
         const emp = employees.find(e => e.id === selectedEmployeeId);
         // manual_entry flags this as owner-confirmed real hours — the no-show
@@ -582,11 +587,20 @@ function EmployeeReportsInner() {
             (s.employee_id && s.employee_id === selectedEmployeeId) ||
             (s.employee_name && selName && normEmpName(s.employee_name) === selName)
         );
-        const clockByKey = new Map(), clockByDate = new Map();
+        // ONE rule, shared with the detailed table via lib/shiftTime. This block
+        // used to take the scheduled span whenever it was positive and only fall
+        // back to a clock otherwise — no clock required, no manual confirmation
+        // required — so a reversed pair like 20:36→19:49 was read as an overnight
+        // shift and became 22.95 hours here while the detailed table dropped it
+        // entirely. Same data, two answers, and the manager chasing the gap.
+        const dayOf = (d) => String(d instanceof Date ? d.toISOString() : d).slice(0, 10);
+        const clocksByDay = new Map();
         empClock.forEach(s => {
-            if (s.shift_type) clockByKey.set(`${s.date}|${s.shift_type}`, s);
-            if (!clockByDate.has(s.date)) clockByDate.set(s.date, s);
+            const k = dayOf(s.date);
+            if (!clocksByDay.has(k)) clocksByDay.set(k, []);
+            clocksByDay.get(k).push(s);
         });
+        const usedIds = new Set();
 
         // כל משמרות העובד בחודש
         const monthEntries = [];
@@ -596,14 +610,14 @@ function EmployeeReportsInner() {
                 const idMatch = a.employee_id && a.employee_id === selectedEmployeeId;
                 const nameMatch = a.employee_name && selName && normEmpName(a.employee_name) === selName;
                 if (!idMatch && !nameMatch) return;
-                let hours = calcHours(a.start_time, a.end_time) - (a.total_break_minutes || 0) / 60;
-                if (hours <= 0) {
-                    const t = clockByKey.get(`${ws.date}|${ws.shift_type}`) || clockByDate.get(ws.date);
-                    const th = trackHours(t);
-                    if (th.net > 0) hours = th.net;
-                }
-                if (hours <= 0) return;
-                monthEntries.push({ date: ws.date, hours });
+                // Each clock is consumed once, so two shifts in a day can't both
+                // claim the same record.
+                const free = (clocksByDay.get(dayOf(ws.date)) || []).filter(c => !usedIds.has(c.id) && c.shift_end);
+                const clock = free[0] || null;
+                const resolved = resolveShiftHours({ staffEntry: a, clock });
+                if (!resolved) return;
+                if (clock && resolved.source === 'clock') usedIds.add(clock.id);
+                monthEntries.push({ date: ws.date, hours: resolved.net });
             });
         });
 

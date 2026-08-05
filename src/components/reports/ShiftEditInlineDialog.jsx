@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import TimePicker from '@/components/shared/TimePicker';
 import { Loader2, Save, Trash2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import { validateShiftTimes } from '@/lib/shiftTime';
 
 export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workShiftId, employeeId, onSaved }) {
     const [form, setForm] = useState({
@@ -34,6 +35,10 @@ export default function ShiftEditInlineDialog({ open, onClose, shiftEntry, workS
     }, [shiftEntry]);
 
     const handleSave = async () => {
+        // Catch a reversed pair before it becomes payroll — 20:36→19:49 read as an
+        // overnight shift is 22.95 hours.
+        const v = validateShiftTimes(form.start_time, form.end_time);
+        if (!v.ok) { alert(v.error); return; }
         setSaving(true);
         try {
         // Load the full WorkShift, update the specific staff member
