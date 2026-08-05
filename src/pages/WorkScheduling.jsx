@@ -1723,11 +1723,24 @@ export default function WorkScheduling() {
                                                                 // employee clocked in now is working today's shift, not a past/future
                                                                 // one. Gating on today stops green bleeding onto already-passed days.
                                                                 const isActiveNow = dateStr === todayStr && (activeNow.has(String(assignment.employee_id)) || activeNow.has(`n:${nkA}`));
+
+                                                                // === Red line: scheduled, day is over, nobody clocked ===
+                                                                // The hours report now pays these from the rota by default, so the
+                                                                // rota is the only place left to notice that nobody actually turned
+                                                                // up. A struck-through card is the cue to check before payroll —
+                                                                // either they worked and forgot to clock, or they never came and the
+                                                                // shift should be removed.
+                                                                const clockRow = clockIns.get(`${assignment.employee_id}|${dateStr}`)
+                                                                    || (nkA ? clockIns.get(`n:${nkA}|${dateStr}`) : null);
+                                                                const noClockPast = isPastDay && !clockRow && !assignment.manual_entry;
+
                                                                 let cardClass;
                                                                 if (isActiveNow) {
                                                                     cardClass = 'bg-green-100 border-2 border-green-400 hover:bg-green-200 text-green-900';
                                                                 } else if (isMyAssignment(assignment)) {
                                                                     cardClass = 'bg-gradient-to-r from-green-400 to-yellow-400 text-gray-900 font-bold shadow-lg border-2 border-yellow-500 hover:shadow-xl';
+                                                                } else if (noClockPast) {
+                                                                    cardClass = 'bg-rose-50 border-2 border-rose-400 text-rose-900 hover:bg-rose-100 line-through decoration-rose-500';
                                                                 } else if (isPastDay) {
                                                                     cardClass = 'bg-slate-100 border border-slate-200 text-slate-500 hover:bg-slate-200';
                                                                 } else if (tipRole === 'closing') {
@@ -1742,6 +1755,9 @@ export default function WorkScheduling() {
                                                                     key={assignment.employee_id}
                                                                     className={`p-1 rounded text-center cursor-pointer transition-colors relative ${cardClass}`}
                                                                     onClick={() => handleEditAssignment(day, type, position.position_name, assignment)}
+                                                                    title={noClockPast
+                                                                        ? 'לא בוצעה החתמת שעון ולא תוקנו שעות — השעות נלקחות מהסידור. אם לא הגיע, הסר את השיבוץ.'
+                                                                        : undefined}
                                                                 >
                                                                     {isAdminLike && (
                                                                         <button
