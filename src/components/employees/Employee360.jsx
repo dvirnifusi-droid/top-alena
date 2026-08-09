@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { UploadFile } from '@/integrations/Core';
+import AgreementViewDialog from './AgreementViewDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Loader2, FileSignature, ClipboardList, Plus, Trash2, Pencil, Upload,
   Star, CheckCircle2, Circle, ExternalLink, Scale, ArrowUp, Shuffle, LogIn, LogOut, StickyNote,
-  FileText, Download, ListChecks, ChevronDown, Save,
+  FileText, Download, ListChecks, ChevronDown, Save, Eye,
 } from 'lucide-react';
 
 const EVENT_TYPES = [
@@ -32,7 +33,7 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('he-IL') : '');
 
 const emptyEvent = { event_type: 'rating', title: '', role: '', restaurant: '', rating: '', effective_date: '', notes: '' };
 
-export default function Employee360({ employeeId }) {
+export default function Employee360({ employeeId, employeeName = '' }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
@@ -44,7 +45,8 @@ export default function Employee360({ employeeId }) {
   const [newForm, setNewForm] = useState('');
   const [openFields, setOpenFields] = useState(null);      // form_type whose 101-style field editor is open
   const [fieldsDraft, setFieldsDraft] = useState({});
-  const [openTpl, setOpenTpl] = useState(null);            // form_type whose blank-template editor is open
+  const [openTpl, setOpenTpl] = useState(null);
+  const [viewAgreement, setViewAgreement] = useState(false);            // form_type whose blank-template editor is open
   const [tplLink, setTplLink] = useState('');
   const [uploadingTpl, setUploadingTpl] = useState(null);
 
@@ -189,6 +191,13 @@ export default function Employee360({ employeeId }) {
                 {/* blank form to download/print */}
                 {blank && <a href={f.template_url || f.link} target="_blank" rel="noreferrer" className="shrink-0 text-indigo-600" title="הורד/פתח את הטופס הריק"><Download className="w-4 h-4" /></a>}
                 {hasFields && <button onClick={() => openFieldsEditor(f)} className={`shrink-0 ${openFields === f.form_type ? 'text-emerald-700' : 'text-slate-400 hover:text-slate-700'}`} title="מלא פרטי הטופס"><ListChecks className="w-4 h-4" /></button>}
+                {/* Digitally signed agreement — read the exact text the employee
+                    signed, rather than only the scan-upload path. */}
+                {f.form_type === 'work_agreement' && (
+                  <button onClick={() => setViewAgreement(true)} className="shrink-0 text-indigo-600 hover:text-indigo-800" title="צפה בהסכם שנחתם דיגיטלית">
+                    <Eye className="w-4 h-4" />
+                  </button>
+                )}
                 {/* signed scan of this employee */}
                 {f.file_url && <a href={f.file_url} target="_blank" rel="noreferrer" className="text-blue-600 shrink-0" title="צפה במסמך החתום"><ExternalLink className="w-4 h-4" /></a>}
                 <label className="shrink-0 cursor-pointer text-slate-400 hover:text-slate-700" title="העלה סריקה חתומה של העובד">
@@ -324,6 +333,13 @@ export default function Employee360({ employeeId }) {
           </div>
         </CardContent>
       </Card>
+
+      <AgreementViewDialog
+        employeeId={employeeId}
+        employeeName={employeeName}
+        open={viewAgreement}
+        onOpenChange={setViewAgreement}
+      />
     </div>
   );
 }

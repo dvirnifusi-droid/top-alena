@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, Loader2, FileText, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, FileText, AlertCircle, Download } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import SignaturePad from '@/components/shared/SignaturePad';
 import { isValidIsraeliId } from '@/lib/israeliId';
@@ -55,6 +55,8 @@ export default function MyAgreement() {
         });
         if (cancelled || !fileUrl) return;
         await base44.functions.attachSignedFormPdf({ form_type: 'work_agreement', tax_year: 0, file_url: fileUrl });
+        if (pdfDoc.download) window.open(fileUrl, '_blank');
+        setState((st) => ({ ...st, data: { ...st.data, file_url: fileUrl } }));
       } catch (e) {
         // Non-fatal by design: the signature is already binding without the PDF.
         console.warn('[MyAgreement] pdf save failed', e);
@@ -91,6 +93,20 @@ export default function MyAgreement() {
       window.removeEventListener('resize', check);
     };
   }, [readAll, state.data]);
+
+  // Rebuilds the PDF from the signed record. Reachable whenever the stored file
+  // is missing — e.g. the upload failed right after signing, which must never
+  // mean the employee has no way to get their copy.
+  const regeneratePdf = () => {
+    const d = state.data;
+    if (!d?.signed) return;
+    setPdfDoc({
+      body: d.rendered,
+      signature: d.signature_data_url,
+      meta: { signed_at: d.signed_at, form_id: null, signed_ip: null },
+      download: true,
+    });
+  };
 
   const submit = async () => {
     const fields = state.data?.my_fields || [];
@@ -232,11 +248,27 @@ export default function MyAgreement() {
         </div>
       )}
 
-      {signed && state.data.signature_data_url && (
+      {signed && (
         <Card>
-          <CardHeader><CardTitle className="text-base">חתימתך</CardTitle></CardHeader>
-          <CardContent>
-            <img src={state.data.signature_data_url} alt="חתימה" className="max-h-24" />
+          <CardHeader><CardTitle className="text-base">העותק שלך</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {state.data.signature_data_url && (
+              <img src={state.data.signature_data_url} alt="חתימה" className="max-h-24" />
+            )}
+            {state.data.file_url ? (
+              <a href={state.data.file_url} target="_blank" rel="noreferrer" className="block">
+                <Button variant="outline" className="w-full">
+                  <Download className="w-4 h-4 ml-2" /> הורדת ההסכם החתום (PDF)
+                </Button>
+              </a>
+            ) : (
+              // No stored file — the PDF is only ever a copy of the record, so it
+              // can be regenerated on demand rather than being lost.
+              <Button variant="outline" className="w-full" onClick={regeneratePdf} disabled={!!pdfDoc}>
+                {pdfDoc ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Download className="w-4 h-4 ml-2" />}
+                צור והורד PDF
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}

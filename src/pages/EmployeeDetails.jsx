@@ -467,7 +467,7 @@ export default function EmployeeDetailsPage() {
 
                     <TabsContent value="file" className="mt-4">
                 {/* Itzik #1/#2 — 360° HR card: forms/signatures + life-in-the-group timeline */}
-                <Employee360 employeeId={employee.id} />
+                <Employee360 employeeId={employee.id} employeeName={employee.full_name} />
                     </TabsContent>
 
                     <TabsContent value="shifts" className="space-y-6 mt-4">

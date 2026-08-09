@@ -9,8 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Save, Send, AlertTriangle, CheckCircle2, Search } from 'lucide-react';
+import { Loader2, Save, Send, AlertTriangle, CheckCircle2, Search, Eye } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import AgreementViewDialog from '@/components/employees/AgreementViewDialog';
 
 // Owner side of the employment agreement: edit the text once, then send it to
 // specific employees with their terms filled in.
@@ -145,8 +146,13 @@ export default function AgreementAdmin() {
       <Tabs defaultValue="send">
         <TabsList className="mb-4">
           <TabsTrigger value="send">שליחה לעובדים</TabsTrigger>
+          <TabsTrigger value="status">מי חתם</TabsTrigger>
           <TabsTrigger value="template">עריכת הנוסח</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="status">
+          <AgreementStatusList />
+        </TabsContent>
 
         <TabsContent value="send" className="space-y-4">
           <Card>
@@ -267,6 +273,89 @@ export default function AgreementAdmin() {
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// Who has signed, who hasn't — with a view straight into the signed document.
+function AgreementStatusList() {
+  const { toast } = useToast();
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [viewing, setViewing] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await base44.functions.listAgreementStatus();
+        const d = res?.data || res;
+        if (!d?.ok) throw new Error(d?.message || 'שגיאה');
+        setRows(d.employees || []);
+      } catch (e) {
+        toast({ title: 'שגיאה בטעינה', description: e?.message || String(e), variant: 'destructive' });
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) return <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>;
+
+  const signed = rows.filter((r) => r.signed);
+  const waiting = rows.filter((r) => r.assigned && !r.signed);
+  const never = rows.filter((r) => !r.assigned);
+
+  const Row = ({ r }) => (
+    <div className="flex items-center gap-3 py-2 border-b last:border-0">
+      <span className="flex-1 text-sm text-slate-800">{r.full_name}</span>
+      {r.role && <Badge variant="outline" className="text-xs">{r.role}</Badge>}
+      {r.signed && (
+        <span className="text-xs text-slate-400">
+          {r.signed_at ? new Date(r.signed_at).toLocaleDateString('he-IL') : ''}
+        </span>
+      )}
+      {r.assigned && (
+        <Button variant="ghost" size="sm" onClick={() => setViewing(r)}>
+          <Eye className="w-4 h-4 ml-1" /> תצוגה
+        </Button>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader><CardTitle className="text-base text-emerald-800">חתמו ({signed.length})</CardTitle></CardHeader>
+        <CardContent>
+          {signed.length ? signed.map((r) => <Row key={r.id} r={r} />)
+            : <p className="text-sm text-slate-400 py-3 text-center">עוד אף אחד לא חתם</p>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base text-amber-800">נשלח וממתין לחתימה ({waiting.length})</CardTitle></CardHeader>
+        <CardContent>
+          {waiting.length ? waiting.map((r) => <Row key={r.id} r={r} />)
+            : <p className="text-sm text-slate-400 py-3 text-center">אין ממתינים</p>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base text-slate-600">לא נשלח אליהם הסכם ({never.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {never.length ? never.map((r) => <Row key={r.id} r={r} />)
+            : <p className="text-sm text-slate-400 py-3 text-center">לכולם נשלח</p>}
+        </CardContent>
+      </Card>
+
+      <AgreementViewDialog
+        employeeId={viewing?.id}
+        employeeName={viewing?.full_name}
+        open={!!viewing}
+        onOpenChange={(o) => { if (!o) setViewing(null); }}
+      />
     </div>
   );
 }

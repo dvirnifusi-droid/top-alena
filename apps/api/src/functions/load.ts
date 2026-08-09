@@ -9670,11 +9670,74 @@ registerFn('getMyAgreement', async ({ user }: any) => {
     signed: !!row.signed,
     signed_at: row.signed_at || null,
     form_label: row.form_label,
-    // Rendered with what's known so far — the employee reads the real terms,
-    // with their own blanks still showing as blanks.
-    rendered: renderAgreement(data.template_body || DEFAULT_AGREEMENT_BODY, values),
+    // Once signed, show the FROZEN text that was actually signed — it carries
+    // the stamped signing date. Re-rendering the live template here is what
+    // made a signed agreement still read "ביום ___ לחודש ___": the date is
+    // stamped at signature time and only exists on signed_body.
+    rendered: row.signed
+      ? (data.signed_body || renderAgreement(data.template_body || DEFAULT_AGREEMENT_BODY, data.signed_values || values))
+      : renderAgreement(data.template_body || DEFAULT_AGREEMENT_BODY, values),
     my_fields: fields.filter((f: any) => f.filled_by === 'employee'),
     my_values: data.employee_values || {},
+    signature_data_url: row.signed ? (data.signature_data_url || null) : null,
+    file_url: row.file_url || null,
+  };
+});
+
+// Back-office: who has signed their agreement and who hasn't.
+registerFn('listAgreementStatus', async ({ user }: any) => {
+  await requireBackOffice(user, 'listAgreementStatus');
+  await ensureEmployee360();
+  const employees: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, full_name, role, phone FROM "Employee" WHERE COALESCE(status,'') <> 'terminated' ORDER BY full_name`,
+  ).catch(() => []);
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT employee_id, signed, signed_at, status, sent_at, file_url, identified
+     FROM "EmployeeForm" WHERE form_type=$1`, AGREEMENT_FORM_TYPE,
+  ).catch(() => []);
+  const byEmp: Record<string, any> = {};
+  for (const r of rows) byEmp[r.employee_id] = r;
+  return {
+    ok: true,
+    employees: employees.map((e) => {
+      const r = byEmp[e.id];
+      return {
+        id: e.id, full_name: e.full_name, role: e.role,
+        assigned: !!r,
+        signed: !!r?.signed,
+        signed_at: r?.signed_at || null,
+        sent_at: r?.sent_at || null,
+        file_url: r?.file_url || null,
+        identified: r?.identified ?? null,
+      };
+    }),
+  };
+});
+
+// Back-office: read one employee's agreement exactly as they signed it.
+registerFn('getEmployeeAgreement', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'getEmployeeAgreement');
+  await ensureEmployee360();
+  const employeeId = String((body || {}).employee_id || '');
+  if (!employeeId) throw new Error('missing_employee');
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT * FROM "EmployeeForm" WHERE employee_id=$1 AND form_type=$2 AND COALESCE(tax_year,0)=0 LIMIT 1`,
+    employeeId, AGREEMENT_FORM_TYPE,
+  ).catch(() => []);
+  const row = rows[0];
+  if (!row) return { ok: true, assigned: false };
+  const data = row.form_data || {};
+  const values = { ...(data.manager_values || {}), ...(data.employee_values || {}) };
+  return {
+    ok: true,
+    assigned: true,
+    signed: !!row.signed,
+    signed_at: row.signed_at || null,
+    signed_ip: row.signed_ip || null,
+    file_url: row.file_url || null,
+    rendered: row.signed
+      ? (data.signed_body || renderAgreement(data.template_body || DEFAULT_AGREEMENT_BODY, data.signed_values || values))
+      : renderAgreement(data.template_body || DEFAULT_AGREEMENT_BODY, values),
     signature_data_url: row.signed ? (data.signature_data_url || null) : null,
   };
 });
