@@ -27,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import EmployeePaySection from '../components/employees/EmployeePaySection';
 import EmployeeTierSelect from '../components/employees/EmployeeTierSelect';
 import Employee360 from '../components/employees/Employee360';
+import SignedAgreementCard from '../components/employees/SignedAgreementCard';
 import EmployeeMeetings from '../components/employees/EmployeeMeetings';
 import EmployeeCoreDetails, { statusMeta } from '../components/employees/EmployeeCoreDetails';
 import EmployeeOnboarding from '../components/employees/EmployeeOnboarding';
@@ -462,6 +463,7 @@ export default function EmployeeDetailsPage() {
 
                     <TabsContent value="onboarding" className="space-y-6 mt-4">
                         {crm && <EmployeeOnboarding employeeId={employee.id} steps={crm.onboarding || []} done={crm.onboarding_done || 0} total={crm.onboarding_total || 10} onChange={() => loadCrm()} />}
+                        <SignedAgreementCard employeeId={employee.id} employeeName={employee.full_name} />
                         {crm && <EmployeeDocuments employeeId={employee.id} documents={crm.documents || []} onChange={() => loadCrm()} />}
                     </TabsContent>
 
