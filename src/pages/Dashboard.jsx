@@ -7,6 +7,7 @@ import { Users, TrendingUp, CheckCircle, AlertTriangle, Star, Brain, Zap, Chevro
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import PendingDocsBanner from '@/components/shared/PendingDocsBanner';
 import { base44 } from '@/api/base44Client';
 import ApparelShop from '../components/gamification/ApparelShop';
 import ApparelCustomizer from '../components/gamification/ApparelCustomizer';
@@ -150,6 +151,7 @@ function SmartToolsPanel() {
 
     return (
         <>
+            <PendingDocsBanner />
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <Card className="bg-gradient-to-r from-[#A04A2E] to-[#A04A2E] text-white cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:scale-105" onClick={() => setIsOpen(true)}>
                     <CardContent className="p-6">

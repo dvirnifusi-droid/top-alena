@@ -9,6 +9,7 @@ import ShiftNotificationBell from '../components/shared/ShiftNotificationBell';
 import { Employee } from '@/entities/Employee';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import PendingDocsBanner from '@/components/shared/PendingDocsBanner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from 'date-fns';
 
@@ -325,6 +326,7 @@ export default function EmployeeHome() {
                 }
             `}</style>
             <div className="max-w-7xl mx-auto">
+                <PendingDocsBanner />
                 {/* אדר "וואו" קומפקטי — תמונת העסק/גרדיאנט מותגי + לוגו + ברכה. כל הכפתורים נשמרים. */}
                 <div
                     className="relative overflow-hidden rounded-3xl shadow-xl mb-6 animate-in fade-in slide-in-from-bottom-4 duration-500"

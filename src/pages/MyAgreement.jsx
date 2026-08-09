@@ -194,6 +194,7 @@ export default function MyAgreement() {
                 <Label htmlFor={f.key}>{f.label}{f.required && ' *'}</Label>
                 <Input
                   id={f.key}
+                  type={f.type === 'date' ? 'date' : 'text'}
                   value={values[f.key] || ''}
                   inputMode={f.type === 'id' ? 'numeric' : undefined}
                   onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}

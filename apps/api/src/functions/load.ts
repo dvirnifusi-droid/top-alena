@@ -9539,6 +9539,30 @@ registerFn('setAgreementTemplate', async ({ user, body }: any) => {
   return { ok: true, orphaned, unused };
 });
 
+// Remembers the terms the owner typed, so they aren't retyped for every hire.
+// Stored as each field's `default` inside the template's existing `fields` JSONB
+// — no new column, and getAgreementTemplate already seeds the form from them.
+// Only manager-owned fields are remembered: an employee's name or ID must never
+// become a default that pre-fills someone else's agreement.
+registerFn('setAgreementDefaults', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'setAgreementDefaults');
+  await ensureEmployee360();
+  const values = ((body || {}).values && typeof (body as any).values === 'object') ? (body as any).values : {};
+  const tpl = await loadAgreementTemplate();
+  const fields = tpl.fields.map((f: any) => {
+    if (f.filled_by !== 'manager') return f;
+    const v = values[f.key];
+    return v === undefined || v === null || String(v).trim() === '' ? f : { ...f, default: String(v) };
+  });
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "EmployeeFormTemplate" ("form_type","form_label","body","fields","updatedAt")
+     VALUES ($1,$2,$3,$4::jsonb,NOW())
+     ON CONFLICT ("form_type") DO UPDATE SET fields=$4::jsonb, "updatedAt"=NOW()`,
+    AGREEMENT_FORM_TYPE, tpl.form_label, tpl.body, JSON.stringify(fields),
+  );
+  return { ok: true, saved: fields.filter((f: any) => f.filled_by === 'manager' && f.default).length };
+});
+
 // Manager assigns the agreement to specific employees, filling the terms.
 registerFn('assignAgreement', async ({ user, body }: any) => {
   await requireBackOffice(user, 'assignAgreement');
@@ -9918,6 +9942,38 @@ registerFn('submitMyForm101', async ({ user, body, req }: any) => {
   ).catch(() => {});
 
   return { ok: true, signed_at: now, form_id: formId, signed_ip: ip ? String(ip).slice(0, 60) : null, warnings };
+});
+
+// What the signed-in user still has to sign. Feeds the home-screen banner, so
+// it must be cheap and must NEVER throw: an owner with no Employee row, or a
+// tenant that has never opened an employee card, is a normal state — not an
+// error that should break the home page.
+registerFn('getMyPendingDocs', async ({ user }: any) => {
+  const none = { ok: true, agreement: null, form101: null };
+  try {
+    if (!user?.email) return none;
+    await ensureEmployee360();
+    const emp = await (prisma as any).employee.findFirst({
+      where: { email: { equals: String(user.email), mode: 'insensitive' } },
+    }).catch(() => null);
+    if (!emp) return none;
+    const taxYear = ISRAEL_YEAR();
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT form_type, signed, tax_year, status FROM "EmployeeForm"
+       WHERE employee_id=$1 AND form_type IN ('work_agreement','101')`, emp.id,
+    ).catch(() => []);
+    const agreementRow = rows.find((r) => r.form_type === 'work_agreement');
+    const f101Row = rows.find((r) => r.form_type === '101' && Number(r.tax_year || 0) === taxYear);
+    return {
+      ok: true,
+      // Only an ASSIGNED agreement counts as pending — we don't nag people the
+      // owner never sent one to.
+      agreement: agreementRow && !agreementRow.signed ? { pending: true } : null,
+      form101: f101Row?.signed ? null : { pending: true, tax_year: taxYear, draft: f101Row?.status === 'draft' },
+    };
+  } catch {
+    return none;
+  }
 });
 
 // Part א of the form — the business's own details, set once by the owner.

@@ -113,6 +113,13 @@ export const adminLinks = [
   // Integrations / AdminWhatsApp / WhatsApp Templates / DataExport / PushNotifications /
   // Popups moved into the "מרכז הגדרות וחיבורים" hub (AdminSettings) to declutter
   // the sidebar — one entry point for all setup/integration tools.
+
+  // An owner/manager is also an employee of the business: they have their own
+  // 101 and their own agreement to sign. Without these the admin menu has no
+  // route to them at all — the pages exist but are unreachable from this view.
+  { title: "המסמכים שלי 📄", url: "#", icon: FileText, isCategory: true, color: "olive" },
+  { title: "הסכם העבודה שלי", url: createPageUrl("MyAgreement"), icon: FileText, isSubItem: true, color: "olive" },
+  { title: "טופס 101 שלי", url: createPageUrl("Form101"), icon: FileText, isSubItem: true, color: "olive" },
 ];
 
 // Employee menu — full brand palette (cinnamon/olive/gold/espresso).

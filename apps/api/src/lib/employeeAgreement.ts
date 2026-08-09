@@ -25,7 +25,6 @@ export type AgreementField = {
 export const AGREEMENT_FIELDS: AgreementField[] = [
   // ── the business sets these ───────────────────────────────────────────────
   { key: 'role', label: 'תפקיד', filled_by: 'manager', type: 'select:מלצר,ברמן,ראנר', required: true },
-  { key: 'start_date', label: 'תאריך תחילת עבודה', filled_by: 'manager', type: 'date', required: true },
   { key: 'company_address', label: 'כתובת החברה', filled_by: 'manager', required: true },
   { key: 'supervisor', label: 'שם הממונה', filled_by: 'manager', default: 'גב׳ עדיה ניפוסי', required: true },
   { key: 'base_rate', label: 'שכר יסוד לשעה (₪)', filled_by: 'manager', type: 'number', default: '31', required: true },
@@ -37,6 +36,7 @@ export const AGREEMENT_FIELDS: AgreementField[] = [
   { key: 'employee_name', label: 'שם מלא', filled_by: 'employee', required: true },
   { key: 'employee_id', label: 'תעודת זהות', filled_by: 'employee', type: 'id', required: true },
   { key: 'employee_address', label: 'כתובת מגורים', filled_by: 'employee', required: true },
+  { key: 'start_date', label: 'תאריך תחילת עבודה', filled_by: 'employee', type: 'date', required: true },
 ];
 
 /**

@@ -27,6 +27,7 @@ export default function AgreementAdmin() {
   const [search, setSearch] = useState('');
   const [values, setValues] = useState({});
   const [sending, setSending] = useState(false);
+  const [savingDefaults, setSavingDefaults] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -75,6 +76,20 @@ export default function AgreementAdmin() {
       toast({ title: 'שגיאה בשמירה', description: e?.message || String(e), variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveDefaults = async () => {
+    setSavingDefaults(true);
+    try {
+      const res = await base44.functions.setAgreementDefaults({ values });
+      const data = res?.data || res;
+      if (!data?.ok) throw new Error(data?.message || 'שגיאה');
+      toast({ title: 'התנאים נשמרו כברירת מחדל' });
+    } catch (e) {
+      toast({ title: 'שגיאה בשמירה', description: e?.message || String(e), variant: 'destructive' });
+    } finally {
+      setSavingDefaults(false);
     }
   };
 
@@ -165,7 +180,16 @@ export default function AgreementAdmin() {
                   </div>
                 );
               })}
-              <div className="sm:col-span-2 text-xs text-slate-500 border-t pt-3">
+              <div className="sm:col-span-2 border-t pt-3 flex flex-wrap items-center gap-3">
+                <Button variant="outline" size="sm" onClick={saveDefaults} disabled={savingDefaults}>
+                  {savingDefaults ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Save className="w-4 h-4 ml-2" />}
+                  שמור כברירת מחדל
+                </Button>
+                <span className="text-xs text-slate-500">
+                  יישמר ויופיע מלא בפעם הבאה — לא תצטרך להקליד שוב לכל עובד.
+                </span>
+              </div>
+              <div className="sm:col-span-2 text-xs text-slate-500">
                 העובד ימלא בעצמו: {employeeFields.map((f) => f.label).join(' · ')}
               </div>
             </CardContent>
