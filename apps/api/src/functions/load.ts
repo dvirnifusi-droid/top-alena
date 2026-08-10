@@ -9192,6 +9192,11 @@ async function ensureEmployee360(): Promise<void> {
     `"public_token" TEXT`,
     `"token_expires_at" TIMESTAMP(3)`,
     `"identified" BOOLEAN`,
+    // Counter-signature. The agreement ends "ולראיה באו הצדדים על החתום" with a
+    // line for each side — an employee-only signature leaves it half-executed.
+    `"rep_signature_data_url" TEXT`,
+    `"rep_signed_at" TIMESTAMP(3)`,
+    `"rep_signed_by" TEXT`,
   ]) {
     await (prisma as any).$executeRawUnsafe(`ALTER TABLE "EmployeeForm" ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
   }
@@ -9216,6 +9221,9 @@ async function ensureEmployee360(): Promise<void> {
   // Prisma model, and a new column there breaks every query on the table until
   // the schema script has run on every tenant. This table is raw-SQL only.
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "EmployeeFormTemplate" ADD COLUMN IF NOT EXISTS "employer" JSONB`).catch(() => {});
+  // The company signature is drawn ONCE and reused, so the owner isn't redrawing
+  // it for every hire. Applying it still takes a deliberate click per agreement.
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "EmployeeFormTemplate" ADD COLUMN IF NOT EXISTS "company_signature" TEXT`).catch(() => {});
   // The rules require every previous version of a submitted form to be kept and
   // retrievable — so a correction appends, it never overwrites.
   await (prisma as any).$executeRawUnsafe(
@@ -9680,8 +9688,84 @@ registerFn('getMyAgreement', async ({ user }: any) => {
     my_fields: fields.filter((f: any) => f.filled_by === 'employee'),
     my_values: data.employee_values || {},
     signature_data_url: row.signed ? (data.signature_data_url || null) : null,
+    rep_signature_data_url: row.rep_signature_data_url || null,
+    rep_signed_at: row.rep_signed_at || null,
     file_url: row.file_url || null,
   };
+});
+
+// The company's own signature, drawn once and reused across agreements.
+registerFn('getCompanySignature', async ({ user }: any) => {
+  await requireBackOffice(user, 'getCompanySignature');
+  await ensureEmployee360();
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT company_signature FROM "EmployeeFormTemplate" WHERE form_type=$1 LIMIT 1`, AGREEMENT_FORM_TYPE,
+  ).catch(() => []);
+  return { ok: true, signature_data_url: rows[0]?.company_signature || null };
+});
+
+registerFn('setCompanySignature', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'setCompanySignature');
+  await ensureEmployee360();
+  const sig = String((body || {}).signature_data_url || '');
+  if (!sig.startsWith('data:image/')) throw new Error('חתימה לא תקינה');
+  if (sig.length > 250_000) throw new Error('החתימה גדולה מדי');
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "EmployeeFormTemplate" ("form_type","form_label","company_signature","updatedAt")
+     VALUES ($1,'הסכם עבודה',$2,NOW())
+     ON CONFLICT ("form_type") DO UPDATE SET company_signature=$2, "updatedAt"=NOW()`,
+    AGREEMENT_FORM_TYPE, sig,
+  );
+  return { ok: true };
+});
+
+// Counter-signs one employee's agreement on behalf of the company.
+registerFn('signAgreementAsCompany', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'signAgreementAsCompany');
+  await ensureEmployee360();
+  const b = (body || {}) as any;
+  const employeeId = String(b.employee_id || '');
+  if (!employeeId) throw new Error('missing_employee');
+
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT id, signed, rep_signed_at FROM "EmployeeForm" WHERE employee_id=$1 AND form_type=$2 AND COALESCE(tax_year,0)=0 LIMIT 1`,
+    employeeId, AGREEMENT_FORM_TYPE,
+  ).catch(() => []);
+  const row = rows[0];
+  if (!row) throw new Error('לא שויך לעובד הזה הסכם');
+  // Counter-signing an unsigned agreement would produce a document the company
+  // committed to and the employee never accepted.
+  if (!row.signed) throw new Error('העובד עדיין לא חתם — אי אפשר לחתום כחברה לפניו');
+  if (row.rep_signed_at) throw new Error('כבר חתמת על ההסכם הזה');
+
+  // An explicitly supplied signature also gets stored as the reusable one.
+  let sig = String(b.signature_data_url || '');
+  if (sig) {
+    if (!sig.startsWith('data:image/')) throw new Error('חתימה לא תקינה');
+    if (sig.length > 250_000) throw new Error('החתימה גדולה מדי');
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "EmployeeFormTemplate" ("form_type","form_label","company_signature","updatedAt")
+       VALUES ($1,'הסכם עבודה',$2,NOW())
+       ON CONFLICT ("form_type") DO UPDATE SET company_signature=$2, "updatedAt"=NOW()`,
+      AGREEMENT_FORM_TYPE, sig,
+    );
+  } else {
+    const tpl: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT company_signature FROM "EmployeeFormTemplate" WHERE form_type=$1 LIMIT 1`, AGREEMENT_FORM_TYPE,
+    ).catch(() => []);
+    sig = tpl[0]?.company_signature || '';
+    if (!sig) throw new Error('לא נשמרה חתימת חברה — צייר אותה פעם אחת ונשתמש בה מכאן והלאה');
+  }
+
+  const now = new Date();
+  await (prisma as any).$executeRawUnsafe(
+    `UPDATE "EmployeeForm" SET rep_signature_data_url=$1, rep_signed_at=$2, rep_signed_by=$3,
+       file_url=NULL, "updatedAt"=NOW() WHERE id=$4`,
+    sig, now, String(user?.full_name || user?.email || ''), row.id,
+  );
+  // file_url is cleared on purpose: the stored PDF was produced before the
+  // company signed, so leaving it would keep handing out a half-signed copy.
+  return { ok: true, rep_signed_at: now };
 });
 
 // Back-office: who has signed their agreement and who hasn't.
@@ -9692,7 +9776,7 @@ registerFn('listAgreementStatus', async ({ user }: any) => {
     `SELECT id, full_name, role, phone FROM "Employee" WHERE COALESCE(status,'') <> 'terminated' ORDER BY full_name`,
   ).catch(() => []);
   const rows: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT employee_id, signed, signed_at, status, sent_at, file_url, identified
+    `SELECT employee_id, signed, signed_at, status, sent_at, file_url, identified, rep_signed_at
      FROM "EmployeeForm" WHERE form_type=$1`, AGREEMENT_FORM_TYPE,
   ).catch(() => []);
   const byEmp: Record<string, any> = {};
@@ -9709,6 +9793,7 @@ registerFn('listAgreementStatus', async ({ user }: any) => {
         sent_at: r?.sent_at || null,
         file_url: r?.file_url || null,
         identified: r?.identified ?? null,
+        rep_signed_at: r?.rep_signed_at || null,
       };
     }),
   };
@@ -9739,6 +9824,9 @@ registerFn('getEmployeeAgreement', async ({ user, body }: any) => {
       ? (data.signed_body || renderAgreement(data.template_body || DEFAULT_AGREEMENT_BODY, data.signed_values || values))
       : renderAgreement(data.template_body || DEFAULT_AGREEMENT_BODY, values),
     signature_data_url: row.signed ? (data.signature_data_url || null) : null,
+    rep_signature_data_url: row.rep_signature_data_url || null,
+    rep_signed_at: row.rep_signed_at || null,
+    rep_signed_by: row.rep_signed_by || null,
   };
 });
 

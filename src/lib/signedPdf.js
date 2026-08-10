@@ -24,7 +24,8 @@ const CONTENT_H = PAGE_H - MARGIN * 2;   // 971
  *
  * @param {object}  doc
  * @param {string}  doc.body       the document text (newline separated)
- * @param {string} [doc.signature] signature image dataURL
+ * @param {string} [doc.signature] employee signature image dataURL
+ * @param {string} [doc.companySignature] company counter-signature dataURL
  * @param {string} [doc.title]     heading printed at the top of page 1
  * @param {string} [doc.subtitle]  smaller line under the heading
  * @param {object} [meta]          { title (filename), signedAt, ip, formId }
@@ -122,7 +123,9 @@ function buildPages(host, source, meta) {
   sig.style.cssText = 'margin-top:26px;display:flex;gap:40px;align-items:flex-end';
   sig.innerHTML = `
     <div style="flex:1;text-align:center">
-      <div style="height:70px"></div>
+      <div style="height:70px;display:flex;align-items:flex-end;justify-content:center">
+        ${source.companySignature ? `<img src="${source.companySignature}" style="max-height:68px" />` : ''}
+      </div>
       <div style="border-top:1px solid #333;padding-top:5px;font-size:11.5px;color:#444">חתימת החברה</div>
     </div>
     <div style="flex:1;text-align:center">
