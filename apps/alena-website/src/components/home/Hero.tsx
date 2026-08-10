@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { ReservationCTA } from "@/components/shared/ReservationCTA";
+import { DeliveryCTA } from "@/components/shared/DeliveryCTA";
 import { featuredPhotos, heroPhoto } from "@/lib/gallery";
 
 // Prefer the landscape signature-dish shot from the KARELA shoot as hero bg.
@@ -71,9 +72,10 @@ export function Hero() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 1 }}
-          className="mt-12"
+          className="mt-12 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4"
         >
           <ReservationCTA />
+          <DeliveryCTA />
         </motion.div>
       </div>
     </section>
