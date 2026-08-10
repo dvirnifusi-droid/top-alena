@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,6 @@ export default function AgreementViewDialog({ employeeId, employeeName, open, on
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [making, setMaking] = useState(false);
-  const printRef = useRef(null);
 
   useEffect(() => {
     if (!open || !employeeId) return;
@@ -37,10 +36,15 @@ export default function AgreementViewDialog({ employeeId, employeeName, open, on
   }, [open, employeeId]);
 
   const makePdf = async () => {
-    if (!printRef.current) return;
+    if (!data?.rendered) return;
     setMaking(true);
     try {
-      const fileUrl = await generateAndUploadSignedPdf(printRef.current, {
+      const fileUrl = await generateAndUploadSignedPdf({
+        body: data.rendered,
+        signature: data.signature_data_url,
+        title: 'הסכם העסקה',
+        subtitle: employeeName || '',
+      }, {
         title: `agreement-${employeeName || employeeId}`,
         signedAt: data?.signed_at,
         ip: data?.signed_ip,
@@ -101,7 +105,7 @@ export default function AgreementViewDialog({ employeeId, employeeName, open, on
               )}
             </div>
 
-            <div ref={printRef} className="bg-white p-5 border rounded-lg" dir="rtl">
+            <div className="bg-white p-5 border rounded-lg" dir="rtl">
               <div className="whitespace-pre-wrap text-sm leading-7 text-slate-800">{data.rendered}</div>
               {data.signature_data_url && (
                 <div className="mt-6">

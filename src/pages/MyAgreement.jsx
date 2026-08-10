@@ -24,7 +24,6 @@ export default function MyAgreement() {
   const [pdfDoc, setPdfDoc] = useState(null);
   const sigRef = useRef(null);
   const bodyRef = useRef(null);
-  const pdfRef = useRef(null);
 
   const load = async () => {
     try {
@@ -43,11 +42,16 @@ export default function MyAgreement() {
   // Once the signed text is staged, render it off-screen, snapshot it to PDF and
   // store it. Runs after paint so the hidden node actually exists to capture.
   useEffect(() => {
-    if (!pdfDoc || !pdfRef.current) return;
+    if (!pdfDoc) return;
     let cancelled = false;
     (async () => {
       try {
-        const fileUrl = await generateAndUploadSignedPdf(pdfRef.current, {
+        const fileUrl = await generateAndUploadSignedPdf({
+          body: pdfDoc.body,
+          signature: pdfDoc.signature,
+          title: 'הסכם העסקה',
+          subtitle: state.data?.form_label || '',
+        }, {
           title: 'employment-agreement',
           signedAt: pdfDoc.meta?.signed_at,
           ip: pdfDoc.meta?.signed_ip,
@@ -224,28 +228,6 @@ export default function MyAgreement() {
             </Button>
           </CardContent>
         </Card>
-      )}
-
-      {/* Off-screen render of exactly what was signed — the source for the PDF.
-          Positioned off-canvas rather than display:none, because html2canvas
-          cannot capture a node that was never laid out. */}
-      {pdfDoc && (
-        <div style={{ position: 'fixed', top: 0, right: '-10000px', width: '794px' }} aria-hidden="true">
-          <div ref={pdfRef} dir="rtl" style={{ background: '#fff', padding: '32px', fontFamily: 'Arial, sans-serif' }}>
-            <div style={{ whiteSpace: 'pre-wrap', fontSize: '12px', lineHeight: 1.7, color: '#111' }}>
-              {pdfDoc.body}
-            </div>
-            <div style={{ marginTop: '28px' }}>
-              <div style={{ fontSize: '12px', marginBottom: '6px' }}>חתימת העובד/ת:</div>
-              <img src={pdfDoc.signature} alt="" style={{ maxHeight: '90px' }} />
-            </div>
-            <div style={{ marginTop: '18px', fontSize: '10px', color: '#666', borderTop: '1px solid #ddd', paddingTop: '8px' }}>
-              נחתם דיגיטלית ב-{pdfDoc.meta?.signed_at ? new Date(pdfDoc.meta.signed_at).toLocaleString('he-IL') : ''}
-              {pdfDoc.meta?.signed_ip ? ` · מכתובת IP ${pdfDoc.meta.signed_ip}` : ''}
-              {pdfDoc.meta?.form_id ? ` · מזהה טופס ${pdfDoc.meta.form_id}` : ''}
-            </div>
-          </div>
-        </div>
       )}
 
       {signed && (
