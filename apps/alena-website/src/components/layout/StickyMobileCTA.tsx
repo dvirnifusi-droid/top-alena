@@ -1,8 +1,8 @@
 import { Phone, MessageCircle, Bike } from "lucide-react";
 import { env } from "@/lib/env";
 
-// Owner's WooCommerce delivery site — direct link so mobile users can order fast.
-const DELIVERY_URL = "https://alenabepita.co.il/shop/";
+// Owner's ordering system on valuecard.co.il — direct link to the Alena Bepita menu.
+const DELIVERY_URL = "https://valuecard.co.il/Orders/alenabepita";
 
 export function StickyMobileCTA() {
   return (

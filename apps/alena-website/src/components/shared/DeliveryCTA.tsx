@@ -2,7 +2,7 @@
 // Kept as its own component (mirrors ReservationCTA) so we can style/route
 // consistently everywhere it's used — hero, sticky mobile bar, footer, delivery page.
 
-const DELIVERY_URL = "https://alenabepita.co.il/shop/";
+const DELIVERY_URL = "https://valuecard.co.il/Orders/alenabepita";
 
 export function DeliveryCTA({
   className,
