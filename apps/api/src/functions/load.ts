@@ -4415,29 +4415,14 @@ registerFn('getOperationsHQ', async ({ user }: any) => {
     incidents: '🚨', candidates: '🧑‍💼', requests: '📝', tips: '💰', invoices: '🧾', inventory: '📦',
   } as any)[key] || '•');
 
-  // Severity drives how the dashboard board colours each row. Money that is
-  // already committed or running out ranks above anything else; a metric that
-  // is merely off-target is amber; everything else is a queue to work through.
-  const SEV: Record<string, 'high' | 'mid' | 'low'> = {
-    cashflow: 'high', incidents: 'high', invoices: 'high',
-    labor: 'mid', foodcost: 'mid', drift: 'mid', requests: 'mid',
-    candidates: 'low', tips: 'low', inventory: 'low',
-  };
-  const sevOf = (id: string) => SEV[id] || 'low';
-
   const actions: any[] = [];
   for (const a of (dash?.attention || [])) {
-    actions.push({ id: a.key, icon: iconFor(a.key), title: a.label, why: a.how || '', count: a.count, kind: 'link', link: a.url || '#', severity: sevOf(a.key) });
+    actions.push({ id: a.key, icon: iconFor(a.key), title: a.label, why: a.how || '', count: a.count, kind: 'link', link: a.url || '#' });
   }
-  if (ins?.labor?.pct != null && ins.labor.pct > 32) actions.push({ id: 'labor', icon: '👥', title: `עלות עבודה גבוהה — ${ins.labor.pct}%`, why: 'מעל היעד (32%)', kind: 'link', link: '/LaborCost', severity: ins.labor.pct > 45 ? 'high' : 'mid', amount: `${ins.labor.pct}%` });
-  if ((ins?.menu?.high_cost_count || 0) > 0) actions.push({ id: 'foodcost', icon: '🍽️', title: `${ins.menu.high_cost_count} מנות עם פוד-קוסט גבוה`, why: `ממוצע ${ins.menu.avg_food_cost_pct}%`, kind: 'link', link: '/Recipes', severity: 'mid', amount: `${ins.menu.avg_food_cost_pct}%` });
-  if ((ins?.cashflow?.alerts?.length || 0) > 0) actions.push({ id: 'cashflow', icon: '💸', title: 'התראת תזרים', why: String((ins.cashflow.alerts[0] as any)?.msg || ins.cashflow.alerts[0] || ''), kind: 'link', link: '/CashFlow', severity: 'high' });
-  if ((ins?.price_drift?.count || 0) > 0) actions.push({ id: 'drift', icon: '📈', title: `${ins.price_drift.count} ספקים ייקרו מחירים`, why: ins.price_drift.top ? `${ins.price_drift.top.product} +${ins.price_drift.top.drift_pct}%` : '', kind: 'link', link: '/Recipes', severity: 'mid' });
-
-  // Highest severity first, then the biggest queues — so the board reads
-  // top-down as "deal with this, then this".
-  const rank = { high: 0, mid: 1, low: 2 } as Record<string, number>;
-  actions.sort((a, b) => (rank[a.severity] - rank[b.severity]) || ((b.count || 0) - (a.count || 0)));
+  if (ins?.labor?.pct != null && ins.labor.pct > 32) actions.push({ id: 'labor', icon: '👥', title: `עלות עבודה גבוהה — ${ins.labor.pct}%`, why: 'מעל היעד (32%)', kind: 'link', link: '/LaborCost' });
+  if ((ins?.menu?.high_cost_count || 0) > 0) actions.push({ id: 'foodcost', icon: '🍽️', title: `${ins.menu.high_cost_count} מנות עם פוד-קוסט גבוה`, why: `ממוצע ${ins.menu.avg_food_cost_pct}%`, kind: 'link', link: '/Recipes' });
+  if ((ins?.cashflow?.alerts?.length || 0) > 0) actions.push({ id: 'cashflow', icon: '💸', title: 'התראת תזרים', why: String((ins.cashflow.alerts[0] as any)?.msg || ins.cashflow.alerts[0] || ''), kind: 'link', link: '/CashFlow' });
+  if ((ins?.price_drift?.count || 0) > 0) actions.push({ id: 'drift', icon: '📈', title: `${ins.price_drift.count} ספקים ייקרו מחירים`, why: ins.price_drift.top ? `${ins.price_drift.top.product} +${ins.price_drift.top.drift_pct}%` : '', kind: 'link', link: '/Recipes' });
 
   const bits: string[] = [];
   if (kpis.incidents_open > 0) bits.push(`${kpis.incidents_open} אירועים פתוחים`);
