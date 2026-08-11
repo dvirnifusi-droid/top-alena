@@ -18,6 +18,7 @@ import TreatsReport from '../components/dashboard/TreatsReport';
 import AiQuickAdd from '../components/dashboard/AiQuickAdd';
 import OnboardingProgressCard from '../components/dashboard/OnboardingProgressCard';
 import ApolloHero from '../components/dashboard/ApolloHero';
+import OverviewHeader from '../components/dashboard/OverviewHeader';
 import InsightWidgets from '../components/dashboard/InsightWidgets';
 import ShiftMoneyWidget from '../components/dashboard/ShiftMoneyWidget';
 import DeliveriesTodayWidget from '../components/dashboard/DeliveriesTodayWidget';
@@ -330,6 +331,7 @@ function DashboardInner() {
                     </button>
                 </div>
 
+                <OverviewHeader />
                 <ApolloHero />
                 <OnboardingProgressCard />
                 {widgetOrder.map(id => adminWidgets[id] || null)}
