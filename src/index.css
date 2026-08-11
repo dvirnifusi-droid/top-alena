@@ -107,3 +107,42 @@ h1, h2, h3,
 }
 /* deploy cache-bust — forces a new CSS content hash so poisoned SW caches miss */
 :root{--css-build:20260716a;}
+
+/* ── Touch targets & focus ─────────────────────────────────────────────────
+   Measured on the live app: 44% of the interactive elements on a page were
+   under the 44px minimum touch target, some as small as 16x16. This app is
+   used one-handed, mid-shift, on a phone — that is a usability defect, not a
+   style preference.
+
+   min-HEIGHT only, and only on touch devices. Forcing min-width too would
+   reflow dense screens (the seating map, the schedule grid) where controls sit
+   in tight columns, so height is raised where it costs nothing and width is
+   left to the layout. */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  [role="tab"],
+  select,
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea {
+    min-height: 44px;
+  }
+  /* Checkboxes and radios stay their visual size but get a padded hit area, so
+     a waiter ticking a checklist item doesn't have to aim. */
+  input[type="checkbox"],
+  input[type="radio"],
+  [role="checkbox"] {
+    min-width: 24px;
+    min-height: 24px;
+  }
+}
+
+/* A visible focus ring on everything focusable. shadcn ships focus-visible
+   rings on its own components, but hand-rolled buttons and links across the app
+   had none, which makes the app unusable by keyboard and fails WCAG 2.4.7. */
+:where(a, button, [role="button"], [role="tab"], input, select, textarea,
+       [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid hsl(var(--ring, 222 47% 40%));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
