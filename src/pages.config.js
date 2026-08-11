@@ -154,6 +154,14 @@ import AdminWhatsAppInbox from './pages/AdminWhatsAppInbox';
 import AdminSettings from './pages/AdminSettings';
 import AppBuilder from './pages/AppBuilder';
 import AgreementAdmin from './pages/AgreementAdmin';
+import AreaHome from './pages/AreaHome';
+import AreaShift from './pages/AreaShift';
+import AreaTeam from './pages/AreaTeam';
+import AreaMoney from './pages/AreaMoney';
+import AreaKitchen from './pages/AreaKitchen';
+import AreaGuests from './pages/AreaGuests';
+import AreaGrowth from './pages/AreaGrowth';
+import AreaSettings from './pages/AreaSettings';
 import Form101 from './pages/Form101';
 import Form101Admin from './pages/Form101Admin';
 import MyAgreement from './pages/MyAgreement';
@@ -306,6 +314,14 @@ export const PAGES = {
     "AdminSettings": AdminSettings,
     "AppBuilder": AppBuilder,
     "AgreementAdmin": AgreementAdmin,
+    "AreaHome": AreaHome,
+    "AreaShift": AreaShift,
+    "AreaTeam": AreaTeam,
+    "AreaMoney": AreaMoney,
+    "AreaKitchen": AreaKitchen,
+    "AreaGuests": AreaGuests,
+    "AreaGrowth": AreaGrowth,
+    "AreaSettings": AreaSettings,
     "Form101": Form101,
     "Form101Admin": Form101Admin,
     "MyAgreement": MyAgreement,
