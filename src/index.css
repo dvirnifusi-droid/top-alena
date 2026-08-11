@@ -212,20 +212,50 @@ h1, h2, h3,
 }
 .app-rail [class*="uppercase"] span:first-child { background: var(--sidebar-label, #A08D6F) !important; }
 
-/* Search field and the user card sit on the rail, not on a lighter patch. */
-.app-rail input {
-  background: color-mix(in srgb, var(--sidebar-active, #3B2A1E) 70%, transparent) !important;
+/* Search field sits behind the items, not beside them. */
+.app-rail input[type="text"] {
+  background: color-mix(in srgb, var(--sidebar-bg, #241811) 60%, #000) !important;
   border-color: var(--sidebar-line, #3B2A1E) !important;
   color: var(--sidebar-fg, #F6ECD6) !important;
 }
 .app-rail input::placeholder { color: var(--sidebar-label, #A08D6F) !important; }
-.app-rail select {
-  background: transparent !important;
-  color: var(--sidebar-dim, #B9A88C) !important;
+
+/* The footer block: user card, role switcher, language picker, sign out. These
+   kept their light-theme surfaces and read as bright rectangles stuck on a dark
+   panel, so each one is restated here rather than left to inherit. */
+.app-rail [class*="bg-card"] { background: var(--sidebar-bg, #241811) !important; }
+.app-rail [class*="bg-muted"] {
+  background: color-mix(in srgb, var(--sidebar-active, #3B2A1E) 45%, transparent) !important;
   border-color: var(--sidebar-line, #3B2A1E) !important;
 }
-/* The user card keeps a shape — it's a distinct object, not a nav item. */
-.app-rail [class*="bg-muted"] {
-  background: color-mix(in srgb, var(--sidebar-active, #3B2A1E) 60%, transparent) !important;
+.app-rail select,
+.app-rail [role="combobox"],
+.app-rail button[class*="border"] {
+  background: color-mix(in srgb, var(--sidebar-active, #3B2A1E) 45%, transparent) !important;
   border-color: var(--sidebar-line, #3B2A1E) !important;
+  color: var(--sidebar-fg, #F6ECD6) !important;
+}
+/* Sign out keeps its warning colour, but on a dark ground the light-red border
+   and 600-weight red text drop below readable contrast. */
+.app-rail button[class*="text-red"] {
+  background: transparent !important;
+  border-color: color-mix(in srgb, #E5735C 45%, transparent) !important;
+  color: #F0A392 !important;
+}
+.app-rail button[class*="text-red"]:hover {
+  background: color-mix(in srgb, #E5735C 16%, transparent) !important;
+  color: #F6C5BA !important;
+}
+
+/* Touch targets. Rail rows sat at ~26px; most of the team opens this on a
+   phone, where 44px is the floor for something you tap one-handed mid-shift. */
+.app-rail a,
+.app-rail nav button {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+@media (min-width: 1024px) {
+  .app-rail a,
+  .app-rail nav button { min-height: 40px; }
 }
