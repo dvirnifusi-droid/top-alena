@@ -66,7 +66,9 @@ export default function OverviewHeader() {
     { key: 'food_cost_pct', label: 'פוד-קוסט יומי', unit: '%' },
     { key: 'cashflow_net', label: 'תזרים יומי', unit: '₪' },
   ].map((c) => ({ ...c, series: trends[c.key]?.series }))
-    .filter((c) => c.series?.length >= 2)
+    // A metric that never moved has no trend to show — prefer one that did,
+    // otherwise the dashboard renders no chart at all, which is correct.
+    .filter((c) => c.series?.length >= 2 && Math.min(...c.series) !== Math.max(...c.series))
     .sort((a, b) => b.series.length - a.series.length)[0];
 
   if (!cards.length && !top) return null;

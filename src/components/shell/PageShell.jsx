@@ -132,14 +132,18 @@ export function MetricCards({ items }) {
   );
 }
 
-// Bars from a real series. Renders nothing below two points — a chart drawn
-// from one day is decoration, and on a page that doesn't need a chart this
-// simply never gets called.
+// Bars from a real series. Renders nothing below two points, and nothing when
+// every point is identical: a flat metric drawn as bars is a solid block of
+// colour that reads as a broken chart, not as "this held steady". On a page
+// that doesn't need a chart this simply never gets called.
 export function MiniBars({ label, series, unit = '', maxPoints = 14 }) {
   const s = (series || []).slice(-maxPoints);
   if (s.length < 2) return null;
-  const min = Math.min(...s, 0);
-  const max = Math.max(...s);
+  const lo = Math.min(...s);
+  const hi = Math.max(...s);
+  if (hi === lo) return null;
+  const min = Math.min(lo, 0);
+  const max = hi;
   const span = (max - min) || 1;
   return (
     <div className="rounded-xl p-3 mb-3" style={{ border: `1px solid ${T.line}`, background: T.creamHi }}>
