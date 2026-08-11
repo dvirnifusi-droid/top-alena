@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { sidebarShades } from "@/lib/brandShades";
 import { base44 } from "@/api/base44Client";
 import NetworkLayout from "@/components/network/NetworkLayout";
 import VoiceControl from "@/components/voice/VoiceControl";
