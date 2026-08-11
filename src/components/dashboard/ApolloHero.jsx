@@ -335,6 +335,20 @@ export default function ApolloHero() {
           </div>
         )}
 
+        {/* Today's schedule — the single most-asked question on a shift, so it
+            gets its own full-width row above the AI rail rather than being one
+            of three small tiles. */}
+        <div className="px-4 pt-4">
+          <Link
+            to={createPageUrl('WorkScheduling')}
+            className="w-full rounded-2xl py-3 flex items-center justify-center gap-2 font-bold text-[14px]"
+            style={{ background: '#fff8ea', color: A.espresso, border: `1px solid ${A.line}` }}
+          >
+            <CalendarDays className="w-5 h-5" style={{ color: A.goldLo }} />
+            הצגת סידור יומי
+          </Link>
+        </div>
+
         {/* AI tools rail — כלי AI navigates; גיוס + סורק open inline panels */}
         <div className="grid grid-cols-3 gap-2 px-4 py-4">
           <Link to={createPageUrl('AIHub')} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px]" style={{ background: `linear-gradient(160deg,${A.goldHi},${A.gold})`, color: '#2a1c0e', boxShadow: '0 6px 14px rgba(201,161,90,.35)' }}><Brain className="w-5 h-5" /> כלי AI</Link>

@@ -35,14 +35,16 @@ export default function EmployeesHub() {
 
     const [tab, setTab] = useState(() => {
         const h = (typeof window !== 'undefined' && window.location.hash.replace('#', '')) || '';
-        return TABS.find(t => t.id === h) ? h : 'list';
+        // Schedule first: the reason someone opens this hub during a shift is
+        // almost always "who is working", not "show me the staff list".
+        return TABS.find(t => t.id === h) ? h : 'schedule';
     });
     const onChange = (v) => { setTab(v); if (typeof window !== 'undefined') window.location.hash = v; };
 
     // If the current tab isn't one the user can access, jump to the first they can.
     useEffect(() => {
         if (!loading && visible.length && !visible.some(t => t.id === tab)) {
-            onChange(visible[0].id);
+            onChange((visible.find(t => t.id === 'schedule') || visible[0]).id);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loading, visible.length, tab]);
