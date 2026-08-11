@@ -282,3 +282,22 @@ h1, h2, h3,
    equivalent, so they're removed rather than recoloured. */
 .app-rail *::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
 .app-rail *::-webkit-scrollbar-corner { background: transparent; }
+
+/* Skip link — off-screen until focused, then it lands in the top corner. */
+.skip-link {
+  position: absolute;
+  inset-inline-start: -9999px;
+  top: 0;
+  z-index: 100;
+  background: var(--sidebar-bg, #241811);
+  color: var(--sidebar-fg, #F6ECD6);
+  padding: 10px 16px;
+  border-radius: 0 0 8px 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.skip-link:focus {
+  inset-inline-start: 12px;
+  outline: 2px solid var(--brand-primary, #C9A15A);
+  outline-offset: 2px;
+}

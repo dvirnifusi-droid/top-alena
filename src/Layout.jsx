@@ -771,6 +771,8 @@ const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
 };
 
 const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, lockedOf = () => null, setPaywall = () => {}, brandName = "TOP APOLLO", logoUrl = null }) => (
+  <>
+  <a href="#main-content" className="skip-link">דלג לתוכן הראשי</a>
   <div className="app-rail fixed top-0 bottom-0 right-0 w-80 border-l border-border z-40">
     <div className="border-b border-border p-6">
       <div className="flex items-center gap-4 mb-4">
@@ -800,7 +802,7 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
       {navigationItems.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground py-8">לא נמצאו התאמות לחיפוש</p>
       ) : (
-      <div className="space-y-1.5">
+      <nav aria-label="ניווט ראשי" className="space-y-1.5">
         {navigationItems.map((item) => {
           const c = colorOf(item.color);
           return item.isCategory ? (
@@ -842,7 +844,7 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
             </Link>
           );
         })}
-      </div>
+      </nav>
       )}
     </div>
 
@@ -870,8 +872,15 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
         <LogOut className="w-4 h-4 ml-1" />
         התנתקות
       </Button>
+      {/* Required by the Israeli service-accessibility regulations, and the
+          statement page already existed — it just wasn't reachable from
+          anywhere in the app. */}
+      <Link to={createPageUrl('PrivacyAndAccessibility')} className="block text-center text-[11px] mt-3 underline">
+        הצהרת נגישות ופרטיות
+      </Link>
     </div>
   </div>
+  </>
 );
 
 const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, lockedOf = () => null, setPaywall = () => {}, brandName = "TOP APOLLO", logoUrl = null }) => {
@@ -996,7 +1005,7 @@ const MobileHeader = ({ isCurrentViewAdmin, brandName = "TOP APOLLO", logoUrl = 
     </SidebarTrigger>
     <div className="flex items-center gap-3 min-w-0">
       <div className="min-w-0 text-right">
-        <h1 className="text-base font-bold text-foreground truncate">{brandName}</h1>
+        <div className="text-base font-bold text-foreground truncate">{brandName}</div>
         <p className="text-xs text-muted-foreground truncate">{isCurrentViewAdmin ? 'ניהול' : 'אזור אישי'}</p>
       </div>
       <div className="w-9 h-9 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-lg flex items-center justify-center shadow-md flex-shrink-0 overflow-hidden">
