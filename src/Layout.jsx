@@ -267,6 +267,15 @@ export default function Layout({ children, currentPageName }) {
     if (colors.primary)   root.style.setProperty('--brand-primary',   colors.primary);
     if (colors.secondary) root.style.setProperty('--brand-secondary', colors.secondary);
     if (colors.accent)    root.style.setProperty('--brand-accent',    colors.accent);
+    // Sidebar chrome, derived from THIS tenant's brand colour rather than
+    // hardcoded — every business gets its own dark rail, not Alena's.
+    const sb = sidebarShades(colors.primary);
+    root.style.setProperty('--sidebar-bg', sb.bg);
+    root.style.setProperty('--sidebar-active', sb.active);
+    root.style.setProperty('--sidebar-line', sb.line);
+    root.style.setProperty('--sidebar-fg', sb.fg);
+    root.style.setProperty('--sidebar-dim', sb.dim);
+    root.style.setProperty('--sidebar-label', sb.label);
     if (branding?.brand_font) {
       root.style.setProperty('--brand-font-family', `"${branding.brand_font}", system-ui, sans-serif`);
     }
@@ -761,7 +770,7 @@ const RoleImpersonationDropdown = ({ user, setUser, compact = false }) => {
 };
 
 const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigationItems, location, user, setUser, hasUnreadChat, navFilter, setNavFilter, lockedOf = () => null, setPaywall = () => {}, brandName = "TOP APOLLO", logoUrl = null }) => (
-  <div className="fixed top-0 bottom-0 right-0 w-80 bg-card border-l border-border z-40">
+  <div className="app-rail fixed top-0 bottom-0 right-0 w-80 border-l border-border z-40">
     <div className="border-b border-border p-6">
       <div className="flex items-center gap-4 mb-4">
         <div className="w-14 h-14 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-xl flex items-center justify-center shadow-xl overflow-hidden">
@@ -869,7 +878,7 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
   // page that just opened (per olive&fig UX request). No-op on desktop.
   const { setOpenMobile } = useSidebar();
   return (
-  <Sidebar className="bg-card z-50">
+  <Sidebar className="app-rail z-50">
     <SidebarHeader className="border-b border-border p-3">
       <div className="flex items-center gap-2 mb-2">
         <div className="w-8 h-8 bg-gradient-to-br from-[#A04A2E] to-[#B89556] rounded-lg flex items-center justify-center shadow-lg overflow-hidden">

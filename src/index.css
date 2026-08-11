@@ -146,3 +146,59 @@ h1, h2, h3,
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* ── The navigation rail ───────────────────────────────────────────────────
+   A dark rail is what makes the app read as a product rather than as a page of
+   cards. The colours come from --sidebar-* which Layout derives from EACH
+   TENANT's own brand colour (src/lib/brandShades.js), so every business gets
+   its own rail instead of Alena's.
+
+   Scoped overrides rather than a rewrite of every nav item: the items carry
+   per-category Tailwind classes with light backgrounds (bg-[#F4ECD8] and the
+   like) that would be invisible on a dark ground, so they're neutralised here
+   in one place. */
+.app-rail {
+  background: var(--sidebar-bg, #241811) !important;
+  border-color: var(--sidebar-line, #3B2A1E) !important;
+  color: var(--sidebar-fg, #F6ECD6);
+}
+.app-rail [class*="border-border"],
+.app-rail .border-b,
+.app-rail .border-t { border-color: var(--sidebar-line, #3B2A1E) !important; }
+
+.app-rail h2,
+.app-rail .text-foreground { color: var(--sidebar-fg, #F6ECD6) !important; }
+.app-rail .text-muted-foreground { color: var(--sidebar-dim, #B9A88C) !important; }
+.app-rail a,
+.app-rail button:not(.rail-keep) { color: var(--sidebar-dim, #B9A88C); }
+
+/* Category headings: small, quiet, and in the rail's own muted tone — the
+   per-category hues read as noise once the ground is dark. */
+.app-rail [class*="uppercase"] { color: var(--sidebar-label, #8A7355) !important; }
+.app-rail [class*="uppercase"] span:first-child { background: var(--sidebar-label, #8A7355) !important; }
+
+/* Active + hover states, re-expressed for a dark ground. */
+.app-rail a[class*="bg-["],
+.app-rail a[class*="bg-amber-100"],
+.app-rail a[class*="bg-orange-100"],
+.app-rail a[class*="bg-emerald-100"],
+.app-rail a[class*="bg-stone-100"] {
+  background: var(--sidebar-active, #3B2A1E) !important;
+  color: var(--sidebar-fg, #F6ECD6) !important;
+}
+.app-rail a:hover,
+.app-rail button:not(.rail-keep):hover {
+  background: var(--sidebar-active, #3B2A1E) !important;
+  color: var(--sidebar-fg, #F6ECD6) !important;
+}
+
+/* The menu search and the user card sit on the same ground. */
+.app-rail input {
+  background: var(--sidebar-active, #3B2A1E) !important;
+  border-color: var(--sidebar-line, #3B2A1E) !important;
+  color: var(--sidebar-fg, #F6ECD6) !important;
+}
+.app-rail input::placeholder { color: var(--sidebar-label, #8A7355) !important; }
+.app-rail [class*="bg-muted"],
+.app-rail [class*="bg-card"] { background: var(--sidebar-active, #3B2A1E) !important; }
+.app-rail select { background: var(--sidebar-active, #3B2A1E) !important; color: var(--sidebar-fg, #F6ECD6) !important; }
