@@ -148,57 +148,84 @@ h1, h2, h3,
 }
 
 /* ── The navigation rail ───────────────────────────────────────────────────
-   A dark rail is what makes the app read as a product rather than as a page of
-   cards. The colours come from --sidebar-* which Layout derives from EACH
-   TENANT's own brand colour (src/lib/brandShades.js), so every business gets
-   its own rail instead of Alena's.
+   A dark rail is what makes the app read as a product rather than a page of
+   cards. Colours come from --sidebar-*, which Layout derives from EACH TENANT's
+   own brand colour (src/lib/brandShades.js), so every business gets its own
+   rail instead of Alena's.
 
-   Scoped overrides rather than a rewrite of every nav item: the items carry
-   per-category Tailwind classes with light backgrounds (bg-[#F4ECD8] and the
-   like) that would be invisible on a dark ground, so they're neutralised here
-   in one place. */
+   Items are flat by default and only the current page carries a filled shape.
+   The first version matched Tailwind class substrings to find the active item,
+   but `hover:bg-[#FAF5E8]` also contains "bg-[", so every item painted itself
+   active and the rail looked like a stack of pills. Layout now tags the current
+   link with .rail-active and nothing here guesses. */
 .app-rail {
   background: var(--sidebar-bg, #241811) !important;
   border-color: var(--sidebar-line, #3B2A1E) !important;
   color: var(--sidebar-fg, #F6ECD6);
 }
-.app-rail [class*="border-border"],
 .app-rail .border-b,
-.app-rail .border-t { border-color: var(--sidebar-line, #3B2A1E) !important; }
+.app-rail .border-t,
+.app-rail [class*="border-border"] { border-color: var(--sidebar-line, #3B2A1E) !important; }
 
 .app-rail h2,
 .app-rail .text-foreground { color: var(--sidebar-fg, #F6ECD6) !important; }
 .app-rail .text-muted-foreground { color: var(--sidebar-dim, #B9A88C) !important; }
+
+/* Every nav item is flat. No fill, no border, no shadow — the rail should read
+   as a list, not as a column of buttons. */
 .app-rail a,
-.app-rail button:not(.rail-keep) { color: var(--sidebar-dim, #B9A88C); }
-
-/* Category headings: small, quiet, and in the rail's own muted tone — the
-   per-category hues read as noise once the ground is dark. */
-.app-rail [class*="uppercase"] { color: var(--sidebar-label, #8A7355) !important; }
-.app-rail [class*="uppercase"] span:first-child { background: var(--sidebar-label, #8A7355) !important; }
-
-/* Active + hover states, re-expressed for a dark ground. */
-.app-rail a[class*="bg-["],
-.app-rail a[class*="bg-amber-100"],
-.app-rail a[class*="bg-orange-100"],
-.app-rail a[class*="bg-emerald-100"],
-.app-rail a[class*="bg-stone-100"] {
-  background: var(--sidebar-active, #3B2A1E) !important;
-  color: var(--sidebar-fg, #F6ECD6) !important;
+.app-rail nav button {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--sidebar-dim, #B9A88C) !important;
+  border-radius: 8px;
 }
 .app-rail a:hover,
-.app-rail button:not(.rail-keep):hover {
-  background: var(--sidebar-active, #3B2A1E) !important;
+.app-rail nav button:hover {
+  background: color-mix(in srgb, var(--sidebar-active, #3B2A1E) 55%, transparent) !important;
   color: var(--sidebar-fg, #F6ECD6) !important;
 }
 
-/* The menu search and the user card sit on the same ground. */
-.app-rail input {
+/* Only the current page. A left marker plus a soft fill reads as "you are
+   here" without turning the item into a heavy block. */
+.app-rail a.rail-active {
   background: var(--sidebar-active, #3B2A1E) !important;
+  color: var(--sidebar-fg, #F6ECD6) !important;
+  position: relative;
+}
+.app-rail a.rail-active::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--brand-primary, #C9A15A);
+}
+
+/* Category headings — quiet, and without the per-category hue, which reads as
+   noise once the ground is dark. */
+.app-rail [class*="uppercase"] {
+  color: var(--sidebar-label, #A08D6F) !important;
+  letter-spacing: .09em;
+}
+.app-rail [class*="uppercase"] span:first-child { background: var(--sidebar-label, #A08D6F) !important; }
+
+/* Search field and the user card sit on the rail, not on a lighter patch. */
+.app-rail input {
+  background: color-mix(in srgb, var(--sidebar-active, #3B2A1E) 70%, transparent) !important;
   border-color: var(--sidebar-line, #3B2A1E) !important;
   color: var(--sidebar-fg, #F6ECD6) !important;
 }
-.app-rail input::placeholder { color: var(--sidebar-label, #8A7355) !important; }
-.app-rail [class*="bg-muted"],
-.app-rail [class*="bg-card"] { background: var(--sidebar-active, #3B2A1E) !important; }
-.app-rail select { background: var(--sidebar-active, #3B2A1E) !important; color: var(--sidebar-fg, #F6ECD6) !important; }
+.app-rail input::placeholder { color: var(--sidebar-label, #A08D6F) !important; }
+.app-rail select {
+  background: transparent !important;
+  color: var(--sidebar-dim, #B9A88C) !important;
+  border-color: var(--sidebar-line, #3B2A1E) !important;
+}
+/* The user card keeps a shape — it's a distinct object, not a nav item. */
+.app-rail [class*="bg-muted"] {
+  background: color-mix(in srgb, var(--sidebar-active, #3B2A1E) 60%, transparent) !important;
+  border-color: var(--sidebar-line, #3B2A1E) !important;
+}

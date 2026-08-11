@@ -829,7 +829,7 @@ const DesktopSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigat
               to={item.url}
               className={`group relative transition-all duration-150 rounded-xl flex items-center gap-3 px-4 py-2.5 w-full ${
                 item.isSubItem ? 'mr-2' : ''
-              } ${location.pathname === item.url
+              } ${location.pathname === item.url ? 'rail-active ' : ''}${location.pathname === item.url
                   ? `${c.active} font-bold shadow-sm`
                   : `${c.hover} text-foreground/80 hover:text-foreground`
               }`}
@@ -933,7 +933,7 @@ const MobileSidebar = ({ userName, isCurrentViewAdmin, isOriginalAdmin, navigati
                 asChild
                 className={`group transition-colors rounded-lg ${
                   item.isSubItem ? 'mr-2' : ''
-                } ${location.pathname === item.url
+                } ${location.pathname === item.url ? 'rail-active ' : ''}${location.pathname === item.url
                     ? `${c.active} font-semibold`
                     : `${c.hover} text-foreground/80 hover:text-foreground`
                 }`}
