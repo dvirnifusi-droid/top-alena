@@ -44,6 +44,9 @@ class Alena_DZ_Shop_Styling {
 
     public function __construct() {
         add_action('wp_enqueue_scripts',                  [$this, 'enqueue']);
+        // Dark theme: last in the queue, and gated by a body class.
+        add_action('wp_enqueue_scripts',                  [$this, 'enqueue_dark_mobile'], 999);
+        add_filter('body_class',                          [$this, 'dark_mobile_body_class']);
         // Old "💚🥑 ברוכים הבאים" promo popup — superseded by Alena_DZ_Welcome (the full split-screen landing).
         // add_action('wp_footer',                           [$this, 'render_promo_popup']);
         add_filter('woocommerce_product_query_tax_query', [$this, 'hide_merch_in_query'], 10, 2);
@@ -76,13 +79,9 @@ class Alena_DZ_Shop_Styling {
         // Loaded LAST so it settles the menu-card layout for good
         wp_enqueue_style('alena-dz-menu-cards', ALENA_DZ_URL . 'assets/menu-cards.css', ['alena-dz-modern'], ALENA_DZ_VERSION);
 
-        // Dark mobile theme is DISABLED. Shipping it dark-canvas-first left the
-        // menu half-converted on a real phone: the dish cards, carousel and modal
-        // panels kept their light backgrounds while the text under them had gone
-        // pale, so whole sections were unreadable. The sheet is still in the repo
-        // (assets/dark-mobile.css) but must not be enqueued until it covers every
-        // surface — see WOLT_MOBILE_SPEC.md.
-        // wp_enqueue_style('alena-dz-dark-mobile', ALENA_DZ_URL . 'assets/dark-mobile.css', ['alena-dz-menu-cards'], ALENA_DZ_VERSION);
+        // The dark mobile theme is enqueued separately, at priority 999 — see
+        // enqueue_dark_mobile(). It has to print after every other storefront
+        // sheet, which is not something a fixed dependency list can promise.
 
         // Cart/checkout page shell — also last, for the same reason.
         if (is_cart() || is_checkout()) {
@@ -100,6 +99,50 @@ class Alena_DZ_Shop_Styling {
                 'ajaxUrl' => admin_url('admin-ajax.php'),
             ]);
         }
+    }
+
+    /**
+     * The dark theme covers the menu pages only. Cart, checkout and the account
+     * area are still light — converting them is a separate piece of work, and
+     * shipping half a conversion is what forced the revert last time.
+     */
+    private function is_dark_mobile_page() {
+        if (!function_exists('is_woocommerce')) return false;
+        return is_shop() || is_product_category() || is_product_taxonomy();
+    }
+
+    public function dark_mobile_body_class($classes) {
+        if ($this->is_dark_mobile_page()) $classes[] = 'alena-dark-mobile';
+        return $classes;
+    }
+
+    /**
+     * Enqueued at priority 999 so every other storefront sheet is already in the
+     * queue and can be named as a dependency — that is what forces this file to
+     * print last.
+     *
+     * The list is built rather than hardcoded on purpose. Eleven sheets paint
+     * these same surfaces with !important, and when two rules tie on specificity
+     * the later one wins. The first rollout of this theme lost the whole dish
+     * modal for exactly that reason: modal-polish.css was enqueued after it and
+     * repainted .alena-dz-mod-group white again. A fixed dependency list would
+     * go stale the next time a sheet is added; this cannot.
+     */
+    public function enqueue_dark_mobile() {
+        if (!$this->is_dark_mobile_page()) return;
+        if (!wp_style_is('alena-dz-menu-cards', 'enqueued')) return;
+
+        $deps = [];
+        foreach (wp_styles()->queue as $handle) {
+            if (strpos($handle, 'alena') === 0) $deps[] = $handle;
+        }
+
+        wp_enqueue_style(
+            'alena-dz-dark-mobile',
+            ALENA_DZ_URL . 'assets/dark-mobile.css',
+            $deps,
+            ALENA_DZ_VERSION
+        );
     }
 
     public function hide_merch_in_query($tax_query, $query) {

@@ -123,6 +123,45 @@
 
 ---
 
+## 5א. מפת המשטחים (2026-08-15) — למה ההפעלה הראשונה נכשלה
+
+התפריט נצבע ע"י **11 גיליונות CSS נפרדים**. הגרסה הראשונה של `dark-mobile.css`
+צבעה מחדש רשימת סלקטורים ידועה, וכל משטח שלא היה ברשימה נשאר לבן מתחת לטקסט
+שכבר הפך בהיר. אלה המשטחים שנשארו מוארים — כולם אומתו מול ה-CSS:
+
+| משטח | סלקטור | מי צובע אותו |
+|---|---|---|
+| הקרוסלה "המוזמנים ביותר" | `.alena-dz-cat-section-popular` | shop.css `linear-gradient(#fef3ec,#fff)` |
+| סקשן מנות מומלצות | `.alena-dz-featured-section` | shop.css `linear-gradient(#fff,#fef5f1)` |
+| סקשן "הזמינו שוב" | `.alena-recent`, `.alena-recent-card` | modern-design.css `#fff !important` |
+| קופסאות אופציות במודל | `.alena-dz-mod-group`, `.alena-dz-mod-row` | modal-polish.css `#fff !important` |
+| פוטר המודל | `.alena-modal-foot` | modal-polish.css `#fff !important` |
+| עטיפת תמונת המנה | `li.alena-dz-card a.alena-dz-card-imgwrap` | modern-design.css — **ספציפיות 0,2,2** גברה |
+| שדה החיפוש | `#alena-dz-search-input` | shop.css — **סלקטור ID**, אין class שמנצח אותו |
+| סרגל הסל הצף | `.alena-shop-cart-bar` | cart-enhancements.css |
+| פנים מגירת הסל | `.alena-drawer-body/-note/-summary/-cross-card` | cart-drawer.css |
+| צ'יפים בכותרת | `.alena-dz-hero-chip` | shop.css `rgba(255,255,255,.95)` |
+
+**שני שורשים, שניהם תוקנו ב-0.44.0:**
+
+1. **סדר טעינה.** `dark-mobile.css` נטען עם תלות ב-`menu-cards` בלבד, ו-8
+   גיליונות אחרים נטענו *אחריו*. כששני כללים שווים בספציפיות ושניהם
+   `!important` — האחרון מנצח. לכן המודל חזר ללבן. עכשיו הוא נטען
+   ב-priority 999 עם תלות **בכל** ה-handles שבתור.
+2. **כיסוי.** במקום רשימת סלקטורים — **flatten-then-repaint**: כלל אחד
+   בספציפיות גבוהה מנקה רקע/צל/צבע-טקסט מכל אלמנט `alena-*`, ואז נצבעים
+   מחדש רק המשטחים שצריכים להתרומם. משטח שנשכח נופל ל-transparent (כהה,
+   קריא) במקום ללבן-על-בהיר. **כיוון הכישלון התהפך.**
+
+**גבול הפריסה:** רק דפי התפריט (`is_shop`/קטגוריה) + השכבות שמעליהם
+(מודל, מגירה, סרגלים). סל, קופה ואיזור אישי נשארו בהירים — המרה שלהם היא
+עבודה נפרדת. ה-body class `alena-dark-mobile` הוא השער.
+
+**חריגים מה-flattener:** `.alena-dz-hero` (תמונה inline שהייתה נמחקת) ו-
+`.alena-welcome-page` (מסך כניסה נפרד, לא בשלבים 1-2).
+
+---
+
 ## 6. שתי אזהרות
 
 - **קריאוּת בעברית על כהה**: משקל 400 על רקע כהה נראה דק מדי. להעלות

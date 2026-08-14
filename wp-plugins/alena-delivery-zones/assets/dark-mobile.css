@@ -1,18 +1,44 @@
 /**
  * Wolt-style dark mobile theme — stages 1 and 2 of WOLT_MOBILE_SPEC.md.
  *
- * Scoped to phones on purpose. Desktop keeps the light theme, so a half-finished
- * rollout can never leave the site looking broken on a big screen.
+ * Scoped to phones, and only to the menu pages (the `alena-dark-mobile` body
+ * class is added in class-shop-styling.php). Desktop and cart/checkout keep the
+ * light theme, so a half-finished rollout can never leave the site broken.
  *
- * The point of the dark canvas is that the dish photography becomes the only lit
- * thing on the screen. Everything else steps back: one accent, reserved for
+ * The point of the dark canvas is that the dish photography becomes the only
+ * lit thing on screen. Everything else steps back: one accent, reserved for
  * price / CTA / selected, and separation carried by spacing and weight rather
  * than borders and cards.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS SHEET IS BUILT THE WAY IT IS
+ *
+ * The first attempt repainted a list of known selectors. It shipped and had to
+ * be reverted: the storefront is painted by eleven separate stylesheets, and
+ * every surface nobody remembered to list — the carousel, the modal option
+ * boxes, the "הזמינו שוב" row — kept its white background while the text on it
+ * had already gone pale. Unreadable.
+ *
+ * So this sheet does the opposite. It FLATTENS first: one high-specificity rule
+ * strips the background, shadow and hardcoded ink off every `alena-*` element,
+ * whether or not this file has ever heard of it. Then it REPAINTS the handful
+ * of surfaces that genuinely need to be raised off the canvas.
+ *
+ * The failure mode is now the safe one. A surface this sheet forgets falls
+ * through to transparent — dark canvas, light inherited text, still readable —
+ * instead of white-on-pale. Anything added to the storefront later is dark by
+ * default and has to opt back in.
+ *
+ * Two subtrees are excluded from the flattener on purpose:
+ *   - .alena-dz-hero      — carries its photo as an inline background-image,
+ *                           which `background-image: none` would erase.
+ *   - .alena-welcome-page — the full-screen entry gate is its own designed
+ *                           screen and is not part of stages 1-2.
  */
 
 @media (max-width: 640px) {
 
-  :root {
+  body.alena-dark-mobile {
     --bg:         #0e1117;
     --surface:    #161b26;
     --surface-2:  #1e2533;
@@ -26,253 +52,569 @@
     --accent-ink: #06202a;
   }
 
-  /* ---------- canvas ---------- */
+  /* ==========================================================================
+     1. CANVAS
+     ========================================================================== */
 
-  html, body,
-  body.woocommerce, body.woocommerce-page,
-  .site, .site-main, .page-content, main {
+  /* Kept in its own rule on purpose: an invalid selector takes its whole
+     comma-separated group down with it, and :has() is the one selector here
+     old enough to be missing. If it fails, only the overscroll colour is lost. */
+  html:has(body.alena-dark-mobile) { background: #0e1117 !important; }
+
+  body.alena-dark-mobile,
+  body.alena-dark-mobile .site,
+  body.alena-dark-mobile .site-main,
+  body.alena-dark-mobile .site-content,
+  body.alena-dark-mobile .page-content,
+  body.alena-dark-mobile .entry-content,
+  body.alena-dark-mobile main,
+  body.alena-dark-mobile #content,
+  body.alena-dark-mobile #primary,
+  body.alena-dark-mobile .woocommerce,
+  body.alena-dark-mobile footer,
+  body.alena-dark-mobile .site-footer {
     background: var(--bg) !important;
     color: var(--ink-2) !important;
   }
 
   /* Hebrew at 400 goes thin on a dark canvas — hold the body at 500. */
-  body.woocommerce, body.woocommerce-page { font-weight: 500 !important; }
+  body.alena-dark-mobile { font-weight: 500 !important; }
 
-  .alena-dz-cat-title,
-  .alena-dz-card-title,
-  .alena-modal-title,
-  .alena-drawer-title,
-  h1, h2, h3 { color: var(--ink) !important; }
+  /* ==========================================================================
+     2. FLATTENER
+     --------------------------------------------------------------------------
+     Three attribute selectors, not one, so this outranks the component sheets
+     it has to beat — `li.alena-dz-card a.alena-dz-card-imgwrap` in
+     modern-design.css is 0,2,2 and would otherwise win the tie.
+     ========================================================================== */
 
-  /* ---------- dish row ---------- */
-  /* Was a bordered card with a shadow, which is what read as "a website".
-     Wolt uses a plain row and a hairline; the photo does the separating. */
+  body.alena-dark-mobile [class*="alena-"][class*="alena-"][class*="alena-"]:not(
+    :is(.alena-dz-hero, .alena-welcome-page, .alena-welcome-page *)
+  ),
+  body.alena-dark-mobile [class*="woocommerce-"][class*="woocommerce-"] {
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    color: inherit !important;
+    border-color: var(--line) !important;
+    text-shadow: none !important;
+  }
 
-  ul.alena-dz-products,
-  .alena-dz-cat-section ul.alena-dz-products {
+  /* The three IDs on the menu page. No number of class selectors outranks an
+     ID, so these have to be named. */
+  body.alena-dark-mobile #alena-dz-search-input,
+  body.alena-dark-mobile #alena-dz-search-clear,
+  body.alena-dark-mobile #alena-dz-search-empty {
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--ink-2) !important;
+  }
+
+  /* ==========================================================================
+     3. TYPE
+     ========================================================================== */
+
+  body.alena-dark-mobile :is(h1, h2, h3),
+  body.alena-dark-mobile .alena-dz-cat-title,
+  body.alena-dark-mobile .alena-dz-card-title,
+  body.alena-dark-mobile .alena-modal-title,
+  body.alena-dark-mobile .alena-drawer-title,
+  body.alena-dark-mobile .alena-recent-title,
+  body.alena-dark-mobile .alena-recent-card-name,
+  body.alena-dark-mobile .alena-drawer-item-name {
+    color: var(--ink) !important;
+  }
+
+  body.alena-dark-mobile .alena-dz-cat-desc,
+  body.alena-dark-mobile .alena-dz-card-desc,
+  body.alena-dark-mobile .alena-recent-sub,
+  body.alena-dark-mobile .alena-recent-card-meta,
+  body.alena-dark-mobile .alena-drawer-item-mods,
+  body.alena-dark-mobile .alena-dz-empty {
+    color: var(--ink-soft) !important;
+  }
+
+  /* One accent, and only ever for price / CTA / selected. */
+  body.alena-dark-mobile .alena-dz-card-price,
+  body.alena-dark-mobile .alena-dz-card-price :is(.amount, bdi),
+  body.alena-dark-mobile .alena-modal-price,
+  body.alena-dark-mobile .alena-modal-meta,
+  body.alena-dark-mobile .alena-dz-mod-price,
+  body.alena-dark-mobile .alena-drawer-item-price,
+  body.alena-dark-mobile .alena-drawer-cross-price,
+  body.alena-dark-mobile .alena-recent-card-total {
+    color: var(--accent) !important;
+    font-weight: 700 !important;
+  }
+
+  /* ==========================================================================
+     4. DISH ROW
+     --------------------------------------------------------------------------
+     Was a bordered card with a shadow, which is what read as "a website".
+     Wolt uses a plain row and a hairline; the photo does the separating.
+     ========================================================================== */
+
+  body.alena-dark-mobile ul.alena-dz-products {
     grid-template-columns: 1fr !important;
     gap: 0 !important;
   }
 
-  li.alena-dz-card {
+  body.alena-dark-mobile li.alena-dz-card {
     height: auto !important;
     min-height: 0 !important;
     align-items: flex-start !important;
     gap: 12px !important;
-    padding: 14px 14px !important;
-    background: transparent !important;
+    padding: 14px !important;
     border: 0 !important;
     border-bottom: 1px solid var(--line) !important;
     border-radius: 0 !important;
-    box-shadow: none !important;
+    transform: none !important;
   }
 
-  li.alena-dz-card:hover { transform: none !important; box-shadow: none !important; }
-
-  .alena-dz-card .alena-dz-card-imgwrap {
+  body.alena-dark-mobile .alena-dz-card .alena-dz-card-imgwrap {
     flex: 0 0 80px !important;
     width: 80px !important;
     height: 80px !important;
     border-radius: 12px !important;
-    background: var(--surface) !important;
+    background-color: var(--surface) !important;
     align-self: flex-start !important;
+    overflow: hidden !important;
   }
 
-  .alena-dz-card .alena-dz-card-body {
+  body.alena-dark-mobile .alena-dz-card .alena-dz-card-body {
     gap: 5px !important;
     padding: 0 !important;
   }
 
-  .alena-dz-card .alena-dz-card-title {
+  body.alena-dark-mobile .alena-dz-card .alena-dz-card-title {
     font-size: 16px !important;
     font-weight: 700 !important;
     white-space: normal !important;
-    color: var(--ink) !important;
   }
 
-  .alena-dz-card .alena-dz-card-desc {
+  body.alena-dark-mobile .alena-dz-card .alena-dz-card-desc {
     font-size: 13px !important;
     font-weight: 400 !important;
     line-height: 1.5 !important;
-    color: var(--ink-soft) !important;
   }
 
-  /* Price sits under the description, in the accent — the number people scan. */
-  .alena-dz-card .alena-dz-card-bottom { margin: 2px 0 0 !important; }
-
-  .alena-dz-card .alena-dz-card-price,
-  .alena-dz-card .alena-dz-card-price .amount,
-  .alena-dz-card .alena-dz-card-price bdi {
+  /* Price sits under the description — the number people actually scan. */
+  body.alena-dark-mobile .alena-dz-card .alena-dz-card-bottom {
+    margin: 2px 0 0 !important;
+  }
+  body.alena-dark-mobile .alena-dz-card .alena-dz-card-price {
     font-size: 15px !important;
-    font-weight: 700 !important;
-    color: var(--accent) !important;
   }
 
   /* Popular badge: accent pill under the price, not a corner sticker. */
-  .alena-dz-card .alena-dz-popular-badge {
+  body.alena-dark-mobile .alena-dz-card .alena-dz-popular-badge {
     position: static !important;
     display: inline-block !important;
+    align-self: flex-start !important;
     margin-top: 6px !important;
+    padding: 3px 9px !important;
+    border-radius: 999px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    background-color: var(--accent) !important;
     color: var(--accent-ink) !important;
-    background: var(--accent) !important;
-    box-shadow: none !important;
   }
 
-  .alena-dz-card .alena-dz-card-add {
-    background: var(--surface-2) !important;
+  /* Round + button on the photo. */
+  body.alena-dark-mobile .alena-dz-card .alena-dz-card-add,
+  body.alena-dark-mobile .alena-dz-card-stepper button {
+    background-color: var(--surface-2) !important;
     color: var(--accent) !important;
-    box-shadow: none !important;
+    border: 1px solid var(--line) !important;
+  }
+  body.alena-dark-mobile .alena-dz-card-stepper {
+    background-color: var(--surface) !important;
+    border-radius: 999px !important;
   }
 
-  /* ---------- category tabs ---------- */
-  /* Underline on the active tab instead of pills — less furniture on screen. */
+  /* ==========================================================================
+     5. CATEGORY TABS — underline on active, no pills
+     ========================================================================== */
 
-  .alena-dz-catnav,
-  .alena-dz-catnav-inner {
-    background: var(--bg) !important;
+  body.alena-dark-mobile .alena-dz-catnav,
+  body.alena-dark-mobile .alena-dz-catnav-inner {
+    background-color: var(--bg) !important;
     border-bottom: 1px solid var(--line) !important;
   }
 
-  .alena-dz-catnav a,
-  .alena-dz-catnav button {
+  body.alena-dark-mobile .alena-dz-catnav .alena-dz-catnav-item {
     padding: 12px 4px !important;
     margin-inline-end: 18px !important;
     font-size: 14.5px !important;
     font-weight: 600 !important;
     color: var(--ink-soft) !important;
-    background: none !important;
     border: 0 !important;
     border-bottom: 2px solid transparent !important;
     border-radius: 0 !important;
   }
 
-  .alena-dz-catnav a.is-active,
-  .alena-dz-catnav button.is-active,
-  .alena-dz-catnav .active {
+  body.alena-dark-mobile .alena-dz-catnav .alena-dz-catnav-item:is(.is-active, .active) {
     color: var(--ink) !important;
     border-bottom-color: var(--accent) !important;
   }
 
-  /* ---------- section heading ---------- */
+  body.alena-dark-mobile .alena-dz-catnav-inner::-webkit-scrollbar-thumb {
+    background: var(--line) !important;
+  }
 
-  .alena-dz-cat-title {
-    padding: 22px 14px 10px !important;
+  /* ==========================================================================
+     6. SECTIONS + CAROUSEL
+     --------------------------------------------------------------------------
+     These are the cream-gradient shells that stayed lit last time:
+     .alena-dz-featured-section and .alena-dz-cat-section-popular both carry a
+     `linear-gradient(..., #fff ...)`. The flattener kills them; nothing here
+     paints them back.
+     ========================================================================== */
+
+  body.alena-dark-mobile .alena-dz-cat-section {
+    border: 0 !important;
+    border-radius: 0 !important;
+    margin: 0 0 8px !important;
+    padding: 0 !important;
+  }
+
+  body.alena-dark-mobile .alena-dz-cat-title {
+    padding: 22px 14px 4px !important;
     font-size: 20px !important;
   }
-  .alena-dz-cat-title::after { display: none !important; }
+  body.alena-dark-mobile .alena-dz-cat-title::after { display: none !important; }
+  body.alena-dark-mobile .alena-dz-cat-desc { padding: 0 14px 6px !important; }
 
-  /* ---------- surfaces ---------- */
-
-  .alena-dz-hero { border-radius: 0 0 26px 26px !important; }
-
-  .alena-dz-search input,
-  .woocommerce input[type="text"],
-  .woocommerce input[type="tel"],
-  .woocommerce input[type="email"],
-  .woocommerce textarea,
-  .woocommerce select {
-    color: var(--ink) !important;
-    background: var(--surface) !important;
-    border-color: var(--line) !important;
+  /* Horizontal row: the card is the photo, price then name underneath. */
+  body.alena-dark-mobile ul.alena-dz-products-popular {
+    grid-template-columns: none !important;
+    display: flex !important;
+    gap: 12px !important;
+    padding: 6px 14px 4px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+  body.alena-dark-mobile ul.alena-dz-products-popular::-webkit-scrollbar {
+    display: none !important;
   }
 
-  .woocommerce input::placeholder,
-  .woocommerce textarea::placeholder { color: var(--ink-soft) !important; }
+  body.alena-dark-mobile ul.alena-dz-products-popular li.alena-dz-card {
+    flex: 0 0 150px !important;
+    display: block !important;
+    padding: 0 !important;
+    border-bottom: 0 !important;
+  }
+  body.alena-dark-mobile ul.alena-dz-products-popular .alena-dz-card-imgwrap {
+    width: 150px !important;
+    height: 110px !important;
+    flex-basis: auto !important;
+    border-radius: 12px !important;
+  }
+  body.alena-dark-mobile ul.alena-dz-products-popular .alena-dz-card-body {
+    padding: 8px 2px 0 !important;
+  }
+  body.alena-dark-mobile ul.alena-dz-products-popular .alena-dz-card-desc {
+    display: none !important;
+  }
 
-  /* ---------- modal ---------- */
+  /* ==========================================================================
+     7. "הזמינו שוב" — the orders row that stayed white
+     ========================================================================== */
 
-  .alena-modal { background: var(--bg) !important; }
-  .alena-modal-foot {
-    background: var(--bg) !important;
+  body.alena-dark-mobile .alena-recent {
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 6px 0 14px !important;
+    margin: 0 !important;
+  }
+  body.alena-dark-mobile .alena-recent-head { padding: 0 14px !important; }
+  body.alena-dark-mobile .alena-recent-title {
+    -webkit-text-fill-color: var(--ink) !important;
+    background-image: none !important;
+    font-size: 18px !important;
+  }
+  body.alena-dark-mobile .alena-recent-row {
+    padding: 0 14px !important;
+    scrollbar-width: none !important;
+  }
+  body.alena-dark-mobile .alena-recent-row::-webkit-scrollbar { display: none !important; }
+
+  body.alena-dark-mobile .alena-recent-card {
+    background-color: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 14px !important;
+  }
+  body.alena-dark-mobile .alena-recent-card-img {
+    background-color: var(--surface-2) !important;
+  }
+
+  /* ==========================================================================
+     8. HERO
+     --------------------------------------------------------------------------
+     Excluded from the flattener so the inline photo survives. Chips become
+     translucent dark pills instead of white ones.
+     ========================================================================== */
+
+  body.alena-dark-mobile .alena-dz-hero {
+    border-radius: 0 0 26px 26px !important;
+    margin: 0 0 4px !important;
+    box-shadow: none !important;
+  }
+  body.alena-dark-mobile .alena-dz-hero-chip {
+    background-color: rgba(14, 17, 23, .62) !important;
+    color: #fff !important;
+    border: 1px solid rgba(255, 255, 255, .16) !important;
+    backdrop-filter: blur(6px) !important;
+  }
+
+  /* ==========================================================================
+     9. SEARCH + FORM FIELDS
+     ========================================================================== */
+
+  body.alena-dark-mobile #alena-dz-search-input,
+  body.alena-dark-mobile .alena-dz-search input,
+  body.alena-dark-mobile input:is([type="text"], [type="tel"], [type="email"], [type="search"], [type="number"]),
+  body.alena-dark-mobile textarea,
+  body.alena-dark-mobile select {
+    background-color: var(--surface) !important;
+    color: var(--ink) !important;
+    border: 1px solid var(--line) !important;
+  }
+  body.alena-dark-mobile ::placeholder { color: var(--ink-soft) !important; }
+
+  /* ==========================================================================
+     10. DISH MODAL
+     --------------------------------------------------------------------------
+     modal-polish.css paints .alena-dz-mod-group and .alena-modal-foot white
+     with !important and used to load after this file. It no longer does (see
+     the enqueue in class-shop-styling.php) and the flattener covers it either
+     way.
+     ========================================================================== */
+
+  body.alena-dark-mobile .alena-modal-backdrop {
+    background-color: rgba(0, 0, 0, .66) !important;
+  }
+
+  body.alena-dark-mobile .alena-modal {
+    background-color: var(--bg) !important;
+    border-radius: 0 !important;
+  }
+  body.alena-dark-mobile .alena-modal-image-wrap {
+    background-color: var(--surface) !important;
+  }
+  body.alena-dark-mobile .alena-modal-close {
+    background-color: rgba(14, 17, 23, .72) !important;
+    color: #fff !important;
+    border: 1px solid var(--line) !important;
+  }
+  body.alena-dark-mobile .alena-modal-foot {
+    background-color: var(--bg) !important;
     border-top: 1px solid var(--line) !important;
   }
-
-  .alena-modal-meta,
-  .alena-modal-price { color: var(--accent) !important; }
-
-  .alena-modal-desc {
+  body.alena-dark-mobile .alena-modal-desc {
     color: var(--ink-soft) !important;
-    background: transparent !important;
     border: 0 !important;
     padding: 0 !important;
     font-size: 14px !important;
     line-height: 1.65 !important;
   }
+  body.alena-dark-mobile .alena-modal-note,
+  body.alena-dark-mobile .alena-modal-share,
+  body.alena-dark-mobile .alena-modal-qty {
+    background-color: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+  }
+  body.alena-dark-mobile .alena-modal-qty button {
+    background-color: var(--surface-2) !important;
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile .alena-modal-qty-value { color: var(--ink) !important; }
+  body.alena-dark-mobile .alena-modal-skeleton {
+    background-image: linear-gradient(100deg, var(--surface) 30%, var(--surface-2) 50%, var(--surface) 70%) !important;
+  }
+  body.alena-dark-mobile .alena-modal-err {
+    background-color: rgba(192, 57, 43, .16) !important;
+    color: #ff9b90 !important;
+    border: 1px solid rgba(192, 57, 43, .4) !important;
+  }
 
-  .alena-dz-mod-group {
-    background: transparent !important;
+  /* Option groups: hairline separated, no boxes. */
+  body.alena-dark-mobile .alena-dz-mod-group {
     border: 0 !important;
     border-top: 1px solid var(--line) !important;
     border-radius: 0 !important;
     padding: 18px 0 !important;
+    margin: 0 !important;
+  }
+  body.alena-dark-mobile :is(.alena-dz-mod-title, .alena-dz-mod-head) {
+    color: var(--ink) !important;
+    font-size: 16px !important;
   }
 
-  .alena-dz-mod-group > .alena-dz-mod-title,
-  .alena-dz-mod-head { color: var(--ink) !important; font-size: 16px !important; }
-
   /* Requirement reads as a quiet sub-heading, not a red warning label. */
-  .alena-dz-mod-badge,
-  .alena-dz-mod-required,
-  .alena-dz-mod-optional {
+  body.alena-dark-mobile .alena-dz-mod-badge,
+  body.alena-dark-mobile .alena-dz-mod-required,
+  body.alena-dark-mobile .alena-dz-mod-optional,
+  body.alena-dark-mobile .alena-dz-mod-hint {
     display: block !important;
     margin: 3px 0 0 !important;
     padding: 0 !important;
     font-size: 12.5px !important;
     font-weight: 400 !important;
     color: var(--ink-soft) !important;
-    background: none !important;
+    border: 0 !important;
   }
 
-  .alena-dz-mod-row {
-    background: transparent !important;
+  body.alena-dark-mobile .alena-dz-mod-row {
     border: 0 !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
     padding: 13px 0 !important;
-    color: var(--ink-2) !important;
     font-size: 15px !important;
   }
+  body.alena-dark-mobile .alena-dz-mod-row:has(input:checked) {
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile .alena-dz-mod-row input:is([type="radio"], [type="checkbox"]) {
+    accent-color: var(--accent) !important;
+    width: 22px !important;
+    height: 22px !important;
+    background-color: transparent !important;
+  }
+  body.alena-dark-mobile .alena-dz-mod-group.alena-dz-mod-error {
+    border-top-color: rgba(192, 57, 43, .55) !important;
+  }
 
-  .alena-dz-mod-row:has(input:checked) {
-    background: transparent !important;
+  /* ==========================================================================
+     11. CTAs — the only filled accent on screen
+     ========================================================================== */
+
+  body.alena-dark-mobile .alena-modal-add,
+  body.alena-dark-mobile .alena-drawer-cta,
+  body.alena-dark-mobile .alena-recent-card-cta,
+  body.alena-dark-mobile .alena-drawer-empty-cta,
+  body.alena-dark-mobile .alena-dz-sticky-cta,
+  body.alena-dark-mobile .alena-shop-cart-bar-cta {
+    background-color: var(--accent) !important;
+    color: var(--accent-ink) !important;
     border: 0 !important;
+    font-weight: 800 !important;
+  }
+  body.alena-dark-mobile :is(.alena-modal-add, .alena-drawer-cta) :is(span, b, bdi, .amount) {
+    color: var(--accent-ink) !important;
+  }
+
+  /* ==========================================================================
+     12. BOTTOM BARS
+     --------------------------------------------------------------------------
+     Both of them: the nav from class-mobile-ux.php and the floating cart bar
+     from class-cart-enhancements.php. A transparent bar floating over the menu
+     would be worse than a light one, so these must be repainted.
+     ========================================================================== */
+
+  body.alena-dark-mobile .alena-dz-bottom-nav {
+    background-color: var(--surface) !important;
+    border-top: 1px solid var(--line) !important;
+  }
+  body.alena-dark-mobile .alena-dz-bn-label { color: var(--ink-soft) !important; }
+  body.alena-dark-mobile .alena-dz-bn-cart.has-items .alena-dz-bn-label { color: var(--accent) !important; }
+  body.alena-dark-mobile .alena-dz-bn-badge,
+  body.alena-dark-mobile .alena-shop-cart-bar-count,
+  body.alena-dark-mobile .alena-dz-mini-cart-count {
+    background-color: var(--accent) !important;
+    color: var(--accent-ink) !important;
+  }
+
+  body.alena-dark-mobile .alena-shop-cart-bar,
+  body.alena-dark-mobile #alena-shop-cart-bar {
+    background-color: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, .5) !important;
+  }
+  body.alena-dark-mobile .alena-shop-cart-bar-label { color: var(--ink-soft) !important; }
+  body.alena-dark-mobile .alena-shop-cart-bar-total { color: var(--ink) !important; }
+  body.alena-dark-mobile .alena-shop-cart-bar-go { color: var(--accent-ink) !important; }
+
+  body.alena-dark-mobile .alena-dz-sticky-bar {
+    background-color: var(--surface) !important;
+    border-top: 1px solid var(--line) !important;
+  }
+
+  /* ==========================================================================
+     13. CART DRAWER
+     ========================================================================== */
+
+  body.alena-dark-mobile .alena-drawer-backdrop {
+    background-color: rgba(0, 0, 0, .6) !important;
+  }
+  body.alena-dark-mobile .alena-drawer { background-color: var(--bg) !important; }
+  body.alena-dark-mobile .alena-drawer-head {
+    background-color: var(--surface) !important;
+    border-bottom: 1px solid var(--line) !important;
+  }
+  body.alena-dark-mobile .alena-drawer-head::after { display: none !important; }
+  body.alena-dark-mobile .alena-drawer-close {
+    background-color: var(--surface-2) !important;
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile .alena-drawer-body { background-color: var(--bg) !important; }
+
+  body.alena-dark-mobile .alena-drawer-item,
+  body.alena-dark-mobile .alena-drawer-note,
+  body.alena-dark-mobile .alena-drawer-summary,
+  body.alena-dark-mobile .alena-drawer-cross-card {
+    background-color: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+  }
+  body.alena-dark-mobile .alena-drawer-item-img,
+  body.alena-dark-mobile .alena-drawer-cross-card img {
+    background-color: var(--surface-2) !important;
+  }
+  body.alena-dark-mobile .alena-drawer-item-mod {
+    background-color: var(--surface-2) !important;
+    color: var(--ink-soft) !important;
+  }
+  body.alena-dark-mobile .alena-drawer-item-stepper {
+    background-color: var(--surface-2) !important;
+  }
+  body.alena-dark-mobile .alena-drawer-item-stepper button {
+    background-color: var(--surface) !important;
+    color: var(--accent) !important;
+  }
+  body.alena-dark-mobile .alena-drawer-step-qty { color: var(--ink) !important; }
+  body.alena-dark-mobile .alena-drawer-chip,
+  body.alena-dark-mobile .alena-drawer-note textarea {
+    background-color: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+    color: var(--ink-2) !important;
+  }
+  body.alena-dark-mobile .alena-drawer-chip.is-active {
+    background-color: var(--accent) !important;
+    color: var(--accent-ink) !important;
+    border-color: var(--accent) !important;
+  }
+  body.alena-dark-mobile .alena-drawer-cta-secondary {
+    background-color: transparent !important;
+    border: 1px solid var(--line) !important;
+    color: var(--ink-2) !important;
+  }
+  body.alena-dark-mobile .alena-drawer-cross-title,
+  body.alena-dark-mobile .alena-drawer-cross-card strong {
     color: var(--ink) !important;
   }
 
-  .alena-dz-mod-row input[type="radio"],
-  .alena-dz-mod-row input[type="checkbox"] { accent-color: var(--accent) !important; }
+  /* ==========================================================================
+     14. WOOCOMMERCE NOTICES
+     ========================================================================== */
 
-  .alena-dz-mod-row .alena-dz-mod-price { color: var(--accent) !important; }
-
-  /* ---------- actions ---------- */
-
-  .alena-modal-add,
-  .alena-drawer-cta,
-  .woocommerce-cart .checkout-button,
-  .alena-recent-card-cta {
-    color: var(--accent-ink) !important;
-    background: var(--accent) !important;
-    background-image: none !important;
-    box-shadow: none !important;
-    font-weight: 800 !important;
+  body.alena-dark-mobile :is(.woocommerce-message, .woocommerce-info, .woocommerce-error) {
+    background-color: var(--surface) !important;
+    color: var(--ink-2) !important;
+    border-top: 3px solid var(--accent) !important;
   }
-
-  .alena-modal-qty { background: var(--surface-2) !important; }
-  .alena-modal-qty button { background: var(--surface) !important; color: var(--ink) !important; }
-  .alena-modal-qty-value { color: var(--ink) !important; }
-
-  /* ---------- bottom bar ---------- */
-
-  .alena-dz-bottom-nav {
-    background: var(--surface) !important;
-    border-top: 1px solid var(--line) !important;
+  body.alena-dark-mobile .alena-dz-min-notice {
+    background-color: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    color: var(--ink-2) !important;
   }
-  .alena-dz-bn-label { color: var(--ink-soft) !important; }
-  .alena-dz-bn-cart.has-items .alena-dz-bn-label { color: var(--accent) !important; }
-  .alena-dz-bn-badge { background: var(--accent) !important; color: var(--accent-ink) !important; }
-
-  /* ---------- cart drawer ---------- */
-
-  .alena-drawer { background: var(--bg) !important; }
-  .alena-drawer-item { border-color: var(--line) !important; }
-  .alena-drawer-item-name { color: var(--ink) !important; }
-  .alena-drawer-item-price { color: var(--accent) !important; }
 }
