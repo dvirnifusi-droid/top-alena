@@ -220,3 +220,32 @@ button:focus-visible,
    section disappears with it. */
 
 .elementor-element-4fff1ffa { display: none !important; }
+
+/* ---------- mobile: drop the theme header ---------- */
+/* The coral logo bar duplicated what the bottom bar already offers and cost
+   ~90px above the fold. Phones now start at the hero image. */
+
+@media (max-width: 640px) {
+  .elementor-location-header { display: none !important; }
+}
+
+/* ---------- bottom bar ---------- */
+
+.alena-dz-bn-cart .alena-dz-bn-icon { position: relative; }
+
+.alena-dz-bn-badge {
+  position: absolute;
+  top: -6px;
+  inset-inline-end: -10px;
+  min-width: 17px;
+  padding: 1px 4px;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 15px;
+  text-align: center;
+  color: #fff;
+  background: var(--alena-green);
+  border-radius: 999px;
+}
+
+.alena-dz-bn-cart.has-items .alena-dz-bn-label { color: var(--alena-green); font-weight: 700; }

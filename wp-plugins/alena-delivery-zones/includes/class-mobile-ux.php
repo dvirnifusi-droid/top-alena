@@ -31,6 +31,17 @@ class Alena_DZ_Mobile_UX {
             <span class="alena-dz-bn-icon">👤</span>
             <span class="alena-dz-bn-label">איזור אישי</span>
           </a>
+          <?php
+          // The cart was the one thing missing from the bar that reaches the
+          // thumb — it lived only in the header, which is now hidden on phones.
+          $count = (function_exists('WC') && WC()->cart) ? WC()->cart->get_cart_contents_count() : 0;
+          ?>
+          <a href="<?php echo esc_url(wc_get_cart_url()); ?>"
+             class="alena-dz-bn-item alena-dz-bn-cart<?php echo $count ? ' has-items' : ''; ?>"
+             id="alena-dz-bn-cart">
+            <span class="alena-dz-bn-icon">🛒<?php if ($count): ?><b class="alena-dz-bn-badge"><?php echo (int) $count; ?></b><?php endif; ?></span>
+            <span class="alena-dz-bn-label">הסל שלי</span>
+          </a>
         </nav>
         <?php
     }
