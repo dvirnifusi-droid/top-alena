@@ -46,16 +46,29 @@ class Alena_DZ_Polygon_Store {
     /**
      * Ray-casting algorithm. Coords are [[lat,lng], ...].
      */
+    /**
+     * A vertex is stored by the map editor as {lat, lng}, but older data used
+     * [lat, lng]. Reading only the indexed form yielded null on the keyed form,
+     * and (float) null is 0.0 — every polygon collapsed to the point (0,0), so
+     * no address in Israel matched any zone and delivery was never offered.
+     */
+    private static function vertex(array $coords, int $i): array {
+        $c = $coords[$i] ?? [];
+        if (!is_array($c)) return [0.0, 0.0];
+        $lat = $c['lat'] ?? $c[0] ?? 0;
+        $lng = $c['lng'] ?? $c[1] ?? 0;
+        return [(float) $lat, (float) $lng];
+    }
+
     private static function point_in_polygon(float $lat, float $lng, array $coords): bool {
         $inside = false;
+        $coords = array_values($coords);
         $n = count($coords);
         if ($n < 3) return false;
         $j = $n - 1;
         for ($i = 0; $i < $n; $i++) {
-            $xi = (float) $coords[$i][0]; // lat
-            $yi = (float) $coords[$i][1]; // lng
-            $xj = (float) $coords[$j][0];
-            $yj = (float) $coords[$j][1];
+            [$xi, $yi] = self::vertex($coords, $i); // lat, lng
+            [$xj, $yj] = self::vertex($coords, $j);
             $denom = ($yj - $yi);
             if ($denom == 0.0) $denom = 1e-12;
             $intersect = (($yi > $lng) !== ($yj > $lng)) &&
