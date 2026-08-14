@@ -270,6 +270,13 @@ class Alena_DZ_Modifiers {
 
     public function display_in_cart($item_data, $cart_item) {
         try {
+            // On the cart page Alena_DZ_Cart_Redesign already renders these as
+            // chips under the dish name. Emitting them here too printed every
+            // choice twice — chips, then the same list again as plain text.
+            // Checkout and order review have no chips, so they still need this.
+            if (function_exists('is_cart') && is_cart() && class_exists('Alena_DZ_Cart_Redesign')) {
+                return $item_data;
+            }
             if (!empty($cart_item['alena_modifiers']) && is_array($cart_item['alena_modifiers'])) {
                 foreach ($cart_item['alena_modifiers'] as $m) {
                     if (!is_array($m)) continue;

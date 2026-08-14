@@ -1,0 +1,324 @@
+/**
+ * Final layout layer for /cart and /checkout.
+ *
+ * The theme left WooCommerce's float-based cart-collaterals without a usable
+ * width — the totals column computed to 185px, which crushed the club box,
+ * coupon field and checkout button into an unreadable strip. This file owns the
+ * page shell so the two columns are explicit instead of inherited by accident.
+ */
+
+:root {
+  --alena-ink: #1a1a1a;
+  --alena-ink-soft: #6b7280;
+  --alena-line: #ecebe7;
+  --alena-accent: #1f7a4d;
+  --alena-radius: 16px;
+}
+
+/* ---------- page shell ---------- */
+
+/* The real containers are the plugin's own wrappers — .woocommerce holds a
+   single .alena-cart-wrap child, so laying out .woocommerce achieves nothing. */
+.woocommerce-cart .alena-cart-wrap,
+.woocommerce-checkout .alena-cart-wrap,
+.woocommerce-cart .woocommerce,
+.woocommerce-checkout .woocommerce {
+  width: 100% !important;
+  max-width: 1180px !important;
+  margin-inline: auto !important;
+}
+
+@media (min-width: 981px) {
+  /* .alena-cart-main has six children, not two. Without explicit placement the
+     header, trust row and notices get auto-flowed into the grid cells and push
+     the item table and the summary into whatever is left — which is how the
+     dish column ended up 54px wide. Every child is placed by name. */
+  .woocommerce-cart .alena-cart-main {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 340px !important;
+    align-items: start !important;
+    gap: 0 24px !important;
+  }
+
+  /* Full-width band above both columns */
+  .woocommerce-cart .alena-cart-main > .alena-cart-header,
+  .woocommerce-cart .alena-cart-main > .alena-trust-row,
+  .woocommerce-cart .alena-cart-main > .woocommerce-notices-wrapper,
+  .woocommerce-cart .alena-cart-main > .alena-cart-eta {
+    grid-column: 1 / -1 !important;
+    width: auto !important;
+    float: none !important;
+  }
+
+  /* Left: the items.
+     Deliberately over-specific (body + wrapper + element type): a shorter
+     selector lost to an existing rule and the form kept shrink-to-fitting to
+     ~446px inside its 744px track, which squeezed the dish column to ~54px and
+     stacked every modifier chip on its own line. */
+  body.woocommerce-cart .alena-cart-wrap .alena-cart-main > form.woocommerce-cart-form {
+    grid-column: 1 !important;
+    justify-self: stretch !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    float: none !important;
+    margin: 0 !important;
+  }
+
+  /* Right: extras stacked above the totals card */
+  body.woocommerce-cart .alena-cart-wrap .alena-cart-main > .alena-summary-extras,
+  body.woocommerce-cart .alena-cart-wrap .alena-cart-main > .cart-collaterals {
+    grid-column: 2 !important;
+    justify-self: stretch !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    float: none !important;
+    margin: 0 0 16px !important;
+  }
+}
+
+/* ---------- line-item table ---------- */
+/* Auto layout let the dish name collapse to ~107px, which stacked every
+   modifier chip one per line. Fixed layout with explicit widths keeps the
+   name column dominant and the numeric columns only as wide as they need. */
+
+body.woocommerce-cart .alena-cart-main form.woocommerce-cart-form table.shop_table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+.woocommerce-cart .shop_table th { font-size: 12px !important; color: var(--alena-ink-soft) !important; }
+
+body.woocommerce-cart table.shop_table td.product-remove,
+body.woocommerce-cart table.shop_table th.product-remove    { width: 48px !important; }
+body.woocommerce-cart table.shop_table td.product-thumbnail,
+body.woocommerce-cart table.shop_table th.product-thumbnail { width: 72px !important; }
+body.woocommerce-cart table.shop_table td.product-price,
+body.woocommerce-cart table.shop_table th.product-price     { width: 82px !important; }
+body.woocommerce-cart table.shop_table td.product-quantity,
+body.woocommerce-cart table.shop_table th.product-quantity  { width: 96px !important; }
+body.woocommerce-cart table.shop_table td.product-subtotal,
+body.woocommerce-cart table.shop_table th.product-subtotal  { width: 92px !important; }
+body.woocommerce-cart table.shop_table td.product-name,
+body.woocommerce-cart table.shop_table th.product-name      { width: auto !important; }
+
+.woocommerce-cart .shop_table td {
+  padding: 14px 10px !important;
+  vertical-align: middle !important;
+  border-bottom: 1px solid #f2f1ee !important;
+}
+
+.woocommerce-cart td.product-name {
+  text-align: start !important;
+  word-break: break-word !important;
+}
+
+.woocommerce-cart td.product-name > a {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: var(--alena-ink) !important;
+  text-decoration: none !important;
+}
+
+.woocommerce-cart td.product-thumbnail img {
+  width: 60px !important;
+  height: 60px !important;
+  object-fit: cover !important;
+  border-radius: 10px !important;
+}
+
+.woocommerce-cart td.product-quantity input.qty {
+  width: 62px !important;
+  padding: 7px 6px !important;
+  text-align: center !important;
+  border: 1px solid #dcdad4 !important;
+  border-radius: 8px !important;
+}
+
+body.woocommerce-cart .cart-collaterals .cart_totals,
+body.woocommerce-cart .cart-collaterals > * {
+  width: 100% !important;
+  float: none !important;
+}
+
+/* ---------- summary card ---------- */
+
+body.woocommerce-cart .cart-collaterals .cart_totals {
+  padding: 18px !important;
+  background: #fff !important;
+  border: 1px solid var(--alena-line) !important;
+  border-radius: var(--alena-radius) !important;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .05) !important;
+}
+
+.woocommerce-cart .cart_totals h2 {
+  margin: 0 0 14px !important;
+  font-size: 17px !important;
+  font-weight: 800 !important;
+  color: var(--alena-ink) !important;
+}
+
+.woocommerce-cart .cart_totals table,
+.woocommerce-cart .cart_totals tbody,
+.woocommerce-cart .cart_totals tr,
+.woocommerce-cart .cart_totals th,
+.woocommerce-cart .cart_totals td {
+  display: block !important;
+  width: 100% !important;
+  border: 0 !important;
+  padding: 0 !important;
+  background: none !important;
+}
+
+.woocommerce-cart .cart_totals tr {
+  display: flex !important;
+  align-items: baseline !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 9px 0 !important;
+  border-bottom: 1px solid #f4f3f0 !important;
+}
+
+.woocommerce-cart .cart_totals tr:last-child { border-bottom: 0 !important; }
+
+.woocommerce-cart .cart_totals th {
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  color: var(--alena-ink-soft) !important;
+  text-align: start !important;
+}
+
+.woocommerce-cart .cart_totals td {
+  font-size: 14.5px !important;
+  font-weight: 700 !important;
+  color: var(--alena-ink) !important;
+  text-align: end !important;
+  width: auto !important;
+}
+
+.woocommerce-cart .cart_totals .order-total th,
+.woocommerce-cart .cart_totals .order-total td {
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  color: var(--alena-ink) !important;
+}
+
+/* ---------- checkout CTA ---------- */
+
+.woocommerce-cart .wc-proceed-to-checkout { padding: 14px 0 0 !important; }
+
+body.woocommerce-cart .cart_totals .wc-proceed-to-checkout a.checkout-button {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  padding: 15px 18px !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  color: #fff !important;
+  background: var(--alena-accent) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  box-shadow: 0 6px 16px rgba(31, 122, 77, .28) !important;
+  transition: transform .15s ease, box-shadow .15s ease !important;
+}
+
+body.woocommerce-cart .cart_totals .wc-proceed-to-checkout a.checkout-button:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 10px 22px rgba(31, 122, 77, .34) !important;
+}
+
+/* The price is injected by JS; never re-add it via a hardcoded ::after. */
+.woocommerce-cart .wc-proceed-to-checkout a.checkout-button::after { content: none !important; }
+
+/* ---------- coupon ---------- */
+
+body.woocommerce-cart .alena-cart-main .coupon {
+  display: flex !important;
+  gap: 8px !important;
+  align-items: center !important;
+  width: 100% !important;
+}
+
+body.woocommerce-cart .alena-cart-main .coupon input[type="text"] {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  padding: 11px 14px !important;
+  font-size: 14px !important;
+  border: 1px solid #dcdad4 !important;
+  border-radius: 10px !important;
+}
+
+body.woocommerce-cart .alena-cart-main .coupon button {
+  flex: 0 0 auto !important;
+  padding: 11px 18px !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+  color: var(--alena-accent) !important;
+  background: #fff !important;
+  border: 1.5px solid var(--alena-accent) !important;
+  border-radius: 10px !important;
+  cursor: pointer !important;
+}
+
+/* ---------- line items ---------- */
+
+.woocommerce-cart .alena-cart-mod-tags {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 5px !important;
+  margin-top: 6px !important;
+}
+
+.woocommerce-cart .alena-cart-mod-tag {
+  padding: 3px 9px !important;
+  font-size: 11.5px !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+  color: #8a5a2b !important;
+  background: #fdf3e7 !important;
+  border: 1px solid #f2e0c9 !important;
+  border-radius: 999px !important;
+}
+
+.woocommerce-cart .alena-cart-note {
+  margin-top: 6px !important;
+  font-size: 12px !important;
+  color: var(--alena-ink-soft) !important;
+}
+
+/* Remove control — make it read as a button, not stray punctuation. */
+.woocommerce-cart td.product-remove a.remove {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 30px !important;
+  height: 30px !important;
+  font-size: 15px !important;
+  color: #9aa0a6 !important;
+  background: #f7f6f3 !important;
+  border-radius: 50% !important;
+  transition: color .15s ease, background .15s ease !important;
+}
+
+.woocommerce-cart td.product-remove a.remove:hover {
+  color: #d13c3c !important;
+  background: #fdeded !important;
+}
+
+/* ---------- mobile ---------- */
+
+@media (max-width: 980px) {
+  .woocommerce-cart .cart-collaterals {
+    width: 100% !important;
+    float: none !important;
+    margin-top: 18px !important;
+  }
+  /* Keep the checkout button reachable without scrolling to the bottom. */
+  body.woocommerce-cart .cart-collaterals .cart_totals { position: static !important; }
+}

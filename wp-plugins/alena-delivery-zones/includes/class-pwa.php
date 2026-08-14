@@ -64,9 +64,14 @@ class Alena_DZ_PWA {
     }
 
     private function service_worker_js(): string {
-        // Cache name bumped — forces old SW caches to be evicted on next visit.
+        // Tie the cache name to the plugin version so every update changes the
+        // service-worker body. The browser only replaces a worker whose bytes
+        // differ, so a static name let a stale worker survive plugin updates and
+        // keep serving old CSS — which is exactly the "I still see the old
+        // design" symptom that kept recurring.
+        $ver = defined('ALENA_DZ_VERSION') ? ALENA_DZ_VERSION : 'dev';
         return <<<JS
-const CACHE_NAME = 'alena-v3-network-first';
+const CACHE_NAME = 'alena-{$ver}-network-first';
 self.addEventListener('install', e => { self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(

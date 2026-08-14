@@ -66,6 +66,11 @@ class Alena_DZ_Shop_Styling {
         // Loaded LAST so it settles the menu-card layout for good
         wp_enqueue_style('alena-dz-menu-cards', ALENA_DZ_URL . 'assets/menu-cards.css', ['alena-dz-modern'], ALENA_DZ_VERSION);
 
+        // Cart/checkout page shell — also last, for the same reason.
+        if (is_cart() || is_checkout()) {
+            wp_enqueue_style('alena-dz-cart-polish', ALENA_DZ_URL . 'assets/cart-polish.css', ['alena-dz-menu-cards'], ALENA_DZ_VERSION);
+        }
+
         // Product modal — only on shop / category pages
         if (is_shop() || is_product_category() || is_product_taxonomy()) {
             wp_enqueue_style('alena-dz-product-modal', ALENA_DZ_URL . 'assets/product-modal.css', ['alena-dz-shop'], ALENA_DZ_VERSION);
