@@ -243,6 +243,9 @@ class Alena_DZ_Checkout_Redesign {
         if (!function_exists('is_checkout') || !is_checkout() || is_wc_endpoint_url('order-received')) return;
         wp_enqueue_style('alena-dz-checkout-redesign', ALENA_DZ_URL . 'assets/checkout-redesign.css', [], ALENA_DZ_VERSION);
         wp_enqueue_script('alena-dz-checkout-redesign', ALENA_DZ_URL . 'assets/checkout-redesign.js', ['jquery'], ALENA_DZ_VERSION, true);
+        // Relocates stray PayPlus iframes into the payment section so customers
+        // never see card-entry fields floating high on the page.
+        wp_enqueue_script('alena-dz-checkout-payplus-fix', ALENA_DZ_URL . 'assets/checkout-payplus-fix.js', ['jquery'], ALENA_DZ_VERSION, true);
         wp_localize_script('alena-dz-checkout-redesign', 'AlenaDZCheckoutR', [
             'business'    => ['lat' => self::BUSINESS_LAT, 'lng' => self::BUSINESS_LNG],
             'polygons'    => class_exists('Alena_DZ_Polygon_Store') ? Alena_DZ_Polygon_Store::all() : [],

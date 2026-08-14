@@ -1,0 +1,224 @@
+(function ($) {
+  'use strict';
+
+  const $phoneForm = $('#alena-otp-step-phone');
+  const $codeForm  = $('#alena-otp-step-code');
+  const $phoneIn   = $('#alena-otp-phone');
+  const $codeIn    = $('#alena-otp-code');
+  const $shown     = $('#alena-otp-shown-phone');
+  const $resend    = $('#alena-otp-resend');
+  const $change    = $('#alena-otp-change-phone');
+  const $errPhone  = $('#alena-otp-phone-error');
+  const $errCode   = $('#alena-otp-code-error');
+  const $cool      = $('#alena-otp-cooldown');
+  const $coolSec   = $('#alena-otp-cooldown-sec');
+
+  if (!$phoneForm.length) return;
+
+  let cooldownTimer = null;
+  function startCooldown(sec) {
+    let n = sec || 60;
+    $cool.removeAttr('hidden');
+    $coolSec.text(n);
+    $resend.css('pointer-events', 'none').css('opacity', 0.5);
+    if (cooldownTimer) clearInterval(cooldownTimer);
+    cooldownTimer = setInterval(function () {
+      n--;
+      $coolSec.text(n);
+      if (n <= 0) {
+        clearInterval(cooldownTimer);
+        $cool.attr('hidden', true);
+        $resend.css('pointer-events', '').css('opacity', '');
+      }
+    }, 1000);
+  }
+
+  function showError($el, msg) { $el.text(msg).removeAttr('hidden'); }
+  function hideError($el)      { $el.attr('hidden', true).text(''); }
+
+  function showDevBanner(code, notice) {
+    let $b = $('#alena-otp-dev-banner');
+    if (!$b.length) {
+      $b = $('<div id="alena-otp-dev-banner" class="alena-otp-dev"></div>');
+      $codeForm.prepend($b);
+    }
+    $b.html(
+      '<strong>🛠️ ' + (notice || 'מצב פיתוח') + '</strong>' +
+      '<div class="alena-otp-dev-code">' + code + '</div>' +
+      '<div class="alena-otp-dev-hint">הוקלד אוטומטית למטה — לחץ "התחבר ✓"</div>'
+    );
+  }
+
+  function normalize(raw) { return (raw || '').replace(/\D/g, ''); }
+
+  function sendCode(phone) {
+    return $.ajax({
+      url: AlenaPhoneAuth.apiUrl + 'send',
+      method: 'POST',
+      headers: { 'X-WP-Nonce': AlenaPhoneAuth.nonce },
+      data: { phone: phone }
+    });
+  }
+
+  function verifyCode(phone, code) {
+    const data = { phone: phone, code: code };
+    if (window.__alenaRegName) data.name = window.__alenaRegName;
+    return $.ajax({
+      url: AlenaPhoneAuth.apiUrl + 'verify',
+      method: 'POST',
+      headers: { 'X-WP-Nonce': AlenaPhoneAuth.nonce },
+      data: data
+    });
+  }
+
+  const isRegister = ($('.alena-otp-wrap').attr('data-mode') === 'register');
+
+  $phoneForm.on('submit', function (e) {
+    e.preventDefault();
+    hideError($errPhone);
+    const phone = normalize($phoneIn.val());
+    if (!/^0\d{8,9}$/.test(phone)) {
+      showError($errPhone, 'מספר לא תקין — לדוגמה 0501234567');
+      return;
+    }
+    let name = '', city = '', birthday = '', anniversary = '', email = '';
+    let consent = false;
+    if (isRegister) {
+      name = ($('#alena-otp-name').val() || '').trim();
+      if (name.length < 2) {
+        $('#alena-otp-name').trigger('focus').css('border-color', '#c83a3a');
+        showError($errPhone, 'אנא הזינו שם מלא');
+        return;
+      }
+      city = ($('#alena-otp-city').val() || '').trim();
+      if (!city) {
+        $('#alena-otp-city').trigger('focus').css('border-color', '#c83a3a');
+        showError($errPhone, 'אנא בחרו עיר מגורים');
+        return;
+      }
+      birthday    = ($('#alena-otp-birthday').val() || '').trim();
+      anniversary = ($('#alena-otp-anniversary').val() || '').trim();
+      email       = ($('#alena-otp-email').val() || '').trim();
+      consent = $('#alena-otp-consent').is(':checked');
+    }
+    const $btn = $(this).find('.alena-otp-cta');
+    const orig = $btn.text();
+    $btn.prop('disabled', true).text('שולח…');
+
+    // For register: first hit /api/club/register via WP proxy, THEN send OTP
+    // Must return a jQuery Deferred, not a native Promise — the caller uses
+    // .always(), which native promises don't have (login path used to throw
+    // TypeError here and leave the button stuck on "שולח…").
+    const registerThenSend = function () {
+      if (!isRegister) return $.Deferred().resolve().promise();
+      return $.post(window.ajaxurl || '/wp-admin/admin-ajax.php', {
+        action:      'alena_club_register',
+        nonce:       AlenaPhoneAuth.registerNonce || '',
+        phone:       phone,
+        name:        name,
+        city:        city,
+        birthday:    birthday,
+        anniversary: anniversary,
+        email:       email,
+        consent:     consent ? 1 : 0,
+      });
+    };
+
+    registerThenSend().always(function () {
+      sendCode(phone)
+        .done(function (r) {
+          $btn.prop('disabled', false).text(orig);
+          if (!r || !r.ok) {
+            showError($errPhone, (r && r.message) || 'שליחה נכשלה');
+            return;
+          }
+          // Stash name for the verify step
+          if (isRegister) window.__alenaRegName = name;
+          $shown.text(phone);
+          $phoneForm.attr('hidden', true);
+          $codeForm.removeAttr('hidden');
+          if (r.dev_code) {
+            showDevBanner(r.dev_code, r.dev_notice);
+            $codeIn.val(r.dev_code);
+          }
+          setTimeout(function () { $codeIn.trigger('focus'); }, 100);
+          startCooldown(60);
+        })
+        .fail(function (xhr) {
+          $btn.prop('disabled', false).text(orig);
+          const r = xhr.responseJSON || {};
+          showError($errPhone, r.message || ('שליחה נכשלה (HTTP ' + xhr.status + ')'));
+        });
+    });
+  });
+
+  $codeForm.on('submit', function (e) {
+    e.preventDefault();
+    hideError($errCode);
+    const code  = normalize($codeIn.val());
+    const phone = normalize($phoneIn.val());
+    if (code.length < 4) {
+      showError($errCode, 'הכנס את הקוד שקיבלת');
+      return;
+    }
+    const $btn = $(this).find('.alena-otp-cta');
+    const orig = $btn.text();
+    $btn.prop('disabled', true).text('מתחבר…');
+
+    verifyCode(phone, code)
+      .done(function (r) {
+        if (r && r.ok) {
+          $btn.text('✓ מתחבר…');
+          // Honor a ?next=... param from the URL so the welcome flow lands
+          // the customer back on /shop, ready to order — not on /my-account.
+          let dest = r.redirect || AlenaPhoneAuth.accountUrl;
+          try {
+            const params = new URLSearchParams(window.location.search);
+            const next = params.get('next');
+            if (next && next.startsWith('/')) dest = next;
+          } catch (e) {}
+          window.location.href = dest;
+        } else {
+          $btn.prop('disabled', false).text(orig);
+          showError($errCode, (r && r.message) || 'שגיאה');
+        }
+      })
+      .fail(function (xhr) {
+        $btn.prop('disabled', false).text(orig);
+        const r = xhr.responseJSON || {};
+        showError($errCode, r.message || ('קוד שגוי (HTTP ' + xhr.status + ')'));
+      });
+  });
+
+  $resend.on('click', function (e) {
+    e.preventDefault();
+    if ($resend.css('pointer-events') === 'none') return;
+    const phone = normalize($phoneIn.val());
+    if (!phone) return;
+    sendCode(phone).done(function () { startCooldown(60); });
+  });
+
+  $change.on('click', function (e) {
+    e.preventDefault();
+    if (cooldownTimer) clearInterval(cooldownTimer);
+    $codeForm.attr('hidden', true);
+    $phoneForm.removeAttr('hidden');
+    $phoneIn.trigger('focus');
+    hideError($errPhone);
+    hideError($errCode);
+    $codeIn.val('');
+  });
+
+  // Auto-format Israeli phone as user types
+  $phoneIn.on('input', function () {
+    let v = normalize($(this).val());
+    if (v.length > 10) v = v.slice(0, 10);
+    $(this).val(v);
+  });
+  $codeIn.on('input', function () {
+    let v = normalize($(this).val());
+    if (v.length > 6) v = v.slice(0, 6);
+    $(this).val(v);
+    if (v.length === 6) $codeForm.trigger('submit');
+  });
+})(jQuery);

@@ -47,6 +47,53 @@
   padding: 3px 9px;
   border-radius: 999px;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.alena-dz-mod-free {
+  background: #1e4a3a;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.3px;
+}
+/* When a row is in the "first N free" range: hide its + price tag, show "חינם" instead */
+.alena-dz-mod-row.alena-dz-row-free .alena-dz-mod-price {
+  position: relative;
+  color: transparent !important;
+  background: #1e4a3a !important;
+  text-decoration: line-through;
+  text-decoration-color: rgba(255,255,255,0.7);
+}
+.alena-dz-mod-row.alena-dz-row-free .alena-dz-mod-price::after {
+  content: "חינם";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  text-decoration: none;
+  letter-spacing: 0.3px;
+}
+
+/* Inline error state for required groups when user hits Add without picking */
+.alena-dz-mod-group.alena-dz-mod-error {
+  border-color: #c83a3a !important;
+  background: linear-gradient(to bottom, #fff, #fef0ec) !important;
+  box-shadow: 0 0 0 3px rgba(200,58,58,0.15) !important;
+  animation: alena-shake 0.36s ease;
+}
+@keyframes alena-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
 }
 .alena-dz-req {
   color: #c83a3a;

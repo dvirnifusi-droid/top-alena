@@ -157,16 +157,43 @@
     recomputeTotal();
   }
 
+  // A "gate" group is a Choice whose options are yes/no semantics
+  // ("לא תודה" / "כן בבקשה"). It controls whether the NEXT Multichoice
+  // is shown. Preference groups ("לא חריף" / "תוספת חריף") are NOT gates —
+  // they're just two-way picks.
+  function isGateGroup($g) {
+    if (($g.data('type') || '') !== 'Choice') return false;
+    let hasNoThanks = false, hasYesPlease = false;
+    $g.find('.alena-dz-mod-row').each(function () {
+      const t = ($(this).find('.alena-dz-mod-name').text() || '').trim();
+      if (/^לא\s*תודה/.test(t)) hasNoThanks = true;
+      if (/^כן\s*בבקשה/.test(t)) hasYesPlease = true;
+    });
+    return hasNoThanks && hasYesPlease;
+  }
+
   function applyGating() {
-    const $groups = modalEl.find('.alena-dz-mod-group');
-    if ($groups.length < 2) return;
-    const $first = $groups.eq(0);
-    const $checked = $first.find('input:checked');
-    const text = $checked.length ? ($checked.parent().find('.alena-dz-mod-name').text() || '').trim() : '';
-    const isPositive = $checked.length && !/^לא/.test(text);
-    $groups.each(function (i, g) {
-      if (i === 0) return;
-      $(g).toggle(isPositive);
+    // Each gate question controls the SINGLE Multichoice group right after it.
+    // Other groups are shown normally.
+    let pendingGate = null; // null / 'yes' / 'no'
+    modalEl.find('.alena-dz-mod-group').each(function () {
+      const $g = $(this);
+      if (isGateGroup($g)) {
+        const $checked = $g.find('input:checked');
+        if ($checked.length) {
+          const text = ($checked.parent().find('.alena-dz-mod-name').text() || '').trim();
+          pendingGate = /^לא/.test(text) ? 'no' : 'yes';
+        } else {
+          pendingGate = null;
+        }
+        $g.show();
+      } else if ($g.data('type') === 'Multichoice' && pendingGate !== null) {
+        $g.toggle(pendingGate === 'yes');
+        pendingGate = null; // gate only affects the immediately following group
+      } else {
+        $g.show();
+        pendingGate = null;
+      }
     });
   }
 
@@ -192,10 +219,33 @@
   function recomputeTotal() {
     const base = getBasePrice();
     let extra = 0;
-    modalEl.find('.alena-dz-modifiers input:checked').each(function () {
-      // Only count visible (un-gated) selections
-      if (!$(this).closest('.alena-dz-mod-group').is(':visible')) return;
-      extra += parseFloat($(this).data('price') || 0);
+    // Per-group "first N free" pricing — cheapest selections in the group are the free ones.
+    modalEl.find('.alena-dz-mod-group:visible').each(function () {
+      const $g = $(this);
+      const free = parseInt($g.data('free'), 10) || 0;
+      const $checked = $g.find('input:checked');
+      const prices = [];
+      $checked.each(function () { prices.push(parseFloat($(this).data('price') || 0)); });
+      prices.sort((a, b) => a - b);
+      for (let i = free; i < prices.length; i++) extra += prices[i];
+
+      // Visual: mark the cheapest `free` selected items as "חינם" so the customer
+      // sees the discount in the row, not just in the total.
+      if (free > 0 && $checked.length) {
+        // Build a list of [checkbox, price] sorted by price ascending
+        const ranked = [];
+        $checked.each(function () { ranked.push({ el: this, price: parseFloat($(this).data('price') || 0) }); });
+        ranked.sort((a, b) => a.price - b.price);
+        ranked.forEach((r, idx) => {
+          const $row = $(r.el).closest('.alena-dz-mod-row');
+          if (idx < free) $row.addClass('alena-dz-row-free');
+          else            $row.removeClass('alena-dz-row-free');
+        });
+      }
+      // Clear "free" marker from rows that are no longer checked
+      $g.find('.alena-dz-mod-row').each(function () {
+        if (!$(this).find('input').prop('checked')) $(this).removeClass('alena-dz-row-free');
+      });
     });
     const qty = parseInt(modalEl.find('.alena-modal-qty-value').text(), 10) || 1;
     const total = (base + extra) * qty;
@@ -205,8 +255,16 @@
   function submitAddToCart(e) {
     if (e && e.preventDefault) { e.preventDefault(); e.stopPropagation(); }
 
-    // Hard guard against double-add (re-entrant clicks / double events)
-    if (window.__alenaAdding) return false;
+    // Diagnostic — counts how many times this fires per page
+    window.__alenaAtcCount = (window.__alenaAtcCount || 0) + 1;
+    const now = Date.now();
+    console.log('[ALENA] submitAddToCart called — count=', window.__alenaAtcCount, 'guard=', !!window.__alenaAdding, 'sinceLast=', window.__alenaLastAt ? (now - window.__alenaLastAt) + 'ms' : 'first');
+
+    // Hard guard against double-add — block if a recent add is in flight,
+    // OR if any add (success or fail) happened in the last 1500ms.
+    if (window.__alenaAdding) { console.log('[ALENA] BLOCKED by inflight guard'); return false; }
+    if (window.__alenaLastAt && (now - window.__alenaLastAt) < 1500) { console.log('[ALENA] BLOCKED by 1500ms debounce'); return false; }
+    window.__alenaLastAt = now;
 
     const pid = modalEl.data('product-id');
     if (!pid) {
@@ -215,18 +273,38 @@
     }
     window.__alenaAdding = true;
 
-    // Validate required modifier groups (only visible ones)
+    // Validate required modifier groups (only visible ones).
+    // On failure: scroll to the first missing group, highlight it, show inline error toast.
     let firstError = null;
+    let $firstBadGroup = null;
     modalEl.find('.alena-dz-mod-group:visible').each(function () {
-      const min = parseInt($(this).data('min'), 10) || 0;
+      const $g = $(this);
+      const min = parseInt($g.data('min'), 10) || 0;
+      $g.removeClass('alena-dz-mod-error');
       if (min <= 0) return;
-      const checked = $(this).find('input:checked').length;
-      const title = $(this).find('.alena-dz-mod-title').text().replace('*', '').trim();
+      const checked = $g.find('input:checked').length;
+      const title = $g.find('.alena-dz-mod-title').text().replace('*', '').trim();
       if (checked < min) {
-        if (!firstError) firstError = 'בחרו ב-"' + title + '" ' + (min === 1 ? 'אופציה אחת' : (min + ' אופציות'));
+        if (!firstError) {
+          firstError = 'יש לבחור ב-"' + title + '" ' + (min === 1 ? 'אופציה אחת' : (min + ' אופציות'));
+          $firstBadGroup = $g;
+        }
       }
     });
-    if (firstError) { alert(firstError); return false; }
+    if (firstError) {
+      window.__alenaAdding = false;
+      if ($firstBadGroup) {
+        $firstBadGroup.addClass('alena-dz-mod-error');
+        // Scroll the modal so the error is visible
+        const $scroller = modalEl.find('.alena-modal-scroll');
+        if ($scroller.length) {
+          const top = $firstBadGroup.position().top + $scroller.scrollTop() - 20;
+          $scroller.animate({ scrollTop: top }, 280);
+        }
+      }
+      toast(firstError);
+      return false;
+    }
 
     const qty = parseInt(modalEl.find('.alena-modal-qty-value').text(), 10) || 1;
     const note = modalEl.find('.alena-modal-note textarea').val() || '';
@@ -245,11 +323,13 @@
     $btn.prop('disabled', true).text('מוסיף לסל…');
 
     // POST directly to wc-ajax endpoint — no form, no native submit risk.
+    // CRITICAL: do NOT include an `add-to-cart` field. WC's add_to_cart_action
+    // hooks on init and reads $_REQUEST['add-to-cart'] — including it makes the
+    // item get added twice (once by add_to_cart_action, once by the wc-ajax handler).
     const fd = new FormData();
     fd.append('product_id', pid);
     fd.append('product_sku', '');
     fd.append('quantity', String(qty));
-    fd.append('add-to-cart', String(pid));
     if (note) fd.append('alena_item_note', note);
     Object.keys(mod).forEach(g_idx => {
       mod[g_idx].forEach(v_idx => fd.append('alena_mod[' + g_idx + '][]', String(v_idx)));
@@ -297,13 +377,91 @@
     window.scrollTo(0, scrollPosBeforeOpen);
   }
 
+  // -----------------------------------------------------------
+  // On-card stepper for products WITHOUT required modifiers
+  // (Wolt pattern — saves 4 taps per add).
+  // -----------------------------------------------------------
+  function inlineAddToCart(productId, qty) {
+    const fd = new FormData();
+    fd.append('product_id', productId);
+    fd.append('quantity', String(qty));
+    return $.ajax({
+      url: '/?wc-ajax=add_to_cart',
+      type: 'POST',
+      data: fd,
+      processData: false,
+      contentType: false,
+      dataType: 'json',
+    }).done(function (res) {
+      $(document.body).trigger('added_to_cart', [res && res.fragments, res && res.cart_hash, $()]);
+    });
+  }
+
+  function showCardStepper($card, qty) {
+    let $stepper = $card.find('.alena-dz-card-stepper');
+    if (!$stepper.length) {
+      $stepper = $('<div class="alena-dz-card-stepper">' +
+        '<button type="button" class="alena-dz-card-stepper-plus" aria-label="הוסף">+</button>' +
+        '<span class="alena-dz-card-stepper-qty">1</span>' +
+        '<button type="button" class="alena-dz-card-stepper-minus" aria-label="הסר">−</button>' +
+      '</div>');
+      $card.find('.alena-dz-card-bottom').append($stepper);
+    }
+    $stepper.find('.alena-dz-card-stepper-qty').text(qty);
+    $card.attr('data-in-cart', qty > 0 ? '1' : '0');
+  }
+
   $(function () {
-    // One delegated handler on the whole card so it can't fire twice
-    // (clicking the '+' chip used to also bubble to the wrapping <a>).
+    // Card click → open modal — EXCEPT when the card is "stepperable" and
+    // the user tapped the + button (single tap add via AJAX).
     $(document).on('click', '.alena-dz-card', function (e) {
+      const $card = $(this);
+      const isStepperable = $card.hasClass('alena-dz-card-stepperable');
+      const $tgt = $(e.target);
+
+      // Stepperable + clicked the +/- → handle inline, no modal
+      if (isStepperable && $tgt.hasClass('alena-dz-card-add')) {
+        e.preventDefault(); e.stopPropagation();
+        const pid = parseInt($card.data('product-id'), 10);
+        if (!pid) return;
+        const $btn = $tgt;
+        if ($btn.data('busy')) return;
+        $btn.data('busy', 1);
+        const origText = $btn.text();
+        $btn.text('…');
+        const current = parseInt($card.find('.alena-dz-card-stepper-qty').text(), 10) || 0;
+        inlineAddToCart(pid, 1).always(function () {
+          $btn.data('busy', 0).text(origText);
+        }).done(function () {
+          showCardStepper($card, current + 1);
+        });
+        return;
+      }
+      if (isStepperable && ($tgt.hasClass('alena-dz-card-stepper-plus') || $tgt.hasClass('alena-dz-card-stepper-minus'))) {
+        e.preventDefault(); e.stopPropagation();
+        const pid = parseInt($card.data('product-id'), 10);
+        if (!pid) return;
+        const isPlus = $tgt.hasClass('alena-dz-card-stepper-plus');
+        const $qty = $card.find('.alena-dz-card-stepper-qty');
+        const current = parseInt($qty.text(), 10) || 0;
+        const next = isPlus ? current + 1 : Math.max(0, current - 1);
+        // Optimistic UI
+        showCardStepper($card, next);
+        // Ship the diff
+        if (isPlus) {
+          inlineAddToCart(pid, 1);
+        } else {
+          // Sending a negative quantity isn't supported by wc-ajax — easier to
+          // reload to reflect the removal. Cheap on this UX path.
+          window.location.reload();
+        }
+        return;
+      }
+
+      // Default: open the modal for products with required modifiers
       e.preventDefault();
       e.stopPropagation();
-      openModalForCard($(this));
+      openModalForCard($card);
     });
   });
 })(jQuery);

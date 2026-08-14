@@ -44,7 +44,8 @@ class Alena_DZ_Shop_Styling {
 
     public function __construct() {
         add_action('wp_enqueue_scripts',                  [$this, 'enqueue']);
-        add_action('wp_footer',                           [$this, 'render_promo_popup']);
+        // Old "💚🥑 ברוכים הבאים" promo popup — superseded by Alena_DZ_Welcome (the full split-screen landing).
+        // add_action('wp_footer',                           [$this, 'render_promo_popup']);
         add_filter('woocommerce_product_query_tax_query', [$this, 'hide_merch_in_query'], 10, 2);
         add_filter('woocommerce_show_page_title',         '__return_true');
         add_filter('woocommerce_sale_flash',              [$this, 'sale_flash']);
@@ -61,6 +62,9 @@ class Alena_DZ_Shop_Styling {
         if (!function_exists('is_woocommerce')) return;
         if (!(is_woocommerce() || is_cart() || is_checkout() || is_account_page())) return;
         wp_enqueue_style('alena-dz-shop', ALENA_DZ_URL . 'assets/shop.css', [], ALENA_DZ_VERSION);
+        wp_enqueue_style('alena-dz-modern', ALENA_DZ_URL . 'assets/modern-design.css', ['alena-dz-shop'], ALENA_DZ_VERSION);
+        // Loaded LAST so it settles the menu-card layout for good
+        wp_enqueue_style('alena-dz-menu-cards', ALENA_DZ_URL . 'assets/menu-cards.css', ['alena-dz-modern'], ALENA_DZ_VERSION);
 
         // Product modal — only on shop / category pages
         if (is_shop() || is_product_category() || is_product_taxonomy()) {
@@ -100,9 +104,24 @@ class Alena_DZ_Shop_Styling {
             return;
         }
         $original = ob_get_clean();
-        // Render hero + search + featured + nav + per-category sections
+
+        // Welcome gate — if customer hasn't picked delivery/pickup yet, show the
+        // welcome screen INSTEAD of the menu. After they pick and continue,
+        // /shop reloads and renders the menu normally.
+        if (class_exists('Alena_DZ_Welcome') && Alena_DZ_Welcome::should_show()) {
+            (new Alena_DZ_Welcome())->render();
+            return;
+        }
+
+        // Render hero + club banner + search + recent orders + featured + nav + per-category sections
         $this->render_shop_hero();
+        if (class_exists('Alena_DZ_Club')) {
+            (new Alena_DZ_Club())->render_shop_banner();
+        }
         $this->render_search_bar();
+        if (class_exists('Alena_DZ_Recent_Orders')) {
+            (new Alena_DZ_Recent_Orders())->render_section();
+        }
         $this->render_sticky_catnav();
         $this->render_featured_section();
         $this->render_grouped_products();
@@ -277,6 +296,37 @@ class Alena_DZ_Shop_Styling {
         echo '</nav>';
     }
 
+    /**
+     * "המוזמנים ביותר" — top 6 by total_sales meta. Wolt-style horizontal
+     * scrollable row at the top of the menu, before the regular categories.
+     */
+    public function render_popular_section() {
+        $products = wc_get_products([
+            'status'   => 'publish',
+            'limit'    => 6,
+            'orderby'  => 'meta_value_num',
+            'meta_key' => 'total_sales',
+            'order'    => 'DESC',
+            'meta_query' => [
+                ['key' => 'total_sales', 'value' => 0, 'compare' => '>'],
+            ],
+        ]);
+        $products = array_filter($products, function ($p) {
+            $price = $p->get_price();
+            return $price !== '' && (float) $price > 0;
+        });
+        if (count($products) < 3) return; // not enough signal
+
+        echo '<section class="alena-dz-cat-section alena-dz-cat-section-popular" id="alena-cat-popular">';
+        echo '<h2 class="alena-dz-cat-title">🔥 המוזמנים ביותר</h2>';
+        echo '<ul class="alena-dz-products alena-dz-products-popular">';
+        foreach ($products as $product) {
+            $this->render_product_card($product);
+        }
+        echo '</ul>';
+        echo '</section>';
+    }
+
     public function render_grouped_products() {
         $terms = $this->ordered_visible_terms();
         if (!$terms) {
@@ -284,6 +334,7 @@ class Alena_DZ_Shop_Styling {
             return;
         }
         echo '<div class="alena-dz-shop-sections">';
+        $this->render_popular_section();
         foreach ($terms as $term) {
             $products = wc_get_products([
                 'category' => [$term->slug],
@@ -320,13 +371,28 @@ class Alena_DZ_Shop_Styling {
         $name    = $product->get_name();
         $price   = $product->get_price_html();
         $desc    = $product->get_short_description() ?: $product->get_description();
-        $desc    = wp_trim_words(strip_tags($desc), 18, '…');
+        // 18 words overflowed the 2-line clamp and cut mid-sentence; 12 fits.
+        $desc    = wp_trim_words(strip_tags($desc), 12, '…');
         $img     = $product->get_image('woocommerce_thumbnail', ['class' => 'alena-dz-card-img']);
         $url     = get_permalink($id);
         $add_url = '?add-to-cart=' . $id;
         $is_featured = $product->is_featured();
+
+        // Detect if the product has any REQUIRED (min ≥ 1) modifier group —
+        // if not, the card can use a one-tap stepper instead of opening the modal.
+        $has_required_mods = false;
+        if (class_exists('Alena_DZ_Modifiers')) {
+            try {
+                $mods = Alena_DZ_Modifiers::get_modifiers($id);
+                foreach ((array) $mods as $g) {
+                    if ((int) ($g['min'] ?? 0) >= 1) { $has_required_mods = true; break; }
+                }
+            } catch (\Throwable $e) { /* swallow */ }
+        }
+        $card_classes = 'alena-dz-card';
+        if (!$has_required_mods) $card_classes .= ' alena-dz-card-stepperable';
         ?>
-        <li class="alena-dz-card">
+        <li class="<?php echo esc_attr($card_classes); ?>" data-product-id="<?php echo (int) $id; ?>">
           <?php if ($is_featured): ?>
             <span class="alena-dz-popular-badge">פופולרי</span>
           <?php endif; ?>
@@ -367,6 +433,12 @@ class Alena_DZ_Shop_Styling {
             'exclude'    => $this->hidden_term_ids(),
         ]);
         if (is_wp_error($terms) || !$terms) return [];
+
+        // Owner-defined order (wp-admin → סדר התפריט) wins when one exists.
+        // CATEGORY_DISPLAY_ORDER stays as the seed for a site that never set one.
+        if (class_exists('Alena_DZ_Menu_Order') && Alena_DZ_Menu_Order::cat_order()) {
+            return Alena_DZ_Menu_Order::sort_terms($terms);
+        }
 
         $by_name = [];
         foreach ($terms as $t) $by_name[$t->name] = $t;

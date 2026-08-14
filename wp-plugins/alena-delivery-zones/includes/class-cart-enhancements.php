@@ -16,8 +16,13 @@ class Alena_DZ_Cart_Enhancements {
     public function __construct() {
         add_action('wp_enqueue_scripts',                  [$this, 'enqueue']);
         add_action('wp_footer',                            [$this, 'render_mini_cart_badge']);
+        add_action('wp_footer',                            [$this, 'render_shop_cart_bar']);
         add_action('wp_ajax_alena_dz_minicart',           [$this, 'ajax_minicart']);
         add_action('wp_ajax_nopriv_alena_dz_minicart',    [$this, 'ajax_minicart']);
+
+        // Emergency cart reset — visit /?alena-clear-cart=1 to nuke the cart.
+        // Hook wp_loaded so WC()->cart and WC()->session are fully initialized.
+        add_action('wp_loaded', [$this, 'maybe_clear_cart'], 20);
 
         // Min-order notice on cart / checkout
         add_action('woocommerce_before_cart',              [$this, 'render_min_notice'], 5);
@@ -44,6 +49,36 @@ class Alena_DZ_Cart_Enhancements {
         ]);
     }
 
+    /**
+     * Floating bottom cart bar — Wolt-style. Shown on /shop and any WC product
+     * archive when the cart has items. Slides up from the bottom, click to /cart.
+     */
+    public function render_shop_cart_bar() {
+        if (is_admin()) return;
+        if (function_exists('is_cart') && is_cart()) return;
+        if (function_exists('is_checkout') && is_checkout()) return;
+        $cart_count = function_exists('WC') && WC()->cart ? WC()->cart->get_cart_contents_count() : 0;
+        $cart_url   = function_exists('wc_get_cart_url') ? wc_get_cart_url() : '/cart/';
+        $cart_total = function_exists('WC') && WC()->cart ? WC()->cart->get_cart_total() : '';
+        $has_items  = $cart_count > 0;
+        ?>
+        <a href="<?php echo esc_url($cart_url); ?>"
+           class="alena-shop-cart-bar <?php echo $has_items ? 'has-items' : ''; ?>"
+           id="alena-shop-cart-bar"
+           aria-label="מעבר לסל הקניות">
+          <span class="alena-shop-cart-bar-left">
+            <span class="alena-shop-cart-bar-icon" aria-hidden="true">🛒</span>
+            <span class="alena-shop-cart-bar-count alena-dz-mini-cart-count"><?php echo (int) $cart_count; ?></span>
+            <span class="alena-shop-cart-bar-label">פריטים בסל</span>
+          </span>
+          <span class="alena-shop-cart-bar-cta">
+            <span class="alena-shop-cart-bar-total alena-dz-mini-cart-total"><?php echo wp_kses_post($cart_total); ?></span>
+            <span class="alena-shop-cart-bar-go">מעבר לסל ←</span>
+          </span>
+        </a>
+        <?php
+    }
+
     public function render_mini_cart_badge() {
         if (is_admin()) return;
         $cart_count = function_exists('WC') && WC()->cart ? WC()->cart->get_cart_contents_count() : 0;
@@ -56,6 +91,30 @@ class Alena_DZ_Cart_Enhancements {
           <span class="alena-dz-mini-cart-total"><?php echo wp_kses_post($cart_total); ?></span>
         </a>
         <?php
+    }
+
+    public function maybe_clear_cart() {
+        if (empty($_GET['alena-clear-cart'])) return;
+        if (!function_exists('WC')) return;
+        // Force a full session destroy so persistent-cart and any duplicate
+        // session entries can't restore the items.
+        if (WC()->cart)    WC()->cart->empty_cart(true);
+        if (WC()->session) {
+            WC()->session->set('cart', []);
+            WC()->session->set('applied_coupons', []);
+            WC()->session->set('cart_totals', null);
+            WC()->session->set('removed_cart_contents', []);
+            if (method_exists(WC()->session, 'destroy_session')) {
+                WC()->session->destroy_session();
+            }
+        }
+        // Persistent cart for logged-in users
+        if (is_user_logged_in()) {
+            delete_user_meta(get_current_user_id(), '_woocommerce_persistent_cart_' . get_current_blog_id());
+        }
+        $back = function_exists('wc_get_cart_url') ? wc_get_cart_url() : '/cart/';
+        wp_safe_redirect(add_query_arg('cleared', '1', $back));
+        exit;
     }
 
     public function ajax_minicart() {

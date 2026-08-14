@@ -1,0 +1,344 @@
+/* ============================================================
+   Club widget on My Account dashboard
+   ============================================================ */
+.alena-club-widget {
+  background: linear-gradient(135deg, #1e4a3a 0%, #2e6850 60%, #1e4a3a 100%);
+  color: #fff;
+  border-radius: 20px;
+  padding: 26px 28px 24px;
+  margin: 0 0 22px;
+  box-shadow: 0 8px 28px rgba(30,74,58,0.30);
+  position: relative;
+  overflow: hidden;
+}
+.alena-club-widget::before {
+  content: "";
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, rgba(244,168,149,0.25), transparent 70%);
+  pointer-events: none;
+}
+.alena-club-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  position: relative;
+}
+.alena-club-emoji {
+  font-size: 38px;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+.alena-club-title {
+  display: block;
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0;
+}
+.alena-club-tier {
+  display: block;
+  font-size: 13px;
+  opacity: 0.9;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.alena-club-balance {
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 14px;
+  padding: 20px 22px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  position: relative;
+  backdrop-filter: blur(2px);
+}
+.alena-club-balance > div { display: flex; flex-direction: column; }
+.alena-club-balance-num {
+  font-size: 60px;
+  font-weight: 900;
+  line-height: 1;
+  font-family: "Frank Ruhl Libre", serif !important;
+  flex: 0 0 auto;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.alena-club-balance-label {
+  font-size: 15px;
+  opacity: 0.95;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.alena-club-balance-value {
+  font-size: 14px;
+  font-weight: 800;
+  background: #f4a895;
+  color: #1c1c1c;
+  padding: 5px 12px;
+  border-radius: 999px;
+  display: inline-block;
+  align-self: flex-start;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.10);
+}
+.alena-club-meta {
+  margin-top: 14px;
+  font-size: 12px;
+  opacity: 0.85;
+  font-weight: 500;
+  position: relative;
+}
+
+.alena-club-widget-join {
+  background: linear-gradient(135deg, #fef3ec, #fff);
+  color: #1c1c1c;
+  border: 2px dashed #f4a895;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+}
+.alena-club-widget-join .alena-club-title { color: #1c1c1c; }
+.alena-club-perks {
+  margin: 0 0 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #4a4a4a;
+  font-weight: 600;
+}
+.alena-club-join-btn {
+  background: #1e4a3a;
+  color: #fff !important;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(30,74,58,0.25);
+  transition: all 0.18s ease;
+}
+.alena-club-join-btn:hover {
+  background: #2e6850;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(30,74,58,0.35);
+}
+.alena-club-join-btn:disabled { opacity: 0.6; cursor: wait; }
+
+@media (max-width: 700px) {
+  .alena-club-widget { padding: 18px 18px; }
+  .alena-club-balance-num { font-size: 36px; }
+}
+
+/* ============================================================
+   Redemption box in cart + checkout
+   ============================================================ */
+.alena-club-redeem-row td { padding: 0 !important; }
+.alena-club-redeem {
+  background: linear-gradient(135deg, #fef3ec, #fff);
+  border: 1.5px dashed #f4a895;
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin: 10px 0;
+  font-size: 14px;
+}
+.alena-club-redeem-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.alena-club-redeem-emoji {
+  font-size: 28px;
+  flex: 0 0 auto;
+}
+.alena-club-redeem-head strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+  color: #1c1c1c;
+}
+.alena-club-redeem-sub {
+  display: block;
+  font-size: 12px;
+  color: #6a5a4d;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.alena-club-redeem-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.alena-club-redeem-form label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1c1c1c;
+}
+.alena-club-redeem-input {
+  width: 70px;
+  padding: 7px 10px;
+  border: 1.5px solid #eadfd1;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.alena-club-redeem-input:focus { border-color: #1e4a3a; }
+.alena-club-redeem-preview {
+  background: #fff;
+  border: 1px solid #eadfd1;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  color: #1e4a3a;
+  font-size: 13px;
+}
+.alena-club-redeem-apply, .alena-club-redeem-clear {
+  background: #1e4a3a;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  margin-inline-start: auto;
+  transition: all 0.15s ease;
+}
+.alena-club-redeem-apply:hover, .alena-club-redeem-clear:hover {
+  background: #2e6850;
+  transform: translateY(-1px);
+}
+.alena-club-redeem-clear {
+  background: transparent;
+  color: #c83a3a;
+  border: 1px solid #c83a3a;
+}
+.alena-club-redeem-clear:hover {
+  background: #c83a3a;
+  color: #fff;
+}
+.alena-club-redeem-applied {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #e8f1ec;
+  border: 1px solid #1e4a3a;
+  color: #1e4a3a;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+/* ============================================================
+   Slim club banner on /shop for logged-in members
+   ============================================================ */
+.alena-club-shop-banner {
+  max-width: 1280px;
+  margin: 14px auto 16px;
+  padding: 16px 22px;
+  background: linear-gradient(135deg, #1e4a3a 0%, #2e6850 60%, #1e4a3a 100%);
+  color: #fff;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  box-shadow: 0 6px 22px rgba(30,74,58,0.22);
+  position: relative;
+  overflow: hidden;
+}
+.alena-club-shop-banner::after {
+  content: "";
+  position: absolute;
+  inset: -30% -10% auto auto;
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(circle, rgba(244,168,149,0.22), transparent 70%);
+  pointer-events: none;
+}
+.alena-club-shop-banner-greeting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.alena-club-shop-banner-tier-emoji {
+  font-size: 38px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+.alena-club-shop-banner-greeting strong {
+  display: block;
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 19px;
+  font-weight: 800;
+  color: #fff;
+}
+.alena-club-shop-banner-tier {
+  display: block;
+  font-size: 12px;
+  opacity: 0.85;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.alena-club-shop-banner-stats {
+  display: flex;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.alena-club-shop-banner-stat {
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  padding: 8px 16px;
+  min-width: 80px;
+  text-align: center;
+}
+.alena-club-shop-banner-stat strong {
+  display: block;
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 22px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.1;
+}
+.alena-club-shop-banner-stat span {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.9;
+  margin-top: 2px;
+}
+.alena-club-shop-banner-stat-accent {
+  background: #f4a895;
+  border-color: #f4a895;
+}
+.alena-club-shop-banner-stat-accent strong { color: #1c1c1c; }
+.alena-club-shop-banner-stat-accent span   { color: #1c1c1c; opacity: 0.85; }
+.alena-club-shop-banner-hint {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.92;
+  flex: 1 1 100%;
+  border-top: 1px solid rgba(255,255,255,0.15);
+  padding-top: 10px;
+  margin-top: 2px;
+}
+
+@media (max-width: 600px) {
+  .alena-club-shop-banner { padding: 14px 16px; gap: 14px; border-radius: 14px; }
+  .alena-club-shop-banner-tier-emoji { font-size: 32px; }
+  .alena-club-shop-banner-greeting strong { font-size: 16px; }
+  .alena-club-shop-banner-stat { padding: 6px 12px; min-width: 70px; }
+  .alena-club-shop-banner-stat strong { font-size: 18px; }
+}

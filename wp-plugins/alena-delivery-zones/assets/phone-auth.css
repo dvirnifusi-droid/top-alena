@@ -1,0 +1,424 @@
+/* ============================================================
+   Phone+OTP login UI — clean, Wolt-style
+   ============================================================ */
+.alena-otp-wrap {
+  max-width: 480px;
+  margin: 40px auto;
+  padding: 0 20px;
+}
+.alena-otp-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 36px 28px 28px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+  text-align: center;
+  border: 1px solid #eadfd1;
+}
+.alena-otp-emoji {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.alena-otp-title {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 28px !important;
+  font-weight: 800;
+  margin: 0 0 6px !important;
+  color: #1c1c1c;
+}
+.alena-otp-sub {
+  color: #6a5a4d;
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+.alena-otp-form {
+  text-align: right;
+}
+.alena-otp-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1c1c1c;
+  margin-bottom: 18px;
+}
+.alena-otp-label input {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 14px 16px;
+  border: 1.5px solid #eadfd1;
+  border-radius: 12px;
+  background: #fbf7f1;
+  font-size: 17px;
+  font-weight: 600;
+  color: #1c1c1c;
+  outline: none;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+.alena-otp-label input:focus {
+  border-color: #1e4a3a;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(30,74,58,0.10);
+}
+#alena-otp-code {
+  letter-spacing: 8px;
+  text-align: center;
+  font-size: 24px !important;
+}
+.alena-otp-cta {
+  display: block;
+  width: 100%;
+  background: linear-gradient(135deg, #1e4a3a, #2e6850);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 16px 20px;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: all 0.15s ease;
+  box-shadow: 0 4px 14px rgba(30,74,58,0.25);
+}
+.alena-otp-cta:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(30,74,58,0.35);
+}
+.alena-otp-cta:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.alena-otp-meta, .alena-otp-step-info {
+  font-size: 13px;
+  color: #6a5a4d;
+  margin: 14px 0 0;
+  text-align: center;
+}
+.alena-otp-step-info { margin: 0 0 20px; }
+.alena-otp-step-info strong { color: #1c1c1c; direction: ltr; display: inline-block; }
+.alena-otp-meta a, .alena-otp-step-info a { color: #1e4a3a; font-weight: 700; }
+.alena-otp-legal {
+  font-size: 11px;
+  color: #6a5a4d;
+  text-align: center;
+  margin: 22px 0 0;
+}
+.alena-otp-legal a { color: #1e4a3a; }
+
+.alena-otp-error {
+  background: #fef0ec;
+  border: 1px solid #f4a895;
+  color: #c83a3a;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Login / Register tabs */
+.alena-otp-tabs {
+  display: flex;
+  background: #fbf7f1;
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 20px;
+  border: 1px solid #eadfd1;
+}
+.alena-otp-tab {
+  flex: 1;
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: #6a5a4d !important;
+  text-decoration: none !important;
+  border-radius: 9px;
+  transition: all 0.18s ease;
+}
+.alena-otp-tab.is-active {
+  background: #fff;
+  color: #1e4a3a !important;
+  box-shadow: 0 2px 8px rgba(30,74,58,0.10);
+}
+.alena-otp-tab:hover:not(.is-active) { color: #1c1c1c !important; }
+
+/* Marketing consent checkbox */
+.alena-otp-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 4px 0 16px;
+  padding: 12px 14px;
+  background: #fbf7f1;
+  border: 1px solid #eadfd1;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #4a4a4a;
+  cursor: pointer;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* City select — match the same styling as text inputs */
+.alena-otp-label select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 14px 16px;
+  border: 1.5px solid #eadfd1;
+  border-radius: 12px;
+  background: #fbf7f1;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1c1c1c;
+  outline: none;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='8' viewBox='0 0 14 8'><path d='M1 1l6 6 6-6' stroke='%236a5a4d' stroke-width='2' fill='none'/></svg>");
+  background-repeat: no-repeat;
+  background-position: left 16px center;
+  padding-left: 40px;
+}
+.alena-otp-label select:focus {
+  border-color: #1e4a3a;
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(30,74,58,0.10);
+}
+
+/* Date inputs */
+.alena-otp-label input[type="date"] {
+  font-family: inherit;
+  text-align: right;
+}
+.alena-otp-label small {
+  display: block;
+  font-size: 11px;
+  color: #6a5a4d;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+/* 2-column row for birthday + anniversary */
+.alena-otp-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.alena-otp-row .alena-otp-label { margin-bottom: 0; }
+
+@media (max-width: 420px) {
+  .alena-otp-row { grid-template-columns: 1fr; }
+}
+.alena-otp-consent input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: #1e4a3a;
+  cursor: pointer;
+}
+
+/* Dev/Console mode banner — only appears when no real SMS provider is configured */
+.alena-otp-dev {
+  background: linear-gradient(135deg, #fff7e0, #fef3ec);
+  border: 1.5px dashed #f4a895;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 0 0 18px;
+  text-align: center;
+  color: #1c1c1c;
+}
+.alena-otp-dev strong { font-size: 12px; display: block; margin-bottom: 6px; color: #6a5a4d; font-weight: 700; }
+.alena-otp-dev-code {
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 6px;
+  color: #1e4a3a;
+  font-family: "Frank Ruhl Libre", serif !important;
+  direction: ltr;
+}
+.alena-otp-dev-hint { font-size: 11px; color: #6a5a4d; margin-top: 4px; }
+
+/* Hide WC's default login fields/UI we don't need — SCOPED to account page only.
+   Without scoping, .col2-set hides #customer_details on /checkout (breaks the form). */
+.woocommerce-account .woocommerce > h2,
+.woocommerce-account .woocommerce-form-login,
+.woocommerce-account .woocommerce-form-register,
+.woocommerce-account .u-columns,
+.woocommerce-account .col2-set { display: none !important; }
+.woocommerce-account .alena-otp-wrap ~ * { display: none !important; }
+
+@media (max-width: 480px) {
+  .alena-otp-wrap { margin: 18px auto; padding: 0 14px; }
+  .alena-otp-card { padding: 26px 20px 22px; border-radius: 16px; }
+}
+
+/* ============================================================
+   My Account dashboard — branded
+   ============================================================ */
+
+/* Hide WooCommerce's default sidebar nav + page title — we render our own */
+.woocommerce-account .woocommerce-MyAccount-navigation,
+.woocommerce-account .woocommerce-MyAccount-navigation-wrapper,
+.woocommerce-account .entry-title,
+.woocommerce-account h1.entry-title,
+body.woocommerce-account .page-header,
+body.woocommerce-account .woocommerce > h1:first-child,
+body.woocommerce-account .e-page-title-heading,
+.elementor-widget-theme-post-title:has(+ .woocommerce) {
+  display: none !important;
+}
+
+/* Let the dashboard take the full content width */
+.woocommerce-account .woocommerce-MyAccount-content,
+.woocommerce-account .woocommerce {
+  width: 100% !important;
+  max-width: 1100px !important;
+  margin: 0 auto !important;
+  float: none !important;
+}
+.woocommerce-account .woocommerce::before,
+.woocommerce-account .woocommerce::after { display: none !important; }
+
+/* Strip backgrounds from any wrapping containers Elementor adds, so the dash
+   sits cleanly on the page background */
+.woocommerce-account .elementor-widget-container > .woocommerce {
+  padding: 0;
+}
+
+/* Container for the whole dashboard */
+.alena-dash {
+  max-width: 1100px;
+  margin: 32px auto 60px;
+  padding: 0 16px;
+}
+.alena-dash-welcome {
+  background: linear-gradient(135deg, #fef3ec 0%, #fff 70%);
+  border: 1.5px solid #f4d1c3;
+  border-radius: 20px;
+  padding: 24px 28px;
+  margin: 0 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  box-shadow: 0 4px 18px rgba(244,168,149,0.10);
+  position: relative;
+  overflow: hidden;
+}
+.alena-dash-welcome::after {
+  content: "";
+  position: absolute;
+  top: -30px;
+  inset-inline-end: -30px;
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(circle, rgba(244,168,149,0.25), transparent 70%);
+  pointer-events: none;
+}
+.alena-dash-welcome-emoji {
+  font-size: 40px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+.alena-dash-welcome-title {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 26px !important;
+  font-weight: 800;
+  margin: 0 !important;
+  color: #1c1c1c;
+}
+.alena-dash-welcome-sub {
+  font-size: 13px;
+  color: #6a5a4d;
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+.alena-dash-welcome-sub span {
+  background: #fff;
+  border: 1px solid #eadfd1;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  color: #1e4a3a;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.alena-dash-section-title {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 20px !important;
+  font-weight: 800;
+  margin: 28px 0 12px !important;
+  color: #1c1c1c;
+}
+
+.alena-dash-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+.alena-dash-action {
+  background: #fff;
+  border: 1.5px solid #eadfd1;
+  border-radius: 16px;
+  padding: 22px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-decoration: none !important;
+  color: #1c1c1c !important;
+  transition: all 0.2s ease;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+.alena-dash-action:hover {
+  border-color: #1e4a3a;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(30,74,58,0.12);
+}
+.alena-dash-action-emoji {
+  font-size: 30px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.alena-dash-action strong {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1c1c1c;
+}
+.alena-dash-action-sub {
+  font-size: 13px;
+  color: #6a5a4d;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.alena-dash-action-logout strong { color: #c83a3a; }
+.alena-dash-action-logout:hover { border-color: #c83a3a; }
+
+/* Hide WC's stock dashboard noise — we're rendering our own */
+.woocommerce-MyAccount-content > p:first-child,
+.woocommerce-MyAccount-content > p.myaccount_user,
+.woocommerce-MyAccount-content > p:nth-of-type(2),
+.woocommerce-MyAccount-content > h2,
+.woocommerce-notices-wrapper:empty { display: none !important; }
+
+/* Sticky bottom CTA on mobile — nothing for now, but ensure no scrollbar issues */
+.alena-dash, .alena-dash * { box-sizing: border-box; }
+
+@media (max-width: 600px) {
+  .alena-dash { margin: 16px auto 40px; padding: 0 12px; }
+  .alena-dash-welcome { padding: 18px 18px; gap: 14px; border-radius: 16px; }
+  .alena-dash-welcome-title { font-size: 20px !important; }
+  .alena-dash-welcome-emoji { font-size: 32px; }
+  .alena-dash-section-title { font-size: 18px !important; margin: 22px 0 10px !important; }
+  .alena-dash-actions { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .alena-dash-action { padding: 16px 14px 14px; }
+  .alena-dash-action strong { font-size: 14px; }
+  .alena-dash-action-sub { font-size: 11px; }
+  .alena-dash-action-emoji { font-size: 26px; margin-bottom: 4px; }
+}

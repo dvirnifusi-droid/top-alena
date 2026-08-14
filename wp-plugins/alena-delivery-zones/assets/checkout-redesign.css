@@ -47,22 +47,107 @@
   padding: 0 16px;
 }
 
-/* WC's checkout columns side-by-side */
+/* Make WC's checkout form a CSS grid so columns line up cleanly */
 @media (min-width: 980px) {
-  .woocommerce-checkout .alena-checkout-main #customer_details {
-    width: 60% !important;
-    float: right !important;
+  .woocommerce-checkout form.checkout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+    gap: 28px;
+    align-items: start;
   }
-  .woocommerce-checkout .alena-checkout-main #order_review_heading,
-  .woocommerce-checkout .alena-checkout-main #order_review {
-    width: 36% !important;
-    float: left !important;
-    margin-right: 4% !important;
+  .woocommerce-checkout form.checkout #customer_details {
+    grid-column: 1;
+    width: 100% !important;
+    float: none !important;
   }
-  .woocommerce-checkout .alena-checkout-main #order_review {
+  .woocommerce-checkout form.checkout #order_review_heading,
+  .woocommerce-checkout form.checkout #order_review {
+    grid-column: 2;
+    width: 100% !important;
+    float: none !important;
+    margin: 0 !important;
+  }
+  .woocommerce-checkout form.checkout #order_review {
     position: sticky;
     top: 90px;
   }
+  /* Anything else WC drops inside the form (notices, extras) — full width below */
+  .woocommerce-checkout form.checkout > *:not(#customer_details):not(#order_review_heading):not(#order_review) {
+    grid-column: 1 / -1;
+  }
+  /* Inside customer_details: kill WC's col2-set inner float layout — let WC's own grid rules handle it */
+  .woocommerce-checkout #customer_details .col-1,
+  .woocommerce-checkout #customer_details .col-2 {
+    width: 100% !important;
+    float: none !important;
+    padding: 0 !important;
+  }
+}
+
+/* First / last name on the same row */
+.woocommerce-checkout #customer_details .woocommerce-billing-fields__field-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+.woocommerce-checkout #customer_details .woocommerce-billing-fields__field-wrapper > p.form-row {
+  margin: 0 !important;
+  width: auto !important;
+  float: none !important;
+}
+.woocommerce-checkout #customer_details .woocommerce-billing-fields__field-wrapper > p.form-row-wide,
+.woocommerce-checkout #customer_details .woocommerce-billing-fields__field-wrapper > #billing_email_field,
+.woocommerce-checkout #customer_details .woocommerce-billing-fields__field-wrapper > #billing_phone_field,
+.woocommerce-checkout #customer_details .woocommerce-billing-fields__field-wrapper > #billing_address_1_field,
+.woocommerce-checkout #customer_details .woocommerce-billing-fields__field-wrapper > #billing_city_field {
+  grid-column: 1 / -1;
+}
+/* Field inputs — consistent height & style */
+.woocommerce-checkout #customer_details input.input-text,
+.woocommerce-checkout #customer_details select,
+.woocommerce-checkout .alena-dz-extra-fields input.input-text,
+.woocommerce-checkout textarea {
+  width: 100% !important;
+  padding: 12px 14px !important;
+  border: 1px solid #e0d4c2 !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  transition: border-color .15s, box-shadow .15s;
+}
+.woocommerce-checkout #customer_details input.input-text:focus,
+.woocommerce-checkout .alena-dz-extra-fields input.input-text:focus,
+.woocommerce-checkout textarea:focus {
+  border-color: #1e4a3a !important;
+  box-shadow: 0 0 0 3px rgba(30,74,58,0.12) !important;
+  outline: none !important;
+}
+.woocommerce-checkout #customer_details label,
+.woocommerce-checkout .alena-dz-extra-fields label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6a5a4d;
+  margin-bottom: 4px;
+  display: block;
+}
+
+/* Extras grid: כניסה / קומה / דירה / קוד / שם על הדלת */
+.alena-dz-extra-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px 16px;
+}
+.alena-dz-extra-grid .alena-dz-full { grid-column: 1 / -1; }
+.alena-dz-extra-grid p.form-row { margin: 0 !important; }
+
+/* "פרטי חיוב" heading — make it a proper section header inside the form column */
+.woocommerce-checkout #customer_details h3 {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: #1c1c1c !important;
+  margin: 0 0 14px !important;
 }
 
 /* Section headings inside the order review table */

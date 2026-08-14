@@ -24,6 +24,7 @@ class Alena_DZ_Modifiers {
         add_action('wp_enqueue_scripts',                       [$this, 'enqueue']);
 
         // Capture, validate, attach to cart
+        add_filter('woocommerce_add_to_cart_validation',       [$this, 'debounce_double_add'], 5, 2);
         add_filter('woocommerce_add_cart_item_data',           [$this, 'add_to_cart_data'], 10, 3);
         add_filter('woocommerce_get_cart_item_from_session',   [$this, 'restore_from_session'], 10, 2);
         add_action('woocommerce_before_calculate_totals',      [$this, 'apply_modifier_price'], 10, 1);
@@ -93,21 +94,39 @@ class Alena_DZ_Modifiers {
             $min      = (int) ($group['min'] ?? 0);
             $max      = (int) ($group['max'] ?? 0);
 
+            $free    = (int) ($group['free'] ?? 0);
+
             $required_label = $min > 0 ? '<span class="alena-dz-req">*</span>' : '';
-            $hint = '';
+
+            // Wolt-style hints: full sentences instead of "min N · max M" abbreviations.
             if ($is_radio) {
-                $hint = $min > 0 ? 'בחירה אחת חובה' : 'בחירה אחת';
+                $hint = $min > 0 ? 'בחירה של פריט אחד חובה' : 'בחירה אחת';
             } else {
-                $parts = [];
-                if ($min > 0) $parts[] = 'מינ׳ ' . $min;
-                if ($max > 0) $parts[] = 'מקס׳ ' . $max;
-                $hint = $parts ? implode(' · ', $parts) : 'אפשר לבחור כמה';
+                if ($min > 0 && $max > 0) {
+                    $hint = $min === $max
+                        ? 'בחירה של ' . $min . ' פריטים'
+                        : 'בחירה של לפחות פריט אחד · עד ' . $max;
+                } elseif ($min > 0) {
+                    $hint = $min === 1 ? 'בחירה של לפחות פריט אחד' : 'בחירה של לפחות ' . $min . ' פריטים';
+                } elseif ($max > 0) {
+                    $hint = 'אפשר לבחור עד ' . $max . ' פריטים נוספים';
+                } else {
+                    $hint = 'אפשר לבחור כמה';
+                }
             }
 
-            echo '<div class="alena-dz-mod-group" data-min="' . $min . '" data-max="' . $max . '" data-type="' . esc_attr($type) . '">';
+            // "First N free" badge — matches Wolt's display
+            $free_badge = '';
+            if ($free > 0) {
+                $free_badge = $free === 1
+                    ? '<span class="alena-dz-mod-free">הראשון חינם</span>'
+                    : '<span class="alena-dz-mod-free">' . $free . ' הראשונים חינם</span>';
+            }
+
+            echo '<div class="alena-dz-mod-group" data-min="' . $min . '" data-max="' . $max . '" data-free="' . $free . '" data-type="' . esc_attr($type) . '">';
             echo '<div class="alena-dz-mod-head">';
             echo '<h4 class="alena-dz-mod-title">' . esc_html($name) . ' ' . $required_label . '</h4>';
-            echo '<span class="alena-dz-mod-hint">' . esc_html($hint) . '</span>';
+            echo '<span class="alena-dz-mod-hint">' . esc_html($hint) . ' ' . $free_badge . '</span>';
             echo '</div>';
             echo '<div class="alena-dz-mod-values">';
 
@@ -144,37 +163,64 @@ class Alena_DZ_Modifiers {
         echo '</div>';
     }
 
-    public function add_to_cart_data($cart_item_data, $product_id, $variation_id) {
-        // Per-item note (works even if no modifiers exist)
-        if (!empty($_POST['alena_item_note'])) {
-            $cart_item_data['alena_item_note'] = sanitize_textarea_field(wp_unslash($_POST['alena_item_note']));
-            $cart_item_data['unique_key'] = md5(microtime() . wp_json_encode($cart_item_data));
+    /**
+     * Server-side debounce: rejects any add for the same product within 800ms of the previous one.
+     * Catches browser-side double-fires (double-click, duplicate event handlers, fast retries) that
+     * slip past the JS guard. Tracked per WC session.
+     */
+    public function debounce_double_add($passed, $product_id) {
+        if (!$passed) return $passed; // already failing for another reason
+        if (!function_exists('WC') || !WC()->session) return $passed;
+        $key  = 'alena_last_atc_' . (int) $product_id;
+        $last = (float) WC()->session->get($key, 0);
+        $now  = microtime(true);
+        if ($last && ($now - $last) < 0.8) {
+            // Silently reject — don't spam customer with "rate limit" notices.
+            // The first request already succeeded; this is the duplicate.
+            return false;
         }
-        if (empty($_POST['alena_mod'])) return $cart_item_data;
-        $mods = self::get_modifiers($product_id);
-        if (!$mods) return $cart_item_data;
+        WC()->session->set($key, $now);
+        return $passed;
+    }
+
+    public function add_to_cart_data($cart_item_data, $product_id, $variation_id) {
+        $note = !empty($_POST['alena_item_note'])
+            ? sanitize_textarea_field(wp_unslash($_POST['alena_item_note']))
+            : '';
 
         $selected = [];
-        foreach ($_POST['alena_mod'] as $g_idx => $picks) {
-            $g_idx = (int) $g_idx;
-            if (!isset($mods[$g_idx])) continue;
-            $group = $mods[$g_idx];
-            $picks = is_array($picks) ? $picks : [$picks];
-            foreach ($picks as $v_idx) {
-                $v_idx = (int) $v_idx;
-                if (!isset($group['values'][$v_idx])) continue;
-                $v = $group['values'][$v_idx];
-                $selected[] = [
-                    'group' => $group['name'] ?? '',
-                    'name'  => $v['name']    ?? '',
-                    'price' => (float) ($v['price'] ?? 0),
-                ];
+        if (!empty($_POST['alena_mod'])) {
+            $mods = self::get_modifiers($product_id);
+            if ($mods) {
+                foreach ($_POST['alena_mod'] as $g_idx => $picks) {
+                    $g_idx = (int) $g_idx;
+                    if (!isset($mods[$g_idx])) continue;
+                    $group = $mods[$g_idx];
+                    $picks = is_array($picks) ? $picks : [$picks];
+                    foreach ($picks as $v_idx) {
+                        $v_idx = (int) $v_idx;
+                        if (!isset($group['values'][$v_idx])) continue;
+                        $v = $group['values'][$v_idx];
+                        $selected[] = [
+                            'group'      => $group['name'] ?? '',
+                            'group_idx'  => $g_idx,
+                            'group_free' => (int) ($group['free'] ?? 0),
+                            'name'       => $v['name']    ?? '',
+                            'price'      => (float) ($v['price'] ?? 0),
+                        ];
+                    }
+                }
             }
         }
-        if ($selected) {
-            $cart_item_data['alena_modifiers'] = $selected;
-            // Make each combination a unique cart line
-            $cart_item_data['unique_key'] = md5(microtime() . wp_json_encode($selected));
+
+        if ($note)     $cart_item_data['alena_item_note'] = $note;
+        if ($selected) $cart_item_data['alena_modifiers'] = $selected;
+
+        // Deterministic unique_key: same product + same modifiers + same note → SAME line
+        // (merges into qty=N instead of creating N separate qty=1 rows). Only set when
+        // there's actually metadata; plain adds use WC's default merge.
+        if ($note || $selected) {
+            $cart_item_data['unique_key'] = md5(wp_json_encode([$selected, $note]));
         }
         return $cart_item_data;
     }
@@ -193,10 +239,28 @@ class Alena_DZ_Modifiers {
             if (!$cart || !method_exists($cart, 'get_cart')) return;
             foreach ($cart->get_cart() as $cart_item) {
                 if (empty($cart_item['alena_modifiers']) || !is_array($cart_item['alena_modifiers'])) continue;
-                $extra = 0;
+
+                // Group selections by group_idx so we can apply "first N free" per group (Wolt semantics).
+                $by_group = [];
                 foreach ($cart_item['alena_modifiers'] as $m) {
-                    if (is_array($m) && isset($m['price'])) $extra += (float) $m['price'];
+                    if (!is_array($m)) continue;
+                    $g = $m['group_idx'] ?? 'default';
+                    if (!isset($by_group[$g])) $by_group[$g] = ['items' => [], 'free' => 0];
+                    $by_group[$g]['items'][] = (float) ($m['price'] ?? 0);
+                    $by_group[$g]['free'] = max($by_group[$g]['free'], (int) ($m['group_free'] ?? 0));
                 }
+
+                $extra = 0;
+                foreach ($by_group as $g) {
+                    $prices = $g['items'];
+                    if (!$prices) continue;
+                    sort($prices); // ascending — cheapest N are the "free" ones (best deal for customer)
+                    $free_n = min($g['free'], count($prices));
+                    for ($i = $free_n; $i < count($prices); $i++) {
+                        $extra += $prices[$i];
+                    }
+                }
+
                 if (!isset($cart_item['data']) || !is_object($cart_item['data']) || !method_exists($cart_item['data'], 'set_price')) continue;
                 $base = (float) $cart_item['data']->get_price('edit');
                 if ($extra > 0) $cart_item['data']->set_price($base + $extra);
@@ -236,9 +300,12 @@ class Alena_DZ_Modifiers {
                     if ((float) ($m['price'] ?? 0) > 0) $label .= ' (+₪' . number_format((float) $m['price'], 0) . ')';
                     $item->add_meta_data((string) ($m['group'] ?? '') ?: ('תוספת ' . ($i + 1)), $label);
                 }
+                // Hidden meta — used by "Reorder" to reconstruct the cart item with modifiers
+                $item->add_meta_data('_alena_modifiers_raw', wp_json_encode($values['alena_modifiers']));
             }
             if (!empty($values['alena_item_note'])) {
                 $item->add_meta_data('📝 הערה למנה', (string) $values['alena_item_note']);
+                $item->add_meta_data('_alena_item_note_raw', (string) $values['alena_item_note']);
             }
         } catch (\Throwable $e) { /* swallow */ }
     }

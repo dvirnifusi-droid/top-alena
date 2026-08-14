@@ -851,3 +851,223 @@ ul.alena-dz-products > li.product,
   color: var(--alena-coral-dark);
   border-bottom-color: var(--alena-gold);
 }
+
+/* ============================================================
+   v0.22 — Wolt-style horizontal cards + popular row + on-card stepper
+   ============================================================ */
+
+/* "המוזמנים ביותר" — horizontal scroll row at the top */
+.alena-dz-cat-section-popular {
+  background: linear-gradient(135deg, #fef3ec 0%, #fff 100%);
+  border: 1.5px solid #f4d1c3;
+  border-radius: 18px;
+  padding: 18px 18px 14px;
+  margin-bottom: 28px;
+  box-shadow: 0 4px 14px rgba(244,168,149,0.10);
+}
+.alena-dz-cat-section-popular .alena-dz-cat-title {
+  font-size: 22px !important;
+  font-weight: 800;
+  margin: 0 0 14px !important;
+  border-bottom: none !important;
+  color: #1c1c1c;
+}
+ul.alena-dz-products-popular {
+  display: flex !important;
+  grid-template-columns: none !important;
+  overflow-x: auto !important;
+  scroll-snap-type: x mandatory;
+  gap: 12px !important;
+  padding-bottom: 6px !important;
+  -webkit-overflow-scrolling: touch;
+}
+ul.alena-dz-products-popular > li {
+  flex: 0 0 280px !important;
+  max-width: 280px !important;
+  scroll-snap-align: start;
+}
+ul.alena-dz-products-popular::-webkit-scrollbar { height: 6px; }
+ul.alena-dz-products-popular::-webkit-scrollbar-thumb { background: #eadfd1; border-radius: 3px; }
+
+/* Horizontal cards — image on the right (RTL), content on the left */
+.alena-dz-card {
+  display: grid !important;
+  grid-template-columns: 1fr 110px !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+  background: #fff !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+  border: 1px solid #eadfd1 !important;
+  transition: all 0.18s ease !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04) !important;
+  position: relative !important;
+  min-height: 110px;
+}
+.alena-dz-card:hover {
+  border-color: #1e4a3a !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 22px rgba(30,74,58,0.12) !important;
+}
+.alena-dz-card-imgwrap {
+  width: 110px !important;
+  height: 110px !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  position: relative;
+  overflow: hidden;
+  background: #fbf7f1 !important;
+  display: block !important;
+}
+.alena-dz-card-imgwrap img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+  border-radius: 0 !important;
+}
+.alena-dz-card-body {
+  padding: 12px 14px 12px 8px !important;
+  display: flex !important;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+}
+.alena-dz-card-title {
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  color: #1c1c1c !important;
+  line-height: 1.25 !important;
+  margin: 0 0 4px !important;
+  text-decoration: none !important;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.alena-dz-card-desc {
+  font-size: 12px !important;
+  color: #6a5a4d !important;
+  line-height: 1.4 !important;
+  margin: 0 0 8px !important;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.alena-dz-card-bottom {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+}
+.alena-dz-card-price {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  color: #1e4a3a !important;
+}
+
+/* "+" button: positioned over the image — compact, prominent */
+.alena-dz-card-add {
+  position: absolute !important;
+  bottom: 6px !important;
+  inset-inline-start: 6px !important;  /* on image side */
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 999px !important;
+  background: #1e4a3a !important;
+  color: #fff !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 22px !important;
+  font-weight: 900 !important;
+  text-decoration: none !important;
+  box-shadow: 0 4px 12px rgba(30,74,58,0.30) !important;
+  z-index: 2;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.alena-dz-card-add:hover {
+  background: #2e6850 !important;
+  transform: scale(1.08);
+}
+
+/* Stepperable cards (no required modifiers) — show inline qty controls
+   on the card body when quantity > 0 */
+.alena-dz-card-stepper {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  background: #1e4a3a;
+  border-radius: 999px;
+  padding: 4px;
+}
+.alena-dz-card[data-in-cart="1"] .alena-dz-card-stepper { display: inline-flex; }
+.alena-dz-card[data-in-cart="1"] .alena-dz-card-add { display: none !important; }
+.alena-dz-card-stepper button {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #fff;
+  color: #1e4a3a;
+  border: none;
+  font-size: 18px;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+.alena-dz-card-stepper-qty {
+  color: #fff;
+  font-weight: 900;
+  font-size: 15px;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* Popular badge — top-right corner over image */
+.alena-dz-popular-badge {
+  position: absolute !important;
+  top: 6px !important;
+  inset-inline-start: 6px !important;
+  background: #c83a3a !important;
+  color: #fff !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  padding: 3px 8px !important;
+  border-radius: 999px !important;
+  letter-spacing: 0.3px;
+  z-index: 2;
+  box-shadow: 0 2px 6px rgba(200,58,58,0.25);
+}
+
+/* Override the 3-column grid — we want horizontal cards in 2 columns on desktop */
+ul.alena-dz-products:not(.alena-dz-products-popular),
+.woocommerce ul.alena-dz-products:not(.alena-dz-products-popular),
+.alena-dz-cat-section:not(.alena-dz-cat-section-popular) ul.alena-dz-products {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+/* Mobile: single column, taller cards */
+@media (max-width: 700px) {
+  ul.alena-dz-products:not(.alena-dz-products-popular),
+  .woocommerce ul.alena-dz-products:not(.alena-dz-products-popular) {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  .alena-dz-card {
+    grid-template-columns: 1fr 100px !important;
+    min-height: 100px;
+  }
+  .alena-dz-card-imgwrap { width: 100px !important; height: 100px !important; }
+  .alena-dz-card-title { font-size: 14px !important; }
+  .alena-dz-card-desc { font-size: 11px !important; -webkit-line-clamp: 1 !important; }
+  ul.alena-dz-products-popular > li { flex-basis: 240px !important; max-width: 240px !important; }
+}

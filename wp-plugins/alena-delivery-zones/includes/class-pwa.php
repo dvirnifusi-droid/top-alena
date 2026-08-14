@@ -64,19 +64,31 @@ class Alena_DZ_PWA {
     }
 
     private function service_worker_js(): string {
+        // Cache name bumped — forces old SW caches to be evicted on next visit.
         return <<<JS
-const CACHE_NAME = 'alena-v1';
-const ESSENTIAL = [ '/shop/' ];
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ESSENTIAL)));
-  self.skipWaiting();
+const CACHE_NAME = 'alena-v3-network-first';
+self.addEventListener('install', e => { self.skipWaiting(); });
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
 });
-self.addEventListener('activate', e => { self.clients.claim(); });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  e.respondWith(
-    caches.match(e.request).then(hit => hit || fetch(e.request).catch(() => caches.match('/shop/')))
-  );
+  const url = new URL(e.request.url);
+  const isHTML = e.request.mode === 'navigate' ||
+                 (e.request.headers.get('accept') || '').indexOf('text/html') !== -1;
+  // HTML pages: always network-first. Never serve a cached HTML snapshot —
+  // that's what trapped customers on old plugin versions.
+  if (isHTML) {
+    e.respondWith(fetch(e.request).catch(() => caches.match('/shop/')));
+    return;
+  }
+  // Static assets (css/js/images): pass through to browser cache, no SW caching.
+  // The wp_enqueue ?ver= query handles cache-busting on plugin updates.
+  e.respondWith(fetch(e.request));
 });
 JS;
     }

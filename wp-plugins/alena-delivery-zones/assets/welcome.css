@@ -1,0 +1,334 @@
+/* ============================================================
+   Welcome landing — split-screen (photo left, form right)
+   ============================================================ */
+.alena-welcome-page {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: calc(100vh - 64px); /* leave space for the top nav */
+  margin: -22px -22px 0;          /* break out of the shop content padding */
+  direction: rtl;
+  background: #fbf7f1;
+  position: relative;
+}
+.alena-welcome-page * { box-sizing: border-box; }
+
+/* Left half: food hero */
+.alena-welcome-photo {
+  background: linear-gradient(135deg, #1e4a3a 0%, #2e6850 60%, #f4a895 100%);
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+.alena-welcome-photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(0,0,0,0.0), rgba(0,0,0,0.15));
+  pointer-events: none;
+}
+
+/* Right half: form pane */
+.alena-welcome-pane {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  background: #fbf7f1;
+  overflow-y: auto;
+}
+.alena-welcome-card {
+  width: 100%;
+  max-width: 440px;
+}
+
+/* Logo */
+.alena-welcome-logo {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.alena-welcome-logo img {
+  width: 84px;
+  height: 84px;
+  border-radius: 18px;
+  object-fit: cover;
+  display: block;
+  margin: 0 auto 10px;
+}
+.alena-welcome-mark {
+  width: 84px;
+  height: 84px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #1e4a3a, #2e6850);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Frank Ruhl Libre", serif;
+  font-size: 28px;
+  font-weight: 900;
+  margin: 0 auto 10px;
+  box-shadow: 0 6px 20px rgba(30,74,58,0.20);
+}
+.alena-welcome-tagline {
+  font-size: 14px;
+  color: #6a5a4d;
+  font-weight: 600;
+}
+
+/* Step title */
+.alena-welcome-title {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 44px !important;
+  font-weight: 900;
+  text-align: center;
+  margin: 0 0 6px !important;
+  color: #1c1c1c;
+  letter-spacing: -0.5px;
+}
+.alena-welcome-sub {
+  text-align: center;
+  color: #6a5a4d;
+  font-size: 15px;
+  margin: 0 0 28px;
+  font-weight: 600;
+}
+
+/* Step 1: fulfillment modes */
+.alena-welcome-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.alena-welcome-mode {
+  background: #fff;
+  border: 2px solid #eadfd1;
+  border-radius: 18px;
+  padding: 26px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-family: inherit;
+}
+.alena-welcome-mode:hover {
+  border-color: #c8b8a0;
+  transform: translateY(-2px);
+}
+.alena-welcome-mode.is-active {
+  background: linear-gradient(135deg, #f4a895, #f0967f);
+  border-color: #c83a3a;
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(244,168,149,0.45);
+  transform: translateY(-2px);
+}
+.alena-welcome-mode-icon {
+  font-size: 44px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.alena-welcome-mode-label {
+  font-size: 18px;
+  font-weight: 800;
+}
+.alena-welcome-mode.is-active .alena-welcome-mode-label { color: #fff; }
+.alena-welcome-mode-sub {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+/* Step 1: address */
+.alena-welcome-address {
+  margin-bottom: 18px;
+}
+.alena-welcome-address[hidden] { display: none; }
+.alena-welcome-address label {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1c1c1c;
+  margin-bottom: 8px;
+}
+.alena-welcome-address input {
+  width: 100%;
+  padding: 16px 16px;
+  border: 1.5px solid #eadfd1;
+  border-radius: 14px;
+  background: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1c1c1c;
+  outline: none;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+.alena-welcome-address input:focus {
+  border-color: #1e4a3a;
+  box-shadow: 0 0 0 3px rgba(30,74,58,0.10);
+}
+.alena-welcome-address-hint {
+  font-size: 12px;
+  color: #6a5a4d;
+  margin: 8px 0 0;
+  font-weight: 600;
+}
+
+/* CTAs */
+.alena-welcome-next,
+.alena-welcome-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #1e4a3a, #2e6850);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 16px 22px;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 6px 18px rgba(30,74,58,0.30);
+  font-family: inherit;
+  margin-bottom: 10px;
+}
+.alena-welcome-next:hover,
+.alena-welcome-option:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(30,74,58,0.40);
+}
+.alena-welcome-next:disabled { opacity: 0.6; cursor: wait; }
+
+/* Step 2: club options */
+.alena-welcome-option {
+  background: #fff;
+  color: #1c1c1c;
+  border: 1.5px solid #eadfd1;
+  justify-content: flex-start;
+  padding: 18px 22px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.alena-welcome-option:hover {
+  border-color: #1e4a3a;
+  color: #1e4a3a;
+}
+.alena-welcome-option-icon {
+  font-size: 22px;
+  flex: 0 0 auto;
+  background: #fef3ec;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.alena-welcome-option-label {
+  font-size: 15px;
+  font-weight: 800;
+}
+.alena-welcome-option-ghost {
+  background: transparent;
+  border: 1px dashed #c8b8a0;
+  box-shadow: none;
+}
+.alena-welcome-option-ghost .alena-welcome-option-icon { background: #fbf7f1; }
+.alena-welcome-option-ghost:hover { background: #fbf7f1; }
+
+/* Benefits panel — shown to logged-in users on step 2 */
+.alena-welcome-benefits {
+  background: linear-gradient(135deg, #1e4a3a 0%, #2e6850 100%);
+  color: #fff;
+  border-radius: 18px;
+  padding: 22px 22px 20px;
+  margin-bottom: 18px;
+  box-shadow: 0 8px 24px rgba(30,74,58,0.25);
+}
+.alena-welcome-benefits-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.alena-welcome-stat {
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 12px;
+  padding: 12px 8px 10px;
+  text-align: center;
+}
+.alena-welcome-stat-accent {
+  background: #f4a895;
+  border-color: #f4a895;
+  color: #1c1c1c;
+}
+.alena-welcome-stat-num {
+  font-family: "Frank Ruhl Libre", serif !important;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+.alena-welcome-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.9;
+  margin-top: 4px;
+}
+.alena-welcome-benefits-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid rgba(255,255,255,0.15);
+  padding-top: 12px;
+}
+.alena-welcome-benefits-list li {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 0;
+  opacity: 0.95;
+}
+.alena-welcome-benefits-empty {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.85;
+  border-top: 1px solid rgba(255,255,255,0.15);
+  padding-top: 10px;
+  text-align: center;
+}
+
+/* When welcome is showing, hide the rest of the WC page chrome */
+body.alena-welcome-active .woocommerce-products-header,
+body.alena-welcome-active .woocommerce-result-count,
+body.alena-welcome-active .woocommerce-ordering,
+body.alena-welcome-active .woocommerce-breadcrumb,
+.alena-welcome-page ~ .woocommerce-products-header,
+.alena-welcome-page ~ .woocommerce-result-count { display: none !important; }
+
+/* Mobile: stack image on top, form below */
+@media (max-width: 880px) {
+  .alena-welcome-page {
+    grid-template-columns: 1fr;
+    grid-template-rows: 220px 1fr;
+    margin: -14px -14px 0;
+    min-height: auto;
+  }
+  .alena-welcome-photo { min-height: 220px; }
+  .alena-welcome-pane { padding: 28px 18px 60px; }
+  .alena-welcome-title { font-size: 32px !important; }
+  .alena-welcome-card { max-width: 100%; }
+}
+@media (max-width: 480px) {
+  .alena-welcome-page { grid-template-rows: 160px 1fr; }
+  .alena-welcome-photo { min-height: 160px; }
+  .alena-welcome-pane { padding: 24px 16px 50px; }
+  .alena-welcome-mode { padding: 18px 10px; }
+  .alena-welcome-mode-icon { font-size: 36px; }
+  .alena-welcome-mode-label { font-size: 16px; }
+  .alena-welcome-title { font-size: 28px !important; }
+}

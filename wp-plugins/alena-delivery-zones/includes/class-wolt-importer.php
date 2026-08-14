@@ -44,11 +44,26 @@ class Alena_DZ_Wolt_Importer {
         ?>
         <div class="wrap" dir="rtl">
           <h1>ייבוא תפריט מ-Wolt</h1>
-          <p>ימשוך את התפריט הציבורי של עלינא מ-Wolt וייצור קטגוריות + מוצרים ב-WooCommerce.
-            ניתן להריץ מספר פעמים — מוצרים קיימים יתעדכנו, לא יוכפלו.</p>
           <p><strong>מקור:</strong> <code><?php echo esc_html(self::MENU_URL); ?></code></p>
-          <p><strong>תמונות:</strong> יורדות מ-CDN של Wolt אל מדיה של וורדפרס. ייתכן ייקח דקה+ לתמונות.</p>
-          <p><button id="alena-dz-wolt-go" class="button button-primary">התחל ייבוא</button></p>
+
+          <h2 style="margin-top:24px">מצב ייבוא</h2>
+          <table class="form-table" role="presentation"><tbody>
+            <tr>
+              <td style="padding-right:0">
+                <label style="display:block;margin-bottom:10px">
+                  <input type="radio" name="alena-wolt-mode" value="update" checked>
+                  <strong>עדכון (בטוח)</strong> — מוסיף מנות חדשות ומעדכן קיימות. מנות שכבר לא בוולט <em>נשארות</em> באתר.
+                </label>
+                <label style="display:block">
+                  <input type="radio" name="alena-wolt-mode" value="replace">
+                  <strong>דריסה מלאה</strong> — התפריט באתר יהיה <em>זהה</em> לוולט: מחירים, תיאורים, תמונות ותוספות נדרסים,
+                  ומנות שלא קיימות בוולט מועברות ל<strong>פח</strong> (ניתן לשחזור).
+                </label>
+              </td>
+            </tr>
+          </tbody></table>
+
+          <p><button id="alena-dz-wolt-go" class="button button-primary button-hero">התחל ייבוא</button></p>
           <pre id="alena-dz-wolt-log" style="background:#fff;border:1px solid #ddd;padding:12px;max-height:480px;overflow:auto;white-space:pre-wrap;direction:ltr"></pre>
         </div>
         <script>
@@ -59,10 +74,15 @@ class Alena_DZ_Wolt_Importer {
             $log[0].scrollTop = $log[0].scrollHeight;
           }
           $('#alena-dz-wolt-go').on('click', function () {
+            const mode = $('input[name="alena-wolt-mode"]:checked').val();
+            if (mode === 'replace' && !window.confirm(
+                'דריסה מלאה:\n\nכל מנה שלא קיימת בוולט תועבר לפח, וכל המחירים/התיאורים/התמונות ידרסו.\n\nלהמשיך?')) {
+              return;
+            }
             $(this).prop('disabled', true).text('מייבא…');
             $log.empty();
-            log('-- starting --');
-            $.post(ajaxurl, { action: 'alena_dz_wolt_import', nonce: '<?php echo esc_js($nonce); ?>' }, function (r) {
+            log('-- starting (' + mode + ') --');
+            $.post(ajaxurl, { action: 'alena_dz_wolt_import', nonce: '<?php echo esc_js($nonce); ?>', mode: mode }, function (r) {
               if (r.success) {
                 log(r.data.summary);
                 (r.data.lines || []).forEach(log);
@@ -85,8 +105,12 @@ class Alena_DZ_Wolt_Importer {
         check_ajax_referer('alena_dz_wolt', 'nonce');
         if (!current_user_can('manage_woocommerce')) wp_send_json_error('forbidden', 403);
 
-        @set_time_limit(180);
-        $lines = [];
+        @set_time_limit(300);
+        $lines   = [];
+        $replace = (($_POST['mode'] ?? 'update') === 'replace');
+        // Every product the Wolt feed still contains. In replace mode anything
+        // outside this set is stale and gets trashed at the end.
+        $seen_ids = [];
 
         $resp = wp_remote_get(self::MENU_URL, ['timeout' => 25, 'headers' => ['User-Agent' => 'Alena DZ Importer']]);
         if (is_wp_error($resp)) wp_send_json_error('fetch_failed: ' . $resp->get_error_message(), 500);
@@ -143,29 +167,24 @@ class Alena_DZ_Wolt_Importer {
             $price       = (string) round($price_agorot / 100, 2);
             $image_url   = $it['image'] ?? ($it['images'][0]['url'] ?? '');
 
-            // Match existing by exact name (case-insensitive)
-            $existing = get_posts([
-                'post_type'      => 'product',
-                'post_status'    => ['publish', 'draft'],
-                'posts_per_page' => 1,
-                'title'          => $name,
-                'fields'         => 'ids',
-            ]);
-            // Fallback: WP_Query title parameter is fuzzy on some installs; use exact compare
-            if (empty($existing)) {
-                global $wpdb;
-                $existing_id = (int) $wpdb->get_var($wpdb->prepare(
-                    "SELECT ID FROM {$wpdb->posts} WHERE post_type='product' AND post_status IN ('publish','draft') AND post_title=%s LIMIT 1",
-                    $name
-                ));
-                $existing = $existing_id ? [$existing_id] : [];
-            }
+            $wolt_id = (string) ($it['id'] ?? '');
 
-            if (!empty($existing)) {
-                $product_id = (int) $existing[0];
-                wp_update_post(['ID' => $product_id, 'post_excerpt' => $description, 'post_content' => $description]);
+            // Match by Wolt id first (survives renames), then by exact title.
+            $product_id = $wolt_id ? $this->find_by_wolt_id($wolt_id) : 0;
+            if (!$product_id) $product_id = $this->find_by_title($name);
+
+            if ($product_id) {
+                // A same-named dish is REPLACED in place — never duplicated.
+                wp_update_post([
+                    'ID'           => $product_id,
+                    'post_title'   => $name,
+                    'post_excerpt' => $description,
+                    'post_content' => $description,
+                    'post_status'  => 'publish',
+                ]);
                 update_post_meta($product_id, '_regular_price', $price);
                 update_post_meta($product_id, '_price', $price);
+                update_post_meta($product_id, '_stock_status', 'instock');
                 wp_set_object_terms($product_id, [$cat_lookup[$cat_id]], 'product_cat');
                 $prod_updated++;
             } else {
@@ -191,11 +210,19 @@ class Alena_DZ_Wolt_Importer {
                 $lines[] = '+ product: ' . $name . ' ₪' . $price;
             }
 
-            // Sideload image if missing
-            if ($image_url && !has_post_thumbnail($product_id)) {
+            $seen_ids[] = (int) $product_id;
+            if ($wolt_id) update_post_meta($product_id, '_alena_wolt_id', $wolt_id);
+
+            // Image: pull when missing, and re-pull whenever Wolt's source URL
+            // changed (the old "skip if a thumbnail exists" rule meant a photo
+            // swapped in Wolt never reached the site).
+            $prev_src = (string) get_post_meta($product_id, '_alena_wolt_image_src', true);
+            $needs_image = $image_url && (!has_post_thumbnail($product_id) || $prev_src !== $image_url);
+            if ($needs_image) {
                 $att_id = $this->sideload_image($image_url, $product_id, $name);
                 if ($att_id) {
                     set_post_thumbnail($product_id, $att_id);
+                    update_post_meta($product_id, '_alena_wolt_image_src', $image_url);
                     $images_attached++;
                 }
             }
@@ -229,15 +256,69 @@ class Alena_DZ_Wolt_Importer {
             update_post_meta($product_id, '_alena_modifiers', wp_json_encode($modifiers, JSON_UNESCAPED_UNICODE));
         }
 
+        // Replace mode: anything the feed no longer lists is stale. Trash (never
+        // force-delete) so a mis-fired import stays recoverable from the bin.
+        $prod_trashed = 0;
+        if ($replace) {
+            $all = get_posts([
+                'post_type'      => 'product',
+                'post_status'    => ['publish', 'draft', 'pending', 'private'],
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+            ]);
+            foreach ($all as $pid) {
+                if (in_array((int) $pid, $seen_ids, true)) continue;
+                wp_trash_post((int) $pid);
+                $prod_trashed++;
+                $lines[] = '- trashed: ' . get_the_title($pid);
+            }
+
+            // Drop product categories left with nothing in them.
+            foreach (get_terms(['taxonomy' => 'product_cat', 'hide_empty' => false]) as $t) {
+                if (is_wp_error($t) || !empty($t->count)) continue;
+                if (in_array($t->term_id, $cat_lookup, true)) continue;
+                wp_delete_term($t->term_id, 'product_cat');
+                $lines[] = '- removed empty category: ' . $t->name;
+            }
+        }
+
         $summary = sprintf(
-            "categories: %d created, %d existed | products: %d created, %d updated, %d skipped | images: %d attached",
-            $cat_created, $cat_existing, $prod_created, $prod_updated, $prod_skipped, $images_attached
+            "mode: %s | categories: %d created, %d existed | products: %d created, %d updated, %d trashed, %d skipped | images: %d attached",
+            $replace ? 'REPLACE' : 'update',
+            $cat_created, $cat_existing, $prod_created, $prod_updated, $prod_trashed, $prod_skipped, $images_attached
         );
 
         wp_send_json_success([
             'summary' => $summary,
             'lines'   => array_slice($lines, 0, 200),
         ]);
+    }
+
+    /** Product previously imported from this Wolt item, if any. */
+    private function find_by_wolt_id(string $wolt_id): int {
+        global $wpdb;
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT p.ID FROM {$wpdb->posts} p
+               JOIN {$wpdb->postmeta} m ON m.post_id = p.ID
+              WHERE p.post_type = 'product'
+                AND p.post_status IN ('publish','draft','pending','private')
+                AND m.meta_key = '_alena_wolt_id' AND m.meta_value = %s
+              LIMIT 1",
+            $wolt_id
+        ));
+    }
+
+    /** Exact-title match — WP_Query's `title` arg is unreliable across installs. */
+    private function find_by_title(string $name): int {
+        global $wpdb;
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts}
+              WHERE post_type = 'product'
+                AND post_status IN ('publish','draft','pending','private')
+                AND post_title = %s
+              LIMIT 1",
+            $name
+        ));
     }
 
     private function slugify(string $text): string {

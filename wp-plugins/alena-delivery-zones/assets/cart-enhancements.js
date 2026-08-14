@@ -27,15 +27,60 @@
     });
   }
 
-  // ----- Mini cart refresh after add_to_cart events -----
-  $(document.body).on('added_to_cart updated_cart_totals wc_fragments_refreshed', refreshMiniCart);
+  // ----- Mini cart refresh after add_to_cart events AND on every page load -----
+  $(document.body).on('added_to_cart updated_cart_totals wc_fragments_refreshed removed_from_cart', refreshMiniCart);
+  // Self-heal on initial load — server-rendered count may be stale due to caching
+  // or persistent-cart restore. AJAX-pull the truth from the server within 100ms.
+  $(function () { setTimeout(refreshMiniCart, 100); });
+  // Defensive: ensure the floating shop cart bar exists in the DOM.
+  // Some themes / plugins (Popup Maker, Elementor wrappers) can strip footer
+  // content. We re-create the bar at the end of body on DOM ready, then update
+  // it from refreshMiniCart. The PHP render is still kept for SSR fidelity.
+  function ensureShopCartBar() {
+    if (document.getElementById('alena-shop-cart-bar')) return;
+    if (!AlenaDZCart || !AlenaDZCart.cartUrl) return;
+    // Don't show on cart / checkout / account
+    const path = (window.location.pathname || '').toLowerCase();
+    if (path.indexOf('/cart') !== -1) return;
+    if (path.indexOf('/checkout') !== -1) return;
+    if (path.indexOf('/my-account') !== -1) return;
+    const a = document.createElement('a');
+    a.id = 'alena-shop-cart-bar';
+    a.className = 'alena-shop-cart-bar';
+    a.href = AlenaDZCart.cartUrl;
+    a.setAttribute('aria-label', 'מעבר לסל הקניות');
+    a.innerHTML =
+      '<span class="alena-shop-cart-bar-left">' +
+        '<span class="alena-shop-cart-bar-icon" aria-hidden="true">🛒</span>' +
+        '<span class="alena-shop-cart-bar-count alena-dz-mini-cart-count">0</span>' +
+        '<span class="alena-shop-cart-bar-label">פריטים בסל</span>' +
+      '</span>' +
+      '<span class="alena-shop-cart-bar-cta">' +
+        '<span class="alena-shop-cart-bar-total alena-dz-mini-cart-total"></span>' +
+        '<span class="alena-shop-cart-bar-go">מעבר לסל ←</span>' +
+      '</span>';
+    document.body.appendChild(a);
+  }
+
+  $(function () {
+    ensureShopCartBar();
+    refreshMiniCart();
+    // Re-check periodically in case some script removed it
+    setTimeout(ensureShopCartBar, 1200);
+    setTimeout(ensureShopCartBar, 3000);
+  });
+
   function refreshMiniCart() {
+    ensureShopCartBar();
     $.post(AlenaDZCart.ajaxUrl, { action: 'alena_dz_minicart', nonce: AlenaDZCart.nonce }, function (r) {
       if (!r || !r.success) return;
-      $('.alena-dz-mini-cart-count').text(r.data.count);
-      $('.alena-dz-mini-cart-total').html(r.data.total);
-      $('.alena-dz-mini-cart').toggleClass('has-items', r.data.count > 0);
-      $('.alena-dz-bn-badge').text(r.data.count);
+      const count = parseInt(r.data.count, 10) || 0;
+      $('.alena-dz-mini-cart-count').text(count);
+      $('.alena-dz-mini-cart-total').html(r.data.total || '');
+      $('.alena-dz-mini-cart').toggleClass('has-items', count > 0);
+      $('.alena-dz-bn-badge').text(count);
+      // Floating bottom cart bar — slides up when first item lands
+      $('.alena-shop-cart-bar').toggleClass('has-items', count > 0);
     });
   }
 })(jQuery);

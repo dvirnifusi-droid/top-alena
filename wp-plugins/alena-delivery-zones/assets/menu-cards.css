@@ -1,0 +1,276 @@
+/**
+ * Menu card layout — loaded last so it settles the earlier specificity fights
+ * in shop.css / modern-design.css instead of adding another layer to them.
+ *
+ * Shape: photo on the trailing edge, text stack on the leading edge, price
+ * pinned to the bottom of the text column. Fixed card height so a row of cards
+ * lines up whether or not a dish has a description.
+ */
+
+:root {
+  --alena-card-h: 128px;
+  --alena-card-pad: 12px;
+  --alena-ink: #1a1a1a;
+  --alena-ink-soft: #6b7280;
+  --alena-line: #ecebe7;
+  --alena-accent: #1f7a4d;
+}
+
+/* ---------- grid ---------- */
+
+ul.alena-dz-products,
+.alena-dz-cat-section ul.alena-dz-products {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+  margin: 0 0 28px !important;
+  padding: 0 !important;
+  list-style: none !important;
+}
+
+@media (max-width: 780px) {
+  ul.alena-dz-products,
+  .alena-dz-cat-section ul.alena-dz-products {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+}
+
+/* ---------- card shell ---------- */
+
+li.alena-dz-card {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  gap: var(--alena-card-pad) !important;
+  width: auto !important;
+  height: var(--alena-card-h) !important;
+  margin: 0 !important;
+  padding: var(--alena-card-pad) !important;
+  background: #fff !important;
+  border: 1px solid var(--alena-line) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04) !important;
+  overflow: hidden !important;
+  transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease !important;
+}
+
+li.alena-dz-card::before,
+li.alena-dz-card::after { content: none !important; }
+
+li.alena-dz-card:hover {
+  transform: translateY(-2px) !important;
+  border-color: #dcd9d2 !important;
+  box-shadow: 0 8px 20px rgba(16, 24, 40, .09) !important;
+}
+
+/* ---------- photo ---------- */
+
+.alena-dz-card .alena-dz-card-imgwrap {
+  position: relative !important;
+  flex: 0 0 104px !important;
+  width: 104px !important;
+  height: 104px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  background: #f4f3ef !important;
+  order: 2 !important;            /* photo on the trailing edge in RTL */
+  align-self: center !important;
+}
+
+.alena-dz-card .alena-dz-card-imgwrap img,
+.alena-dz-card img.alena-dz-card-img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  transition: transform .3s ease !important;
+}
+
+li.alena-dz-card:hover .alena-dz-card-imgwrap img { transform: scale(1.05) !important; }
+
+/* ---------- add button ---------- */
+/* Sits fully inside the photo — it used to hang off the corner and read as a
+   rendering glitch rather than a control. */
+
+.alena-dz-card .alena-dz-card-add {
+  position: absolute !important;
+  inset-inline-start: 6px !important;
+  bottom: 6px !important;
+  z-index: 3 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 30px !important;
+  height: 30px !important;
+  padding: 0 !important;
+  font-size: 20px !important;
+  font-weight: 400 !important;
+  line-height: 1 !important;
+  color: var(--alena-accent) !important;
+  background: #fff !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .18) !important;
+  cursor: pointer !important;
+  transition: transform .15s ease, background .15s ease, color .15s ease !important;
+}
+
+.alena-dz-card .alena-dz-card-add:hover {
+  transform: scale(1.12) !important;
+  background: var(--alena-accent) !important;
+  color: #fff !important;
+}
+
+.alena-dz-card .alena-dz-card-add:active { transform: scale(.94) !important; }
+
+/* ---------- text column ---------- */
+
+.alena-dz-card .alena-dz-card-body {
+  order: 1 !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;         /* lets the 2-line clamp actually clamp */
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+  padding: 2px 0 !important;
+  margin: 0 !important;
+  text-align: start !important;
+  overflow: hidden !important;
+}
+
+.alena-dz-card .alena-dz-card-title {
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+  color: var(--alena-ink) !important;
+  text-decoration: none !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.alena-dz-card .alena-dz-card-desc {
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 12.5px !important;
+  font-weight: 400 !important;
+  line-height: 1.45 !important;
+  color: var(--alena-ink-soft) !important;
+  overflow: hidden !important;
+}
+
+/* Price sits at the bottom of the column regardless of description length —
+   this is what removes the ragged empty band the old layout left mid-card. */
+.alena-dz-card .alena-dz-card-bottom {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: auto 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: none !important;
+}
+
+.alena-dz-card .alena-dz-card-bottom::before,
+.alena-dz-card .alena-dz-card-bottom::after { content: none !important; }
+
+.alena-dz-card .alena-dz-card-price,
+.alena-dz-card .alena-dz-card-price .amount,
+.alena-dz-card .alena-dz-card-price bdi {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  color: var(--alena-ink) !important;
+  text-decoration: none !important;
+}
+
+.alena-dz-card .alena-dz-card-price del { display: none !important; }
+
+.alena-dz-card .alena-dz-card-price ins {
+  text-decoration: none !important;
+  background: none !important;
+}
+
+/* ---------- popular badge ---------- */
+
+.alena-dz-card .alena-dz-popular-badge {
+  position: absolute !important;
+  top: 8px !important;
+  inset-inline-start: 8px !important;
+  z-index: 4 !important;
+  padding: 3px 8px !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  color: #7a4a00 !important;
+  background: #ffd977 !important;
+  border-radius: 999px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .12) !important;
+}
+
+/* ---------- stepper (simple items) ---------- */
+
+.alena-dz-card .alena-dz-stepper {
+  position: absolute !important;
+  inset-inline-start: 4px !important;
+  bottom: 4px !important;
+  z-index: 4 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+  padding: 3px !important;
+  background: #fff !important;
+  border-radius: 999px !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .2) !important;
+}
+
+.alena-dz-card .alena-dz-stepper button {
+  width: 26px !important;
+  height: 26px !important;
+  padding: 0 !important;
+  font-size: 16px !important;
+  line-height: 1 !important;
+  color: #fff !important;
+  background: var(--alena-accent) !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+}
+
+.alena-dz-card .alena-dz-stepper .alena-dz-qty {
+  min-width: 20px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  color: var(--alena-ink) !important;
+}
+
+/* ---------- section headings ---------- */
+
+.alena-dz-cat-section > h2,
+.alena-dz-cat-title {
+  margin: 26px 0 12px !important;
+  font-size: 19px !important;
+  font-weight: 800 !important;
+  color: var(--alena-ink) !important;
+  letter-spacing: -.01em !important;
+}
+
+/* ---------- sold out ---------- */
+
+li.alena-dz-card.outofstock { opacity: .5 !important; }
+li.alena-dz-card.outofstock .alena-dz-card-add { display: none !important; }

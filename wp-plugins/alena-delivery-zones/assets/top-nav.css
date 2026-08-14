@@ -1,0 +1,181 @@
+/* ============================================================
+   Sticky top navigation — Pizza-Ninja style header
+   ============================================================ */
+.alena-tn {
+  position: fixed;
+  top: 0;
+  inset-inline: 0;
+  z-index: 9500;
+  background: #fff;
+  border-bottom: 1px solid #eadfd1;
+  box-shadow: 0 2px 12px rgba(30,74,58,0.06);
+  direction: rtl;
+}
+.alena-tn-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 22px;
+  min-height: 64px;
+}
+.alena-tn-spacer {
+  height: 64px;
+  width: 100%;
+}
+
+/* Brand: logo + name */
+.alena-tn-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none !important;
+  flex: 0 0 auto;
+}
+.alena-tn-logo-img {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #1e4a3a;
+}
+.alena-tn-logo-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #1e4a3a;
+  color: #fff;
+  font-family: "Frank Ruhl Libre", serif;
+  font-size: 24px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.alena-tn-brand-name {
+  font-family: "Frank Ruhl Libre", serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: #1c1c1c;
+  letter-spacing: 0.2px;
+}
+
+/* Center nav */
+.alena-tn-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 auto;
+}
+.alena-tn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 15px;
+  color: #4a4a4a !important;
+  text-decoration: none !important;
+  transition: all 0.18s ease;
+  position: relative;
+}
+.alena-tn-link:hover {
+  background: #fef3ec;
+  color: #1e4a3a !important;
+}
+.alena-tn-link.is-active {
+  color: #1e4a3a !important;
+  background: #e8f1ec;
+}
+.alena-tn-link-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+.alena-tn-link-badge {
+  background: #c83a3a;
+  color: #fff !important;
+  font-size: 11px;
+  font-weight: 800;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-inline-start: 4px;
+}
+
+/* Cart pill — leftmost, prominent */
+.alena-tn-cart-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #1e4a3a;
+  color: #fff !important;
+  text-decoration: none !important;
+  padding: 9px 18px 9px 9px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 14px;
+  flex: 0 0 auto;
+  box-shadow: 0 4px 14px rgba(30,74,58,0.25);
+  transition: all 0.18s ease;
+  direction: ltr;
+}
+.alena-tn-cart-pill:hover {
+  background: #2e6850;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(30,74,58,0.35);
+}
+.alena-tn-cart-pill-count {
+  background: #fff;
+  color: #1e4a3a !important;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 14px;
+  flex: 0 0 auto;
+}
+.alena-tn-cart-pill-total {
+  font-weight: 800;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.alena-tn-cart-pill .alena-tn-cart-pill-total {
+  /* When server says cart is empty, show "סל ריק" instead of "0₪" */
+}
+.alena-tn-cart-pill:not(.has-items) .alena-tn-cart-pill-total {
+  display: none;
+}
+
+/* Mobile — collapse nav text, keep icons */
+@media (max-width: 880px) {
+  .alena-tn-inner { padding: 8px 14px; gap: 10px; min-height: 56px; }
+  .alena-tn-spacer { height: 56px; }
+  .alena-tn-brand-name { font-size: 18px; }
+  .alena-tn-logo-img, .alena-tn-logo-mark { width: 36px; height: 36px; font-size: 20px; }
+  .alena-tn-link { padding: 8px 10px; gap: 0; }
+  .alena-tn-link-text { display: none; }
+  .alena-tn-link-icon { font-size: 22px; }
+  .alena-tn-cart-pill { padding: 7px 14px 7px 7px; font-size: 13px; }
+  .alena-tn-cart-pill-count { width: 22px; height: 22px; font-size: 12px; }
+  .alena-tn-cart-pill-total { font-size: 13px; }
+}
+@media (max-width: 480px) {
+  .alena-tn-brand-name { display: none; }
+}
+
+/* Hide WordPress admin bar's effect on our header */
+body.admin-bar .alena-tn { top: 32px; }
+@media (max-width: 782px) {
+  body.admin-bar .alena-tn { top: 46px; }
+}
+
+/* Avoid double mini-cart — hide the floating pill since top nav already shows cart */
+.alena-dz-mini-cart { display: none !important; }

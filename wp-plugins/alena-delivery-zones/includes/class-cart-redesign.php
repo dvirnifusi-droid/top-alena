@@ -80,7 +80,9 @@ class Alena_DZ_Cart_Redesign {
     }
 
     private function render_header() {
+        $shop_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : '/shop/';
         echo '<div class="alena-cart-header">';
+        echo '<a href="' . esc_url($shop_url) . '" class="alena-cart-back">← המשך לקנות עוד</a>';
         echo '<h1>סל הקניות שלי</h1>';
         echo '<p class="alena-cart-sub">בדוק את ההזמנה לפני המשך לתשלום ✓</p>';
         echo '</div>';
