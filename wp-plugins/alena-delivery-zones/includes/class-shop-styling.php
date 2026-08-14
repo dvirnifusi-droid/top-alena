@@ -76,6 +76,11 @@ class Alena_DZ_Shop_Styling {
             wp_enqueue_style('alena-dz-product-modal', ALENA_DZ_URL . 'assets/product-modal.css', ['alena-dz-shop'], ALENA_DZ_VERSION);
             wp_enqueue_style('alena-dz-modal-polish', ALENA_DZ_URL . 'assets/modal-polish.css', ['alena-dz-product-modal', 'alena-dz-menu-cards'], ALENA_DZ_VERSION);
             wp_enqueue_script('alena-dz-product-modal', ALENA_DZ_URL . 'assets/product-modal.js', ['jquery'], ALENA_DZ_VERSION, true);
+            // The modal fetches its dish payload from admin-ajax; give it the
+            // real URL rather than letting it fall back to a hardcoded path.
+            wp_localize_script('alena-dz-product-modal', 'AlenaDishModal', [
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+            ]);
         }
     }
 

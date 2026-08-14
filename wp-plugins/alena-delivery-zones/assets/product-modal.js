@@ -95,22 +95,82 @@
     });
   }
 
+  // id -> jqXHR/Promise of the dish payload. Kept for the life of the page so a
+  // dish opened twice is instant, and so a prefetch started on touch is already
+  // in flight (usually finished) by the time the tap completes.
+  const dishCache = {};
+
+  function fetchDish(id) {
+    if (!id) return null;
+    if (!dishCache[id]) {
+      const url = (window.AlenaDishModal && AlenaDishModal.ajaxUrl) || '/wp-admin/admin-ajax.php';
+      dishCache[id] = $.get(url, { action: 'alena_dish_payload', id: id })
+        .then(function (r) {
+          if (!r || !r.success) return $.Deferred().reject(r);
+          return r.data;
+        });
+      // A failed lookup must not poison the cache for the next tap.
+      dishCache[id].fail(function () { delete dishCache[id]; });
+    }
+    return dishCache[id];
+  }
+
   function openModalForCard($card) {
+    const id   = $card.data('product-id') || $card.attr('data-product-id');
     const href = $card.find('a[href]').first().attr('href');
-    if (!href) return;
+    if (!id && !href) return;
+
     scrollPosBeforeOpen = window.scrollY;
     const el = getOrBuildModal();
     el.addClass('open').attr('aria-hidden', 'false');
     $('body').addClass('alena-modal-open');
-    el.find('.alena-modal-image-wrap').html('<div class="alena-modal-loading">טוען…</div>');
+    el.find('.alena-modal-image-wrap').html('<div class="alena-modal-skeleton"></div>');
     el.find('.alena-modal-title, .alena-modal-meta, .alena-modal-desc, .alena-modal-modifiers-host').empty();
     el.data('product-url', href);
 
-    $.get(href, function (html) {
-      populateModalFromHtml(html);
-    }).fail(function () {
-      el.find('.alena-modal-image-wrap').html('<div class="alena-modal-loading">שגיאת טעינה — נסה שוב</div>');
-    });
+    // Fast path: a few KB of JSON instead of GETting the whole product page,
+    // which was ~230KB and over a second before anything appeared.
+    const req = fetchDish(id);
+    if (req) {
+      req.done(populateModalFromPayload).fail(function () {
+        if (href) $.get(href).done(populateModalFromHtml).fail(showModalError);
+        else showModalError();
+      });
+      return;
+    }
+    $.get(href).done(populateModalFromHtml).fail(showModalError);
+  }
+
+  function showModalError() {
+    modalEl.find('.alena-modal-image-wrap')
+      .html('<div class="alena-modal-loading">שגיאת טעינה — נסה שוב</div>');
+  }
+
+  function populateModalFromPayload(d) {
+    modalEl.find('.alena-modal-image-wrap').html(d.img ? '<img alt="" src="' + d.img + '" />' : '');
+    modalEl.find('.alena-modal-title').text(d.title || '');
+
+    let meta = d.price_html ? '<span class="alena-modal-price">' + d.price_html + '</span>' : '';
+    if (d.featured) meta += ' <span class="alena-modal-pop-badge">פופולרי</span>';
+    modalEl.find('.alena-modal-meta').html(meta);
+    modalEl.find('.alena-modal-desc').html(d.desc || '');
+    modalEl.data('product-id', d.id);
+
+    if (d.mods_html) {
+      modalEl.find('.alena-modal-modifiers-host').html(d.mods_html);
+      modalEl.find('.alena-modal-modifiers-host .alena-dz-modifiers').after(
+        '<div class="alena-modal-note">' +
+          '<label>הערה למנה (אופציונלי)</label>' +
+          '<textarea name="alena_item_note" rows="2" placeholder="פחות חריף, ללא קצף, וכו׳" maxlength="240"></textarea>' +
+        '</div>' +
+        '<button type="button" class="alena-modal-share" data-share-title="' + (d.title || '') + '">' +
+          '📤 שתף ב-WhatsApp' +
+        '</button>'
+      );
+    }
+    applyGating();
+    enforceMax();
+    recomputeTotal();
   }
 
   function populateModalFromHtml(html) {
@@ -401,6 +461,18 @@
   }
 
   // -----------------------------------------------------------
+  // Warm the payload as soon as the finger lands (or the pointer hovers), so
+  // by the time the tap completes the request is usually already back.
+  // passive: the listener never calls preventDefault, so scrolling stays smooth.
+  document.addEventListener('touchstart', function (e) {
+    const card = e.target.closest && e.target.closest('li.alena-dz-card');
+    if (card) fetchDish(card.getAttribute('data-product-id'));
+  }, { passive: true });
+
+  $(document).on('mouseenter', 'li.alena-dz-card', function () {
+    fetchDish($(this).attr('data-product-id'));
+  });
+
   // On-card stepper for products WITHOUT required modifiers
   // (Wolt pattern — saves 4 taps per add).
   // -----------------------------------------------------------

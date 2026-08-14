@@ -29,6 +29,10 @@ class Alena_DZ_Modifiers {
         add_filter('woocommerce_get_cart_item_from_session',   [$this, 'restore_from_session'], 10, 2);
         add_action('woocommerce_before_calculate_totals',      [$this, 'apply_modifier_price'], 10, 1);
 
+        // Lightweight payload for the dish modal
+        add_action('wp_ajax_alena_dish_payload',        [$this, 'ajax_dish_payload']);
+        add_action('wp_ajax_nopriv_alena_dish_payload', [$this, 'ajax_dish_payload']);
+
         // Display chosen modifiers
         add_filter('woocommerce_get_item_data',                [$this, 'display_in_cart'], 10, 2);
         add_action('woocommerce_checkout_create_order_line_item', [$this, 'save_to_order'], 10, 4);
@@ -74,6 +78,44 @@ class Alena_DZ_Modifiers {
         if (!$json) return [];
         $arr = json_decode($json, true);
         return is_array($arr) ? $arr : [];
+    }
+
+    /**
+     * Everything the dish modal needs, as a small JSON payload.
+     *
+     * The modal used to GET the whole product page and scrape it — 231KB and
+     * ~1.3s on desktop, several seconds on a phone, for a name, a price and the
+     * modifier markup. This returns the same content in a couple of KB.
+     */
+    public function ajax_dish_payload() {
+        $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+        $product = $id ? wc_get_product($id) : null;
+        if (!$product || $product->get_status() !== 'publish') {
+            wp_send_json_error('not_found', 404);
+        }
+
+        // render_modifiers_form() reads the global $product, so stand it up the
+        // way a product page would, then put back whatever was there.
+        $prev = $GLOBALS['product'] ?? null;
+        $GLOBALS['product'] = $product;
+        ob_start();
+        $this->render_modifiers_form();
+        $mods_html = ob_get_clean();
+        $GLOBALS['product'] = $prev;
+
+        $img_id = $product->get_image_id();
+        $desc   = $product->get_short_description() ?: $product->get_description();
+
+        wp_send_json_success([
+            'id'         => $id,
+            'title'      => $product->get_name(),
+            'price_html' => $product->get_price_html(),
+            'featured'   => $product->is_featured(),
+            'desc'       => wpautop(wp_kses_post($desc)),
+            'img'        => $img_id ? (wp_get_attachment_image_url($img_id, 'large') ?: '') : '',
+            'mods_html'  => $mods_html,
+            'in_stock'   => $product->is_in_stock(),
+        ]);
     }
 
     public function render_modifiers_form() {
