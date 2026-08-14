@@ -74,6 +74,7 @@ class Alena_DZ_Shop_Styling {
         // Product modal — only on shop / category pages
         if (is_shop() || is_product_category() || is_product_taxonomy()) {
             wp_enqueue_style('alena-dz-product-modal', ALENA_DZ_URL . 'assets/product-modal.css', ['alena-dz-shop'], ALENA_DZ_VERSION);
+            wp_enqueue_style('alena-dz-modal-polish', ALENA_DZ_URL . 'assets/modal-polish.css', ['alena-dz-product-modal', 'alena-dz-menu-cards'], ALENA_DZ_VERSION);
             wp_enqueue_script('alena-dz-product-modal', ALENA_DZ_URL . 'assets/product-modal.js', ['jquery'], ALENA_DZ_VERSION, true);
         }
     }

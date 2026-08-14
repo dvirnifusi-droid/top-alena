@@ -72,7 +72,12 @@ class Alena_DZ_Recent_Orders {
         $product_id = (int) $item->get_product_id();
         if (!$product_id) return false;
         $product = wc_get_product($product_id);
-        return $product && $product->is_purchasable() && $product->is_in_stock();
+        if (!$product) return false;
+        // Check the status explicitly. WC_Product::is_purchasable() also passes
+        // when the viewer can edit posts, so an admin saw trashed dishes that a
+        // customer never would — and any fix looked broken while logged in.
+        if ($product->get_status() !== 'publish') return false;
+        return $product->is_purchasable() && $product->is_in_stock();
     }
 
     private function render_card($order): void {

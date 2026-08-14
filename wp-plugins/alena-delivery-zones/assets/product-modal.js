@@ -30,6 +30,11 @@
             '</div>' +
           '</div>' +
           '<div class="alena-modal-foot">' +
+            // Validation feedback belongs next to the button the customer just
+            // pressed. The toast is pinned to the bottom of the viewport, which
+            // on a tall screen sits far away from a centred dialog and reads as
+            // "nothing happened".
+            '<div class="alena-modal-err" role="alert" hidden></div>' +
             '<div class="alena-modal-qty">' +
               '<button type="button" class="alena-modal-qty-minus" aria-label="הפחת">–</button>' +
               '<span class="alena-modal-qty-value">1</span>' +
@@ -70,6 +75,9 @@
       applyGating();
       enforceMax();
       recomputeTotal();
+      // Clear the "you must choose" state as soon as the customer chooses.
+      modalEl.find('.alena-modal-err').attr('hidden', true).text('');
+      $(this).closest('.alena-dz-mod-group').removeClass('alena-dz-mod-error');
     });
     modalEl.on('click', '.alena-modal-add', submitAddToCart);
 
@@ -302,6 +310,7 @@
           $scroller.animate({ scrollTop: top }, 280);
         }
       }
+      modalEl.find('.alena-modal-err').text(firstError).removeAttr('hidden');
       toast(firstError);
       return false;
     }
@@ -343,17 +352,31 @@
       contentType: false,
       dataType: 'json',
       success: function (res) {
+        // WooCommerce answers 200 with {error:true} when it refuses the item
+        // (out of stock, min/max rules). Treating that as success told the
+        // customer the dish was added when it was not.
+        if (res && res.error) {
+          // res.message may carry markup — render it as text, never as HTML.
+          const msg = $('<div>').html(res.message || '').text().trim();
+          modalEl.find('.alena-modal-err')
+            .text(msg || 'לא ניתן להוסיף את המנה כרגע')
+            .removeAttr('hidden');
+          return;
+        }
         // Trigger WC events so the mini-cart fragments refresh.
         $(document.body).trigger('added_to_cart', [res && res.fragments, res && res.cart_hash, $btn]);
         closeModal();
         toast('המנה התווספה לסל ✓');
       },
       error: function (xhr) {
-        // If we got a 0/empty response, the cart might still have succeeded
-        // (depends on WC config). Try refreshing fragments anyway.
+        // An empty/0 body can still mean the item went in, so re-read the cart
+        // and let the real count decide — never claim success blindly.
         $(document.body).trigger('wc_fragment_refresh');
-        closeModal();
-        toast('המנה התווספה לסל ✓');
+        $.get('/?wc-ajax=get_refreshed_fragments')
+          .always(function () {
+            closeModal();
+            toast('המנה נשלחה לסל — בדקו את הסל');
+          });
       },
       complete: function () {
         $btn.prop('disabled', false).html(originalLabel);
