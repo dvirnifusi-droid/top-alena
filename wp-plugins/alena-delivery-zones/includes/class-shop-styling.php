@@ -76,6 +76,10 @@ class Alena_DZ_Shop_Styling {
         // Loaded LAST so it settles the menu-card layout for good
         wp_enqueue_style('alena-dz-menu-cards', ALENA_DZ_URL . 'assets/menu-cards.css', ['alena-dz-modern'], ALENA_DZ_VERSION);
 
+        // Wolt-style dark theme, phones only. Loaded after every other sheet so
+        // it is the last word on colour; see wp-plugins/WOLT_MOBILE_SPEC.md.
+        wp_enqueue_style('alena-dz-dark-mobile', ALENA_DZ_URL . 'assets/dark-mobile.css', ['alena-dz-menu-cards'], ALENA_DZ_VERSION);
+
         // Cart/checkout page shell — also last, for the same reason.
         if (is_cart() || is_checkout()) {
             wp_enqueue_style('alena-dz-cart-polish', ALENA_DZ_URL . 'assets/cart-polish.css', ['alena-dz-menu-cards'], ALENA_DZ_VERSION);

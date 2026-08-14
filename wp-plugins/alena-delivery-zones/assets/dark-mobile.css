@@ -1,0 +1,278 @@
+/**
+ * Wolt-style dark mobile theme — stages 1 and 2 of WOLT_MOBILE_SPEC.md.
+ *
+ * Scoped to phones on purpose. Desktop keeps the light theme, so a half-finished
+ * rollout can never leave the site looking broken on a big screen.
+ *
+ * The point of the dark canvas is that the dish photography becomes the only lit
+ * thing on the screen. Everything else steps back: one accent, reserved for
+ * price / CTA / selected, and separation carried by spacing and weight rather
+ * than borders and cards.
+ */
+
+@media (max-width: 640px) {
+
+  :root {
+    --bg:         #0e1117;
+    --surface:    #161b26;
+    --surface-2:  #1e2533;
+    --line:       #252c3a;
+
+    --ink:        #ffffff;
+    --ink-2:      #c7cedb;
+    --ink-soft:   #8a93a5;
+
+    --accent:     #22c9ee;
+    --accent-ink: #06202a;
+  }
+
+  /* ---------- canvas ---------- */
+
+  html, body,
+  body.woocommerce, body.woocommerce-page,
+  .site, .site-main, .page-content, main {
+    background: var(--bg) !important;
+    color: var(--ink-2) !important;
+  }
+
+  /* Hebrew at 400 goes thin on a dark canvas — hold the body at 500. */
+  body.woocommerce, body.woocommerce-page { font-weight: 500 !important; }
+
+  .alena-dz-cat-title,
+  .alena-dz-card-title,
+  .alena-modal-title,
+  .alena-drawer-title,
+  h1, h2, h3 { color: var(--ink) !important; }
+
+  /* ---------- dish row ---------- */
+  /* Was a bordered card with a shadow, which is what read as "a website".
+     Wolt uses a plain row and a hairline; the photo does the separating. */
+
+  ul.alena-dz-products,
+  .alena-dz-cat-section ul.alena-dz-products {
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+  }
+
+  li.alena-dz-card {
+    height: auto !important;
+    min-height: 0 !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    padding: 14px 14px !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  li.alena-dz-card:hover { transform: none !important; box-shadow: none !important; }
+
+  .alena-dz-card .alena-dz-card-imgwrap {
+    flex: 0 0 80px !important;
+    width: 80px !important;
+    height: 80px !important;
+    border-radius: 12px !important;
+    background: var(--surface) !important;
+    align-self: flex-start !important;
+  }
+
+  .alena-dz-card .alena-dz-card-body {
+    gap: 5px !important;
+    padding: 0 !important;
+  }
+
+  .alena-dz-card .alena-dz-card-title {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    white-space: normal !important;
+    color: var(--ink) !important;
+  }
+
+  .alena-dz-card .alena-dz-card-desc {
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+    color: var(--ink-soft) !important;
+  }
+
+  /* Price sits under the description, in the accent — the number people scan. */
+  .alena-dz-card .alena-dz-card-bottom { margin: 2px 0 0 !important; }
+
+  .alena-dz-card .alena-dz-card-price,
+  .alena-dz-card .alena-dz-card-price .amount,
+  .alena-dz-card .alena-dz-card-price bdi {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: var(--accent) !important;
+  }
+
+  /* Popular badge: accent pill under the price, not a corner sticker. */
+  .alena-dz-card .alena-dz-popular-badge {
+    position: static !important;
+    display: inline-block !important;
+    margin-top: 6px !important;
+    color: var(--accent-ink) !important;
+    background: var(--accent) !important;
+    box-shadow: none !important;
+  }
+
+  .alena-dz-card .alena-dz-card-add {
+    background: var(--surface-2) !important;
+    color: var(--accent) !important;
+    box-shadow: none !important;
+  }
+
+  /* ---------- category tabs ---------- */
+  /* Underline on the active tab instead of pills — less furniture on screen. */
+
+  .alena-dz-catnav,
+  .alena-dz-catnav-inner {
+    background: var(--bg) !important;
+    border-bottom: 1px solid var(--line) !important;
+  }
+
+  .alena-dz-catnav a,
+  .alena-dz-catnav button {
+    padding: 12px 4px !important;
+    margin-inline-end: 18px !important;
+    font-size: 14.5px !important;
+    font-weight: 600 !important;
+    color: var(--ink-soft) !important;
+    background: none !important;
+    border: 0 !important;
+    border-bottom: 2px solid transparent !important;
+    border-radius: 0 !important;
+  }
+
+  .alena-dz-catnav a.is-active,
+  .alena-dz-catnav button.is-active,
+  .alena-dz-catnav .active {
+    color: var(--ink) !important;
+    border-bottom-color: var(--accent) !important;
+  }
+
+  /* ---------- section heading ---------- */
+
+  .alena-dz-cat-title {
+    padding: 22px 14px 10px !important;
+    font-size: 20px !important;
+  }
+  .alena-dz-cat-title::after { display: none !important; }
+
+  /* ---------- surfaces ---------- */
+
+  .alena-dz-hero { border-radius: 0 0 26px 26px !important; }
+
+  .alena-dz-search input,
+  .woocommerce input[type="text"],
+  .woocommerce input[type="tel"],
+  .woocommerce input[type="email"],
+  .woocommerce textarea,
+  .woocommerce select {
+    color: var(--ink) !important;
+    background: var(--surface) !important;
+    border-color: var(--line) !important;
+  }
+
+  .woocommerce input::placeholder,
+  .woocommerce textarea::placeholder { color: var(--ink-soft) !important; }
+
+  /* ---------- modal ---------- */
+
+  .alena-modal { background: var(--bg) !important; }
+  .alena-modal-foot {
+    background: var(--bg) !important;
+    border-top: 1px solid var(--line) !important;
+  }
+
+  .alena-modal-meta,
+  .alena-modal-price { color: var(--accent) !important; }
+
+  .alena-modal-desc {
+    color: var(--ink-soft) !important;
+    background: transparent !important;
+    border: 0 !important;
+    padding: 0 !important;
+    font-size: 14px !important;
+    line-height: 1.65 !important;
+  }
+
+  .alena-dz-mod-group {
+    background: transparent !important;
+    border: 0 !important;
+    border-top: 1px solid var(--line) !important;
+    border-radius: 0 !important;
+    padding: 18px 0 !important;
+  }
+
+  .alena-dz-mod-group > .alena-dz-mod-title,
+  .alena-dz-mod-head { color: var(--ink) !important; font-size: 16px !important; }
+
+  /* Requirement reads as a quiet sub-heading, not a red warning label. */
+  .alena-dz-mod-badge,
+  .alena-dz-mod-required,
+  .alena-dz-mod-optional {
+    display: block !important;
+    margin: 3px 0 0 !important;
+    padding: 0 !important;
+    font-size: 12.5px !important;
+    font-weight: 400 !important;
+    color: var(--ink-soft) !important;
+    background: none !important;
+  }
+
+  .alena-dz-mod-row {
+    background: transparent !important;
+    border: 0 !important;
+    padding: 13px 0 !important;
+    color: var(--ink-2) !important;
+    font-size: 15px !important;
+  }
+
+  .alena-dz-mod-row:has(input:checked) {
+    background: transparent !important;
+    border: 0 !important;
+    color: var(--ink) !important;
+  }
+
+  .alena-dz-mod-row input[type="radio"],
+  .alena-dz-mod-row input[type="checkbox"] { accent-color: var(--accent) !important; }
+
+  .alena-dz-mod-row .alena-dz-mod-price { color: var(--accent) !important; }
+
+  /* ---------- actions ---------- */
+
+  .alena-modal-add,
+  .alena-drawer-cta,
+  .woocommerce-cart .checkout-button,
+  .alena-recent-card-cta {
+    color: var(--accent-ink) !important;
+    background: var(--accent) !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    font-weight: 800 !important;
+  }
+
+  .alena-modal-qty { background: var(--surface-2) !important; }
+  .alena-modal-qty button { background: var(--surface) !important; color: var(--ink) !important; }
+  .alena-modal-qty-value { color: var(--ink) !important; }
+
+  /* ---------- bottom bar ---------- */
+
+  .alena-dz-bottom-nav {
+    background: var(--surface) !important;
+    border-top: 1px solid var(--line) !important;
+  }
+  .alena-dz-bn-label { color: var(--ink-soft) !important; }
+  .alena-dz-bn-cart.has-items .alena-dz-bn-label { color: var(--accent) !important; }
+  .alena-dz-bn-badge { background: var(--accent) !important; color: var(--accent-ink) !important; }
+
+  /* ---------- cart drawer ---------- */
+
+  .alena-drawer { background: var(--bg) !important; }
+  .alena-drawer-item { border-color: var(--line) !important; }
+  .alena-drawer-item-name { color: var(--ink) !important; }
+  .alena-drawer-item-price { color: var(--accent) !important; }
+}
