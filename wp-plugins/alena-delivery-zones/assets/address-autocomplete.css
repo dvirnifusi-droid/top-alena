@@ -1,0 +1,92 @@
+/**
+ * Address field + Google Places dropdown.
+ * The dropdown is rendered by Google into body, so it is styled by its own
+ * .pac-* classes rather than anything inside the checkout form.
+ */
+
+.alena-addr-status {
+  margin-top: 6px;
+  padding: 7px 11px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  border-radius: 9px;
+  background: #f4f3f0;
+  color: #5c5346;
+}
+
+.alena-addr-status.is-ok   { background: #eef7f2; color: #1f7a4d; font-weight: 600; }
+.alena-addr-status.is-warn { background: #fff5e6; color: #8a5a2b; }
+.alena-addr-status[hidden] { display: none; }
+
+/* ---------- Google's suggestion list ---------- */
+
+.pac-container {
+  z-index: 100060 !important;          /* above the cart drawer and modals */
+  margin-top: 4px;
+  font-family: inherit;
+  border: 1px solid #e6e4de;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(16, 24, 40, .14);
+  overflow: hidden;
+  direction: rtl;
+  text-align: right;
+}
+
+.pac-container::after { display: none !important; }   /* "powered by google" strip */
+
+.pac-item {
+  padding: 10px 13px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #5c5346;
+  border-top: 1px solid #f4f3f0;
+  cursor: pointer;
+}
+
+.pac-item:first-child { border-top: 0; }
+.pac-item:hover,
+.pac-item-selected { background: #f6f4f0; }
+
+.pac-item-query {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.pac-matched { font-weight: 800; }
+.pac-icon { display: none; }                          /* the pin adds nothing here */
+
+@media (max-width: 640px) {
+  .pac-item { padding: 13px; font-size: 15px; }        /* finger-sized rows */
+  .pac-item-query { font-size: 15.5px; }
+}
+
+/* iOS zooms any field under 16px on focus. */
+@media (max-width: 640px) {
+  #billing_address_1, #shipping_address_1, #billing_city, #shipping_city { font-size: 16px !important; }
+}
+
+/* ---------- PlaceAutocompleteElement ---------- */
+/* The real WooCommerce input stays in the DOM so the form still posts it; the
+   picker sits in its place visually. */
+
+.alena-addr-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.alena-addr-ac {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  --gmp-mat-color-primary: #1f7a4d;
+  --gmp-mat-color-on-surface: #17150f;
+  --gmp-mat-color-outline: #e9e4da;
+  --gmp-mat-font-family: inherit;
+}

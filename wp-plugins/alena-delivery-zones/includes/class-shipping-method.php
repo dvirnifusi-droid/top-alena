@@ -37,8 +37,17 @@ class Alena_DZ_Shipping_Method extends WC_Shipping_Method {
         $pin_lat = $session ? (float) $session->get('alena_pin_lat') : 0.0;
         $pin_lng = $session ? (float) $session->get('alena_pin_lng') : 0.0;
 
+        // Coordinates from the address the customer picked in autocomplete are
+        // authoritative — they came from Google with the address itself, so
+        // there is nothing to re-resolve and nothing to mis-resolve.
+        $picked = class_exists('Alena_DZ_Address_Autocomplete')
+            ? Alena_DZ_Address_Autocomplete::session_coords()
+            : null;
+
         if ($pin_lat && $pin_lng) {
             $coords = ['lat' => $pin_lat, 'lng' => $pin_lng];
+        } elseif ($picked) {
+            $coords = $picked;
         } else {
             $dest = $package['destination'] ?? [];
             $address_parts = array_filter([

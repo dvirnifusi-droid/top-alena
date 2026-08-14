@@ -61,7 +61,17 @@ class Alena_DZ_Shop_Styling {
     public function enqueue() {
         if (!function_exists('is_woocommerce')) return;
         if (!(is_woocommerce() || is_cart() || is_checkout() || is_account_page())) return;
-        wp_enqueue_style('alena-dz-shop', ALENA_DZ_URL . 'assets/shop.css', [], ALENA_DZ_VERSION);
+        // Heebo carries Hebrew at every weight; display=swap so a slow font
+        // never delays first paint.
+        wp_enqueue_style(
+            'alena-dz-font',
+            'https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap',
+            [],
+            null
+        );
+        // Brand tokens first — the component sheets below consume its variables.
+        wp_enqueue_style('alena-dz-brand', ALENA_DZ_URL . 'assets/brand.css', ['alena-dz-font'], ALENA_DZ_VERSION);
+        wp_enqueue_style('alena-dz-shop', ALENA_DZ_URL . 'assets/shop.css', ['alena-dz-brand'], ALENA_DZ_VERSION);
         wp_enqueue_style('alena-dz-modern', ALENA_DZ_URL . 'assets/modern-design.css', ['alena-dz-shop'], ALENA_DZ_VERSION);
         // Loaded LAST so it settles the menu-card layout for good
         wp_enqueue_style('alena-dz-menu-cards', ALENA_DZ_URL . 'assets/menu-cards.css', ['alena-dz-modern'], ALENA_DZ_VERSION);

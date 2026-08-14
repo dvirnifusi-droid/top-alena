@@ -1,0 +1,187 @@
+/**
+ * Brand layer — typography and colour for the whole storefront.
+ *
+ * Loaded before the component sheets so they can consume these variables, and
+ * the palette is defined once here rather than repeated as hex literals in five
+ * different files.
+ *
+ * Direction: charcoal + warm off-white as the base, one confident green for
+ * every action, warm amber reserved for appetite cues (popular, toppings).
+ * The green carries all the weight, so it has to be the only saturated thing on
+ * screen — that is what makes a button unmissable without shouting.
+ */
+
+:root {
+  /* ---- ink ---- */
+  --alena-ink:        #17150f;   /* headlines */
+  --alena-ink-2:      #4a453c;   /* body */
+  --alena-ink-soft:   #857d70;   /* meta */
+
+  /* ---- surface ---- */
+  --alena-bg:         #faf7f2;   /* page */
+  --alena-surface:    #ffffff;   /* cards */
+  --alena-surface-2:  #f5f2ec;   /* insets */
+  --alena-line:       #e9e4da;
+
+  /* ---- brand ---- */
+  --alena-green:      #1f7a4d;
+  --alena-green-dark: #17603c;
+  --alena-green-tint: #eaf5ef;
+  --alena-amber:      #d98324;
+  --alena-amber-tint: #fdf3e6;
+  --alena-red:        #c0392b;
+
+  /* ---- shape ---- */
+  --alena-r-sm: 10px;
+  --alena-r:    16px;
+  --alena-r-lg: 22px;
+  --alena-r-pill: 999px;
+
+  --alena-shadow-1: 0 1px 2px rgba(23, 21, 15, .05);
+  --alena-shadow-2: 0 6px 18px rgba(23, 21, 15, .08);
+  --alena-shadow-3: 0 14px 34px rgba(23, 21, 15, .12);
+
+  /* Heebo covers Hebrew properly at every weight; the rest is a system stack
+     so nothing blocks first paint if the webfont is slow. */
+  --alena-font: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Rubik, Arial, sans-serif;
+}
+
+/* ---------- type ---------- */
+
+body.woocommerce,
+body.woocommerce-page,
+.alena-dz-card,
+.alena-modal,
+.alena-drawer,
+.alena-cart-wrap {
+  font-family: var(--alena-font) !important;
+  color: var(--alena-ink-2);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body.woocommerce, body.woocommerce-page { background: var(--alena-bg); }
+
+/* Headings get tighter tracking as they grow — large Hebrew type set at default
+   spacing reads loose and soft, which is the opposite of appetising. */
+.alena-dz-cat-title,
+.alena-dz-card-title,
+.alena-modal-title,
+.alena-drawer-title,
+.woocommerce-cart h1,
+.woocommerce-checkout h1 {
+  font-family: var(--alena-font) !important;
+  color: var(--alena-ink) !important;
+  letter-spacing: -.015em !important;
+}
+
+.alena-dz-cat-title  { font-size: 21px !important; font-weight: 800 !important; }
+.alena-modal-title   { letter-spacing: -.02em !important; }
+
+/* Section headings get a short brand rule instead of a border across the page. */
+.alena-dz-cat-title {
+  position: relative !important;
+  padding-bottom: 8px !important;
+}
+.alena-dz-cat-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  inset-inline-start: 0;
+  width: 34px;
+  height: 3px;
+  border-radius: 99px;
+  background: var(--alena-green);
+}
+
+/* Prices are the number people scan for — tabular figures stop them from
+   jittering between rows. */
+.alena-dz-card-price,
+.alena-modal-price,
+.cart_totals td,
+.alena-drawer-item-price {
+  font-variant-numeric: tabular-nums !important;
+  font-feature-settings: 'tnum' 1 !important;
+}
+
+/* ---------- actions ---------- */
+
+.alena-dz-card-add,
+.alena-modal-add,
+.alena-drawer-cta,
+.woocommerce-cart .checkout-button,
+.alena-recent-card-cta {
+  font-family: var(--alena-font) !important;
+  letter-spacing: -.01em !important;
+}
+
+.alena-modal-add,
+.alena-drawer-cta,
+.woocommerce-cart .checkout-button {
+  background: linear-gradient(180deg, var(--alena-green) 0%, var(--alena-green-dark) 100%) !important;
+  box-shadow: 0 5px 16px rgba(31, 122, 77, .28) !important;
+}
+
+/* ---------- cards ---------- */
+
+li.alena-dz-card {
+  background: var(--alena-surface) !important;
+  border-color: var(--alena-line) !important;
+  box-shadow: var(--alena-shadow-1) !important;
+}
+
+li.alena-dz-card:hover { box-shadow: var(--alena-shadow-2) !important; }
+
+.alena-dz-card-title { color: var(--alena-ink) !important; }
+.alena-dz-card-desc  { color: var(--alena-ink-soft) !important; }
+.alena-dz-card-price { color: var(--alena-ink) !important; }
+
+/* Popular badge in warm amber — the one place heat is welcome. */
+.alena-dz-popular-badge,
+.alena-modal-pop-badge {
+  color: #8a5411 !important;
+  background: linear-gradient(180deg, #ffd98a, #f6c25f) !important;
+  box-shadow: 0 1px 3px rgba(138, 84, 17, .22) !important;
+}
+
+/* ---------- inputs ---------- */
+
+.woocommerce input[type="text"],
+.woocommerce input[type="tel"],
+.woocommerce input[type="email"],
+.woocommerce input[type="number"],
+.woocommerce textarea,
+.woocommerce select {
+  font-family: var(--alena-font) !important;
+  color: var(--alena-ink) !important;
+  background: var(--alena-surface) !important;
+  border: 1px solid var(--alena-line) !important;
+  border-radius: var(--alena-r-sm) !important;
+  transition: border-color .15s ease, box-shadow .15s ease !important;
+}
+
+.woocommerce input:focus,
+.woocommerce textarea:focus,
+.woocommerce select:focus {
+  outline: none !important;
+  border-color: var(--alena-green) !important;
+  box-shadow: 0 0 0 3px rgba(31, 122, 77, .13) !important;
+}
+
+/* Visible keyboard focus everywhere — the ring above only covers form fields. */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--alena-green) !important;
+  outline-offset: 2px !important;
+}
+
+/* ---------- motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
