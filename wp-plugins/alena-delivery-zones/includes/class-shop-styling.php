@@ -76,9 +76,13 @@ class Alena_DZ_Shop_Styling {
         // Loaded LAST so it settles the menu-card layout for good
         wp_enqueue_style('alena-dz-menu-cards', ALENA_DZ_URL . 'assets/menu-cards.css', ['alena-dz-modern'], ALENA_DZ_VERSION);
 
-        // Wolt-style dark theme, phones only. Loaded after every other sheet so
-        // it is the last word on colour; see wp-plugins/WOLT_MOBILE_SPEC.md.
-        wp_enqueue_style('alena-dz-dark-mobile', ALENA_DZ_URL . 'assets/dark-mobile.css', ['alena-dz-menu-cards'], ALENA_DZ_VERSION);
+        // Dark mobile theme is DISABLED. Shipping it dark-canvas-first left the
+        // menu half-converted on a real phone: the dish cards, carousel and modal
+        // panels kept their light backgrounds while the text under them had gone
+        // pale, so whole sections were unreadable. The sheet is still in the repo
+        // (assets/dark-mobile.css) but must not be enqueued until it covers every
+        // surface — see WOLT_MOBILE_SPEC.md.
+        // wp_enqueue_style('alena-dz-dark-mobile', ALENA_DZ_URL . 'assets/dark-mobile.css', ['alena-dz-menu-cards'], ALENA_DZ_VERSION);
 
         // Cart/checkout page shell — also last, for the same reason.
         if (is_cart() || is_checkout()) {
