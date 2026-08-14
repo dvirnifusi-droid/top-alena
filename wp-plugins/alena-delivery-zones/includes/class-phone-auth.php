@@ -130,12 +130,20 @@ class Alena_DZ_Phone_Auth {
             'message' => $sent['ok'] ? 'הקוד נשלח' : ('שליחה נכשלה — ' . ($sent['error'] ?? '')),
             'expires_in' => self::CODE_TTL_SECONDS,
         ];
-        // DEV / Console mode: return the code in the response so testers can self-serve
-        // without having to peek into wp-admin. In production (whatsapp/twilio) this is
-        // never exposed — only the Console provider sets dev_code.
+        // Console mode returns the code so a tester can self-serve — but ONLY to
+        // a logged-in administrator. Returning it to anyone meant a visitor could
+        // type any customer's phone number, read the code off the screen, and be
+        // signed in as them, with their address, order history and club balance.
         if (get_option(self::OPT_PROVIDER, 'console') === 'console') {
-            $response['dev_code']   = $code;
-            $response['dev_notice'] = 'מצב פיתוח — הקוד מוצג כאן כי לא הוגדר ספק WhatsApp/SMS עדיין';
+            if (current_user_can('manage_woocommerce')) {
+                $response['dev_code']   = $code;
+                $response['dev_notice'] = 'מצב פיתוח (מוצג למנהלים בלבד) — לא הוגדר ספק WhatsApp/SMS';
+            } else {
+                // A customer must not be told the code, and must not be left
+                // waiting for a message that no provider will ever send.
+                $response['ok']      = false;
+                $response['message'] = 'ההתחברות בטלפון אינה זמינה כרגע. אפשר להזמין ללא חשבון, או להתקשר אלינו.';
+            }
         }
         return rest_ensure_response($response);
     }

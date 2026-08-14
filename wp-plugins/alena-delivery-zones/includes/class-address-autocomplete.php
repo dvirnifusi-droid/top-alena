@@ -22,6 +22,7 @@ class Alena_DZ_Address_Autocomplete {
         add_action('wp_enqueue_scripts', [$this, 'enqueue'], 30);
         add_action('wp_ajax_alena_addr_coords',        [$this, 'ajax_store_coords']);
         add_action('wp_ajax_nopriv_alena_addr_coords', [$this, 'ajax_store_coords']);
+        add_action('wp_ajax_alena_ship_debug',         [$this, 'ajax_ship_debug']);
     }
 
     /** Browser-restricted key; falls back to the server key if that is all there is. */
@@ -87,6 +88,83 @@ class Alena_DZ_Address_Autocomplete {
         WC()->session->set(self::SESS_LAT, $lat);
         WC()->session->set(self::SESS_LNG, $lng);
         wp_send_json_success(['lat' => $lat, 'lng' => $lng]);
+    }
+
+    /**
+     * Walks the same decisions calculate_shipping() makes and reports where a
+     * rate stops being possible. Admin-only; exists to answer "why is there no
+     * delivery option" without server log access.
+     */
+    public function ajax_ship_debug() {
+        if (!current_user_can('manage_woocommerce')) wp_send_json_error('forbidden', 403);
+
+        $out = [];
+        $out['wc'] = function_exists('WC');
+        if (!function_exists('WC')) wp_send_json_success($out);
+
+        $cust = WC()->customer;
+        $out['destination'] = $cust ? [
+            'country' => $cust->get_shipping_country(),
+            'state'   => $cust->get_shipping_state(),
+            'city'    => $cust->get_shipping_city(),
+            'address' => $cust->get_shipping_address(),
+        ] : null;
+
+        $out['session_coords'] = self::session_coords();
+        $out['cart_subtotal']  = WC()->cart ? (float) WC()->cart->get_subtotal() : null;
+        $out['needs_shipping'] = WC()->cart ? WC()->cart->needs_shipping() : null;
+
+        // Which zone does WooCommerce match this customer to, and what methods
+        // does that zone actually expose?
+        if (class_exists('WC_Shipping_Zones')) {
+            $packages = WC()->cart ? WC()->cart->get_shipping_packages() : [];
+            $pkg = $packages ? reset($packages) : [];
+            $zone = $pkg ? WC_Shipping_Zones::get_zone_matching_package($pkg) : null;
+            $out['zone'] = $zone ? [
+                'id'   => $zone->get_id(),
+                'name' => $zone->get_zone_name(),
+                'methods' => array_map(function ($m) {
+                    return [
+                        'id'       => $m->id,
+                        'instance' => $m->get_instance_id(),
+                        'enabled'  => $m->is_enabled(),
+                        'title'    => $m->get_title(),
+                    ];
+                }, $zone->get_shipping_methods(false)),
+            ] : 'no_zone_match';
+        }
+
+        // Resolve coordinates exactly as the shipping method would, then report
+        // which polygon (if any) contains them.
+        $coords = self::session_coords();
+        $out['coord_source'] = $coords ? 'session' : null;
+        if (!$coords && $cust) {
+            $addr = trim(implode(', ', array_filter([
+                $cust->get_shipping_address(), $cust->get_shipping_city(), 'Israel',
+            ])));
+            $out['geocode_input'] = $addr;
+            $coords = $addr ? Alena_DZ_Geocoder::geocode($addr) : null;
+            $out['coord_source'] = $coords ? 'geocoder' : 'none';
+        }
+        $out['coords'] = $coords;
+
+        if ($coords && class_exists('Alena_DZ_Polygon_Store')) {
+            $poly = Alena_DZ_Polygon_Store::find_containing($coords['lat'], $coords['lng']);
+            $out['polygon'] = $poly ? [
+                'name' => $poly['name'],
+                'fee'  => $poly['delivery_fee'],
+                'min'  => $poly['min_order'],
+            ] : 'no_polygon_contains_point';
+            $all = Alena_DZ_Polygon_Store::all();
+            $out['polygon_count'] = count($all);
+            $out['first_vertex']  = $all ? ($all[0]['coords'][0] ?? null) : null;
+        }
+
+        // Where the shipping method itself last stopped — the one thing the
+        // reconstruction above cannot tell us.
+        $out['last_trace'] = get_transient('alena_dz_ship_trace') ?: 'never_ran';
+
+        wp_send_json_success($out);
     }
 
     /** Coordinates chosen by the customer this session, if any. */

@@ -31,7 +31,17 @@ class Alena_DZ_Shipping_Method extends WC_Shipping_Method {
         ];
     }
 
+    /** Records where the last rate calculation ended, for the admin diagnostic. */
+    private function trace(string $step, $extra = null) {
+        set_transient('alena_dz_ship_trace', [
+            'step'  => $step,
+            'extra' => $extra,
+            'at'    => current_time('mysql'),
+        ], 10 * MINUTE_IN_SECONDS);
+    }
+
     public function calculate_shipping($package = []) {
+        $this->trace('entered');
         // Customer-pinned location wins over text geocoding when available.
         $session = function_exists('WC') ? WC()->session : null;
         $pin_lat = $session ? (float) $session->get('alena_pin_lat') : 0.0;
@@ -58,18 +68,19 @@ class Alena_DZ_Shipping_Method extends WC_Shipping_Method {
                 ($dest['country'] ?? '') === 'IL' ? 'Israel' : ($dest['country'] ?? ''),
             ]);
             $full_address = trim(implode(', ', $address_parts));
-            if ($full_address === '') return;
+            if ($full_address === '') { $this->trace('no_address'); return; }
 
             $coords = Alena_DZ_Geocoder::geocode($full_address);
             if (!$coords) {
                 // Address could not be geocoded — don't offer this rate
+                $this->trace('geocode_failed', $full_address);
                 return;
             }
         }
 
         $polygon = Alena_DZ_Polygon_Store::find_containing($coords['lat'], $coords['lng']);
         if (!$polygon) {
-            // Address is outside every delivery polygon — don't offer this rate
+            $this->trace('no_polygon', $coords);
             return;
         }
 
@@ -94,9 +105,11 @@ class Alena_DZ_Shipping_Method extends WC_Shipping_Method {
                     'alena_dz_under_min'  => true,
                 ],
             ]);
+            $this->trace('under_min', ['cart' => $cart_total, 'min' => $min_order]);
             return;
         }
 
+        $this->trace('rate_added', ['zone' => $polygon_name, 'fee' => $fee]);
         $this->add_rate([
             'id'    => $this->id . ':' . $polygon['id'],
             'label' => sprintf('משלוח לאזור "%s"', $polygon_name),

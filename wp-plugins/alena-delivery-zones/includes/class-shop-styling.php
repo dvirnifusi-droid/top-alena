@@ -209,21 +209,44 @@ class Alena_DZ_Shop_Styling {
         echo '</section>';
     }
 
-    private function find_hero_image_url(): ?string {
-        // Try featured products first
-        $featured = wc_get_featured_product_ids();
-        $candidates = !empty($featured) ? array_slice($featured, 0, 6) : [];
+    /** Categories that must never supply the hero — this is the shop window. */
+    const HERO_EXCLUDED_CATEGORIES = [
+        'שתייה קלה', 'בירות | קוקטייל', 'קינוחים', 'תוספות',
+        'סכו״ם ורטבים 🍴', 'שימו 💙',
+    ];
 
-        // Else random visible products with images
-        if (empty($candidates)) {
-            $candidates = get_posts([
-                'post_type'      => 'product',
-                'posts_per_page' => 20,
-                'orderby'        => 'rand',
-                'fields'         => 'ids',
-                'meta_query'     => [['key' => '_thumbnail_id', 'compare' => 'EXISTS']],
-            ]);
+    private function find_hero_image_url(): ?string {
+        // The hero used to pick a random product, which is how a bottle of
+        // mineral water ended up as the first thing a customer sees. Draw from
+        // main dishes only, newest first so a fresh photo surfaces on its own.
+        $exclude = [];
+        foreach (self::HERO_EXCLUDED_CATEGORIES as $name) {
+            $t = get_term_by('name', $name, 'product_cat');
+            if ($t) $exclude[] = (int) $t->term_id;
         }
+
+        $query = [
+            'post_type'      => 'product',
+            'post_status'    => 'publish',
+            'posts_per_page' => 12,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'fields'         => 'ids',
+            'meta_query'     => [['key' => '_thumbnail_id', 'compare' => 'EXISTS']],
+        ];
+        if ($exclude) {
+            $query['tax_query'] = [[
+                'taxonomy' => 'product_cat',
+                'field'    => 'term_id',
+                'terms'    => $exclude,
+                'operator' => 'NOT IN',
+            ]];
+        }
+        $candidates = get_posts($query);
+
+        // Featured dishes still win when the owner has marked any.
+        $featured = array_values(array_intersect(wc_get_featured_product_ids(), $candidates));
+        if ($featured) $candidates = $featured;
         foreach ($candidates as $pid) {
             $img = wp_get_attachment_image_url(get_post_thumbnail_id($pid), 'large');
             if ($img) return $img;

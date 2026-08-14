@@ -147,7 +147,16 @@
   }
 
   function populateModalFromPayload(d) {
-    modalEl.find('.alena-modal-image-wrap').html(d.img ? '<img alt="" src="' + d.img + '" />' : '');
+    var img = '';
+    if (d.img) {
+      img = '<img alt="" src="' + d.img + '"' +
+            (d.img_srcset ? ' srcset="' + d.img_srcset + '"' : '') +
+            (d.img_sizes  ? ' sizes="' + d.img_sizes + '"'  : '') +
+            // eager + async: this image IS the content, but decoding it must
+            // not block the rest of the dialog from painting.
+            ' loading="eager" decoding="async" />';
+    }
+    modalEl.find('.alena-modal-image-wrap').html(img);
     modalEl.find('.alena-modal-title').text(d.title || '');
 
     let meta = d.price_html ? '<span class="alena-modal-price">' + d.price_html + '</span>' : '';

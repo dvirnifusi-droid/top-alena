@@ -112,7 +112,12 @@ class Alena_DZ_Modifiers {
             'price_html' => $product->get_price_html(),
             'featured'   => $product->is_featured(),
             'desc'       => wpautop(wp_kses_post($desc)),
-            'img'        => $img_id ? (wp_get_attachment_image_url($img_id, 'large') ?: '') : '',
+            // 'large' is ~1024px wide for a slot that renders at 540 (180 on a
+            // phone), so most of those bytes were thrown away. Ship the
+            // mid-size file and let the browser pick from the srcset.
+            'img'        => $img_id ? (wp_get_attachment_image_url($img_id, 'medium_large') ?: wp_get_attachment_image_url($img_id, 'large') ?: '') : '',
+            'img_srcset' => $img_id ? (wp_get_attachment_image_srcset($img_id, 'medium_large') ?: '') : '',
+            'img_sizes'  => '(max-width: 640px) 100vw, 560px',
             'mods_html'  => $mods_html,
             'in_stock'   => $product->is_in_stock(),
         ]);

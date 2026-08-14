@@ -185,3 +185,31 @@ button:focus-visible,
     transition-duration: .01ms !important;
   }
 }
+
+/* ---------- mobile: one navigation, not three ---------- */
+/* A phone was showing the icon bar, the coral logo bar and the bottom tab bar
+   at once — roughly a quarter of the screen before a single dish appeared.
+   The bottom bar is the one that stays: it reaches the thumb. */
+
+@media (max-width: 640px) {
+  .alena-tn, .alena-top-nav, #alena-top-nav { display: none !important; }
+
+  /* Leave room for the fixed bottom bar so the last dish is not covered. */
+  body.woocommerce, body.woocommerce-page {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* ---------- softer stock notices ---------- */
+/* WooCommerce phrases a removed line as an error. After a menu import that is
+   normal housekeeping, not a fault, and red type reads as "something broke". */
+
+.woocommerce-error li:only-child,
+.woocommerce-error {
+  color: #5c5346 !important;
+  background: var(--alena-amber-tint) !important;
+  border: 1px solid #f0e0c4 !important;
+  border-radius: var(--alena-r-sm) !important;
+}
+
+.woocommerce-error::before { color: var(--alena-amber) !important; }
