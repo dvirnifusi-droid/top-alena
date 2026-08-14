@@ -28,10 +28,11 @@ class Alena_DZ_Menu_Manager {
         add_action('wp_ajax_alena_mm_status',    [$this, 'ajax_status']);
     }
 
-    /** The image picker uses wp.media, which is not loaded on custom pages. */
+    /** The image picker uses wp.media and the option list is drag-sortable. */
     public function enqueue($hook) {
         if (strpos((string) $hook, 'alena-menu-manager') === false) return;
         wp_enqueue_media();
+        wp_enqueue_script('jquery-ui-sortable');
     }
 
     public function menu() {

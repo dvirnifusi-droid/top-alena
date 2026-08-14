@@ -218,6 +218,11 @@ if (!defined('ABSPATH')) exit;
 .mm-opts { margin:12px 0 0; padding:0; list-style:none; }
 .mm-opt { padding:11px 12px; margin-bottom:8px; background:#fff; border:1px solid #e6e6e8; border-radius:10px; }
 .mm-opt-top { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.mm-opt-drag { flex:0 0 auto; padding:0 2px; color:#a7aaad; font-size:15px; letter-spacing:-2px;
+  cursor:grab; user-select:none; }
+.mm-opt-drag:active { cursor:grabbing; }
+.mm-opt.ui-sortable-helper { box-shadow:0 8px 22px rgba(0,0,0,.16); }
+.mm-opt-ghost { height:56px; margin-bottom:8px; border:2px dashed #2271b1; border-radius:10px; background:#f0f6fc; }
 .mm-opt-name { font-weight:700; flex:1 1 auto; }
 .mm-opt-vals { color:#646970; font-size:12px; margin-bottom:8px; }
 .mm-opt-grid { display:flex; flex-wrap:wrap; gap:10px; }
@@ -386,6 +391,7 @@ if (!defined('ABSPATH')) exit;
       const vals = (g.values || []).map(v => v.name + (v.price ? ' (₪' + v.price + ')' : '')).join(', ');
       const $li = $('<li class="mm-opt">').attr('data-id', ref.group_id);
       $li.append($('<div class="mm-opt-top">')
+        .append($('<span class="mm-opt-drag" title="גרור לשינוי סדר">⋮⋮</span>'))
         .append($('<span class="mm-opt-name">').text(ref.label || g.name))
         .append($('<span class="mm-badge">').text(g.type === 'multi' ? 'בחירה מרובה' : 'בחירה אחת'))
         .append($('<button class="button mm-opt-del" type="button">הסר</button>')));
@@ -401,6 +407,24 @@ if (!defined('ABSPATH')) exit;
       $l.append($li.append($grid));
     });
     if (!refs.length) $l.append('<p class="mm-hint">אין אפשרויות משויכות למנה זו.</p>');
+    makeSortable();
+  }
+
+  // Order is read straight off the DOM in collectRefs(), so dragging a row is
+  // all that a reorder needs — nothing else has to track position.
+  function makeSortable() {
+    const $l = $('#f-opts');
+    if (!$.fn.sortable) return;
+    if ($l.data('ui-sortable')) $l.sortable('destroy');
+    $l.sortable({
+      items: '> .mm-opt',
+      handle: '.mm-opt-drag',
+      axis: 'y',
+      cursor: 'grabbing',
+      placeholder: 'mm-opt-ghost',
+      forcePlaceholderSize: true,
+      tolerance: 'pointer'
+    });
   }
 
   $('#f-attach').on('click', function () {
