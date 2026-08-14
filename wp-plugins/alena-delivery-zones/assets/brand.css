@@ -213,3 +213,10 @@ button:focus-visible,
 }
 
 .woocommerce-error::before { color: var(--alena-amber) !important; }
+
+/* ---------- designer credit ---------- */
+/* Owner asked for the footer credit line to come off. Targeted at the specific
+   Elementor widget rather than a broad footer rule, so nothing else in that
+   section disappears with it. */
+
+.elementor-element-4fff1ffa { display: none !important; }

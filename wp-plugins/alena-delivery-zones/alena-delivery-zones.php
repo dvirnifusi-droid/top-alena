@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Alena Delivery Zones
  * Description: Google Maps polygon-based delivery zones for WooCommerce. Owner draws delivery polygons on a map; the plugin adds a WC shipping method that geocodes the customer address and matches it to the right polygon (fee, min-order).
- * Version: 0.41.0
+ * Version: 0.41.1
  * Author: Alena / TOPALENA
  * Requires PHP: 7.4
  * Requires at least: 6.5
@@ -12,7 +12,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('ALENA_DZ_VERSION', '0.41.0');
+define('ALENA_DZ_VERSION', '0.41.1');
 define('ALENA_DZ_PATH', plugin_dir_path(__FILE__));
 define('ALENA_DZ_URL',  plugin_dir_url(__FILE__));
 
@@ -117,6 +117,14 @@ add_filter('woocommerce_shipping_methods', function ($methods) {
     $methods['alena_polygon'] = 'Alena_DZ_Shipping_Method';
     return $methods;
 });
+
+// Footer credit line the owner asked to remove. Emitted site-wide because
+// brand.css only loads on WooCommerce pages, and the credit is in the theme
+// footer on every page. Targets the one Elementor widget, not the whole footer.
+add_action('wp_head', function () {
+    if (is_admin()) return;
+    echo '<style id="alena-hide-credit">.elementor-element-4fff1ffa{display:none !important}</style>' . "\n";
+}, 99);
 
 // SEO: consolidate brand authority around alena.topalena.com (showcase site)
 add_action('wp_head', function () {
