@@ -61,37 +61,41 @@
      old enough to be missing. If it fails, only the overscroll colour is lost. */
   html:has(body.alena-dark-mobile) { background: #0e1117 !important; }
 
-  body.alena-dark-mobile,
-  body.alena-dark-mobile .site,
-  body.alena-dark-mobile .site-main,
-  body.alena-dark-mobile .site-content,
-  body.alena-dark-mobile .page-content,
-  body.alena-dark-mobile .entry-content,
-  body.alena-dark-mobile main,
-  body.alena-dark-mobile #content,
-  body.alena-dark-mobile #primary,
-  body.alena-dark-mobile .woocommerce,
-  body.alena-dark-mobile footer,
-  body.alena-dark-mobile .site-footer {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .site,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .site-main,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .site-content,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .page-content,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .entry-content,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile main,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #content,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #primary,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .woocommerce,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile footer,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .site-footer {
     background: var(--bg) !important;
     color: var(--ink-2) !important;
   }
 
   /* Hebrew at 400 goes thin on a dark canvas — hold the body at 500. */
-  body.alena-dark-mobile { font-weight: 500 !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile { font-weight: 500 !important; }
 
   /* ==========================================================================
      2. FLATTENER
      --------------------------------------------------------------------------
-     Three attribute selectors, not one, so this outranks the component sheets
-     it has to beat — `li.alena-dz-card a.alena-dz-card-imgwrap` in
-     modern-design.css is 0,2,2 and would otherwise win the tie.
+     Specificity here is (0,3,1): high enough to beat every component rule that
+     paints these surfaces — the worst is `li.alena-dz-card a.alena-dz-card-imgwrap`
+     in modern-design.css at (0,2,2) — and deliberately no higher, because every
+     repaint below has to outrank it in turn. That is why the repaints carry the
+     body class three times: (0,4,1) beats this outright rather than relying on
+     source order. Getting this backwards is what left the bottom bar and the
+     price accent transparent on the first deploy of 0.44.0.
      ========================================================================== */
 
-  body.alena-dark-mobile [class*="alena-"][class*="alena-"][class*="alena-"]:not(
+  body.alena-dark-mobile [class*="alena-"]:not(
     :is(.alena-dz-hero, .alena-welcome-page, .alena-welcome-page *)
   ),
-  body.alena-dark-mobile [class*="woocommerce-"][class*="woocommerce-"] {
+  body.alena-dark-mobile [class*="woocommerce-"] {
     background-color: transparent !important;
     background-image: none !important;
     box-shadow: none !important;
@@ -102,9 +106,9 @@
 
   /* The three IDs on the menu page. No number of class selectors outranks an
      ID, so these have to be named. */
-  body.alena-dark-mobile #alena-dz-search-input,
-  body.alena-dark-mobile #alena-dz-search-clear,
-  body.alena-dark-mobile #alena-dz-search-empty {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #alena-dz-search-input,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #alena-dz-search-clear,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #alena-dz-search-empty {
     background: transparent !important;
     box-shadow: none !important;
     color: var(--ink-2) !important;
@@ -114,35 +118,35 @@
      3. TYPE
      ========================================================================== */
 
-  body.alena-dark-mobile :is(h1, h2, h3),
-  body.alena-dark-mobile .alena-dz-cat-title,
-  body.alena-dark-mobile .alena-dz-card-title,
-  body.alena-dark-mobile .alena-modal-title,
-  body.alena-dark-mobile .alena-drawer-title,
-  body.alena-dark-mobile .alena-recent-title,
-  body.alena-dark-mobile .alena-recent-card-name,
-  body.alena-dark-mobile .alena-drawer-item-name {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(h1, h2, h3),
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-cat-title,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card-title,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-title,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-title,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-recent-title,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-recent-card-name,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-item-name {
     color: var(--ink) !important;
   }
 
-  body.alena-dark-mobile .alena-dz-cat-desc,
-  body.alena-dark-mobile .alena-dz-card-desc,
-  body.alena-dark-mobile .alena-recent-sub,
-  body.alena-dark-mobile .alena-recent-card-meta,
-  body.alena-dark-mobile .alena-drawer-item-mods,
-  body.alena-dark-mobile .alena-dz-empty {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-cat-desc,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card-desc,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-recent-sub,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-recent-card-meta,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-item-mods,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-empty {
     color: var(--ink-soft) !important;
   }
 
   /* One accent, and only ever for price / CTA / selected. */
-  body.alena-dark-mobile .alena-dz-card-price,
-  body.alena-dark-mobile .alena-dz-card-price :is(.amount, bdi),
-  body.alena-dark-mobile .alena-modal-price,
-  body.alena-dark-mobile .alena-modal-meta,
-  body.alena-dark-mobile .alena-dz-mod-price,
-  body.alena-dark-mobile .alena-drawer-item-price,
-  body.alena-dark-mobile .alena-drawer-cross-price,
-  body.alena-dark-mobile .alena-recent-card-total {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card-price,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card-price :is(.amount, bdi),
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-price,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-meta,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-price,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-item-price,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-cross-price,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-recent-card-total {
     color: var(--accent) !important;
     font-weight: 700 !important;
   }
@@ -154,12 +158,12 @@
      Wolt uses a plain row and a hairline; the photo does the separating.
      ========================================================================== */
 
-  body.alena-dark-mobile ul.alena-dz-products {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-products {
     grid-template-columns: 1fr !important;
     gap: 0 !important;
   }
 
-  body.alena-dark-mobile li.alena-dz-card {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile li.alena-dz-card {
     height: auto !important;
     min-height: 0 !important;
     align-items: flex-start !important;
@@ -171,7 +175,7 @@
     transform: none !important;
   }
 
-  body.alena-dark-mobile .alena-dz-card .alena-dz-card-imgwrap {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card .alena-dz-card-imgwrap {
     flex: 0 0 80px !important;
     width: 80px !important;
     height: 80px !important;
@@ -181,33 +185,33 @@
     overflow: hidden !important;
   }
 
-  body.alena-dark-mobile .alena-dz-card .alena-dz-card-body {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card .alena-dz-card-body {
     gap: 5px !important;
     padding: 0 !important;
   }
 
-  body.alena-dark-mobile .alena-dz-card .alena-dz-card-title {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card .alena-dz-card-title {
     font-size: 16px !important;
     font-weight: 700 !important;
     white-space: normal !important;
   }
 
-  body.alena-dark-mobile .alena-dz-card .alena-dz-card-desc {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card .alena-dz-card-desc {
     font-size: 13px !important;
     font-weight: 400 !important;
     line-height: 1.5 !important;
   }
 
   /* Price sits under the description — the number people actually scan. */
-  body.alena-dark-mobile .alena-dz-card .alena-dz-card-bottom {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card .alena-dz-card-bottom {
     margin: 2px 0 0 !important;
   }
-  body.alena-dark-mobile .alena-dz-card .alena-dz-card-price {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card .alena-dz-card-price {
     font-size: 15px !important;
   }
 
   /* Popular badge: accent pill under the price, not a corner sticker. */
-  body.alena-dark-mobile .alena-dz-card .alena-dz-popular-badge {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card .alena-dz-popular-badge {
     position: static !important;
     display: inline-block !important;
     align-self: flex-start !important;
@@ -221,13 +225,13 @@
   }
 
   /* Round + button on the photo. */
-  body.alena-dark-mobile .alena-dz-card .alena-dz-card-add,
-  body.alena-dark-mobile .alena-dz-card-stepper button {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card .alena-dz-card-add,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card-stepper button {
     background-color: var(--surface-2) !important;
     color: var(--accent) !important;
     border: 1px solid var(--line) !important;
   }
-  body.alena-dark-mobile .alena-dz-card-stepper {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card-stepper {
     background-color: var(--surface) !important;
     border-radius: 999px !important;
   }
@@ -236,13 +240,13 @@
      5. CATEGORY TABS — underline on active, no pills
      ========================================================================== */
 
-  body.alena-dark-mobile .alena-dz-catnav,
-  body.alena-dark-mobile .alena-dz-catnav-inner {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-catnav,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-catnav-inner {
     background-color: var(--bg) !important;
     border-bottom: 1px solid var(--line) !important;
   }
 
-  body.alena-dark-mobile .alena-dz-catnav .alena-dz-catnav-item {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-catnav .alena-dz-catnav-item {
     padding: 12px 4px !important;
     margin-inline-end: 18px !important;
     font-size: 14.5px !important;
@@ -253,12 +257,12 @@
     border-radius: 0 !important;
   }
 
-  body.alena-dark-mobile .alena-dz-catnav .alena-dz-catnav-item:is(.is-active, .active) {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-catnav .alena-dz-catnav-item:is(.is-active, .active) {
     color: var(--ink) !important;
     border-bottom-color: var(--accent) !important;
   }
 
-  body.alena-dark-mobile .alena-dz-catnav-inner::-webkit-scrollbar-thumb {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-catnav-inner::-webkit-scrollbar-thumb {
     background: var(--line) !important;
   }
 
@@ -271,22 +275,22 @@
      paints them back.
      ========================================================================== */
 
-  body.alena-dark-mobile .alena-dz-cat-section {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-cat-section {
     border: 0 !important;
     border-radius: 0 !important;
     margin: 0 0 8px !important;
     padding: 0 !important;
   }
 
-  body.alena-dark-mobile .alena-dz-cat-title {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-cat-title {
     padding: 22px 14px 4px !important;
     font-size: 20px !important;
   }
-  body.alena-dark-mobile .alena-dz-cat-title::after { display: none !important; }
-  body.alena-dark-mobile .alena-dz-cat-desc { padding: 0 14px 6px !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-cat-title::after { display: none !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-cat-desc { padding: 0 14px 6px !important; }
 
   /* Horizontal row: the card is the photo, price then name underneath. */
-  body.alena-dark-mobile ul.alena-dz-products-popular {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-products-popular {
     grid-template-columns: none !important;
     display: flex !important;
     gap: 12px !important;
@@ -294,26 +298,26 @@
     overflow-x: auto !important;
     scrollbar-width: none !important;
   }
-  body.alena-dark-mobile ul.alena-dz-products-popular::-webkit-scrollbar {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-products-popular::-webkit-scrollbar {
     display: none !important;
   }
 
-  body.alena-dark-mobile ul.alena-dz-products-popular li.alena-dz-card {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-products-popular li.alena-dz-card {
     flex: 0 0 150px !important;
     display: block !important;
     padding: 0 !important;
     border-bottom: 0 !important;
   }
-  body.alena-dark-mobile ul.alena-dz-products-popular .alena-dz-card-imgwrap {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-products-popular .alena-dz-card-imgwrap {
     width: 150px !important;
     height: 110px !important;
     flex-basis: auto !important;
     border-radius: 12px !important;
   }
-  body.alena-dark-mobile ul.alena-dz-products-popular .alena-dz-card-body {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-products-popular .alena-dz-card-body {
     padding: 8px 2px 0 !important;
   }
-  body.alena-dark-mobile ul.alena-dz-products-popular .alena-dz-card-desc {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-products-popular .alena-dz-card-desc {
     display: none !important;
   }
 
@@ -321,30 +325,30 @@
      7. "הזמינו שוב" — the orders row that stayed white
      ========================================================================== */
 
-  body.alena-dark-mobile .alena-recent {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-recent {
     border: 0 !important;
     border-radius: 0 !important;
     padding: 6px 0 14px !important;
     margin: 0 !important;
   }
-  body.alena-dark-mobile .alena-recent-head { padding: 0 14px !important; }
-  body.alena-dark-mobile .alena-recent-title {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-recent-head { padding: 0 14px !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-recent-title {
     -webkit-text-fill-color: var(--ink) !important;
     background-image: none !important;
     font-size: 18px !important;
   }
-  body.alena-dark-mobile .alena-recent-row {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-recent-row {
     padding: 0 14px !important;
     scrollbar-width: none !important;
   }
-  body.alena-dark-mobile .alena-recent-row::-webkit-scrollbar { display: none !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-recent-row::-webkit-scrollbar { display: none !important; }
 
-  body.alena-dark-mobile .alena-recent-card {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-recent-card {
     background-color: var(--surface) !important;
     border: 1px solid var(--line) !important;
     border-radius: 14px !important;
   }
-  body.alena-dark-mobile .alena-recent-card-img {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-recent-card-img {
     background-color: var(--surface-2) !important;
   }
 
@@ -355,12 +359,12 @@
      translucent dark pills instead of white ones.
      ========================================================================== */
 
-  body.alena-dark-mobile .alena-dz-hero {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero {
     border-radius: 0 0 26px 26px !important;
     margin: 0 0 4px !important;
     box-shadow: none !important;
   }
-  body.alena-dark-mobile .alena-dz-hero-chip {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-chip {
     background-color: rgba(14, 17, 23, .62) !important;
     color: #fff !important;
     border: 1px solid rgba(255, 255, 255, .16) !important;
@@ -371,16 +375,16 @@
      9. SEARCH + FORM FIELDS
      ========================================================================== */
 
-  body.alena-dark-mobile #alena-dz-search-input,
-  body.alena-dark-mobile .alena-dz-search input,
-  body.alena-dark-mobile input:is([type="text"], [type="tel"], [type="email"], [type="search"], [type="number"]),
-  body.alena-dark-mobile textarea,
-  body.alena-dark-mobile select {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #alena-dz-search-input,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-search input,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile input:is([type="text"], [type="tel"], [type="email"], [type="search"], [type="number"]),
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile textarea,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile select {
     background-color: var(--surface) !important;
     color: var(--ink) !important;
     border: 1px solid var(--line) !important;
   }
-  body.alena-dark-mobile ::placeholder { color: var(--ink-soft) !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ::placeholder { color: var(--ink-soft) !important; }
 
   /* ==========================================================================
      10. DISH MODAL
@@ -391,71 +395,71 @@
      way.
      ========================================================================== */
 
-  body.alena-dark-mobile .alena-modal-backdrop {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-backdrop {
     background-color: rgba(0, 0, 0, .66) !important;
   }
 
-  body.alena-dark-mobile .alena-modal {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal {
     background-color: var(--bg) !important;
     border-radius: 0 !important;
   }
-  body.alena-dark-mobile .alena-modal-image-wrap {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-image-wrap {
     background-color: var(--surface) !important;
   }
-  body.alena-dark-mobile .alena-modal-close {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-close {
     background-color: rgba(14, 17, 23, .72) !important;
     color: #fff !important;
     border: 1px solid var(--line) !important;
   }
-  body.alena-dark-mobile .alena-modal-foot {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-foot {
     background-color: var(--bg) !important;
     border-top: 1px solid var(--line) !important;
   }
-  body.alena-dark-mobile .alena-modal-desc {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-desc {
     color: var(--ink-soft) !important;
     border: 0 !important;
     padding: 0 !important;
     font-size: 14px !important;
     line-height: 1.65 !important;
   }
-  body.alena-dark-mobile .alena-modal-note,
-  body.alena-dark-mobile .alena-modal-share,
-  body.alena-dark-mobile .alena-modal-qty {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-note,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-share,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-qty {
     background-color: var(--surface) !important;
     border: 1px solid var(--line) !important;
   }
-  body.alena-dark-mobile .alena-modal-qty button {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-qty button {
     background-color: var(--surface-2) !important;
     color: var(--ink) !important;
   }
-  body.alena-dark-mobile .alena-modal-qty-value { color: var(--ink) !important; }
-  body.alena-dark-mobile .alena-modal-skeleton {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-qty-value { color: var(--ink) !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-skeleton {
     background-image: linear-gradient(100deg, var(--surface) 30%, var(--surface-2) 50%, var(--surface) 70%) !important;
   }
-  body.alena-dark-mobile .alena-modal-err {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-err {
     background-color: rgba(192, 57, 43, .16) !important;
     color: #ff9b90 !important;
     border: 1px solid rgba(192, 57, 43, .4) !important;
   }
 
   /* Option groups: hairline separated, no boxes. */
-  body.alena-dark-mobile .alena-dz-mod-group {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-group {
     border: 0 !important;
     border-top: 1px solid var(--line) !important;
     border-radius: 0 !important;
     padding: 18px 0 !important;
     margin: 0 !important;
   }
-  body.alena-dark-mobile :is(.alena-dz-mod-title, .alena-dz-mod-head) {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(.alena-dz-mod-title, .alena-dz-mod-head) {
     color: var(--ink) !important;
     font-size: 16px !important;
   }
 
   /* Requirement reads as a quiet sub-heading, not a red warning label. */
-  body.alena-dark-mobile .alena-dz-mod-badge,
-  body.alena-dark-mobile .alena-dz-mod-required,
-  body.alena-dark-mobile .alena-dz-mod-optional,
-  body.alena-dark-mobile .alena-dz-mod-hint {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-badge,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-required,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-optional,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-hint {
     display: block !important;
     margin: 3px 0 0 !important;
     padding: 0 !important;
@@ -465,23 +469,23 @@
     border: 0 !important;
   }
 
-  body.alena-dark-mobile .alena-dz-mod-row {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-row {
     border: 0 !important;
     border-radius: 0 !important;
     margin: 0 !important;
     padding: 13px 0 !important;
     font-size: 15px !important;
   }
-  body.alena-dark-mobile .alena-dz-mod-row:has(input:checked) {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-row:has(input:checked) {
     color: var(--ink) !important;
   }
-  body.alena-dark-mobile .alena-dz-mod-row input:is([type="radio"], [type="checkbox"]) {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-row input:is([type="radio"], [type="checkbox"]) {
     accent-color: var(--accent) !important;
     width: 22px !important;
     height: 22px !important;
     background-color: transparent !important;
   }
-  body.alena-dark-mobile .alena-dz-mod-group.alena-dz-mod-error {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-group.alena-dz-mod-error {
     border-top-color: rgba(192, 57, 43, .55) !important;
   }
 
@@ -489,18 +493,18 @@
      11. CTAs — the only filled accent on screen
      ========================================================================== */
 
-  body.alena-dark-mobile .alena-modal-add,
-  body.alena-dark-mobile .alena-drawer-cta,
-  body.alena-dark-mobile .alena-recent-card-cta,
-  body.alena-dark-mobile .alena-drawer-empty-cta,
-  body.alena-dark-mobile .alena-dz-sticky-cta,
-  body.alena-dark-mobile .alena-shop-cart-bar-cta {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-add,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-cta,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-recent-card-cta,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-empty-cta,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-sticky-cta,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-shop-cart-bar-cta {
     background-color: var(--accent) !important;
     color: var(--accent-ink) !important;
     border: 0 !important;
     font-weight: 800 !important;
   }
-  body.alena-dark-mobile :is(.alena-modal-add, .alena-drawer-cta) :is(span, b, bdi, .amount) {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(.alena-modal-add, .alena-drawer-cta) :is(span, b, bdi, .amount) {
     color: var(--accent-ink) !important;
   }
 
@@ -512,30 +516,30 @@
      would be worse than a light one, so these must be repainted.
      ========================================================================== */
 
-  body.alena-dark-mobile .alena-dz-bottom-nav {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-bottom-nav {
     background-color: var(--surface) !important;
     border-top: 1px solid var(--line) !important;
   }
-  body.alena-dark-mobile .alena-dz-bn-label { color: var(--ink-soft) !important; }
-  body.alena-dark-mobile .alena-dz-bn-cart.has-items .alena-dz-bn-label { color: var(--accent) !important; }
-  body.alena-dark-mobile .alena-dz-bn-badge,
-  body.alena-dark-mobile .alena-shop-cart-bar-count,
-  body.alena-dark-mobile .alena-dz-mini-cart-count {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-bn-label { color: var(--ink-soft) !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-bn-cart.has-items .alena-dz-bn-label { color: var(--accent) !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-bn-badge,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-shop-cart-bar-count,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mini-cart-count {
     background-color: var(--accent) !important;
     color: var(--accent-ink) !important;
   }
 
-  body.alena-dark-mobile .alena-shop-cart-bar,
-  body.alena-dark-mobile #alena-shop-cart-bar {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-shop-cart-bar,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #alena-shop-cart-bar {
     background-color: var(--surface) !important;
     border: 1px solid var(--line) !important;
     box-shadow: 0 -6px 24px rgba(0, 0, 0, .5) !important;
   }
-  body.alena-dark-mobile .alena-shop-cart-bar-label { color: var(--ink-soft) !important; }
-  body.alena-dark-mobile .alena-shop-cart-bar-total { color: var(--ink) !important; }
-  body.alena-dark-mobile .alena-shop-cart-bar-go { color: var(--accent-ink) !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-shop-cart-bar-label { color: var(--ink-soft) !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-shop-cart-bar-total { color: var(--ink) !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-shop-cart-bar-go { color: var(--accent-ink) !important; }
 
-  body.alena-dark-mobile .alena-dz-sticky-bar {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-sticky-bar {
     background-color: var(--surface) !important;
     border-top: 1px solid var(--line) !important;
   }
@@ -544,62 +548,62 @@
      13. CART DRAWER
      ========================================================================== */
 
-  body.alena-dark-mobile .alena-drawer-backdrop {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-backdrop {
     background-color: rgba(0, 0, 0, .6) !important;
   }
-  body.alena-dark-mobile .alena-drawer { background-color: var(--bg) !important; }
-  body.alena-dark-mobile .alena-drawer-head {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer { background-color: var(--bg) !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-head {
     background-color: var(--surface) !important;
     border-bottom: 1px solid var(--line) !important;
   }
-  body.alena-dark-mobile .alena-drawer-head::after { display: none !important; }
-  body.alena-dark-mobile .alena-drawer-close {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-head::after { display: none !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-close {
     background-color: var(--surface-2) !important;
     color: var(--ink) !important;
   }
-  body.alena-dark-mobile .alena-drawer-body { background-color: var(--bg) !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-body { background-color: var(--bg) !important; }
 
-  body.alena-dark-mobile .alena-drawer-item,
-  body.alena-dark-mobile .alena-drawer-note,
-  body.alena-dark-mobile .alena-drawer-summary,
-  body.alena-dark-mobile .alena-drawer-cross-card {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-item,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-note,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-summary,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-cross-card {
     background-color: var(--surface) !important;
     border: 1px solid var(--line) !important;
   }
-  body.alena-dark-mobile .alena-drawer-item-img,
-  body.alena-dark-mobile .alena-drawer-cross-card img {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-item-img,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-cross-card img {
     background-color: var(--surface-2) !important;
   }
-  body.alena-dark-mobile .alena-drawer-item-mod {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-item-mod {
     background-color: var(--surface-2) !important;
     color: var(--ink-soft) !important;
   }
-  body.alena-dark-mobile .alena-drawer-item-stepper {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-item-stepper {
     background-color: var(--surface-2) !important;
   }
-  body.alena-dark-mobile .alena-drawer-item-stepper button {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-item-stepper button {
     background-color: var(--surface) !important;
     color: var(--accent) !important;
   }
-  body.alena-dark-mobile .alena-drawer-step-qty { color: var(--ink) !important; }
-  body.alena-dark-mobile .alena-drawer-chip,
-  body.alena-dark-mobile .alena-drawer-note textarea {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-step-qty { color: var(--ink) !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-chip,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-note textarea {
     background-color: var(--surface-2) !important;
     border: 1px solid var(--line) !important;
     color: var(--ink-2) !important;
   }
-  body.alena-dark-mobile .alena-drawer-chip.is-active {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-chip.is-active {
     background-color: var(--accent) !important;
     color: var(--accent-ink) !important;
     border-color: var(--accent) !important;
   }
-  body.alena-dark-mobile .alena-drawer-cta-secondary {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-cta-secondary {
     background-color: transparent !important;
     border: 1px solid var(--line) !important;
     color: var(--ink-2) !important;
   }
-  body.alena-dark-mobile .alena-drawer-cross-title,
-  body.alena-dark-mobile .alena-drawer-cross-card strong {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-cross-title,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-drawer-cross-card strong {
     color: var(--ink) !important;
   }
 
@@ -607,12 +611,12 @@
      14. WOOCOMMERCE NOTICES
      ========================================================================== */
 
-  body.alena-dark-mobile :is(.woocommerce-message, .woocommerce-info, .woocommerce-error) {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(.woocommerce-message, .woocommerce-info, .woocommerce-error) {
     background-color: var(--surface) !important;
     color: var(--ink-2) !important;
     border-top: 3px solid var(--accent) !important;
   }
-  body.alena-dark-mobile .alena-dz-min-notice {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-min-notice {
     background-color: var(--surface) !important;
     border: 1px solid var(--line) !important;
     color: var(--ink-2) !important;
