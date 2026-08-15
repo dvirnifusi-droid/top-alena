@@ -101,6 +101,22 @@ class Alena_DZ_Shop_Styling {
         }
     }
 
+    /** Fulfilment options, shared by the header button and the chooser sheet. */
+    private function fulfilment_labels() {
+        return [
+            'delivery' => ['icon' => '🛵', 'label' => 'משלוח',      'eta' => '35-45 דק׳'],
+            'pickup'   => ['icon' => '🥡', 'label' => 'איסוף עצמי', 'eta' => '15-25 דק׳'],
+        ];
+    }
+
+    private function current_fulfilment_mode() {
+        if (function_exists('WC') && WC()->session) {
+            $m = WC()->session->get('alena_fulfillment_mode');
+            if (in_array($m, ['delivery', 'pickup'], true)) return $m;
+        }
+        return 'delivery';
+    }
+
     /**
      * The dark theme covers the menu pages only. Cart, checkout and the account
      * area are still light — converting them is a separate piece of work, and
@@ -290,23 +306,52 @@ class Alena_DZ_Shop_Styling {
            . implode(' <span class="alena-dz-hero-dot">·</span> ', array_map('esc_html', $meta))
            . '</p>';
 
-        $mode = 'delivery';
-        if (function_exists('WC') && WC()->session) {
-            $m = WC()->session->get('alena_fulfillment_mode');
-            if (in_array($m, ['delivery', 'pickup'], true)) $mode = $m;
-        }
-        $mode_label = ($mode === 'pickup') ? '🥡 איסוף עצמי · 15-25 דק׳' : '🛵 משלוח · 35-45 דק׳';
+        $modes = $this->fulfilment_labels();
+        $mode  = $this->current_fulfilment_mode();
 
         echo '<div class="alena-dz-hero-actions">';
         printf(
-            '<button type="button" class="alena-dz-mode-switch" id="alena-mode-switch" data-mode="%s">%s <span class="alena-dz-mode-caret" aria-hidden="true">⌄</span></button>',
+            '<button type="button" class="alena-dz-mode-switch" id="alena-mode-switch" data-mode="%s"'
+            . ' aria-haspopup="dialog" aria-expanded="false">'
+            . '<span class="alena-dz-mode-label">%s %s · %s</span>'
+            . '<span class="alena-dz-mode-caret" aria-hidden="true">⌄</span></button>',
             esc_attr($mode),
-            esc_html($mode_label)
+            $modes[$mode]['icon'],
+            esc_html($modes[$mode]['label']),
+            esc_html($modes[$mode]['eta'])
         );
         echo '<button type="button" class="alena-dz-hero-act" id="alena-hero-share" aria-label="שיתוף">↗</button>';
         echo '</div>';
         echo '</div>';
         echo '</section>';
+
+        // The chooser. A button that silently flipped to the other mode gave no
+        // clue what it would do or what the options even were; this shows both,
+        // marks the current one, and never reloads the page.
+        echo '<div class="alena-dz-mode-sheet" id="alena-mode-sheet" hidden>';
+        echo '<div class="alena-dz-mode-sheet-backdrop" data-close="1"></div>';
+        echo '<div class="alena-dz-mode-sheet-panel" role="dialog" aria-modal="true" aria-label="איך לקבל את ההזמנה">';
+        echo '<span class="alena-dz-mode-sheet-grip" aria-hidden="true"></span>';
+        echo '<h3 class="alena-dz-mode-sheet-title">איך לקבל את ההזמנה?</h3>';
+        foreach ($modes as $key => $m) {
+            printf(
+                '<button type="button" class="alena-dz-mode-opt%s" data-mode="%s">'
+                . '<span class="alena-dz-mode-opt-icon" aria-hidden="true">%s</span>'
+                . '<span class="alena-dz-mode-opt-body">'
+                . '<span class="alena-dz-mode-opt-label">%s</span>'
+                . '<span class="alena-dz-mode-opt-sub">%s</span>'
+                . '</span>'
+                . '<span class="alena-dz-mode-opt-check" aria-hidden="true">✓</span>'
+                . '</button>',
+                $key === $mode ? ' is-active' : '',
+                esc_attr($key),
+                $m['icon'],
+                esc_html($m['label']),
+                esc_html($m['eta'])
+            );
+        }
+        echo '</div>';
+        echo '</div>';
     }
 
     /** Categories that must never supply the hero — this is the shop window. */
@@ -392,9 +437,14 @@ class Alena_DZ_Shop_Styling {
         // that object is localized on a footer script, so it does not exist yet
         // when this inline block runs in the body. Guarding on it meant the
         // fulfilment switch never bound a click handler at all.
+        $labels = [];
+        foreach ($this->fulfilment_labels() as $key => $m) {
+            $labels[$key] = $m['icon'] . ' ' . $m['label'] . ' · ' . $m['eta'];
+        }
         $mode_cfg = wp_json_encode([
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('alena_welcome'),
+            'labels'  => $labels,
         ]);
         ?>
         <script>
@@ -432,27 +482,60 @@ class Alena_DZ_Shop_Styling {
         // Header fulfilment switch. Posts to alena_set_mode, which touches the
         // mode only — ajax_welcome_save would have cleared the saved address.
         (function () {
-          const cfg = <?php echo $mode_cfg; ?>;
-          const btn = document.getElementById('alena-mode-switch');
-          if (btn) {
-            btn.addEventListener('click', function () {
-              const next = btn.dataset.mode === 'pickup' ? 'delivery' : 'pickup';
-              btn.disabled = true;
-              fetch(cfg.ajaxUrl, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({
-                  action: 'alena_set_mode',
-                  nonce: cfg.nonce,
-                  mode: next
-                })
-              })
-                .then(r => r.json())
-                // Reload rather than patch the DOM: the shipping row, the
-                // minimum-order notice and the totals all key off the mode.
-                .then(j => { if (j && j.success) location.reload(); else btn.disabled = false; })
-                .catch(() => { btn.disabled = false; });
+          const cfg   = <?php echo $mode_cfg; ?>;
+          const btn   = document.getElementById('alena-mode-switch');
+          const sheet = document.getElementById('alena-mode-sheet');
+
+          if (btn && sheet) {
+            const label = btn.querySelector('.alena-dz-mode-label');
+            const opts  = sheet.querySelectorAll('.alena-dz-mode-opt');
+
+            function open() {
+              sheet.hidden = false;
+              // A timer rather than requestAnimationFrame: rAF does not fire in a
+              // tab that is not painting, and without `is-open` the sheet stays
+              // fully transparent while still covering the screen — invisible,
+              // and swallowing every tap.
+              setTimeout(() => sheet.classList.add('is-open'), 16);
+              btn.setAttribute('aria-expanded', 'true');
+            }
+            function close() {
+              sheet.classList.remove('is-open');
+              btn.setAttribute('aria-expanded', 'false');
+              setTimeout(() => { sheet.hidden = true; }, 200);
+            }
+
+            btn.addEventListener('click', open);
+            sheet.addEventListener('click', e => { if (e.target.dataset.close) close(); });
+            document.addEventListener('keydown', e => {
+              if (e.key === 'Escape' && !sheet.hidden) close();
+            });
+
+            opts.forEach(opt => {
+              opt.addEventListener('click', () => {
+                const next = opt.dataset.mode;
+                if (next === btn.dataset.mode) { close(); return; }
+
+                // Update and close straight away. The page does not reload: the
+                // menu looks the same either way, and the cart reads the mode
+                // from the session when the customer gets there. Reloading here
+                // is what made the switch feel like it had jammed.
+                opts.forEach(o => o.classList.toggle('is-active', o === opt));
+                btn.dataset.mode = next;
+                if (label && cfg.labels[next]) label.textContent = cfg.labels[next];
+                close();
+
+                fetch(cfg.ajaxUrl, {
+                  method: 'POST',
+                  credentials: 'same-origin',
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                  body: new URLSearchParams({
+                    action: 'alena_set_mode',
+                    nonce: cfg.nonce,
+                    mode: next
+                  })
+                }).catch(() => {});
+              });
             });
           }
 
