@@ -414,14 +414,27 @@
 
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-photo {
     display: block !important;
-    background-image: var(--alena-hero-photo) !important;
+    position: relative !important;
     width: 100% !important;
     height: 34vh !important;
     min-height: 190px !important;
     max-height: 260px !important;
+    overflow: hidden !important;
+  }
+  /* Slides stack and cross-fade; nothing moves, so it never fights the scroll. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-slide {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    background-image: var(--alena-hero-photo) !important;
     background-size: cover !important;
     background-position: center center !important;
     background-repeat: no-repeat !important;
+    opacity: 0 !important;
+    transition: opacity .9s ease !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-slide.is-active {
+    opacity: 1 !important;
   }
 
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-inner {
@@ -436,15 +449,76 @@
   }
 
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-title {
-    font-size: 27px !important;
+    font-size: 32px !important;
     font-weight: 800 !important;
-    line-height: 1.15 !important;
+    line-height: 1.12 !important;
     margin: 0 !important;
     color: var(--ink) !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-sub {
-    margin: 4px 0 0 !important;
-    font-size: 13px !important;
+    margin: 5px 0 0 !important;
+    font-size: 13.5px !important;
+    color: var(--ink-soft) !important;
+  }
+
+  /* Open/closed on its own line with a colour-coded dot — the dot carries the
+     state visually, the words carry it for anyone who cannot see colour. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-status {
+    display: flex !important;
+    align-items: center !important;
+    gap: 7px !important;
+    margin: 12px 0 0 !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-status-dot {
+    width: 9px !important;
+    height: 9px !important;
+    border-radius: 999px !important;
+    flex: 0 0 auto !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-status.is-open .alena-dz-hero-status-dot {
+    background: #35d07f !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-status.is-closed .alena-dz-hero-status-dot {
+    background: #ff6b5e !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-status.is-closed {
+    color: #ff9b90 !important;
+  }
+
+  /* The facts as a short stack instead of one long dotted sentence that wrapped
+     mid-phrase and had no scannable structure. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-hero-meta {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px 14px !important;
+    list-style: none !important;
+    margin: 8px 0 0 !important;
+    padding: 0 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-hero-meta li {
+    position: relative !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    line-height: 1.5 !important;
+    color: var(--ink-2) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-hero-meta li + li::before {
+    content: "·" !important;
+    position: absolute !important;
+    inset-inline-start: -9px !important;
+    color: var(--ink-soft) !important;
+  }
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mode-hint {
+    display: block !important;
+    margin: 8px 0 0 !important;
+    font-size: 12px !important;
+    line-height: 1.5 !important;
     color: var(--ink-soft) !important;
   }
   /* Wolt's header: the facts as one dotted line, then a row of things you can
@@ -1071,7 +1145,116 @@
   }
 
   /* ==========================================================================
-     16. WOOCOMMERCE NOTICES
+     16. CLUB BANNER, FLOATING CART BAR, MODAL TITLE
+     ========================================================================== */
+
+  /* The redeemable balance was the point of the whole banner and the flatten
+     had left it the same grey as everything around it. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner {
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 18px !important;
+    margin: 14px !important;
+    padding: 14px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-greeting strong {
+    color: var(--ink) !important;
+    font-size: 16px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-tier {
+    color: var(--ink-soft) !important;
+    font-size: 12.5px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-account {
+    display: inline-block !important;
+    margin-top: 6px !important;
+    padding: 6px 12px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 999px !important;
+    font-size: 12.5px !important;
+    font-weight: 700 !important;
+    color: var(--accent) !important;
+    text-decoration: none !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat strong {
+    color: var(--ink) !important;
+    font-size: 21px !important;
+    font-weight: 800 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat span {
+    color: var(--ink-soft) !important;
+    font-size: 12px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat-accent {
+    background: rgba(34, 201, 238, .1) !important;
+    border: 1px solid rgba(34, 201, 238, .35) !important;
+    border-radius: 14px !important;
+    padding: 8px 12px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat-accent strong,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat-accent span {
+    color: var(--accent) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-hint {
+    color: var(--ink-soft) !important;
+    font-size: 12px !important;
+  }
+
+  /* Floating cart bar: the label, the total and the go-button were competing
+     for the same row and colliding. One line, three clear zones. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-shop-cart-bar,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #alena-shop-cart-bar {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    inset-inline: 12px !important;
+    bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+    padding: 10px 12px !important;
+    border-radius: 18px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-shop-cart-bar-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex: 0 0 auto !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-shop-cart-bar-cta {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    padding: 11px 16px !important;
+    border-radius: 999px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-shop-cart-bar-total,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-shop-cart-bar-go {
+    color: var(--accent-ink) !important;
+    font-weight: 800 !important;
+    font-size: 15px !important;
+    white-space: nowrap !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-shop-cart-bar-label {
+    font-size: 12.5px !important;
+    white-space: nowrap !important;
+  }
+
+  /* Dish name in the modal — this is the thing being bought. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-title {
+    font-size: 26px !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+  }
+
+  /* A capped group that is full dims what is no longer available, so a line
+     that will not respond at least looks like it will not respond. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-row:has(input:disabled) {
+    opacity: .4 !important;
+  }
+
+  /* ==========================================================================
+     17. WOOCOMMERCE NOTICES
      ========================================================================== */
 
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(.woocommerce-message, .woocommerce-info, .woocommerce-error) {

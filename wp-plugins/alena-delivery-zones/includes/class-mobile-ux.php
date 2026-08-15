@@ -9,7 +9,12 @@ if (!defined('ABSPATH')) exit;
 class Alena_DZ_Mobile_UX {
 
     public function __construct() {
-        add_action('wp_footer', [$this, 'render_bottom_nav']);
+        // Bottom nav removed 2026-08-15 at the owner's request. Every entry had
+        // somewhere better to live: the cart already floats into view as soon as
+        // something is added, the menu is the page itself, and the account link
+        // moved up beside the club greeting. What was left was a permanent bar
+        // taking a strip of a phone screen to duplicate them.
+        // add_action('wp_footer', [$this, 'render_bottom_nav']);
     }
 
     public function render_bottom_nav() {

@@ -71,6 +71,15 @@
       recomputeTotal();
     });
     modalEl.on('change', '.alena-dz-modifiers input', function () {
+      // A Multichoice group capped at one is a single choice wearing a
+      // checkbox. Picking a second line used to hit the max and silently
+      // disable every other line, which reads as the dish having jammed.
+      // Swap the selection instead.
+      const $group = $(this).closest('.alena-dz-mod-group');
+      if (this.type === 'checkbox' && this.checked
+          && parseInt($group.data('max'), 10) === 1) {
+        $group.find('input[type="checkbox"]').not(this).prop('checked', false);
+      }
       // Gating: first group decides visibility of the rest
       applyGating();
       enforceMax();
@@ -280,9 +289,18 @@
       if (max <= 0) return;
       const $boxes = $(this).find('input[type="checkbox"]');
       const checked = $boxes.filter(':checked').length;
+      // Capped at one: never disable anything — the change handler swaps the
+      // selection, so every line stays tappable.
+      if (max === 1) {
+        $boxes.prop('disabled', false);
+        return;
+      }
       $boxes.each(function () {
         if (!this.checked) this.disabled = (checked >= max);
       });
+      // Marks the group so the remaining lines can be visibly dimmed. Silently
+      // dead rows were the whole complaint.
+      $(this).toggleClass('alena-dz-mod-full', checked >= max);
     });
   }
 
@@ -481,6 +499,41 @@
   $(document).on('mouseenter', 'li.alena-dz-card', function () {
     fetchDish($(this).attr('data-product-id'));
   });
+
+  // Touch-warming only buys the ~200ms between finger-down and tap, and the
+  // payload endpoint measures 500ms-plus because admin-ajax boots all of
+  // WordPress per call — so the first tap on a dish still waited. Warm each
+  // card as it comes near the viewport instead, two requests at a time so a
+  // long menu does not fire fifty at once.
+  (function warmVisibleDishes() {
+    if (!('IntersectionObserver' in window)) return;
+    const queue = [];
+    let inFlight = 0;
+
+    function pump() {
+      while (inFlight < 2 && queue.length) {
+        const id = queue.shift();
+        if (!id || dishCache[id]) continue;
+        const req = fetchDish(id);
+        if (!req || !req.always) continue;
+        inFlight++;
+        req.always(function () { inFlight--; pump(); });
+      }
+    }
+
+    const io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        io.unobserve(entry.target);
+        queue.push(entry.target.getAttribute('data-product-id'));
+      });
+      pump();
+    }, { rootMargin: '400px 0px' });
+
+    document.querySelectorAll('li.alena-dz-card').forEach(function (card) {
+      io.observe(card);
+    });
+  })();
 
   // On-card stepper for products WITHOUT required modifiers
   // (Wolt pattern — saves 4 taps per add).

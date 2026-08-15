@@ -405,18 +405,22 @@ class Alena_DZ_Club {
           <div class="alena-club-shop-banner-greeting">
             <span class="alena-club-shop-banner-tier-emoji"><?php echo $t['emoji']; ?></span>
             <div>
-              <strong>שלום <?php echo esc_html($name); ?>!</strong>
-              <span class="alena-club-shop-banner-tier"><?php echo esc_html($t['name']); ?> · <?php echo (int) $visits; ?> הזמנות</span>
+              <strong>היי <?php echo esc_html($name); ?> 👋</strong>
+              <span class="alena-club-shop-banner-tier"><?php echo esc_html($t['name']); ?> · <?php echo (int) $visits; ?> הזמנות אצלנו</span>
             </div>
+            <a class="alena-club-shop-banner-account"
+               href="<?php echo esc_url(function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : '/my-account/'); ?>">
+              האיזור האישי שלי ←
+            </a>
           </div>
           <div class="alena-club-shop-banner-stats">
             <div class="alena-club-shop-banner-stat">
               <strong><?php echo (int) $balance; ?></strong>
-              <span>נקודות</span>
+              <span>נקודות שצברת</span>
             </div>
             <div class="alena-club-shop-banner-stat alena-club-shop-banner-stat-accent">
               <strong>₪<?php echo number_format($value_ils, 0); ?></strong>
-              <span>לפדיון בקופה</span>
+              <span>מחכים לך בקופה 🎁</span>
             </div>
           </div>
           <?php if ($balance > 0): ?>

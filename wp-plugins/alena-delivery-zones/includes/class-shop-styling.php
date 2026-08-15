@@ -279,10 +279,19 @@ class Alena_DZ_Shop_Styling {
         // site's lazy-loader rewrites any inline background-image into a
         // data-back attribute and empties the style, which left this element
         // blank until its script happened to run. It ignores custom properties.
-        $hero_var = $hero_url
-            ? sprintf('style="--alena-hero-photo: url(%s)"', esc_url($hero_url))
-            : '';
-        echo '<div class="alena-dz-hero-photo" ' . $hero_var . ' aria-hidden="true"></div>';
+        $slides = $this->find_hero_image_urls(5);
+        if (!$slides && $hero_url) $slides = [$hero_url];
+        if ($slides) {
+            echo '<div class="alena-dz-hero-photo" aria-hidden="true">';
+            foreach ($slides as $i => $url) {
+                printf(
+                    '<span class="alena-dz-hero-slide%s" style="--alena-hero-photo: url(%s)"></span>',
+                    $i === 0 ? ' is-active' : '',
+                    esc_url($url)
+                );
+            }
+            echo '</div>';
+        }
         echo '<div class="alena-dz-hero-inner">';
         echo '<h1 class="alena-dz-hero-title">עלינא בפיתה</h1>';
         echo '<p class="alena-dz-hero-sub">מטבח ים-תיכוני שמח וצבעוני · כשר</p>';
@@ -296,15 +305,26 @@ class Alena_DZ_Shop_Styling {
         // Phone header, Wolt-shaped: the same facts as one dotted line instead of
         // four pills, and the fulfilment choice as something you can actually
         // tap rather than a label. Hidden on desktop (see shop.css).
+        // Status gets its own line with a colour-coded dot — it is the one fact
+        // a customer needs before anything else, and it was previously buried
+        // mid-sentence between the minimum order and the address.
+        $is_open = (strpos($status, '🟢') !== false);
+        printf(
+            '<p class="alena-dz-hero-status%s"><span class="alena-dz-hero-status-dot" aria-hidden="true"></span>%s</p>',
+            $is_open ? ' is-open' : ' is-closed',
+            esc_html(trim(str_replace(['🟢', '🔴', '⏰'], '', $status)))
+        );
+
         $meta = [
-            $status,
-            'מינימום ₪70',
+            'מינימום הזמנה ₪70',
             'משלוח מ-₪17',
-            'רוטשילד 104, ראשל״צ',
+            'רוטשילד 104, ראשון לציון',
         ];
-        echo '<p class="alena-dz-hero-meta">'
-           . implode(' <span class="alena-dz-hero-dot">·</span> ', array_map('esc_html', $meta))
-           . '</p>';
+        echo '<ul class="alena-dz-hero-meta">';
+        foreach ($meta as $line) {
+            echo '<li>' . esc_html($line) . '</li>';
+        }
+        echo '</ul>';
 
         $modes = $this->fulfilment_labels();
         $mode  = $this->current_fulfilment_mode();
@@ -322,6 +342,7 @@ class Alena_DZ_Shop_Styling {
         );
         echo '<button type="button" class="alena-dz-hero-act" id="alena-hero-share" aria-label="שיתוף">↗</button>';
         echo '</div>';
+        echo '<p class="alena-dz-mode-hint">רוצים לאסוף לבד? לחצו על הכפתור כדי להחליף בין משלוח לאיסוף עצמי</p>';
         echo '</div>';
         echo '</section>';
 
@@ -359,6 +380,45 @@ class Alena_DZ_Shop_Styling {
         'שתייה קלה', 'בירות | קוקטייל', 'קינוחים', 'תוספות',
         'סכו״ם ורטבים 🍴', 'שימו 💙',
     ];
+
+    /** Up to $limit hero photos, best first — the phone header cycles them. */
+    private function find_hero_image_urls(int $limit = 5): array {
+        $exclude = [];
+        foreach (self::HERO_EXCLUDED_CATEGORIES as $name) {
+            $t = get_term_by('name', $name, 'product_cat');
+            if ($t) $exclude[] = (int) $t->term_id;
+        }
+        $query = [
+            'post_type'      => 'product',
+            'post_status'    => 'publish',
+            'posts_per_page' => 24,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'fields'         => 'ids',
+            'meta_query'     => [['key' => '_thumbnail_id', 'compare' => 'EXISTS']],
+        ];
+        if ($exclude) {
+            $query['tax_query'] = [[
+                'taxonomy' => 'product_cat',
+                'field'    => 'term_id',
+                'terms'    => $exclude,
+                'operator' => 'NOT IN',
+            ]];
+        }
+        $candidates = get_posts($query);
+        $featured   = array_values(array_intersect(wc_get_featured_product_ids(), $candidates));
+        // Featured first, then the rest — so a short featured list still fills
+        // the carousel instead of leaving it with one slide.
+        $ordered = array_values(array_unique(array_merge($featured, $candidates)));
+
+        $urls = [];
+        foreach ($ordered as $pid) {
+            $img = wp_get_attachment_image_url(get_post_thumbnail_id($pid), 'large');
+            if ($img && !in_array($img, $urls, true)) $urls[] = $img;
+            if (count($urls) >= $limit) break;
+        }
+        return $urls;
+    }
 
     private function find_hero_image_url(): ?string {
         // The hero used to pick a random product, which is how a bottle of
@@ -537,6 +597,18 @@ class Alena_DZ_Shop_Styling {
                 }).catch(() => {});
               });
             });
+          }
+
+          // Header photo carousel. Cross-fade only — no layout movement, and it
+          // stops entirely for anyone who asked for reduced motion.
+          const slides = document.querySelectorAll('.alena-dz-hero-slide');
+          if (slides.length > 1 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            let i = 0;
+            setInterval(function () {
+              slides[i].classList.remove('is-active');
+              i = (i + 1) % slides.length;
+              slides[i].classList.add('is-active');
+            }, 4500);
           }
 
           const share = document.getElementById('alena-hero-share');
