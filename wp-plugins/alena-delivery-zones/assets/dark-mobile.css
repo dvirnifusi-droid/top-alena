@@ -1227,39 +1227,82 @@
     margin: 14px !important;
     padding: 14px !important;
   }
+  /* Greeting on one row: emoji, name and tier together, the account link as a
+     small text link at the end. Previously the link was a full-size pill that
+     wrapped onto two lines and dwarfed the greeting beside it. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-greeting {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    flex-wrap: nowrap !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-greeting > div {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-tier-emoji {
+    flex: 0 0 auto !important;
+    font-size: 26px !important;
+  }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-greeting strong {
+    display: block !important;
     color: var(--ink) !important;
     font-size: 16px !important;
+    line-height: 1.25 !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-tier {
+    display: block !important;
     color: var(--ink-soft) !important;
     font-size: 12.5px !important;
+    line-height: 1.35 !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-account {
-    display: inline-block !important;
-    margin-top: 6px !important;
-    padding: 6px 12px !important;
-    border: 1px solid var(--line) !important;
-    border-radius: 999px !important;
+    flex: 0 0 auto !important;
+    align-self: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
     font-size: 12.5px !important;
     font-weight: 700 !important;
     color: var(--accent) !important;
     text-decoration: none !important;
+    white-space: nowrap !important;
+  }
+
+  /* Two stats of equal weight, side by side. The redeemable one keeps the
+     accent tint but stops being twice the size of the other. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stats {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    margin-top: 12px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 2px !important;
+    min-height: 66px !important;
+    padding: 10px 8px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 14px !important;
+    text-align: center !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat strong {
     color: var(--ink) !important;
-    font-size: 21px !important;
+    font-size: 22px !important;
     font-weight: 800 !important;
+    line-height: 1.1 !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat span {
     color: var(--ink-soft) !important;
-    font-size: 12px !important;
+    font-size: 11.5px !important;
+    line-height: 1.3 !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat-accent {
     background: rgba(34, 201, 238, .1) !important;
-    border: 1px solid rgba(34, 201, 238, .35) !important;
-    border-radius: 14px !important;
-    padding: 8px 12px !important;
+    border-color: rgba(34, 201, 238, .4) !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat-accent strong,
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat-accent span {
@@ -1324,7 +1367,179 @@
   }
 
   /* ==========================================================================
-     17. WOOCOMMERCE NOTICES
+     17. MY ACCOUNT — dashboard, club widget, login card
+     ========================================================================== */
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash {
+    padding: 14px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-back {
+    display: inline-block !important;
+    margin-bottom: 14px !important;
+    padding: 9px 16px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 999px !important;
+    background: var(--surface) !important;
+    color: var(--ink-2) !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    text-decoration: none !important;
+  }
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-welcome {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 16px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 18px !important;
+    background: var(--surface) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-welcome-emoji {
+    font-size: 28px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-welcome-title {
+    margin: 0 !important;
+    color: var(--ink) !important;
+    font-size: 20px !important;
+    font-weight: 800 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-welcome-sub {
+    margin: 3px 0 0 !important;
+    color: var(--ink-soft) !important;
+    font-size: 13px !important;
+  }
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-section-title {
+    margin: 22px 0 10px !important;
+    color: var(--ink) !important;
+    font-size: 17px !important;
+    font-weight: 800 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-action {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 3px !important;
+    padding: 14px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 16px !important;
+    background: var(--surface) !important;
+    color: var(--ink) !important;
+    text-decoration: none !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-action strong {
+    color: var(--ink) !important;
+    font-size: 14.5px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-action-sub {
+    color: var(--ink-soft) !important;
+    font-size: 12px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-action-emoji {
+    font-size: 22px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-action-logout strong {
+    color: #ff9b90 !important;
+  }
+
+  /* Club widget on the account page */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-widget {
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 18px !important;
+    padding: 16px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-widget::before {
+    display: none !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-title {
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-tier,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-balance-label,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-meta {
+    color: var(--ink-soft) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-balance {
+    background: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 14px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-balance-num {
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-balance-value {
+    background: rgba(34, 201, 238, .12) !important;
+    border: 1px solid rgba(34, 201, 238, .4) !important;
+    border-radius: 999px !important;
+    color: var(--accent) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(.alena-club-join-btn, .alena-club-redeem-btn) {
+    background: var(--accent) !important;
+    color: var(--accent-ink) !important;
+    border: 0 !important;
+  }
+
+  /* Login / OTP card */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-otp-card {
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 20px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-otp-title {
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(.alena-otp-sub, .alena-otp-label, .alena-otp-legal, .alena-otp-step-info) {
+    color: var(--ink-soft) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-otp-tabs {
+    background: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 999px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-otp-tab {
+    color: var(--ink-soft) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-otp-tab.is-active {
+    background: var(--surface) !important;
+    color: var(--accent) !important;
+    border-radius: 999px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-otp-cta {
+    background: var(--accent) !important;
+    color: var(--accent-ink) !important;
+    border: 0 !important;
+    font-weight: 800 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-otp-error {
+    background: rgba(192, 57, 43, .16) !important;
+    border: 1px solid rgba(192, 57, 43, .4) !important;
+    color: #ff9b90 !important;
+  }
+  /* The test-mode code banner has to be readable — it is the whole point. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-otp-dev {
+    background: rgba(34, 201, 238, .12) !important;
+    border: 1px solid rgba(34, 201, 238, .4) !important;
+    border-radius: 14px !important;
+    color: var(--ink-2) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-otp-dev-code {
+    background: var(--accent) !important;
+    color: var(--accent-ink) !important;
+    border-radius: 10px !important;
+    font-weight: 900 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-otp-dev-hint {
+    color: var(--ink-soft) !important;
+  }
+
+  /* ==========================================================================
+     18. WOOCOMMERCE NOTICES
      ========================================================================== */
 
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(.woocommerce-message, .woocommerce-info, .woocommerce-error) {

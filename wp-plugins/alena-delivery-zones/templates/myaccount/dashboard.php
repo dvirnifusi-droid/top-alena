@@ -19,6 +19,13 @@ if ($first_name) $display_name = $first_name;
 
 <div class="alena-dash" dir="rtl">
 
+  <?php
+  // Way back to the menu. Without it the account page was a dead end on a
+  // phone — the bottom nav that used to carry "תפריט" is gone.
+  $shop_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : '/shop/';
+  ?>
+  <a class="alena-dash-back" href="<?php echo esc_url($shop_url); ?>">← חזרה לתפריט</a>
+
   <div class="alena-dash-welcome">
     <div class="alena-dash-welcome-emoji">👋</div>
     <div>

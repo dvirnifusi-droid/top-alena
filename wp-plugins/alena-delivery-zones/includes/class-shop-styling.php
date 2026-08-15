@@ -126,7 +126,8 @@ class Alena_DZ_Shop_Styling {
         if (!function_exists('is_woocommerce')) return false;
         // Checkout is still light: it hosts the PayPlus frame, which we do not
         // control and cannot restyle from here.
-        return is_shop() || is_product_category() || is_product_taxonomy() || is_cart();
+        return is_shop() || is_product_category() || is_product_taxonomy()
+            || is_cart() || is_account_page();
     }
 
     public function dark_mobile_body_class($classes) {
@@ -347,6 +348,15 @@ class Alena_DZ_Shop_Styling {
         $account_url = function_exists('wc_get_page_permalink')
             ? wc_get_page_permalink('myaccount')
             : '/my-account/';
+        // Signing in from the menu should hand the customer back to the menu,
+        // ready to order — not park them on the account page. phone-auth.js
+        // honours ?next= after a successful verify.
+        if (!is_user_logged_in()) {
+            $shop_path = function_exists('wc_get_page_permalink')
+                ? wp_make_link_relative(wc_get_page_permalink('shop'))
+                : '/shop/';
+            $account_url = add_query_arg('next', $shop_path, $account_url);
+        }
         // Logged out it carries a word, so it needs to be a pill rather than the
         // 42px circle the icon-only actions use — the label was overflowing the
         // circle and reading as a stray ring behind the icon.
@@ -357,7 +367,10 @@ class Alena_DZ_Shop_Styling {
             is_user_logged_in() ? 'האיזור האישי' : 'כניסה והרשמה למועדון',
             is_user_logged_in() ? '👤' : '👤<span class="alena-dz-hero-account-label">כניסה</span>'
         );
-        echo '<button type="button" class="alena-dz-hero-act" id="alena-hero-share" aria-label="שיתוף">↗</button>';
+        // A bare ↗ told nobody what it did. Same pill treatment as the account
+        // control, with the word on it.
+        echo '<button type="button" class="alena-dz-hero-act alena-dz-hero-share is-wide" id="alena-hero-share">'
+           . '📤<span class="alena-dz-hero-account-label">שיתוף</span></button>';
         echo '</div>';
         echo '<p class="alena-dz-mode-hint">לחצו להחלפה בין משלוח לאיסוף</p>';
         echo '</div>';
