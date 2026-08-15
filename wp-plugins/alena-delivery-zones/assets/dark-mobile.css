@@ -1657,9 +1657,54 @@
     color: var(--accent) !important;
   }
 
-  /* WooCommerce's own checkout furniture */
-  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(.woocommerce-checkout h3, .woocommerce-billing-fields h3, form.checkout h3) {
+  /* WooCommerce's own checkout furniture.
+     `.woocommerce-checkout` is a class on <body>, so writing it as an ancestor
+     matches nothing — which is why "הפרטים שלך" stayed rgb(28,28,28) on a dark
+     page. Third time this trap has bitten in this file. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(
+    .alena-checkout-wrap h1, .alena-checkout-wrap h2,
+    .alena-checkout-wrap h3, .alena-checkout-wrap h4,
+    form.checkout h3, form.checkout h4,
+    #customer_details h3, #order_review_heading
+  ) {
     color: var(--ink) !important;
+  }
+
+  /* Payment + review containers were still light cards. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(
+    #payment, #order_review, .woocommerce-checkout-payment,
+    .woocommerce-checkout-review-order, #payment div.form-row.place-order
+  ) {
+    background: transparent !important;
+    border-color: var(--line) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment .wc_payment_methods {
+    background: transparent !important;
+  }
+
+  /* "מיידית / עתידית" — the unselected one was a white card. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-sched-tab span {
+    background: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+    color: var(--ink-2) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-sched-tab input:checked + span {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: var(--accent-ink) !important;
+  }
+
+  /* Tells the customer what the blue button actually does. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-pay-hint {
+    display: block !important;
+    margin: 10px 0 !important;
+    padding: 10px 12px !important;
+    border: 1px dashed var(--line) !important;
+    border-radius: 12px !important;
+    font-size: 12.5px !important;
+    line-height: 1.5 !important;
+    color: var(--ink-soft) !important;
+    text-align: center !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile form.checkout label,
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .woocommerce-input-wrapper label {

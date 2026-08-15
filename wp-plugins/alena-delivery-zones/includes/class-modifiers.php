@@ -344,7 +344,14 @@ class Alena_DZ_Modifiers {
             // chips under the dish name. Emitting them here too printed every
             // choice twice — chips, then the same list again as plain text.
             // Checkout and order review have no chips, so they still need this.
-            if (function_exists('is_cart') && is_cart() && class_exists('Alena_DZ_Cart_Redesign')) {
+            // Checkout too: the review table runs cart_item_name through
+            // Alena_DZ_Cart_Redesign, so the chips are already there. Emitting
+            // this list as well printed every choice twice — chips, then the
+            // same choices again as "group: value" lines, which is what turned
+            // the order summary into a wall of text.
+            if (class_exists('Alena_DZ_Cart_Redesign')
+                && function_exists('is_cart')
+                && (is_cart() || (function_exists('is_checkout') && is_checkout()))) {
                 return $item_data;
             }
             if (!empty($cart_item['alena_modifiers']) && is_array($cart_item['alena_modifiers'])) {

@@ -25,6 +25,8 @@ class Alena_DZ_Checkout_Redesign {
         add_action('woocommerce_before_checkout_billing_form', [$this, 'section_where'], 1);
 
         // Enable cash on delivery + soft-gate other methods until owner sets up
+        add_action('woocommerce_review_order_before_submit', [$this, 'render_pay_hint']);
+        add_filter('woocommerce_order_button_text',          [$this, 'order_button_text']);
         add_filter('woocommerce_payment_gateways', [$this, 'ensure_cod_enabled']);
         add_filter('woocommerce_available_payment_gateways', [$this, 'filter_gateways']);
         add_action('init',                          [$this, 'enable_cod_option'], 5);
@@ -66,6 +68,21 @@ class Alena_DZ_Checkout_Redesign {
         add_filter('woocommerce_cart_shipping_packages',   [$this, 'tag_packages_with_mode']);
         add_action('woocommerce_checkout_update_order_meta', [$this, 'save_fulfillment_meta']);
         add_action('woocommerce_admin_order_data_after_shipping_address', [$this, 'show_fulfillment_in_admin']);
+    }
+
+    /**
+     * Choosing a payment method looks like it should do something and doesn't —
+     * nothing opens, no field appears. Say plainly that the blue button is what
+     * completes the order, and name the amount on it.
+     */
+    public function render_pay_hint() {
+        $total = function_exists('WC') && WC()->cart ? WC()->cart->get_total() : '';
+        echo '<p class="alena-co-pay-hint">בחרו אמצעי תשלום, ואז לחצו על הכפתור למטה כדי לסיים את ההזמנה'
+           . ($total ? ' — ' . wp_kses_post($total) : '') . '</p>';
+    }
+
+    public function order_button_text() {
+        return 'לאישור ותשלום';
     }
 
     public static function current_fulfillment(): string {
