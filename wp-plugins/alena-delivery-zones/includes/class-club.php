@@ -392,10 +392,16 @@ class Alena_DZ_Club {
         $coin_v  = self::coin_value_ils();
         $value_ils = $balance * $coin_v;
 
+        // TOPALENA writes regular / frequent / vip (see syncQueueToCustomer).
+        // Only regular was mapped here, so every returning customer — including
+        // one with 18 orders — fell through to the same label. silver/gold are
+        // kept in case anything older still writes them.
         $tier_labels = [
-            'regular' => ['name' => 'מועדון רגיל', 'emoji' => '🥙'],
-            'silver'  => ['name' => 'כסף',         'emoji' => '🥈'],
-            'gold'    => ['name' => 'זהב',         'emoji' => '👑'],
+            'regular'  => ['name' => 'חבר מועדון', 'emoji' => '🥙'],
+            'frequent' => ['name' => 'לקוח קבוע',  'emoji' => '⭐'],
+            'vip'      => ['name' => 'מהמשפחה',    'emoji' => '👑'],
+            'silver'   => ['name' => 'לקוח קבוע',  'emoji' => '⭐'],
+            'gold'     => ['name' => 'מהמשפחה',    'emoji' => '👑'],
         ];
         $t = $tier_labels[$tier] ?? $tier_labels['regular'];
         $first = (string) get_user_meta($user->ID, 'billing_first_name', true);
@@ -406,14 +412,21 @@ class Alena_DZ_Club {
             <span class="alena-club-shop-banner-tier-emoji"><?php echo $t['emoji']; ?></span>
             <div>
               <strong>היי <?php echo esc_html($name); ?> 👋</strong>
-              <span class="alena-club-shop-banner-tier">
-                <span class="alena-club-tier-chip"><?php echo esc_html($t['name']); ?></span>
-                <?php echo (int) $visits; ?> הזמנות אצלנו
-              </span>
+              <span class="alena-club-shop-banner-tier"><span class="alena-club-tier-chip"><?php echo esc_html($t['name']); ?></span><?php if ($visits > 0): ?> <?php echo (int) $visits; ?> הזמנות קודמות<?php endif; ?></span>
+              <?php
+              // Says something true about this particular customer rather than
+              // repeating the tier name back at them.
+              $personal = '';
+              if     ($visits >= 10) $personal = 'מהלקוחות הקבועים שלנו — תודה 💙';
+              elseif ($visits >= 3)  $personal = 'כיף שחזרת אלינו';
+              elseif ($visits >= 1)  $personal = 'טוב לראות אותך שוב';
+              else                   $personal = 'ברוך הבא למועדון';
+              ?>
+              <span class="alena-club-shop-banner-personal"><?php echo esc_html($personal); ?></span>
             </div>
             <a class="alena-club-shop-banner-account"
                href="<?php echo esc_url(function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : '/my-account/'); ?>">
-              האיזור האישי שלי ←
+              האיזור שלי ←
             </a>
           </div>
           <div class="alena-club-shop-banner-stats">
@@ -458,10 +471,16 @@ class Alena_DZ_Club {
         $coin_v  = self::coin_value_ils();
         $value_ils = $balance * $coin_v;
 
+        // TOPALENA writes regular / frequent / vip (see syncQueueToCustomer).
+        // Only regular was mapped here, so every returning customer — including
+        // one with 18 orders — fell through to the same label. silver/gold are
+        // kept in case anything older still writes them.
         $tier_labels = [
-            'regular' => ['name' => 'מועדון רגיל', 'emoji' => '🥙'],
-            'silver'  => ['name' => 'כסף',         'emoji' => '🥈'],
-            'gold'    => ['name' => 'זהב',         'emoji' => '👑'],
+            'regular'  => ['name' => 'חבר מועדון', 'emoji' => '🥙'],
+            'frequent' => ['name' => 'לקוח קבוע',  'emoji' => '⭐'],
+            'vip'      => ['name' => 'מהמשפחה',    'emoji' => '👑'],
+            'silver'   => ['name' => 'לקוח קבוע',  'emoji' => '⭐'],
+            'gold'     => ['name' => 'מהמשפחה',    'emoji' => '👑'],
         ];
         $t = $tier_labels[$tier] ?? $tier_labels['regular'];
         ?>
