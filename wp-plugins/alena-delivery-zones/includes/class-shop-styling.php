@@ -367,10 +367,17 @@ class Alena_DZ_Shop_Styling {
             is_user_logged_in() ? 'האיזור האישי' : 'כניסה והרשמה למועדון',
             is_user_logged_in() ? '👤' : '👤<span class="alena-dz-hero-account-label">כניסה</span>'
         );
-        // A bare ↗ told nobody what it did. Same pill treatment as the account
-        // control, with the word on it.
-        echo '<button type="button" class="alena-dz-hero-act alena-dz-hero-share is-wide" id="alena-hero-share">'
-           . '📤<span class="alena-dz-hero-account-label">שיתוף</span></button>';
+        // The iOS share glyph — a box with an arrow leaving it. Recognised
+        // without a caption on the phones this menu is read on, where a bare ↗
+        // meant nothing. Drawn as SVG so it inherits the button's colour
+        // instead of arriving as a differently-styled emoji.
+        echo '<button type="button" class="alena-dz-hero-act" id="alena-hero-share" aria-label="שיתוף העמוד" title="שיתוף">'
+           . '<svg class="alena-dz-share-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">'
+           . '<path d="M12 3v12M12 3l-3.5 3.5M12 3l3.5 3.5" stroke="currentColor" stroke-width="2"'
+           . ' stroke-linecap="round" stroke-linejoin="round"/>'
+           . '<path d="M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" stroke="currentColor" stroke-width="2"'
+           . ' stroke-linecap="round"/></svg>'
+           . '</button>';
         echo '</div>';
         echo '<p class="alena-dz-mode-hint">לחצו להחלפה בין משלוח לאיסוף</p>';
         echo '</div>';

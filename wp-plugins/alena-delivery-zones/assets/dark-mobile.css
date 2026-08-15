@@ -1220,12 +1220,40 @@
 
   /* The redeemable balance was the point of the whole banner and the flatten
      had left it the same grey as everything around it. */
+  /* Reads as a membership card rather than a panel of text: a faint accent
+     wash from the corner where the balance sits, and an accent hairline along
+     the top edge. */
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner {
-    background: var(--surface) !important;
+    position: relative !important;
+    background-color: var(--surface) !important;
+    background-image: radial-gradient(120% 90% at 12% 0%, rgba(34, 201, 238, .13), transparent 60%) !important;
     border: 1px solid var(--line) !important;
-    border-radius: 18px !important;
+    border-radius: 20px !important;
     margin: 14px !important;
-    padding: 14px !important;
+    padding: 16px 14px 14px !important;
+    overflow: hidden !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner::before {
+    content: "" !important;
+    position: absolute !important;
+    inset-inline: 18% !important;
+    top: 0 !important;
+    height: 2px !important;
+    border-radius: 0 0 4px 4px !important;
+    background-image: linear-gradient(90deg, transparent, var(--accent), transparent) !important;
+    opacity: .85 !important;
+  }
+
+  /* Tier as a chip instead of a run-on line of grey text. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-tier-chip {
+    display: inline-block !important;
+    margin-inline-end: 6px !important;
+    padding: 2px 9px !important;
+    border-radius: 999px !important;
+    background: rgba(34, 201, 238, .14) !important;
+    color: var(--accent) !important;
+    font-size: 11.5px !important;
+    font-weight: 800 !important;
   }
   /* Greeting on one row: emoji, name and tier together, the account link as a
      small text link at the end. Previously the link was a full-size pill that
@@ -1283,10 +1311,11 @@
     align-items: center !important;
     justify-content: center !important;
     gap: 2px !important;
-    min-height: 66px !important;
-    padding: 10px 8px !important;
+    min-height: 70px !important;
+    padding: 12px 8px !important;
+    background: var(--surface-2) !important;
     border: 1px solid var(--line) !important;
-    border-radius: 14px !important;
+    border-radius: 16px !important;
     text-align: center !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat strong {
@@ -1300,9 +1329,21 @@
     font-size: 11.5px !important;
     line-height: 1.3 !important;
   }
+  /* The money is the point of the card — same footprint as the points tile,
+     but lit, so the eye lands on it without the box being bigger. */
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat-accent {
-    background: rgba(34, 201, 238, .1) !important;
-    border-color: rgba(34, 201, 238, .4) !important;
+    background-color: rgba(34, 201, 238, .12) !important;
+    border-color: rgba(34, 201, 238, .45) !important;
+    box-shadow: inset 0 0 22px rgba(34, 201, 238, .12) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat-accent strong {
+    text-shadow: 0 0 18px rgba(34, 201, 238, .45) !important;
+  }
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-share-icon {
+    width: 19px !important;
+    height: 19px !important;
+    display: block !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat-accent strong,
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-shop-banner-stat-accent span {

@@ -406,7 +406,10 @@ class Alena_DZ_Club {
             <span class="alena-club-shop-banner-tier-emoji"><?php echo $t['emoji']; ?></span>
             <div>
               <strong>היי <?php echo esc_html($name); ?> 👋</strong>
-              <span class="alena-club-shop-banner-tier"><?php echo esc_html($t['name']); ?> · <?php echo (int) $visits; ?> הזמנות אצלנו</span>
+              <span class="alena-club-shop-banner-tier">
+                <span class="alena-club-tier-chip"><?php echo esc_html($t['name']); ?></span>
+                <?php echo (int) $visits; ?> הזמנות אצלנו
+              </span>
             </div>
             <a class="alena-club-shop-banner-account"
                href="<?php echo esc_url(function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : '/my-account/'); ?>">
