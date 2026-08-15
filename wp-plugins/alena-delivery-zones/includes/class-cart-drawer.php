@@ -144,7 +144,11 @@ class Alena_DZ_Cart_Drawer {
             return;
         }
 
-        $subtotal = $cart->get_subtotal();
+        // get_subtotal() is EXCLUSIVE of tax while get_total() includes it, so
+        // the two rows were quoting ₪403.42 against ₪472 with the ₪68.58 of VAT
+        // sitting between them unlabelled — it read as a hidden surcharge. Menu
+        // prices are shown inclusive, so the subtotal must be too.
+        $subtotal = $cart->get_subtotal() + $cart->get_subtotal_tax();
         $total    = $cart->get_total('raw');
         ?>
         <ul class="alena-drawer-items">

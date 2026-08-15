@@ -204,7 +204,14 @@ class Alena_DZ_Modifiers {
                   <?php if ($price_label): ?>
                     <span class="alena-dz-mod-price"><?php echo esc_html($price_label); ?></span>
                   <?php endif; ?>
-                  <?php if ($per_value > 1): ?>
+                  <?php
+                  // A quantity only means something for an add-on you can take
+                  // several of. "ללא מלפפון חמוץ ×5" or "טחינה בתוך הפיתה ×5"
+                  // is nonsense — those are yes/no decisions about the dish.
+                  // Paying for the option is the signal that it is a portion.
+                  $show_qty = ($per_value > 1 && $price > 0);
+                  ?>
+                  <?php if ($show_qty): ?>
                     <span class="alena-dz-mod-qty" data-per-value="<?php echo (int) $per_value; ?>" hidden>
                       <button type="button" class="alena-dz-mod-qty-btn" data-step="-1" aria-label="פחות">−</button>
                       <span class="alena-dz-mod-qty-val">1</span>
