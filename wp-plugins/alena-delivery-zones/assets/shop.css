@@ -403,7 +403,8 @@ body.woocommerce      .elementor-element.e-con-full[class*="elementor-element-"]
 /* Phone-only header pieces. The desktop hero keeps its chip row; these are
    switched on by dark-mobile.css under 640px. */
 .alena-dz-hero-meta,
-.alena-dz-hero-actions { display: none; }
+.alena-dz-hero-actions,
+.alena-dz-hero-photo { display: none; }
 
 /* Desktop keeps the text over the photo, so the photo still needs darkening to
    hold white type. This used to be a gradient baked into the inline

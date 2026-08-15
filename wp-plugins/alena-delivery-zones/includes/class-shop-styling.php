@@ -253,6 +253,20 @@ class Alena_DZ_Shop_Styling {
         }
 
         echo '<section class="alena-dz-hero" ' . $hero_style . '>';
+        // A real box for the photo on phones. As a background on the section
+        // itself, `cover` sizes the image against the section's whole height —
+        // photo window plus the text panel below it — so the visible strip was
+        // a crop of an image scaled for a box twice its size. Its own element
+        // gets cropped against its own height. Hidden on desktop, where the
+        // section background is still the right thing.
+        // The URL travels as a custom property, not as background-image: the
+        // site's lazy-loader rewrites any inline background-image into a
+        // data-back attribute and empties the style, which left this element
+        // blank until its script happened to run. It ignores custom properties.
+        $hero_var = $hero_url
+            ? sprintf('style="--alena-hero-photo: url(%s)"', esc_url($hero_url))
+            : '';
+        echo '<div class="alena-dz-hero-photo" ' . $hero_var . ' aria-hidden="true"></div>';
         echo '<div class="alena-dz-hero-inner">';
         echo '<h1 class="alena-dz-hero-title">עלינא בפיתה</h1>';
         echo '<p class="alena-dz-hero-sub">מטבח ים-תיכוני שמח וצבעוני · כשר</p>';
@@ -374,6 +388,14 @@ class Alena_DZ_Shop_Styling {
     }
 
     public function render_inline_script() {
+        // Emitted straight into the markup rather than read off AlenaWelcome:
+        // that object is localized on a footer script, so it does not exist yet
+        // when this inline block runs in the body. Guarding on it meant the
+        // fulfilment switch never bound a click handler at all.
+        $mode_cfg = wp_json_encode([
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce'   => wp_create_nonce('alena_welcome'),
+        ]);
         ?>
         <script>
         (function () {
@@ -410,18 +432,19 @@ class Alena_DZ_Shop_Styling {
         // Header fulfilment switch. Posts to alena_set_mode, which touches the
         // mode only — ajax_welcome_save would have cleared the saved address.
         (function () {
+          const cfg = <?php echo $mode_cfg; ?>;
           const btn = document.getElementById('alena-mode-switch');
-          if (btn && window.AlenaWelcome) {
+          if (btn) {
             btn.addEventListener('click', function () {
               const next = btn.dataset.mode === 'pickup' ? 'delivery' : 'pickup';
               btn.disabled = true;
-              fetch(AlenaWelcome.ajaxUrl, {
+              fetch(cfg.ajaxUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: new URLSearchParams({
                   action: 'alena_set_mode',
-                  nonce: AlenaWelcome.nonce,
+                  nonce: cfg.nonce,
                   mode: next
                 })
               })

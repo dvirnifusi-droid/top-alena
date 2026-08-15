@@ -93,7 +93,7 @@
      ========================================================================== */
 
   body.alena-dark-mobile [class*="alena-"]:not(
-    :is(.alena-dz-hero, .alena-welcome-page, .alena-welcome-page *)
+    :is(.alena-dz-hero, .alena-dz-hero-photo, .alena-welcome-page, .alena-welcome-page *)
   ),
   body.alena-dark-mobile [class*="woocommerce-"] {
     background-color: transparent !important;
@@ -399,6 +399,9 @@
      still carries the picture as its background; the inner block is pushed down
      past the photo window and given an opaque panel, so the image shows only in
      the strip above it. */
+  /* The section stops painting the photo — .alena-dz-hero-photo does, so the
+     crop is computed against the photo's own height instead of the whole
+     header. */
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero {
     display: block !important;
     min-height: 0 !important;
@@ -406,14 +409,26 @@
     margin: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    background-position: center top !important;
+    background-image: none !important;
+  }
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-photo {
+    display: block !important;
+    background-image: var(--alena-hero-photo) !important;
+    width: 100% !important;
+    height: 34vh !important;
+    min-height: 190px !important;
+    max-height: 260px !important;
     background-size: cover !important;
+    background-position: center center !important;
+    background-repeat: no-repeat !important;
   }
 
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-inner {
     position: relative !important;
     z-index: 2 !important;
-    margin-top: 208px !important;
+    /* Pulled up so the rounded corners sit over the photo, as Wolt does. */
+    margin: -24px 0 0 !important;
     padding: 18px 16px 16px !important;
     background: var(--bg) !important;
     border-radius: 24px 24px 0 0 !important;
