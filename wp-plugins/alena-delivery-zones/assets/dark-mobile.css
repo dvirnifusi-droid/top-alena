@@ -1596,7 +1596,146 @@
   }
 
   /* ==========================================================================
-     18. WOOCOMMERCE NOTICES
+     18. CHECKOUT
+     --------------------------------------------------------------------------
+     The PayPlus frame is a third-party page on another origin — it cannot be
+     restyled from here and will stay light. Rather than leave it looking like
+     a hole punched in a dark page, it is given a white rounded card of its own
+     so it reads as the payment panel it is.
+     ========================================================================== */
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-checkout-wrap,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-checkout-main {
+    background: var(--bg) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-checkout-hero-overlay h1 {
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-checkout-hero-sub {
+    color: var(--ink-soft) !important;
+  }
+
+  /* Delivery / pickup tabs */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-tabs {
+    background: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 999px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-tab {
+    color: var(--ink-soft) !important;
+    background: transparent !important;
+    border: 0 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-tab.active {
+    background: var(--accent) !important;
+    color: var(--accent-ink) !important;
+    border-radius: 999px !important;
+    font-weight: 800 !important;
+  }
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(.alena-co-h, .alena-co-summary-title) {
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-summary-sub {
+    color: var(--ink-soft) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(.alena-co-pickup-card, .alena-co-up-card, .alena-co-payplus-banner) {
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 16px !important;
+    color: var(--ink-2) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-qty {
+    background: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 999px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-qty-val {
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-up-price {
+    color: var(--accent) !important;
+  }
+
+  /* WooCommerce's own checkout furniture */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(.woocommerce-checkout h3, .woocommerce-billing-fields h3, form.checkout h3) {
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile form.checkout label,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .woocommerce-input-wrapper label {
+    color: var(--ink-2) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .woocommerce-checkout-review-order-table :is(th, td) {
+    background: transparent !important;
+    border-color: var(--line) !important;
+    color: var(--ink-2) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .woocommerce-checkout-review-order-table tr.order-total :is(th, td, .amount, bdi) {
+    color: var(--accent) !important;
+    font-weight: 800 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.payment_methods {
+    background: transparent !important;
+    border-color: var(--line) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.payment_methods li {
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 14px !important;
+    color: var(--ink-2) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(#place_order, .alena-co-btn-total) {
+    background: var(--accent) !important;
+    color: var(--accent-ink) !important;
+    border: 0 !important;
+    font-weight: 800 !important;
+  }
+
+  /* The field wrappers and the inputs inside them are painted white by
+     checkout-redesign.css at a specificity the flattener does not reach. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(
+    .woocommerce-billing-fields__field-wrapper,
+    .woocommerce-shipping-fields__field-wrapper,
+    .woocommerce-additional-fields__field-wrapper,
+    #customer_details,
+    #order_review
+  ) {
+    background: transparent !important;
+  }
+  /* checkout-redesign.css paints these with `#customer_details input.input-text`
+     — an ID, which outranks any number of classes no matter how many times the
+     body class is repeated. The ID has to appear here too. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details :is(input.input-text, input[type="text"], input[type="tel"], input[type="email"], textarea, select),
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #order_review :is(input.input-text, textarea, select),
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile form.checkout :is(input.input-text, textarea, select) {
+    background: var(--surface) !important;
+    color: var(--ink) !important;
+    border: 1px solid var(--line) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile form.checkout .form-row label,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .woocommerce-checkout .form-row label {
+    color: var(--ink-2) !important;
+  }
+
+  /* The payment frame keeps its own light surface, on purpose. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(
+    .payment_method_payplus-payment-gateway,
+    .payment_method_alena_payplus,
+    .payment_box
+  ) {
+    background: #fff !important;
+    border-radius: 14px !important;
+    padding: 10px !important;
+    color: #1c1c1c !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile iframe[src*="payplus"],
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile iframe[name*="payplus"] {
+    background: #fff !important;
+    border-radius: 12px !important;
+  }
+
+  /* ==========================================================================
+     19. WOOCOMMERCE NOTICES
      ========================================================================== */
 
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(.woocommerce-message, .woocommerce-info, .woocommerce-error) {

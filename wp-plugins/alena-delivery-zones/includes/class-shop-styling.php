@@ -124,10 +124,11 @@ class Alena_DZ_Shop_Styling {
      */
     private function is_dark_mobile_page() {
         if (!function_exists('is_woocommerce')) return false;
-        // Checkout is still light: it hosts the PayPlus frame, which we do not
-        // control and cannot restyle from here.
+        // Checkout included. The PayPlus frame inside it is a third-party page
+        // we cannot restyle, so it stays light — dressed as a deliberate white
+        // card rather than left looking like a hole in the page.
         return is_shop() || is_product_category() || is_product_taxonomy()
-            || is_cart() || is_account_page();
+            || is_cart() || is_account_page() || is_checkout();
     }
 
     public function dark_mobile_body_class($classes) {
