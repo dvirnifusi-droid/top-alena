@@ -77,8 +77,32 @@ class Alena_DZ_Checkout_Redesign {
      */
     public function render_pay_hint() {
         $total = function_exists('WC') && WC()->cart ? WC()->cart->get_total() : '';
-        echo '<p class="alena-co-pay-hint">בחרו אמצעי תשלום, ואז לחצו על הכפתור למטה כדי לסיים את ההזמנה'
+        // Starts hidden and is moved into whichever method the customer picks —
+        // sitting statically above the button, it read as boilerplate nobody
+        // connected to the choice they had just made.
+        echo '<p class="alena-co-pay-hint" id="alena-co-pay-hint" hidden>✓ נבחר. ללחוץ על הכפתור למטה כדי לסיים את ההזמנה'
            . ($total ? ' — ' . wp_kses_post($total) : '') . '</p>';
+        ?>
+        <script>
+        (function () {
+          function place() {
+            const hint = document.getElementById('alena-co-pay-hint');
+            const chosen = document.querySelector('#payment input[name="payment_method"]:checked');
+            if (!hint) return;
+            if (!chosen) { hint.hidden = true; return; }
+            const row = chosen.closest('li');
+            if (row && hint.parentElement !== row) row.appendChild(hint);
+            hint.hidden = false;
+          }
+          document.addEventListener('change', function (e) {
+            if (e.target && e.target.name === 'payment_method') place();
+          });
+          // WooCommerce redraws this block on every totals refresh.
+          if (window.jQuery) jQuery(document.body).on('updated_checkout', place);
+          place();
+        })();
+        </script>
+        <?php
     }
 
     public function order_button_text() {

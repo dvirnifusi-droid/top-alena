@@ -1775,6 +1775,59 @@
     color: var(--ink-2) !important;
   }
 
+  /* ---- contrast sweep ----------------------------------------------------
+     Found by scanning every element in the checkout for a light background:
+     the payment rows and their labels, the tip buttons, the "הזמנה עתידית"
+     tab and the map placeholder were all still white or cream. They carry an
+     ID in the winning selector (#payment), which class-only rules cannot beat,
+     so these carry one too. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment li.wc_payment_method,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment li.wc_payment_method > label,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment ul.payment_methods > li {
+    background: var(--surface) !important;
+    border-color: var(--line) !important;
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment li.wc_payment_method p,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment li.wc_payment_method .payment_box {
+    background: transparent !important;
+    color: var(--ink-soft) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #order_review tfoot :is(tr, th, td) {
+    background: transparent !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-checkout-wrap .alena-dz-tip-opt {
+    background: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+    color: var(--ink-2) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-checkout-wrap .alena-dz-tip-opt.active {
+    background: var(--accent) !important;
+    color: var(--accent-ink) !important;
+    border-color: var(--accent) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-checkout-wrap label > span {
+    background: var(--surface-2) !important;
+    color: var(--ink-2) !important;
+    border-color: var(--line) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-checkout-wrap label > input:checked + span {
+    background: var(--accent) !important;
+    color: var(--accent-ink) !important;
+    border-color: var(--accent) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #alena-dz-checkout-map {
+    background: var(--surface) !important;
+  }
+
+  /* The hint only appears once a method is chosen, inside that row. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment li.wc_payment_method .alena-co-pay-hint {
+    margin: 8px 0 2px !important;
+    text-align: start !important;
+    border-color: rgba(34, 201, 238, .45) !important;
+    color: var(--ink-2) !important;
+  }
+
   /* The payment frame keeps its own light surface, on purpose. */
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(
     .payment_method_payplus-payment-gateway,
