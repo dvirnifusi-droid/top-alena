@@ -405,6 +405,19 @@ body.woocommerce      .elementor-element.e-con-full[class*="elementor-element-"]
 .alena-dz-hero-meta,
 .alena-dz-hero-actions { display: none; }
 
+/* Desktop keeps the text over the photo, so the photo still needs darkening to
+   hold white type. This used to be a gradient baked into the inline
+   background-image; as its own layer the phone can drop it and show the picture
+   clean. (dark-mobile.css strips ::before backgrounds, so it disappears there.) */
+.alena-dz-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.55));
+  border-radius: inherit;
+  z-index: 1;
+}
+
 .alena-dz-hero-inner {
   position: relative;
   z-index: 2;

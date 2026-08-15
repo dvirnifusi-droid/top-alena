@@ -236,7 +236,11 @@ class Alena_DZ_Shop_Styling {
     public function render_shop_hero() {
         // Pick a hero image: first featured product image, else first product image
         $hero_url = $this->find_hero_image_url();
-        $hero_style = $hero_url ? sprintf('style="background-image: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.55)), url(%s)"', esc_url($hero_url)) : '';
+        // Photo only. The darkening that used to be baked in here now lives on
+        // .alena-dz-hero::before, so the phone layout — where the text sits on a
+        // panel below the photo rather than over it — gets the picture at full
+        // brightness, the way Wolt shows it.
+        $hero_style = $hero_url ? sprintf('style="background-image: url(%s)"', esc_url($hero_url)) : '';
 
         // Open / closed status from Hours Engine
         $status = '⏰ פתוח';

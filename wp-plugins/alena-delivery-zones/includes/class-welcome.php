@@ -278,6 +278,14 @@ class Alena_DZ_Welcome {
             wp_send_json_error('bad_mode', 400);
         }
         if (function_exists('WC') && WC()->session) {
+            // A guest with an empty cart has no session cookie yet, and without
+            // one WooCommerce keeps the values in memory for this request only
+            // and throws them away. The switch then "did nothing": the write
+            // succeeded, the reload read back the old mode. Logged-in admins
+            // already have a session, which is why it worked while testing.
+            if (!WC()->session->has_session()) {
+                WC()->session->set_customer_session_cookie(true);
+            }
             WC()->session->set(self::SESS_KEY_MODE, $mode);
             WC()->session->set(
                 'chosen_shipping_methods',

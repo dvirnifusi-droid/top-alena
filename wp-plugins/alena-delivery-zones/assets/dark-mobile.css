@@ -395,10 +395,42 @@
      translucent dark pills instead of white ones.
      ========================================================================== */
 
+  /* Photo on top, every word underneath it — the Wolt arrangement. The section
+     still carries the picture as its background; the inner block is pushed down
+     past the photo window and given an opaque panel, so the image shows only in
+     the strip above it. */
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero {
-    border-radius: 0 0 26px 26px !important;
-    margin: 0 0 4px !important;
+    display: block !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
     box-shadow: none !important;
+    background-position: center top !important;
+    background-size: cover !important;
+  }
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-inner {
+    position: relative !important;
+    z-index: 2 !important;
+    margin-top: 208px !important;
+    padding: 18px 16px 16px !important;
+    background: var(--bg) !important;
+    border-radius: 24px 24px 0 0 !important;
+    text-align: start !important;
+  }
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-title {
+    font-size: 27px !important;
+    font-weight: 800 !important;
+    line-height: 1.15 !important;
+    margin: 0 !important;
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-sub {
+    margin: 4px 0 0 !important;
+    font-size: 13px !important;
+    color: var(--ink-soft) !important;
   }
   /* Wolt's header: the facts as one dotted line, then a row of things you can
      press — not four decorative pills. */
@@ -407,11 +439,11 @@
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-meta {
     display: block !important;
-    margin: 6px 0 0 !important;
+    margin: 10px 0 0 !important;
     font-size: 13px !important;
     font-weight: 500 !important;
     line-height: 1.6 !important;
-    color: rgba(255, 255, 255, .92) !important;
+    color: var(--ink-2) !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-dot {
     opacity: .55 !important;
@@ -431,10 +463,9 @@
     gap: 6px !important;
     padding: 11px 16px !important;
     border-radius: 999px !important;
-    border: 1px solid rgba(255, 255, 255, .18) !important;
-    background-color: rgba(14, 17, 23, .72) !important;
-    backdrop-filter: blur(6px) !important;
-    color: #fff !important;
+    border: 1px solid var(--line) !important;
+    background: var(--surface) !important;
+    color: var(--ink) !important;
     font: inherit !important;
     font-size: 14px !important;
     font-weight: 700 !important;
@@ -452,9 +483,9 @@
     width: 42px !important;
     height: 42px !important;
     border-radius: 999px !important;
-    border: 1px solid rgba(255, 255, 255, .18) !important;
-    background-color: rgba(14, 17, 23, .72) !important;
-    color: #fff !important;
+    border: 1px solid var(--line) !important;
+    background: var(--surface) !important;
+    color: var(--ink) !important;
     font-size: 17px !important;
     cursor: pointer !important;
   }
