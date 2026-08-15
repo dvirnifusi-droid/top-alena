@@ -347,8 +347,12 @@ class Alena_DZ_Shop_Styling {
         $account_url = function_exists('wc_get_page_permalink')
             ? wc_get_page_permalink('myaccount')
             : '/my-account/';
+        // Logged out it carries a word, so it needs to be a pill rather than the
+        // 42px circle the icon-only actions use — the label was overflowing the
+        // circle and reading as a stray ring behind the icon.
         printf(
-            '<a class="alena-dz-hero-act alena-dz-hero-account" href="%s" aria-label="%s">%s</a>',
+            '<a class="alena-dz-hero-act alena-dz-hero-account%s" href="%s" aria-label="%s">%s</a>',
+            is_user_logged_in() ? '' : ' is-wide',
             esc_url($account_url),
             is_user_logged_in() ? 'האיזור האישי' : 'כניסה והרשמה למועדון',
             is_user_logged_in() ? '👤' : '👤<span class="alena-dz-hero-account-label">כניסה</span>'

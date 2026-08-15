@@ -30,6 +30,11 @@ class Alena_DZ_Phone_Auth {
     const OPT_TWILIO_TOKEN     = 'alena_otp_twilio_token';
     const OPT_TWILIO_FROM      = 'alena_otp_twilio_from';
     const OPT_LAST_CONSOLE     = 'alena_otp_last_console';    // For dev: stores last code shown to admin
+    // Console mode normally refuses to serve a customer, because handing the
+    // code to whoever asked let anyone sign in as any customer. This switch
+    // brings that behaviour back deliberately, for testing the flow before a
+    // provider is configured. Off unless someone turns it on, and it says so.
+    const OPT_TEST_MODE        = 'alena_otp_test_mode';
 
     const TRANSIENT_PREFIX     = 'alena_otp_';
     const RATE_TRANSIENT       = 'alena_otp_rate_';
@@ -44,6 +49,7 @@ class Alena_DZ_Phone_Auth {
         add_action('wp_enqueue_scripts',   [$this, 'enqueue']);
         add_filter('woocommerce_locate_template', [$this, 'override_template'], 10, 3);
         add_action('admin_notices',        [$this, 'admin_notice_last_code']);
+        add_action('admin_notices',        [$this, 'admin_notice_test_mode']);
         // Make sure phone-based users don't need email
         add_filter('woocommerce_registration_errors', [$this, 'strip_email_required'], 10, 3);
     }
@@ -138,6 +144,13 @@ class Alena_DZ_Phone_Auth {
             if (current_user_can('manage_woocommerce')) {
                 $response['dev_code']   = $code;
                 $response['dev_notice'] = 'מצב פיתוח (מוצג למנהלים בלבד) — לא הוגדר ספק WhatsApp/SMS';
+            } elseif (get_option(self::OPT_TEST_MODE)) {
+                // Explicitly switched on. Anyone can read the code for any
+                // number while this is set, which is the whole hole — it exists
+                // so the flow can be tested end to end, and the settings page
+                // says as much next to the switch.
+                $response['dev_code']   = $code;
+                $response['dev_notice'] = 'מצב בדיקה פעיל — הקוד מוצג על המסך. לכבות לפני שהאתר פתוח ללקוחות.';
             } else {
                 // A customer must not be told the code, and must not be left
                 // waiting for a message that no provider will ever send.
@@ -404,6 +417,16 @@ class Alena_DZ_Phone_Auth {
         register_setting('alena_otp', self::OPT_TWILIO_SID);
         register_setting('alena_otp', self::OPT_TWILIO_TOKEN);
         register_setting('alena_otp', self::OPT_TWILIO_FROM);
+        register_setting('alena_otp', self::OPT_TEST_MODE);
+    }
+
+    /** Loud, on every admin screen — this one must not be forgotten. */
+    public function admin_notice_test_mode() {
+        if (!get_option(self::OPT_TEST_MODE)) return;
+        echo '<div class="notice notice-error"><p>⚠️ <strong>מצב בדיקת התחברות פעיל</strong> — '
+           . 'קוד ההתחברות מוצג על המסך לכל מי שמזין מספר טלפון, כולל מספרים של לקוחות. '
+           . 'לכבות ב<a href="' . esc_url(admin_url('admin.php?page=alena-phone-auth')) . '">התחברות + OTP</a> '
+           . 'לפני שהאתר פתוח ללקוחות.</p></div>';
     }
 
     public function admin_notice_last_code() {
@@ -426,6 +449,25 @@ class Alena_DZ_Phone_Auth {
           <h1>התחברות לקוחות בטלפון + OTP</h1>
           <form method="post" action="options.php">
             <?php settings_fields('alena_otp'); ?>
+            <h2>מצב בדיקה</h2>
+            <table class="form-table">
+              <tr>
+                <th>הצגת הקוד על המסך</th>
+                <td>
+                  <label>
+                    <input type="checkbox" name="<?php echo self::OPT_TEST_MODE; ?>" value="1"
+                           <?php checked(get_option(self::OPT_TEST_MODE), '1'); ?> />
+                    להציג את קוד ההתחברות באתר עצמו (רק כשהספק הוא Console)
+                  </label>
+                  <p class="description" style="color:#a00">
+                    ⚠️ בזמן שזה מסומן, <strong>כל אחד</strong> יכול להזין מספר טלפון של לקוח,
+                    לקרוא את הקוד מהמסך ולהיכנס לחשבון שלו — כולל כתובת, היסטוריית הזמנות ונקודות מועדון.
+                    מיועד לבדיקה בלבד. לכבות לפני שהאתר פתוח ללקוחות.
+                  </p>
+                </td>
+              </tr>
+            </table>
+
             <h2>ספק לשליחת הקוד</h2>
             <select name="<?php echo self::OPT_PROVIDER; ?>">
               <option value="console" <?php selected($provider, 'console'); ?>>Console (פיתוח — הקוד מוצג ב-wp-admin)</option>

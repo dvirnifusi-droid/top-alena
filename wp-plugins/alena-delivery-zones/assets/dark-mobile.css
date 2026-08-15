@@ -529,45 +529,63 @@
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 5px !important;
-    width: auto !important;
-    min-width: 42px !important;
-    padding: 0 12px !important;
     text-decoration: none !important;
   }
+  /* Three classes on purpose: .alena-dz-hero-act pins every action to a 42px
+     circle, and this has to outrank it rather than tie with it. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-act.alena-dz-hero-account.is-wide {
+    width: auto !important;
+    min-width: 0 !important;
+    flex: 0 0 auto !important;
+    gap: 6px !important;
+    padding: 0 15px !important;
+    border-radius: 999px !important;
+  }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-account-label {
-    font-size: 13px !important;
+    font-size: 13.5px !important;
     font-weight: 700 !important;
+    white-space: nowrap !important;
   }
 
   /* Per-option quantity stepper */
+  /* One quiet pill. The buttons were filled circles inside another rounded box,
+     which read as three shapes stacked on each other. */
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-qty {
     display: inline-flex !important;
     align-items: center !important;
-    gap: 2px !important;
+    gap: 0 !important;
     margin-inline-start: 8px !important;
-    padding: 2px !important;
+    padding: 0 !important;
     border: 1px solid var(--line) !important;
     border-radius: 999px !important;
-    background: var(--surface) !important;
+    background: transparent !important;
+    overflow: hidden !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-qty[hidden] {
     display: none !important;
   }
+  /* modal-polish.css stretches every non-price span in the row with
+     `.alena-dz-mod-row > span:not([class*="price"]) { flex: 1 1 auto }`, and the
+     stepper is one — it was being pulled to 194px. Needs the row in the
+     selector to outrank that. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-row > .alena-dz-mod-qty {
+    flex: 0 0 auto !important;
+    width: auto !important;
+  }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-qty-btn {
-    width: 26px !important;
-    height: 26px !important;
+    width: 30px !important;
+    height: 28px !important;
     border: 0 !important;
-    border-radius: 999px !important;
-    background: var(--surface-2) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
     color: var(--accent) !important;
-    font-size: 16px !important;
+    font-size: 17px !important;
     font-weight: 800 !important;
     line-height: 1 !important;
     cursor: pointer !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-qty-val {
-    min-width: 20px !important;
+    min-width: 22px !important;
     text-align: center !important;
     font-size: 14px !important;
     font-weight: 800 !important;
