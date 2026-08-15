@@ -1694,6 +1694,19 @@
     color: var(--accent-ink) !important;
   }
 
+  /* "המשלוחים סגורים כרגע" — inherits a near-black grey from the table, which
+     on this canvas is unreadable. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-closed-shipping {
+    display: block !important;
+    color: var(--ink-2) !important;
+    font-size: 13px !important;
+    line-height: 1.6 !important;
+    text-align: start !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-closed-shipping strong {
+    color: var(--ink) !important;
+  }
+
   /* Tells the customer what the blue button actually does. */
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-pay-hint {
     display: block !important;

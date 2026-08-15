@@ -11,6 +11,10 @@ class Alena_DZ_Hours_Checkout {
     public function __construct() {
         add_action('woocommerce_before_checkout_form',  [$this, 'render_notice'], 5);
         add_filter('woocommerce_package_rates',         [$this, 'maybe_remove_delivery'], 50, 2);
+        // WooCommerce blames the customer's address for the missing method.
+        // When the real reason is that we are closed, say that instead.
+        add_filter('woocommerce_no_shipping_available_html',      [$this, 'no_shipping_message']);
+        add_filter('woocommerce_cart_no_shipping_available_html', [$this, 'no_shipping_message']);
         add_shortcode('alena_open_status',              [$this, 'shortcode_open_status']);
     }
 
@@ -62,6 +66,29 @@ class Alena_DZ_Hours_Checkout {
             }
         }
         return $rates;
+    }
+
+    /**
+     * The default text — "check the address was entered correctly" — sends a
+     * customer hunting for a mistake they did not make, when the only reason
+     * delivery vanished is that the kitchen is shut. Only replaced when that is
+     * genuinely the cause; a real out-of-zone address still gets the original.
+     */
+    public function no_shipping_message($html) {
+        try {
+            $engine = Alena_DZ_Hours_Engine::get();
+            $now    = new DateTimeImmutable('now', new DateTimeZone('Asia/Jerusalem'));
+            $status = $engine->status('delivery', $now, $this->cart_category_slugs());
+            if (!empty($status['open'])) return $html;
+
+            $reason = trim((string) ($status['reason'] ?? ''));
+            return '<span class="alena-dz-closed-shipping">🕒 <strong>המשלוחים סגורים כרגע'
+                 . ($reason ? ' — ' . esc_html($reason) : '')
+                 . '</strong><br>אפשר להשלים את ההזמנה עכשיו והיא תצא בפתיחה הקרובה, '
+                 . 'או לבחור <strong>איסוף עצמי</strong>. הכתובת שלך תקינה.</span>';
+        } catch (\Throwable $e) {
+            return $html;
+        }
     }
 
     public function shortcode_open_status($atts = []) {
