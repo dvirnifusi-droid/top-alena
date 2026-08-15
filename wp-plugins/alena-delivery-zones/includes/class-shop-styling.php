@@ -340,9 +340,22 @@ class Alena_DZ_Shop_Styling {
             esc_html($modes[$mode]['label']),
             esc_html($modes[$mode]['eta'])
         );
+        // Account entry point. Removing the bottom nav took away the only way in
+        // on a phone: the club banner only renders for a logged-in customer with
+        // a matched phone, so a logged-out visitor had no route to sign in at
+        // all. This one is always here, and says which it is.
+        $account_url = function_exists('wc_get_page_permalink')
+            ? wc_get_page_permalink('myaccount')
+            : '/my-account/';
+        printf(
+            '<a class="alena-dz-hero-act alena-dz-hero-account" href="%s" aria-label="%s">%s</a>',
+            esc_url($account_url),
+            is_user_logged_in() ? 'האיזור האישי' : 'כניסה והרשמה למועדון',
+            is_user_logged_in() ? '👤' : '👤<span class="alena-dz-hero-account-label">כניסה</span>'
+        );
         echo '<button type="button" class="alena-dz-hero-act" id="alena-hero-share" aria-label="שיתוף">↗</button>';
         echo '</div>';
-        echo '<p class="alena-dz-mode-hint">רוצים לאסוף לבד? לחצו על הכפתור כדי להחליף בין משלוח לאיסוף עצמי</p>';
+        echo '<p class="alena-dz-mode-hint">לחצו להחלפה בין משלוח לאיסוף</p>';
         echo '</div>';
         echo '</section>';
 

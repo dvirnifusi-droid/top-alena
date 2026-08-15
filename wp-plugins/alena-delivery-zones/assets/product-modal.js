@@ -59,6 +59,8 @@
       if (e.key === 'Escape' && modalEl.is('.open')) closeModal();
     });
 
+    bindQtySteppers();
+
     modalEl.on('click', '.alena-modal-qty-plus', function () {
       const $v = modalEl.find('.alena-modal-qty-value');
       $v.text(parseInt($v.text(), 10) + 1);
@@ -283,12 +285,76 @@
     });
   }
 
+  // How many of this value the customer took. Everything below counts units,
+  // not ticked boxes, so four of one tahini costs and caps like four items.
+  function modQty(input) {
+    const n = parseInt(input.getAttribute('data-qty'), 10);
+    return (input.checked && n > 0) ? n : (input.checked ? 1 : 0);
+  }
+
+  function groupUnits($group) {
+    let units = 0;
+    $group.find('input:checked').each(function () { units += modQty(this); });
+    return units;
+  }
+
+  // Show the stepper on chosen rows, hide it elsewhere, and keep its number in
+  // step with the input.
+  function syncQtyControls($group) {
+    $group.find('.alena-dz-mod-row').each(function () {
+      const input = $(this).find('input')[0];
+      const $qty  = $(this).find('.alena-dz-mod-qty');
+      if (!input || !$qty.length) return;
+      if (input.checked) {
+        $qty.removeAttr('hidden');
+        $qty.find('.alena-dz-mod-qty-val').text(modQty(input));
+      } else {
+        $qty.attr('hidden', true);
+        input.setAttribute('data-qty', '1');
+      }
+    });
+  }
+
+  function bindQtySteppers() {
+    modalEl.on('click', '.alena-dz-mod-qty-btn', function (e) {
+      // The row is a <label>, so a click here would otherwise toggle the choice.
+      e.preventDefault();
+      e.stopPropagation();
+
+      const $row   = $(this).closest('.alena-dz-mod-row');
+      const $group = $(this).closest('.alena-dz-mod-group');
+      const input  = $row.find('input')[0];
+      if (!input || !input.checked) return;
+
+      const step      = parseInt($(this).data('step'), 10) || 0;
+      const perValue  = parseInt($(this).closest('.alena-dz-mod-qty').data('per-value'), 10) || 1;
+      const groupMax  = parseInt($group.data('max'), 10) || 0;
+      const current   = modQty(input);
+      let next        = current + step;
+
+      if (next < 1) {
+        // Stepping below one is how you remove it.
+        input.checked = false;
+        input.setAttribute('data-qty', '1');
+        $(input).trigger('change');
+        return;
+      }
+      next = Math.min(next, perValue);
+      if (groupMax > 0) {
+        const others = groupUnits($group) - current;
+        next = Math.min(next, Math.max(1, groupMax - others));
+      }
+      input.setAttribute('data-qty', String(next));
+      $(input).trigger('change');
+    });
+  }
+
   function enforceMax() {
     modalEl.find('.alena-dz-mod-group[data-type="Multichoice"]').each(function () {
       const max = parseInt($(this).data('max'), 10) || 0;
       if (max <= 0) return;
       const $boxes = $(this).find('input[type="checkbox"]');
-      const checked = $boxes.filter(':checked').length;
+      const checked = groupUnits($(this));
       // Capped at one: never disable anything — the change handler swaps the
       // selection, so every line stays tappable.
       if (max === 1) {
@@ -320,8 +386,14 @@
       const free = parseInt($g.data('free'), 10) || 0;
       const $checked = $g.find('input:checked');
       const prices = [];
-      $checked.each(function () { prices.push(parseFloat($(this).data('price') || 0)); });
+      // One entry per unit: taking four of something pays for four, and the
+      // "first N free" discount is spent on N units rather than N rows.
+      $checked.each(function () {
+        const p = parseFloat($(this).data('price') || 0);
+        for (let q = modQty(this); q > 0; q--) prices.push(p);
+      });
       prices.sort((a, b) => a - b);
+      syncQtyControls($g);
       for (let i = free; i < prices.length; i++) extra += prices[i];
 
       // Visual: mark the cheapest `free` selected items as "חינם" so the customer
@@ -329,12 +401,18 @@
       if (free > 0 && $checked.length) {
         // Build a list of [checkbox, price] sorted by price ascending
         const ranked = [];
-        $checked.each(function () { ranked.push({ el: this, price: parseFloat($(this).data('price') || 0) }); });
+        $checked.each(function () {
+          ranked.push({ el: this, price: parseFloat($(this).data('price') || 0), qty: modQty(this) });
+        });
         ranked.sort((a, b) => a.price - b.price);
-        ranked.forEach((r, idx) => {
+        // Counted in units: a row taken four times is only labelled חינם when
+        // all four fall inside the free allowance, otherwise it is being paid
+        // for and saying otherwise would be a lie.
+        let freeLeft = free;
+        ranked.forEach(r => {
           const $row = $(r.el).closest('.alena-dz-mod-row');
-          if (idx < free) $row.addClass('alena-dz-row-free');
-          else            $row.removeClass('alena-dz-row-free');
+          if (r.qty <= freeLeft) { $row.addClass('alena-dz-row-free'); freeLeft -= r.qty; }
+          else                   { $row.removeClass('alena-dz-row-free'); freeLeft = 0; }
         });
       }
       // Clear "free" marker from rows that are no longer checked
@@ -410,7 +488,12 @@
     modalEl.find('.alena-dz-mod-group').each(function (g_idx) {
       if (!$(this).is(':visible')) return;
       const picks = [];
-      $(this).find('input:checked').each(function () { picks.push($(this).val()); });
+      // Repeated once per unit. The server already builds one selection entry
+      // per pick and prices them individually, so quantity needs nothing new
+      // on that side — four of a value is simply that value four times.
+      $(this).find('input:checked').each(function () {
+        for (let q = modQty(this); q > 0; q--) picks.push($(this).val());
+      });
       if (picks.length) mod[g_idx] = picks;
     });
 

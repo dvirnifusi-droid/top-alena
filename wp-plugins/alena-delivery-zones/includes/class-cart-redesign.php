@@ -133,10 +133,21 @@ class Alena_DZ_Cart_Redesign {
 
     public function append_modifier_tags($name, $cart_item, $cart_item_key) {
         if (empty($cart_item['alena_modifiers']) || !is_array($cart_item['alena_modifiers'])) return $name;
-        $tags = '';
+        // Repeats carry quantity — collapse them into one chip with a count.
+        // Keyed by group as well as name: "טחינה רגילה" inside the pita and
+        // "טחינה רגילה" on the side are different choices, and merging them
+        // reported one tahini plus four as a single "×5".
+        $counts = [];
         foreach ($cart_item['alena_modifiers'] as $m) {
             if (!is_array($m) || empty($m['name'])) continue;
-            $tags .= '<span class="alena-cart-mod-tag">' . esc_html($m['name']) . '</span>';
+            $key = ($m['group_idx'] ?? $m['group'] ?? '') . '|' . $m['name'];
+            if (!isset($counts[$key])) $counts[$key] = ['name' => (string) $m['name'], 'n' => 0];
+            $counts[$key]['n']++;
+        }
+        $tags = '';
+        foreach ($counts as $c) {
+            $tags .= '<span class="alena-cart-mod-tag">' . esc_html($c['name'])
+                   . ($c['n'] > 1 ? ' ×' . (int) $c['n'] : '') . '</span>';
         }
         if ($tags) {
             $name .= '<div class="alena-cart-mod-tags">' . $tags . '</div>';

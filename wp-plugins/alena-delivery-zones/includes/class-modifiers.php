@@ -170,7 +170,16 @@ class Alena_DZ_Modifiers {
                     : '<span class="alena-dz-mod-free">' . $free . ' הראשונים חינם</span>';
             }
 
-            echo '<div class="alena-dz-mod-group" data-min="' . $min . '" data-max="' . $max . '" data-free="' . $free . '" data-type="' . esc_attr($type) . '">';
+            // Per-value cap. Wolt sends 1 whenever it says nothing, which is why
+            // a side of tahini could only ever be ordered once — the owner wants
+            // four. Where the group itself allows several picks, let a single
+            // value carry that many unless the data explicitly says otherwise.
+            $max_single = (int) ($group['max_single'] ?? 1);
+            $per_value  = (!$is_radio && $max > 1)
+                ? ($max_single > 1 ? $max_single : $max)
+                : 1;
+
+            echo '<div class="alena-dz-mod-group" data-min="' . $min . '" data-max="' . $max . '" data-free="' . $free . '" data-per-value="' . $per_value . '" data-type="' . esc_attr($type) . '">';
             echo '<div class="alena-dz-mod-head">';
             echo '<h4 class="alena-dz-mod-title">' . esc_html($name) . ' ' . $required_label . '</h4>';
             echo '<span class="alena-dz-mod-hint">' . esc_html($hint) . ' ' . $free_badge . '</span>';
@@ -194,6 +203,13 @@ class Alena_DZ_Modifiers {
                   <span class="alena-dz-mod-name"><?php echo esc_html($val['name'] ?? ''); ?></span>
                   <?php if ($price_label): ?>
                     <span class="alena-dz-mod-price"><?php echo esc_html($price_label); ?></span>
+                  <?php endif; ?>
+                  <?php if ($per_value > 1): ?>
+                    <span class="alena-dz-mod-qty" data-per-value="<?php echo (int) $per_value; ?>" hidden>
+                      <button type="button" class="alena-dz-mod-qty-btn" data-step="-1" aria-label="פחות">−</button>
+                      <span class="alena-dz-mod-qty-val">1</span>
+                      <button type="button" class="alena-dz-mod-qty-btn" data-step="1" aria-label="עוד">+</button>
+                    </span>
                   <?php endif; ?>
                 </label>
                 <?php
@@ -325,10 +341,25 @@ class Alena_DZ_Modifiers {
                 return $item_data;
             }
             if (!empty($cart_item['alena_modifiers']) && is_array($cart_item['alena_modifiers'])) {
+                // Quantity arrives as the same selection repeated, so collapse
+                // it back into one line with a count rather than printing
+                // "טחינה לבנה" four times.
+                $rows = [];
                 foreach ($cart_item['alena_modifiers'] as $m) {
                     if (!is_array($m)) continue;
+                    $key = ($m['group'] ?? '') . '|' . ($m['name'] ?? '') . '|' . ($m['price'] ?? 0);
+                    if (!isset($rows[$key])) {
+                        $rows[$key] = ['m' => $m, 'qty' => 0];
+                    }
+                    $rows[$key]['qty']++;
+                }
+                foreach ($rows as $row) {
+                    $m     = $row['m'];
                     $label = (string) ($m['name'] ?? '');
-                    if ((float) ($m['price'] ?? 0) > 0) $label .= ' (+₪' . number_format((float) $m['price'], 0) . ')';
+                    if ($row['qty'] > 1) $label .= ' ×' . $row['qty'];
+                    if ((float) ($m['price'] ?? 0) > 0) {
+                        $label .= ' (+₪' . number_format((float) $m['price'] * $row['qty'], 0) . ')';
+                    }
                     $item_data[] = [
                         'key'   => (string) ($m['group'] ?? '') ?: 'תוספת',
                         'value' => $label,

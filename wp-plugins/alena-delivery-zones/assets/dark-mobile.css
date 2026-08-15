@@ -516,10 +516,62 @@
 
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mode-hint {
     display: block !important;
-    margin: 8px 0 0 !important;
-    font-size: 12px !important;
-    line-height: 1.5 !important;
+    margin: 7px 0 0 !important;
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+    white-space: nowrap !important;
     color: var(--ink-soft) !important;
+  }
+
+  /* Account link sits with the other round actions; when logged out it widens
+     to carry the word, so signing in is findable rather than a bare icon. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-account {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    width: auto !important;
+    min-width: 42px !important;
+    padding: 0 12px !important;
+    text-decoration: none !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-account-label {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+  }
+
+  /* Per-option quantity stepper */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-qty {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 2px !important;
+    margin-inline-start: 8px !important;
+    padding: 2px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 999px !important;
+    background: var(--surface) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-qty[hidden] {
+    display: none !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-qty-btn {
+    width: 26px !important;
+    height: 26px !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: var(--surface-2) !important;
+    color: var(--accent) !important;
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-qty-val {
+    min-width: 20px !important;
+    text-align: center !important;
+    font-size: 14px !important;
+    font-weight: 800 !important;
+    color: var(--ink) !important;
   }
   /* Wolt's header: the facts as one dotted line, then a row of things you can
      press — not four decorative pills. */
