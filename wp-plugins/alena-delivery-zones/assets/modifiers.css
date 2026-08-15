@@ -207,7 +207,14 @@ body.single-product .alena-dz-modifiers ~ form.cart {
   padding-bottom: 20px;
 }
 
-.alena-dz-mod-error {
+/* A standalone error MESSAGE box, hidden until it has something to say.
+   Scoped away from .alena-dz-mod-group on purpose: product-modal.js adds this
+   same class name to a group to highlight it (see the rule above), and this
+   `display: none` was therefore hiding the very group the customer had just
+   been told to choose from. They could not select it, and the next Add skipped
+   it entirely — validation only looks at visible groups — so the dish went into
+   the cart without a required choice. */
+.alena-dz-mod-error:not(.alena-dz-mod-group) {
   background: #ffe5e0;
   color: #a92424;
   padding: 10px 12px;

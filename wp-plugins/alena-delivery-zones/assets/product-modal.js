@@ -468,11 +468,16 @@
       window.__alenaAdding = false;
       if ($firstBadGroup) {
         $firstBadGroup.addClass('alena-dz-mod-error');
-        // Scroll the modal so the error is visible
-        const $scroller = modalEl.find('.alena-modal-scroll');
-        if ($scroller.length) {
-          const top = $firstBadGroup.position().top + $scroller.scrollTop() - 20;
-          $scroller.animate({ scrollTop: top }, 280);
+        // Scroll the modal so the error is visible. Measured from bounding
+        // rects rather than .position(), which is relative to the offset parent
+        // and returned 0 here — so the modal never actually moved and the
+        // customer was told to choose in a group that was off screen.
+        const scroller = modalEl.find('.alena-modal-scroll')[0];
+        const bad = $firstBadGroup[0];
+        if (scroller && bad) {
+          const delta = bad.getBoundingClientRect().top
+                      - scroller.getBoundingClientRect().top;
+          $(scroller).animate({ scrollTop: scroller.scrollTop + delta - 16 }, 280);
         }
       }
       modalEl.find('.alena-modal-err').text(firstError).removeAttr('hidden');
