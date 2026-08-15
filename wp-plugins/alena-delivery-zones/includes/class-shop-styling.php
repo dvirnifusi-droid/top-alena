@@ -108,7 +108,9 @@ class Alena_DZ_Shop_Styling {
      */
     private function is_dark_mobile_page() {
         if (!function_exists('is_woocommerce')) return false;
-        return is_shop() || is_product_category() || is_product_taxonomy();
+        // Checkout is still light: it hosts the PayPlus frame, which we do not
+        // control and cannot restyle from here.
+        return is_shop() || is_product_category() || is_product_taxonomy() || is_cart();
     }
 
     public function dark_mobile_body_class($classes) {
@@ -256,6 +258,35 @@ class Alena_DZ_Shop_Styling {
         echo '<span class="alena-dz-hero-chip">🚚 משלוחים מ-₪17</span>';
         echo '<span class="alena-dz-hero-chip">💰 מינ׳ הזמנה ₪70</span>';
         echo '</div>';
+
+        // Phone header, Wolt-shaped: the same facts as one dotted line instead of
+        // four pills, and the fulfilment choice as something you can actually
+        // tap rather than a label. Hidden on desktop (see shop.css).
+        $meta = [
+            $status,
+            'מינימום ₪70',
+            'משלוח מ-₪17',
+            'רוטשילד 104, ראשל״צ',
+        ];
+        echo '<p class="alena-dz-hero-meta">'
+           . implode(' <span class="alena-dz-hero-dot">·</span> ', array_map('esc_html', $meta))
+           . '</p>';
+
+        $mode = 'delivery';
+        if (function_exists('WC') && WC()->session) {
+            $m = WC()->session->get('alena_fulfillment_mode');
+            if (in_array($m, ['delivery', 'pickup'], true)) $mode = $m;
+        }
+        $mode_label = ($mode === 'pickup') ? '🥡 איסוף עצמי · 15-25 דק׳' : '🛵 משלוח · 35-45 דק׳';
+
+        echo '<div class="alena-dz-hero-actions">';
+        printf(
+            '<button type="button" class="alena-dz-mode-switch" id="alena-mode-switch" data-mode="%s">%s <span class="alena-dz-mode-caret" aria-hidden="true">⌄</span></button>',
+            esc_attr($mode),
+            esc_html($mode_label)
+        );
+        echo '<button type="button" class="alena-dz-hero-act" id="alena-hero-share" aria-label="שיתוף">↗</button>';
+        echo '</div>';
         echo '</div>';
         echo '</section>';
     }
@@ -370,6 +401,42 @@ class Alena_DZ_Shop_Styling {
 
           input.addEventListener('input', e => applyFilter(e.target.value));
           clearBtn.addEventListener('click', () => { input.value = ''; applyFilter(''); input.focus(); });
+        })();
+
+        // Header fulfilment switch. Posts to alena_set_mode, which touches the
+        // mode only — ajax_welcome_save would have cleared the saved address.
+        (function () {
+          const btn = document.getElementById('alena-mode-switch');
+          if (btn && window.AlenaWelcome) {
+            btn.addEventListener('click', function () {
+              const next = btn.dataset.mode === 'pickup' ? 'delivery' : 'pickup';
+              btn.disabled = true;
+              fetch(AlenaWelcome.ajaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                  action: 'alena_set_mode',
+                  nonce: AlenaWelcome.nonce,
+                  mode: next
+                })
+              })
+                .then(r => r.json())
+                // Reload rather than patch the DOM: the shipping row, the
+                // minimum-order notice and the totals all key off the mode.
+                .then(j => { if (j && j.success) location.reload(); else btn.disabled = false; })
+                .catch(() => { btn.disabled = false; });
+            });
+          }
+
+          const share = document.getElementById('alena-hero-share');
+          if (share) {
+            share.addEventListener('click', function () {
+              const data = { title: document.title, url: location.href };
+              if (navigator.share) navigator.share(data).catch(() => {});
+              else if (navigator.clipboard) navigator.clipboard.writeText(location.href);
+            });
+          }
         })();
         </script>
         <?php

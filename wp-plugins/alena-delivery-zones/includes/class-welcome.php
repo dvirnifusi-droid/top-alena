@@ -20,6 +20,8 @@ class Alena_DZ_Welcome {
         add_action('wp_enqueue_scripts',               [$this, 'enqueue']);
         add_action('wp_ajax_alena_welcome_save',       [$this, 'ajax_save']);
         add_action('wp_ajax_nopriv_alena_welcome_save',[$this, 'ajax_save']);
+        add_action('wp_ajax_alena_set_mode',           [$this, 'ajax_set_mode']);
+        add_action('wp_ajax_nopriv_alena_set_mode',    [$this, 'ajax_set_mode']);
     }
 
     /**
@@ -259,6 +261,30 @@ class Alena_DZ_Welcome {
             if ($url) return $url;
         }
         return '';
+    }
+
+    /**
+     * Switch fulfilment mode on its own, from the header selector.
+     *
+     * Deliberately separate from ajax_save(): that one always writes the
+     * address too, so reusing it for a mode toggle would blank the delivery
+     * address the customer already entered the moment they looked at pickup
+     * prices.
+     */
+    public function ajax_set_mode() {
+        check_ajax_referer('alena_welcome', 'nonce');
+        $mode = isset($_POST['mode']) ? sanitize_text_field((string) $_POST['mode']) : '';
+        if (!in_array($mode, ['delivery', 'pickup'], true)) {
+            wp_send_json_error('bad_mode', 400);
+        }
+        if (function_exists('WC') && WC()->session) {
+            WC()->session->set(self::SESS_KEY_MODE, $mode);
+            WC()->session->set(
+                'chosen_shipping_methods',
+                ($mode === 'pickup') ? ['local_pickup'] : ['alena_polygon']
+            );
+        }
+        wp_send_json_success(['mode' => $mode]);
     }
 
     public function ajax_save() {

@@ -338,6 +338,25 @@
     display: none !important;
   }
 
+  /* The row card is a fixed 150px tall and clips its overflow — fine when the
+     photo sits beside the text, but the carousel stacks them, so the dish name
+     was being sliced through the middle. Let these cards size to content. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-products-popular li.alena-dz-card,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-products-popular .alena-dz-card-body {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-products-popular .alena-dz-card-title {
+    white-space: normal !important;
+    overflow: visible !important;
+    display: block !important;
+    font-size: 14px !important;
+    line-height: 1.35 !important;
+    -webkit-line-clamp: none !important;
+  }
+
   /* ==========================================================================
      7. "הזמינו שוב" — the orders row that stayed white
      ========================================================================== */
@@ -381,6 +400,65 @@
     margin: 0 0 4px !important;
     box-shadow: none !important;
   }
+  /* Wolt's header: the facts as one dotted line, then a row of things you can
+     press — not four decorative pills. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-info {
+    display: none !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-meta {
+    display: block !important;
+    margin: 6px 0 0 !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    line-height: 1.6 !important;
+    color: rgba(255, 255, 255, .92) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-dot {
+    opacity: .55 !important;
+    margin: 0 2px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-actions {
+    display: flex !important;
+    gap: 8px !important;
+    align-items: center !important;
+    margin-top: 12px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mode-switch {
+    flex: 1 1 auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 11px 16px !important;
+    border-radius: 999px !important;
+    border: 1px solid rgba(255, 255, 255, .18) !important;
+    background-color: rgba(14, 17, 23, .72) !important;
+    backdrop-filter: blur(6px) !important;
+    color: #fff !important;
+    font: inherit !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mode-switch[disabled] {
+    opacity: .55 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mode-caret {
+    color: var(--accent) !important;
+    font-weight: 900 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-act {
+    flex: 0 0 auto !important;
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 999px !important;
+    border: 1px solid rgba(255, 255, 255, .18) !important;
+    background-color: rgba(14, 17, 23, .72) !important;
+    color: #fff !important;
+    font-size: 17px !important;
+    cursor: pointer !important;
+  }
+
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-chip {
     background-color: rgba(14, 17, 23, .62) !important;
     color: #fff !important;
@@ -504,6 +582,32 @@
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-group.alena-dz-mod-error {
     border-top-color: rgba(192, 57, 43, .55) !important;
+  }
+
+  /* "הראשון חינם" rows.
+     modifiers.css hides the real price with `color: transparent` and lays the
+     word חינם over it as an absolutely positioned ::after. The accent rule
+     above repainted that transparent text cyan, so the price and the word
+     rendered on top of each other — the garbled label in the screenshot.
+     Keep the price hidden and let the overlay be the accent. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-row-free .alena-dz-mod-price {
+    color: transparent !important;
+    text-decoration-color: transparent !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-row-free .alena-dz-mod-price::after {
+    color: var(--accent) !important;
+    font-weight: 800 !important;
+  }
+  /* The "הראשון חינם" badge in the group heading. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-mod-free {
+    display: inline-block !important;
+    margin-inline-start: 6px !important;
+    padding: 2px 8px !important;
+    border-radius: 999px !important;
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    background-color: var(--accent) !important;
+    color: var(--accent-ink) !important;
   }
 
   /* ==========================================================================
@@ -654,7 +758,182 @@
   }
 
   /* ==========================================================================
-     15. WOOCOMMERCE NOTICES
+     15. CART PAGE
+     --------------------------------------------------------------------------
+     On a phone WooCommerce falls back to stacking every table cell into a
+     full-width block and printing its column header in front of it —
+     "מוצר: … / מחיר: … / כמות: …" — which is what produced the row of empty
+     white rectangles. The cells are laid out as a proper card here instead:
+     photo, name, quantity, price, remove. Checkout is untouched.
+     ========================================================================== */
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile table.cart,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile table.cart tbody {
+    display: block !important;
+    width: 100% !important;
+    border: 0 !important;
+    margin: 0 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile table.cart thead {
+    display: none !important;
+  }
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile table.cart tbody tr.cart_item {
+    display: grid !important;
+    grid-template-columns: 64px minmax(0, 1fr) auto !important;
+    grid-template-areas:
+      "thumb name remove"
+      "thumb qty  price" !important;
+    gap: 6px 12px !important;
+    align-items: center !important;
+    width: auto !important;
+    padding: 14px !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--line) !important;
+  }
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile table.cart tbody td {
+    display: block !important;
+    width: auto !important;
+    padding: 0 !important;
+    border: 0 !important;
+    text-align: start !important;
+  }
+  /* The "מוצר:" / "מחיר:" column labels. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile table.cart tbody td::before {
+    display: none !important;
+  }
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile td.product-thumbnail { grid-area: thumb !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile td.product-name      { grid-area: name !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile td.product-remove    { grid-area: remove !important; text-align: end !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile td.product-quantity  { grid-area: qty !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile td.product-subtotal  { grid-area: price !important; text-align: end !important; }
+  /* Unit price and line total say the same thing on one line each.
+     Needs `table.cart tbody` in front of it: without them this loses to the
+     generic `table.cart tbody td { display: block }` rule above, which carries
+     two more element selectors. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile table.cart tbody td.product-price {
+    display: none !important;
+  }
+
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile td.product-thumbnail img {
+    width: 64px !important;
+    height: 64px !important;
+    max-width: none !important;
+    object-fit: cover !important;
+    border-radius: 12px !important;
+    background-color: var(--surface) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile td.product-name a {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: var(--ink) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-cart-mod-tag {
+    display: inline-block !important;
+    margin: 3px 3px 0 0 !important;
+    padding: 2px 7px !important;
+    border-radius: 999px !important;
+    font-size: 11px !important;
+    background-color: var(--surface-2) !important;
+    color: var(--ink-soft) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-cart-note {
+    font-size: 12px !important;
+    color: var(--ink-soft) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile td.product-subtotal,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile td.product-subtotal .amount {
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    color: var(--accent) !important;
+  }
+  /* `background`, not `background-color`: cart-enhancements.css paints this
+     button with the shorthand, and a shorthand later in the cascade overwrites
+     a longhand no matter how specific the longhand was. Same for the checkout
+     button below — both looked untouched until the shorthand was matched. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile td.product-remove a.remove {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 30px !important;
+    height: 30px !important;
+    border-radius: 999px !important;
+    font-size: 17px !important;
+    background: var(--surface-2) !important;
+    color: var(--ink-soft) !important;
+  }
+
+  /* Quantity stepper */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .quantity,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .quantity input.qty {
+    background-color: var(--surface) !important;
+    color: var(--ink) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 999px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .quantity input.qty {
+    width: 62px !important;
+    padding: 7px 6px !important;
+    text-align: center !important;
+    font-weight: 700 !important;
+  }
+
+  /* Coupon row, totals card, tip and schedule blocks */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .actions,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .coupon {
+    background-color: transparent !important;
+    padding: 12px 0 !important;
+    border: 0 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .cart_totals,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-tip,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-schedule,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-summary-extras {
+    background-color: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 16px !important;
+    padding: 16px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .cart_totals table,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .cart_totals th,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .cart_totals td {
+    background-color: transparent !important;
+    border-color: var(--line) !important;
+    color: var(--ink-2) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .cart_totals tr.order-total :is(th, td, .amount, bdi) {
+    color: var(--accent) !important;
+    font-weight: 800 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-tip-opt {
+    background-color: var(--surface-2) !important;
+    border: 1px solid var(--line) !important;
+    color: var(--ink-2) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-tip-opt.active {
+    background-color: var(--accent) !important;
+    color: var(--accent-ink) !important;
+    border-color: var(--accent) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-cart-back {
+    display: inline-block !important;
+    color: var(--ink-2) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 999px !important;
+    padding: 8px 16px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .checkout-button,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .wc-proceed-to-checkout a.checkout-button {
+    background: var(--accent) !important;
+    color: var(--accent-ink) !important;
+    border: 0 !important;
+    font-weight: 800 !important;
+  }
+
+  /* ==========================================================================
+     16. WOOCOMMERCE NOTICES
      ========================================================================== */
 
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(.woocommerce-message, .woocommerce-info, .woocommerce-error) {

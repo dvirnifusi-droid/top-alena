@@ -400,6 +400,11 @@ body.woocommerce      .elementor-element.e-con-full[class*="elementor-element-"]
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0,0,0,0.08);
 }
+/* Phone-only header pieces. The desktop hero keeps its chip row; these are
+   switched on by dark-mobile.css under 640px. */
+.alena-dz-hero-meta,
+.alena-dz-hero-actions { display: none; }
+
 .alena-dz-hero-inner {
   position: relative;
   z-index: 2;
