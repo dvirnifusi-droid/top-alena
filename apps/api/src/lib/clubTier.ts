@@ -4,9 +4,14 @@ export type ClubTier = 'regular' | 'silver' | 'gold';
 // segments ('silver'/'gold') target EXACTLY the customers the member card labels
 // as such — one definition, no drift between what a member sees and who a campaign
 // reaches.
+// Owner's call, 2026-08-15: 5 orders for silver ("לקוח קבוע"), 15 for gold
+// ("מהמשפחה") — the old 10/25 left almost every real customer on regular.
+// Coin cutoffs are unchanged: they are an OR with visits and 100 coins is
+// ~₪10,000 of spend, so they only ever promote someone the visit count would
+// have promoted already.
 export const TIER_THRESHOLDS = {
-  gold: { visits: 25, coins: 300 },
-  silver: { visits: 10, coins: 100 },
+  gold: { visits: 15, coins: 300 },
+  silver: { visits: 5, coins: 100 },
 } as const;
 
 export function computeTier(visitCount: number, coinBalance: number): ClubTier {

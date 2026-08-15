@@ -66,7 +66,16 @@ export async function clubRoutes(app: FastifyInstance) {
       found: true,
       name: customer.name ?? null,
       coin_balance: customer.coin_balance ?? 0,
-      loyalty_tier: customer.loyalty_tier ?? computeTier(customer.visit_count ?? 0, customer.coin_balance ?? 0),
+      // `loyalty_tier` stores the MANUAL marketing status (vip/regular/
+      // blacklist); the member card is meant to show the ENGAGEMENT tier. The
+      // old `?? computeTier(...)` could never run — the column defaults to
+      // 'regular' and so is never null — which is why a customer with 18 orders
+      // still read as "regular" on the card. A hand-assigned VIP still wins;
+      // blacklist deliberately falls through to the computed value rather than
+      // being shown to the customer.
+      loyalty_tier: customer.loyalty_tier === 'vip'
+        ? 'vip'
+        : computeTier(customer.visit_count ?? 0, customer.coin_balance ?? 0),
       visit_count: customer.visit_count ?? 0,
       marketing_consent: customer.marketing_consent,
     };
