@@ -16,6 +16,18 @@ class Alena_DZ_Checkout_Fields {
 
     public function __construct() {
         // Filter-based adjustments (caught by most themes)
+        // "פרטי חיוב" is WooCommerce's wording for a shop. Nothing is being
+        // billed to an address here — for pickup it is plainly wrong — and the
+        // customer just wants to know whose details these are.
+        add_filter('gettext', [$this, 'rename_billing_heading'], 20, 3);
+
+        // The cart's shipping calculator offered a country list of ~200 entries
+        // and a state field, for a restaurant that delivers to three towns.
+        add_filter('woocommerce_shipping_calculator_enable_country',  '__return_false');
+        add_filter('woocommerce_shipping_calculator_enable_state',    '__return_false');
+        add_filter('woocommerce_shipping_calculator_enable_city',     '__return_false');
+        add_filter('woocommerce_shipping_calculator_enable_postcode', '__return_false');
+
         add_filter('woocommerce_default_address_fields', [$this, 'tune_address_fields'], 20);
         add_filter('woocommerce_billing_fields',         [$this, 'tune_billing_fields'],  20);
         add_filter('woocommerce_shipping_fields',        [$this, 'tune_shipping_fields'], 20);
@@ -34,6 +46,14 @@ class Alena_DZ_Checkout_Fields {
     }
 
     /* ----------------------- Filter-based ----------------------- */
+
+    /** Only the two headings, and only on the front end. */
+    public function rename_billing_heading($translated, $original, $domain) {
+        if ($domain !== 'woocommerce' || is_admin()) return $translated;
+        if ($original === 'Billing details')  return 'הפרטים שלך';
+        if ($original === 'Billing &amp; Shipping') return 'הפרטים שלך';
+        return $translated;
+    }
 
     public function tune_address_fields($fields) {
         // Strip noise: state, postcode, the "address line 2" duplicate of apartment.

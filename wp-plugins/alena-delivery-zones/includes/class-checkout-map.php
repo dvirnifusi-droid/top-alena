@@ -50,6 +50,12 @@ class Alena_DZ_Checkout_Map {
     }
 
     public function render_map() {
+        // Nothing to pin when the customer is collecting the order themselves —
+        // the map had no address to centre on and opened on half the country.
+        if (class_exists('Alena_DZ_Checkout_Redesign')
+            && Alena_DZ_Checkout_Redesign::current_fulfillment() === 'pickup') {
+            return;
+        }
         echo '<div class="alena-dz-checkout-map-wrap">';
         echo '<h3>סמן את המיקום המדויק שלך 📍</h3>';
         echo '<p>אופציונלי — תעזור לשליח למצוא אותך מהר יותר (כניסה לחנייה, שער צדדי וכו׳). הדבק את הסיכה במקום בו אתה רוצה שיגיע השליח.</p>';

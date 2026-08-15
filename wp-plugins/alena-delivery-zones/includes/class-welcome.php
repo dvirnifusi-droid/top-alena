@@ -287,6 +287,11 @@ class Alena_DZ_Welcome {
                 WC()->session->set_customer_session_cookie(true);
             }
             WC()->session->set(self::SESS_KEY_MODE, $mode);
+            // Checkout keeps its own key (`alena_fulfillment`, read by
+            // Alena_DZ_Checkout_Redesign::current_fulfillment). Without this the
+            // customer picked איסוף עצמי in the menu header and arrived at a
+            // checkout still set to משלוח.
+            WC()->session->set('alena_fulfillment', $mode);
             WC()->session->set(
                 'chosen_shipping_methods',
                 ($mode === 'pickup') ? ['local_pickup'] : ['alena_polygon']

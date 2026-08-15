@@ -70,8 +70,10 @@ class Alena_DZ_Checkout_Redesign {
 
     public static function current_fulfillment(): string {
         if (function_exists('WC') && WC()->session) {
-            $v = WC()->session->get('alena_fulfillment');
-            if ($v === 'pickup') return 'pickup';
+            if (WC()->session->get('alena_fulfillment') === 'pickup') return 'pickup';
+            // The menu header writes the welcome flow's key. Honour it here too,
+            // so a choice made on the menu is still the choice at checkout.
+            if (WC()->session->get('alena_fulfillment_mode') === 'pickup') return 'pickup';
         }
         return 'delivery';
     }
@@ -262,7 +264,12 @@ class Alena_DZ_Checkout_Redesign {
         $mode = self::current_fulfillment();
         echo '<div class="alena-checkout-wrap' . ($mode === 'pickup' ? ' alena-pickup-mode' : '') . '">';
         echo '<div class="alena-checkout-hero">';
-        echo '<div id="alena-checkout-overview-map"></div>';
+        // Same reason: with no delivery address the overview map rendered a view
+        // of half the country behind the title. Collecting in person needs the
+        // restaurant, not a map.
+        if ($mode !== 'pickup') {
+            echo '<div id="alena-checkout-overview-map"></div>';
+        }
         echo '<div class="alena-checkout-hero-overlay">';
         echo '<h1>מעבר לתשלום</h1>';
         echo '<p class="alena-checkout-hero-sub">עוד רגע אתה אצלנו 💚</p>';
