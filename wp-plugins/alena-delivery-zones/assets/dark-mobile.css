@@ -2607,3 +2607,24 @@
     text-align: center !important;
   }
 }
+
+/* Tracker states and the cancelled line. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-ty-live {
+    text-align: center !important;
+    font-size: 12.5px !important;
+    color: var(--ink-3, var(--ink-2)) !important;
+    -webkit-text-fill-color: var(--ink-2) !important;
+    margin: -6px 0 12px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-ty-dead {
+    margin: 12px 0 !important;
+    padding: 12px 14px !important;
+    border: 1px solid #ef4444 !important;
+    border-radius: 14px !important;
+    background: rgba(239,68,68,.08) !important;
+    color: var(--ink) !important;
+    -webkit-text-fill-color: var(--ink) !important;
+    text-align: center !important;
+  }
+}

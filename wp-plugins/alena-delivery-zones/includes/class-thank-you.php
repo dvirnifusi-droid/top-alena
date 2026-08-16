@@ -53,11 +53,49 @@ class Alena_DZ_Thank_You {
           <h1 class="alena-dz-ty-title">ההזמנה שלך התקבלה!</h1>
           <p class="alena-dz-ty-thanks">תודה רבה, <?php echo esc_html($order->get_billing_first_name()); ?> 💚<br>קיבלנו את ההזמנה והתחלנו להכין.</p>
 
-          <div class="alena-dz-ty-tracker">
-            <div class="alena-dz-ty-step done"><span class="alena-dz-ty-dot">✓</span>התקבלה</div>
-            <div class="alena-dz-ty-step active"><span class="alena-dz-ty-dot">👨‍🍳</span>בהכנה</div>
-            <div class="alena-dz-ty-step"><span class="alena-dz-ty-dot"><?php echo $is_pickup ? '🏠' : '🚚'; ?></span><?php echo $is_pickup ? 'מוכן לאיסוף' : 'בדרך אליך'; ?></div>
+          <?php
+          // The tracker used to show "בהכנה" to everyone, always -- a promise of
+          // progress the page never kept. It now reads the order's real status.
+          //
+          // WooCommerce has no "ready" status for a restaurant, so the three
+          // steps map onto what a shop actually records:
+          //   pending / on-hold  -> received, not yet started
+          //   processing         -> being prepared (WooCommerce's working state)
+          //   completed          -> ready for collection / delivered
+          // Anything cancelled or failed is NOT progress and gets its own line
+          // instead of a tracker pretending the food is coming.
+          $status = $order->get_status();
+          $dead   = in_array($status, ['cancelled', 'failed', 'refunded'], true);
+          $stage  = 1;
+          if (in_array($status, ['processing'], true))          $stage = 2;
+          if (in_array($status, ['completed'], true))            $stage = 3;
+          $cls = function ($n) use ($stage) {
+              if ($stage > $n) return ' done';
+              if ($stage === $n) return ' active';
+              return '';
+          };
+          if ($dead):
+          ?>
+            <div class="alena-dz-ty-dead">
+              <?php echo $status === 'refunded' ? '↩︎ ההזמנה זוכתה.' : '✕ ההזמנה בוטלה.'; ?>
+              אם זו טעות, אנחנו כאן: <a class="alena-dz-ty-tel" href="tel:+97236228055">03-6228055</a>
+            </div>
+          <?php else: ?>
+          <div class="alena-dz-ty-tracker" data-order-status="<?php echo esc_attr($status); ?>">
+            <div class="alena-dz-ty-step<?php echo $cls(1); ?>"><span class="alena-dz-ty-dot">✓</span>התקבלה</div>
+            <div class="alena-dz-ty-step<?php echo $cls(2); ?>"><span class="alena-dz-ty-dot">👨‍🍳</span>בהכנה</div>
+            <div class="alena-dz-ty-step<?php echo $cls(3); ?>"><span class="alena-dz-ty-dot"><?php echo $is_pickup ? '🏠' : '🚚'; ?></span><?php echo $is_pickup ? 'מוכן לאיסוף' : 'נמסר'; ?></div>
           </div>
+          <?php if ($stage < 3): ?>
+            <p class="alena-dz-ty-live">מתעדכן אוטומטית</p>
+            <script>
+            // The page is static HTML: without this the tracker shows the status
+            // from the moment it loaded and never moves, which is the same lie
+            // in slower form. Refresh while the order is still in progress only.
+            setTimeout(function () { location.reload(); }, 90000);
+            </script>
+          <?php endif; ?>
+          <?php endif; ?>
 
           <div class="alena-dz-ty-card">
             <div class="alena-dz-ty-row">
