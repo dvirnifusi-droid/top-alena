@@ -2160,3 +2160,35 @@
     position: relative !important;
   }
 }
+
+/* The real reason the desktop form was cramped: WooCommerce's classic
+   checkout puts billing inside .col2-set > .col-1, a float:left half column
+   (measured 273px inside a 568px parent). Splitting THAT into two columns
+   gave 108px fields. Unstack the halves first; the field grid above then has
+   the full width to work with. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details.col2-set {
+    display: block !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details > .col-1,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details > .col-2 {
+    float: none !important;
+    width: 100% !important;
+    max-width: none !important;
+    padding-inline: 0 !important;
+  }
+}
+
+/* Last piece: our own "פרטי כתובת נוספים" box sits inside the field wrapper
+   BEFORE the name rows, so it took grid cell 1 and pushed שם פרטי into cell 2
+   and שם משפחה onto the next row. It spans the full row, and the order puts
+   it where it belongs -- after the address it describes. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details .alena-dz-extra-fields {
+    grid-column: 1 / -1 !important;
+    order: 0 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details p#billing_first_name_field { order: -3 !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details p#billing_last_name_field  { order: -2 !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details p#billing_address_1_field  { order: -1 !important; }
+}
