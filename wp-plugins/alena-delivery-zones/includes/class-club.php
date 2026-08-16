@@ -376,6 +376,7 @@ class Alena_DZ_Club {
      * Shows balance, ILS-discount-value, tier, and an explicit "use in checkout" hint.
      */
     public function render_shop_banner() {
+        if (class_exists('Alena_DZ_Features') && !Alena_DZ_Features::on('club_banner')) return;
         if (!self::is_configured()) return;
         if (!is_user_logged_in()) return;
 

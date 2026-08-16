@@ -152,6 +152,7 @@ class Alena_DZ_Cart_Enhancements {
     }
 
     public function render_tip_picker() {
+        if (class_exists('Alena_DZ_Features') && !Alena_DZ_Features::on('tip')) return;
         $current = (float) (function_exists('WC') && WC()->session ? WC()->session->get(self::TIP_SESSION_KEY) : 0);
         $nonce = wp_create_nonce('alena_dz_tip');
         ?>

@@ -49,6 +49,7 @@ class Alena_DZ_Recent_Orders {
     }
 
     public function render_section() {
+        if (class_exists('Alena_DZ_Features') && !Alena_DZ_Features::on('recent_orders')) return;
         $orders = $this->get_recent(5);
         if (!$orders) return;
         echo '<div class="alena-recent">';
