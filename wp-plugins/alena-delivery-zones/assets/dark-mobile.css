@@ -2080,3 +2080,19 @@
     right: auto !important;
   }
 }
+
+/* The theme's salmon slide-out header (קצת עלינא / אירועים / תפריטים /
+   זכיינות). It collapses to width 0 while closed, which is why every
+   overflow probe missed it -- opened, it covers the checkout form and the
+   page gains a horizontal scrollbar. Those are marketing links: on the
+   ordering pages they lead a customer away mid-order, so the whole theme
+   header goes. This file only loads on shop / cart / checkout / account,
+   so the header is untouched on the home page and everywhere else. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .elementor-location-header,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .elementor-element-e5e1707,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .elementor-element-03f011e,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .elementor-element-1185308 {
+    display: none !important;
+  }
+}
