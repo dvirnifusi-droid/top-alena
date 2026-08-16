@@ -499,7 +499,7 @@ class Alena_DZ_Shop_Styling {
 
     public function render_search_bar() {
         echo '<div class="alena-dz-search">';
-        echo '<input type="search" id="alena-dz-search-input" placeholder="🔍 חיפוש מנה — חומוס, פיתה, סלט…" autocomplete="off" />';
+        echo '<input type="search" id="alena-dz-search-input" placeholder="🔍 חיפוש מנה — פיתה, קבב, סלט…" autocomplete="off" />';
         echo '<button type="button" id="alena-dz-search-clear" aria-label="נקה" style="display:none">✕</button>';
         echo '</div>';
         echo '<p id="alena-dz-search-empty" class="alena-dz-empty" style="display:none">לא מצאנו מנה שתואמת לחיפוש שלך 😅</p>';
@@ -545,6 +545,18 @@ class Alena_DZ_Shop_Styling {
             'labels'  => $labels,
         ]);
         ?>
+        <style>
+        /* Why seven repetitions: the search hides a dish by setting an inline
+           display:none, and FOUR separate sheets (shop.css, modern-design.css,
+           menu-cards.css, dark-mobile.css) declare display on .alena-dz-card
+           with !important — an inline style without !important loses to every
+           one of them, so nothing ever disappeared. The strongest of those is
+           (0,6,3); repeating the class gets this to (0,7,0), and b is compared
+           before c, so it wins. Printed inline, after every sheet. */
+        .alena-dz-hidden.alena-dz-hidden.alena-dz-hidden.alena-dz-hidden.alena-dz-hidden.alena-dz-hidden.alena-dz-hidden {
+          display: none !important;
+        }
+        </style>
         <script>
         (function () {
           const input = document.getElementById('alena-dz-search-input');
@@ -553,28 +565,58 @@ class Alena_DZ_Shop_Styling {
           const sections = document.querySelectorAll('.alena-dz-cat-section');
           if (!input) return;
 
-          function normalize(t) { return (t || '').toLowerCase().trim(); }
+          const HIDE = 'alena-dz-hidden';
+          // Blocks that are curation, not search results. While a query is
+          // active they would show dishes that do not match it.
+          const asides = document.querySelectorAll('.alena-dz-popular-section, .alena-recent, .alena-club-shop-banner, .alena-dz-catnav');
+
+          // Hebrew typing reality: a trailing final-form letter, and the
+          // quote marks people actually type, should not cost a match.
+          function normalize(t) {
+            return (t || '')
+              .toLowerCase()
+              .replace(/[֑-ׇ]/g, '')      // niqqud
+              .replace(/["'׳״""'']/g, '')
+              .replace(/\s+/g, ' ')
+              .trim();
+          }
+          // ם ן ץ ף ך -> מ נ צ פ כ, so "חומוס" finds "חומוסים" and vice versa.
+          const FINALS = { 'ם': 'מ', 'ן': 'נ', 'ץ': 'צ', 'ף': 'פ', 'ך': 'כ' };
+          function fold(t) { return normalize(t).replace(/[םןץףך]/g, c => FINALS[c]); }
+
+          function setHidden(el, hidden) { el.classList.toggle(HIDE, hidden); }
 
           function applyFilter(q) {
-            q = normalize(q);
-            let anyVisible = false;
+            q = fold(q);
+            // Every whitespace-separated word must appear somewhere in the
+            // dish, so "פיתה קבב" narrows instead of matching either word.
+            const terms = q ? q.split(' ').filter(Boolean) : [];
+            let matches = 0;
+
             sections.forEach(section => {
               let sectionHasMatch = false;
               section.querySelectorAll('.alena-dz-card').forEach(card => {
-                const text = normalize(card.textContent);
-                const match = !q || text.includes(q);
-                card.style.display = match ? '' : 'none';
-                if (match) sectionHasMatch = true;
+                if (!card.dataset.searchText) card.dataset.searchText = fold(card.textContent);
+                const text = card.dataset.searchText;
+                const match = !terms.length || terms.every(t => text.includes(t));
+                setHidden(card, !match);
+                if (match) { sectionHasMatch = true; matches++; }
               });
-              section.style.display = sectionHasMatch ? '' : 'none';
-              if (sectionHasMatch) anyVisible = true;
+              setHidden(section, !sectionHasMatch);
             });
-            empty.style.display = (q && !anyVisible) ? '' : 'none';
-            clearBtn.style.display = q ? '' : 'none';
+
+            asides.forEach(el => setHidden(el, terms.length > 0));
+            setHidden(empty, !(terms.length && !matches));
+            empty.style.display = '';
+            clearBtn.style.display = terms.length ? '' : 'none';
           }
 
           input.addEventListener('input', e => applyFilter(e.target.value));
           clearBtn.addEventListener('click', () => { input.value = ''; applyFilter(''); input.focus(); });
+          // Enter on mobile closes the keyboard rather than submitting a form
+          // that does not exist.
+          input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+          if (input.value) applyFilter(input.value);
         })();
 
         // Header fulfilment switch. Posts to alena_set_mode, which touches the
