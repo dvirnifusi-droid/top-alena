@@ -141,13 +141,30 @@
             var lat = loc && (typeof loc.lat === 'function' ? loc.lat() : loc.lat);
             var lng = loc && (typeof loc.lng === 'function' ? loc.lng() : loc.lng);
 
-            return sendCoords(lat, lng).always(function () {
+            // .always() used to print a green ✓ for anything Google resolved,
+            // so an address well outside every zone looked accepted and the
+            // customer only found out at the shipping step. The server now
+            // says whether the point falls inside a delivery polygon.
+            return sendCoords(lat, lng).done(function (resp) {
               $(document.body).trigger('update_checkout');
+              var zone = resp && resp.data ? resp.data.zone : null;
+              var where = line + (city ? ', ' + city : '');
+
+              if (!zone) {
+                status('לא מגיעים לכתובת הזו 😕 — ' + where +
+                       ' מחוץ לאזורי החלוקה שלנו. אפשר לבחור איסוף עצמי.', 'err');
+                return;
+              }
               if (!number) {
                 status('חסר מספר בית — הוסיפו אותו כדי שהשליח ימצא אתכם', 'warn');
-              } else {
-                status('✓ ' + line + (city ? ', ' + city : ''), 'ok');
+                return;
               }
+              var extra = ' · משלוח ₪' + Math.round(zone.fee);
+              if (zone.min > 0) extra += ' · מינ׳ הזמנה ₪' + Math.round(zone.min);
+              status('✓ ' + where + extra, 'ok');
+            }).fail(function () {
+              $(document.body).trigger('update_checkout');
+              status('לא הצלחנו לבדוק את הכתובת — נסו שוב', 'warn');
             });
           })
           .catch(function () {

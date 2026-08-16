@@ -87,7 +87,22 @@ class Alena_DZ_Address_Autocomplete {
 
         WC()->session->set(self::SESS_LAT, $lat);
         WC()->session->set(self::SESS_LNG, $lng);
-        wp_send_json_success(['lat' => $lat, 'lng' => $lng]);
+
+        // Answer the only question the customer actually has: do you deliver
+        // here? The picker used to print a green ✓ for any address Google could
+        // resolve, so באר יעקב -- nowhere near a zone -- looked accepted.
+        $zone = null;
+        if (class_exists('Alena_DZ_Polygon_Store')) {
+            $poly = Alena_DZ_Polygon_Store::find_containing($lat, $lng);
+            if ($poly) {
+                $zone = [
+                    'name' => $poly['name'],
+                    'fee'  => (float) $poly['delivery_fee'],
+                    'min'  => (float) $poly['min_order'],
+                ];
+            }
+        }
+        wp_send_json_success(['lat' => $lat, 'lng' => $lng, 'zone' => $zone, 'in_zone' => (bool) $zone]);
     }
 
     /**
