@@ -337,7 +337,28 @@ class Alena_DZ_Club {
         $max_by_cart = (int) floor($subtotal / $coin_v);
         $effective = min($coins, $info['balance'], $max_by_cart);
         if ($effective <= 0) return;
-        $cart->add_fee('הנחת מועדון (' . $effective . ' נקודות)', -1 * $effective * $coin_v, false);
+        // The customer is promised a number of shekels off the price they see,
+        // and menu prices here INCLUDE VAT. A flat non-taxable fee of that
+        // amount came off as amount x 1.18 (13 points promised ₪52 and took
+        // ₪61.36), because WooCommerce treats a fee as a net figure and grosses
+        // the displayed total back up. So the fee is entered net and marked
+        // taxable: WooCommerce then grosses it to exactly the promised sum.
+        $gross = $effective * $coin_v;
+        if (function_exists('wc_prices_include_tax') && wc_prices_include_tax()) {
+            $rate = 0.0;
+            if (class_exists('WC_Tax')) {
+                $rates = WC_Tax::get_rates();
+                if ($rates) {
+                    $first = reset($rates);
+                    $rate  = (float) ($first['rate'] ?? 0);
+                }
+            }
+            if ($rate <= 0) $rate = 18.0;   // Israel, and what this store is set to
+            $net = $gross / (1 + ($rate / 100));
+            $cart->add_fee('הנחת מועדון (' . $effective . ' נקודות)', -1 * $net, true);
+            return;
+        }
+        $cart->add_fee('הנחת מועדון (' . $effective . ' נקודות)', -1 * $gross, false);
     }
 
     public function attach_redemption_to_order(\WC_Order $order, $data): void {
