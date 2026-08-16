@@ -31,7 +31,18 @@ class Alena_DZ_Thank_You {
                 $now = new DateTimeImmutable('now', new DateTimeZone('Asia/Jerusalem'));
                 $status = Alena_DZ_Hours_Engine::get()->status($svc, $now);
                 if (!$status['open']) {
-                    $eta = $is_pickup ? 'מוכן לאיסוף בשעות הפעילות הבאות' : 'יישלח בשעות הפעילות הבאות';
+                    // "בשעות הפעילות הבאות" is not a time, and it is the one
+                    // thing a customer wants after ordering. Use the engine's
+                    // next opening when it can give one.
+                    $when = '';
+                    foreach (['next_open', 'next_opening', 'opens_at'] as $k) {
+                        if (!empty($status[$k])) { $when = (string) $status[$k]; break; }
+                    }
+                    if ($when !== '') {
+                        $eta = ($is_pickup ? 'מוכן לאיסוף החל מ-' : 'יישלח החל מ-') . $when;
+                    } else {
+                        $eta = $is_pickup ? 'מוכן לאיסוף עם הפתיחה הקרובה' : 'יישלח עם הפתיחה הקרובה';
+                    }
                 }
             }
         } catch (\Throwable $e) { /* default eta */ }
@@ -57,13 +68,42 @@ class Alena_DZ_Thank_You {
               <span class="alena-dz-ty-label"><?php echo $is_pickup ? 'זמן מוערך לאיסוף' : 'זמן מוערך לקבלה'; ?></span>
               <span class="alena-dz-ty-value"><?php echo esc_html($eta); ?></span>
             </div>
+            <?php
+            // Items add up to more than the total whenever points were spent,
+            // and with no line explaining it the page looks like it made an
+            // arithmetic mistake -- on the one screen that should feel certain.
+            // It is also the best moment to show the club is worth something.
+            foreach ($order->get_fees() as $fee) {
+                $amount = (float) $fee->get_total();
+                if ($amount >= 0) continue;
+                printf(
+                    '<div class="alena-dz-ty-row alena-dz-ty-saved"><span class="alena-dz-ty-label">%s</span><span class="alena-dz-ty-value">%s</span></div>',
+                    esc_html($fee->get_name()),
+                    wp_kses_post(wc_price($amount))
+                );
+            }
+            ?>
             <div class="alena-dz-ty-row">
               <span class="alena-dz-ty-label">סה״כ</span>
               <span class="alena-dz-ty-value"><?php echo wp_kses_post($order->get_formatted_order_total()); ?></span>
             </div>
             <?php
+            // Cash on collection/delivery: say the figure to bring.
+            if ($order->get_payment_method() === 'cod') {
+                printf(
+                    '<div class="alena-dz-ty-row"><span class="alena-dz-ty-label">תשלום</span><span class="alena-dz-ty-value">💵 להכין %s במזומן %s</span></div>',
+                    wp_kses_post(wc_price($order->get_total())),
+                    $is_pickup ? 'באיסוף' : 'לשליח'
+                );
+            }
+            ?>
+            <?php
             if ($is_pickup) {
-                echo '<div class="alena-dz-ty-row"><span class="alena-dz-ty-label">איסוף עצמי מ-</span><span class="alena-dz-ty-value">🏠 רוטשילד 104, ראשון לציון</span></div>';
+                // A pickup customer is about to drive there -- make it tappable.
+                $addr_txt = 'רוטשילד 104, ראשון לציון';
+                echo '<div class="alena-dz-ty-row"><span class="alena-dz-ty-label">איסוף עצמי מ-</span>'
+                   . '<span class="alena-dz-ty-value"><a class="alena-dz-ty-nav" target="_blank" rel="noopener"'
+                   . ' href="https://waze.com/ul?q=' . rawurlencode($addr_txt) . '">🧭 ' . esc_html($addr_txt) . '</a></span></div>';
             } else {
                 $addr = trim($order->get_shipping_address_1() . ' ' . $order->get_shipping_address_2() . ', ' . $order->get_shipping_city());
                 if ($addr && trim($addr, ', ')) {
@@ -87,8 +127,13 @@ class Alena_DZ_Thank_You {
             <?php endforeach; ?>
           </div>
 
+          <p class="alena-dz-ty-help">משהו לא מדויק בהזמנה?
+            <a class="alena-dz-ty-tel" href="tel:+97236228055">להתקשר אלינו 03-6228055</a>
+          </p>
+
           <div class="alena-dz-ty-cta-row">
-            <a class="alena-dz-ty-btn primary" href="<?php echo esc_url($shop_url); ?>">להזמין עוד מנה</a>
+            <?php // Not "add to this order" -- it starts a NEW one, with its own delivery. ?>
+            <a class="alena-dz-ty-btn primary" href="<?php echo esc_url($shop_url); ?>">חזרה לתפריט</a>
             <button type="button" class="alena-dz-ty-btn" id="alena-dz-share-order"
                     data-share-text="<?php echo esc_attr('הזמנתי מ-עלינא בפיתה — הזמנה #' . $order->get_order_number()); ?>"
                     data-share-url="<?php echo esc_attr(home_url()); ?>">

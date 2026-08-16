@@ -2582,3 +2582,28 @@
     box-shadow: none !important;
   }
 }
+
+/* Thank-you page: the saving, the phone line, the navigation link. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-ty-saved .alena-dz-ty-value,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-ty-saved .alena-dz-ty-label {
+    color: #34d399 !important;
+    -webkit-text-fill-color: #34d399 !important;
+    font-weight: 800 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-ty-nav,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-ty-tel {
+    color: var(--accent) !important;
+    -webkit-text-fill-color: var(--accent) !important;
+    text-decoration: underline !important;
+    text-underline-offset: 3px !important;
+    font-weight: 700 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-ty-help {
+    margin: 14px 0 !important;
+    font-size: 14px !important;
+    color: var(--ink-2) !important;
+    -webkit-text-fill-color: var(--ink-2) !important;
+    text-align: center !important;
+  }
+}
