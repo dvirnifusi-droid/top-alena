@@ -2392,3 +2392,34 @@
     border: 2px solid var(--surface) !important;
   }
 }
+
+/* The pay button floats from the first paint rather than only once the page
+   is scrolled to it, and it is orange -- the owner wants the money action to
+   read differently from every other blue control on the page. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #place_order {
+    position: fixed !important;
+    inset-inline: 12px !important;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+    width: auto !important;
+    z-index: 9998 !important;
+    min-height: 58px !important;
+    border-radius: 999px !important;
+    background: #f97316 !important;
+    border-color: #f97316 !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    font-size: 17px !important;
+    font-weight: 800 !important;
+    box-shadow: 0 12px 32px rgba(0,0,0,.6) !important;
+  }
+  /* Room so the fixed button never sits on top of the last field. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile form.checkout {
+    padding-bottom: 86px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-btn-total {
+    background: transparent !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+  }
+}

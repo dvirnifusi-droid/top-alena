@@ -147,11 +147,25 @@ jQuery(function ($) {
     var $host = $('.alena-dz-extra-fields');
     if (!$host.length || $host.data('alenaFolded')) return;
     $host.data('alenaFolded', 1);
+    // The optional inputs are SIBLING form rows, not children of this div, so
+    // folding the div alone hid nothing -- the bar appeared and every field
+    // stayed on screen. Collect the rows by their labels and fold those too.
+    var WANT = ['\u05db\u05e0\u05d9\u05e1\u05d4', '\u05e7\u05d5\u05de\u05d4', '\u05d3\u05d9\u05e8\u05d4',
+                '\u05e7\u05d5\u05d3 \u05dc\u05dc\u05d5\u05d1\u05d9', '\u05e9\u05dd \u05e2\u05dc \u05d4\u05d3\u05dc\u05ea',
+                '\u05d4\u05e2\u05e8\u05d5\u05ea'];
+    var $rows = $('#customer_details p.form-row').filter(function () {
+      var t = ($(this).find('label').first().text() || '').replace(/[*\s]+/g, ' ').trim();
+      for (var i = 0; i < WANT.length; i++) { if (t.indexOf(WANT[i]) === 0) return true; }
+      return false;
+    });
+    $host.data('alenaRows', $rows);
     var $t = $('<button type="button" class="alena-fold-bar alena-fold-extra">' +
                'פרטים נוספים (קומה, כניסה, הערות) <i class="alena-fold-caret">&#9662;</i></button>');
     $host.before($t).addClass('alena-folded');
+    $rows.addClass('alena-folded');
     $t.on('click', function () {
       $host.toggleClass('alena-folded');
+      $rows.toggleClass('alena-folded');
       $t.toggleClass('is-open', !$host.hasClass('alena-folded'));
     });
   }
