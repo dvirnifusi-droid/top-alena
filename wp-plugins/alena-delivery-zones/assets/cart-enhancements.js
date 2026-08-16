@@ -445,3 +445,50 @@ jQuery(function ($) {
     }, 120);
   });
 });
+
+
+/* Summary rows and repeat taps on a top-up chip. */
+jQuery(function ($) {
+  if (!$('body').hasClass('woocommerce-checkout')) return;
+
+  /* The remove x lives INSIDE the name cell, which is why name, quantity and
+     x were crushed into 101px while the price cell took 188. Lift it out to be
+     the row's own last child so the grid below can give it a column. */
+  function tidyRows() {
+    $('.woocommerce-checkout-review-order-table tr.cart_item').each(function () {
+      var $tr = $(this);
+      if ($tr.data('alenaTidy')) return;
+      $tr.data('alenaTidy', 1);
+      // REVERTED. Lifting the x out and gridding the row measured worse than
+      // the layout it replaced: the browser resolved five column tracks, not
+      // the three declared, and the dish name collapsed to 18px while the row
+      // grew to 131px tall. Left as WooCommerce renders it until the extra
+      // tracks are understood -- a crowded row beats a broken one.
+      return;
+    });
+  }
+
+  /* A chip that has already been added should say so, not silently add a
+     second unit on the next tap. The cart is the source of truth here -- the
+     flag is cleared whenever the checkout refreshes, so removing the item in
+     the summary makes the chip offerable again. */
+  function markAdded($chip) {
+    $chip.addClass('is-added').attr('aria-disabled', 'true');
+    var $name = $chip.find('.alena-topup-name');
+    if ($name.length && $name.data('alenaOrig') === undefined) {
+      $name.data('alenaOrig', $name.text());
+      $name.text('\u2713 \u05e0\u05d5\u05e1\u05e3 \u05dc\u05e1\u05dc');
+    }
+  }
+  $(document).on('click', '.alena-topup-item.is-added', function (e) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  });
+  $(document).on('click', '.alena-topup-item', function () {
+    var $c = $(this);
+    if (!$c.hasClass('is-added')) setTimeout(function () { markAdded($c); }, 50);
+  });
+
+  tidyRows();
+  $(document.body).on('updated_checkout', function () { setTimeout(tidyRows, 30); });
+});

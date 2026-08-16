@@ -2570,3 +2570,15 @@
     align-items: center !important;
   }
 }
+
+/* The summary-row grid was reverted -- see the note in
+   cart-enhancements.js tidyRows(). Only the chip state below remains. */
+@media screen {
+/* A chip already in the cart states it and stops responding. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-topup-item.is-added {
+    opacity: .6 !important;
+    pointer-events: none !important;
+    border-color: var(--line) !important;
+    box-shadow: none !important;
+  }
+}
