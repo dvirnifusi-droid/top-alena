@@ -2338,3 +2338,57 @@
     padding-inline-start: 8px !important;
   }
 }
+
+/* ==========================================================================
+   CHECKOUT pass 2 -- density, and the bits that were unreadable
+   ========================================================================== */
+@media screen {
+  /* The fold bar already names the block; the box inside repeated the title. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-extra-fields > h3,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-extra-fields > .alena-co-h {
+    display: none !important;
+  }
+
+  /* Back to menu sat alone on a full row on the phone. */
+  @media (max-width: 640px) {
+    body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-back {
+      float: inline-start !important;
+      margin: 0 0 10px !important;
+      padding: 7px 12px !important;
+      font-size: 13px !important;
+    }
+  }
+
+  /* Payment list: compact rows, logos reined in. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment ul.payment_methods li img {
+    max-height: 22px !important;
+    width: auto !important;
+    margin-inline-start: 6px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment ul.payment_methods li p,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment .payment_box {
+    font-size: 13px !important;
+    margin: 4px 0 !important;
+    padding: 8px 10px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment ul.payment_methods {
+    margin: 0 0 10px !important;
+    padding: 0 !important;
+  }
+
+  /* Club line was dark-on-dark. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-points,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-club-line,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-club,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-club * {
+    color: var(--ink) !important;
+    -webkit-text-fill-color: var(--ink) !important;
+    opacity: 1 !important;
+  }
+
+  /* A combo chip shows both dishes -- one photo hid half the deal. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-topup-item .alena-topup-img + .alena-topup-img {
+    margin-inline-start: -14px !important;
+    border: 2px solid var(--surface) !important;
+  }
+}

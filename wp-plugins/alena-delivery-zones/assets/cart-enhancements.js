@@ -132,7 +132,11 @@ jQuery(function ($) {
     var $bar = $('<button type="button" class="alena-fold-bar"></button>')
       .html('<span>סיכום ההזמנה · ' + count + ' פריטים</span>' +
             '<span class="alena-fold-total">' + total + ' <i class="alena-fold-caret">&#9662;</i></span>');
-    $rev.before($bar).addClass('alena-folded');
+    // OPEN by default: the summary is what a customer checks before paying,
+    // so hiding it costs more than the scroll it saves. The bar stays as a
+    // way to collapse it, not as a wall in front of it.
+    $rev.before($bar);
+    $bar.addClass('is-open');
     $bar.on('click', function () {
       $rev.toggleClass('alena-folded');
       $bar.toggleClass('is-open', !$rev.hasClass('alena-folded'));
@@ -155,4 +159,69 @@ jQuery(function ($) {
   function run() { foldSummary(); foldOptional(); }
   run();
   $(document.body).on('updated_checkout', run);
+});
+
+
+/* Second pass: the blocks that still eat the page. */
+jQuery(function ($) {
+  if (!$('body').hasClass('woocommerce-checkout')) return;
+
+  /* The address block. Once an address is chosen there is no reason to keep
+     eight fields on screen -- one line and a way back in is enough. */
+  function foldAddress() {
+    var $wrap = $('.woocommerce-billing-fields__field-wrapper').first();
+    if (!$wrap.length || $wrap.data('alenaAddrFold')) return;
+    var addr = ($('#billing_address_1').val() || '').trim();
+    var city = ($('#billing_city').val() || '').trim();
+    var name = ($('#billing_first_name').val() || '').trim();
+    if (!addr) return;                       // nothing saved yet -- leave it open
+    $wrap.data('alenaAddrFold', 1);
+
+    var line = [name, addr, city].filter(Boolean).join(' \u00b7 ');
+    $('.alena-addr-fold').remove();
+    var $bar = $('<button type="button" class="alena-fold-bar alena-addr-fold"></button>')
+      .html('<span>\u05e9\u05dc\u05d9\u05d7\u05d4 \u05d0\u05dc \u00b7 ' + $('<div>').text(line).html() +
+            '</span><span class="alena-fold-total">\u05e9\u05d9\u05e0\u05d5\u05d9 <i class="alena-fold-caret">&#9662;</i></span>');
+    $wrap.before($bar).addClass('alena-folded');
+    $bar.on('click', function () {
+      $wrap.toggleClass('alena-folded');
+      $bar.toggleClass('is-open', !$wrap.hasClass('alena-folded'));
+    });
+  }
+
+  /* Payment methods. Four gateways with their logos and blurbs is the tallest
+     block on the page; the chosen one is all a customer needs to see. */
+  function foldPayment() {
+    var $list = $('#payment ul.payment_methods');
+    if (!$list.length || $list.data('alenaPayFold')) return;
+    $list.data('alenaPayFold', 1);
+    $('.alena-pay-fold').remove();
+
+    function label() {
+      var $on = $list.find('input[type=radio]:checked').closest('li').find('label').first();
+      var t = ($on.text() || '').replace(/\s+/g, ' ').trim();
+      return t || '\u05d1\u05d7\u05e8\u05d5 \u05d0\u05de\u05e6\u05e2\u05d9 \u05ea\u05e9\u05dc\u05d5\u05dd';
+    }
+    var $bar = $('<button type="button" class="alena-fold-bar alena-pay-fold"></button>');
+    function paint() {
+      $bar.html('<span>\ud83d\udcb3 ' + $('<div>').text(label()).html() +
+                '</span><span class="alena-fold-total">\u05d4\u05d7\u05dc\u05e4\u05d4 <i class="alena-fold-caret">&#9662;</i></span>');
+    }
+    paint();
+    $list.before($bar).addClass('alena-folded');
+    $bar.on('click', function () {
+      $list.toggleClass('alena-folded');
+      $bar.toggleClass('is-open', !$list.hasClass('alena-folded'));
+    });
+    // Picking a method closes the list and shows the choice on the bar.
+    $list.on('change', 'input[type=radio]', function () {
+      paint();
+      $list.addClass('alena-folded');
+      $bar.removeClass('is-open');
+    });
+  }
+
+  function run2() { foldAddress(); foldPayment(); }
+  run2();
+  $(document.body).on('updated_checkout', run2);
 });
