@@ -109,7 +109,10 @@ class Alena_DZ_Hours_Checkout {
         // Substring, not equality: the live names are "שתייה קלה" and "סלט",
         // so an exact list would have matched only "תוספות" -- which is how
         // this shipped empty the first time.
-        $wanted = ['משקאות', 'שתייה', 'תוספות', 'סלט', 'קינוח'];
+        // ONLY add-ons. Pulling in 'סלט' dragged main-course salads
+        // (סלט שוק פרגית ₪68) into a list meant for light extras.
+        // 'שתייה' as a substring catches the live name "שתייה קלה".
+        $wanted = ['תוספות', 'שתייה'];
         $slugs  = [];
         $terms  = get_terms(['taxonomy' => 'product_cat', 'hide_empty' => true]);
         if (is_wp_error($terms) || !$terms) return [];
