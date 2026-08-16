@@ -2096,3 +2096,67 @@
     display: none !important;
   }
 }
+
+/* ==========================================================================
+   CHECKOUT FORM — phone zoom, and a two-column grid that actually lines up
+   ========================================================================== */
+@media screen {
+  /* iOS zooms the whole page whenever a focused field is under 16px. That is
+     what "לוחץ על כתובת והמסך מתגדל" is — not a layout bug, a font size. 16px
+     is the threshold, so this is the fix, not a preference. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details input.input-text,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details textarea,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details select,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-checkout-wrap input,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-checkout-wrap textarea,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-checkout-wrap select {
+    font-size: 16px !important;
+  }
+
+  /* WooCommerce lays these rows out with floats (form-row-first / -last).
+     Floats plus RTL is what left "שם פרטי" and "שם משפחה" on different rows
+     at different heights. A grid puts them side by side and keeps the
+     baselines together. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details .woocommerce-billing-fields__field-wrapper,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details .woocommerce-shipping-fields__field-wrapper {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 4px 14px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details p.form-row {
+    float: none !important;
+    width: auto !important;
+    margin: 0 0 10px !important;
+    padding: 0 !important;
+  }
+  /* Anything that is not half-width spans the row: the address search, notes,
+     and any field the theme marks wide. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details p.form-row-wide,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details p#billing_address_1_field,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details p#order_comments_field {
+    grid-column: 1 / -1 !important;
+  }
+  /* One column on a phone -- two 170px fields side by side is not usable. */
+  @media (max-width: 640px) {
+    body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details .woocommerce-billing-fields__field-wrapper,
+    body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details .woocommerce-shipping-fields__field-wrapper {
+      grid-template-columns: 1fr !important;
+    }
+  }
+
+  /* The address suggestions must drop UNDER the field, over everything else --
+     not push the form down and not hide behind the next card. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-addr-ac {
+    position: absolute !important;
+    z-index: 9999 !important;
+    inset-inline: 0 !important;
+    max-height: 46vh !important;
+    overflow-y: auto !important;
+    background: var(--surface) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 12px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile p#billing_address_1_field {
+    position: relative !important;
+  }
+}

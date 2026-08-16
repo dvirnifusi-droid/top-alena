@@ -95,18 +95,23 @@ class Alena_DZ_Shipping_Method extends WC_Shipping_Method {
         $fee          = (float) $polygon['delivery_fee'];
 
         if ($min_order > 0 && $cart_total < $min_order) {
-            // Show an info rate that's still selectable; WC will display the message in the label.
-            $this->add_rate([
-                'id'    => $this->id . ':under_min:' . $polygon['id'],
-                'label' => sprintf('משלוח לאזור "%s" — מינ׳ הזמנה ₪%s', $polygon_name, number_format($min_order, 0)),
-                'cost'  => $fee,
-                'meta_data' => [
-                    'alena_dz_polygon_id' => $polygon['id'],
-                    'alena_dz_under_min'  => true,
-                ],
-            ]);
-            $this->trace('under_min', ['cart' => $cart_total, 'min' => $min_order]);
+            // No rate at all. This used to add a rate that was still selectable,
+            // so a ₪40 cart in a ₪70 zone could check out for delivery -- the
+            // minimum was a label, not a limit. Owner approved enforcing it.
+            // The shortfall goes into the session so the "no delivery" box can
+            // say what is missing instead of blaming the address.
+            if (function_exists('WC') && WC()->session) {
+                WC()->session->set('alena_dz_under_min', [
+                    'zone' => $polygon_name,
+                    'min'  => $min_order,
+                    'need' => max(0, $min_order - $cart_total),
+                ]);
+            }
+            $this->trace('under_min_blocked', ['cart' => $cart_total, 'min' => $min_order]);
             return;
+        }
+        if (function_exists('WC') && WC()->session) {
+            WC()->session->set('alena_dz_under_min', null);
         }
 
         $this->trace('rate_added', ['zone' => $polygon_name, 'fee' => $fee]);

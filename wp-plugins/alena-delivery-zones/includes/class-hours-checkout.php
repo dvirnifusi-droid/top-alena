@@ -75,6 +75,18 @@ class Alena_DZ_Hours_Checkout {
      * genuinely the cause; a real out-of-zone address still gets the original.
      */
     public function no_shipping_message($html) {
+        // Under the zone minimum is a different situation from closed, and it
+        // is the customer's to fix -- so it is said first, with the number.
+        if (function_exists('WC') && WC()->session) {
+            $under = WC()->session->get('alena_dz_under_min');
+            if (is_array($under) && !empty($under['min'])) {
+                return '<span class="alena-dz-under-min">🛒 <strong>מינימום הזמנה למשלוח לאזור "'
+                     . esc_html($under['zone']) . '" הוא ₪' . number_format((float) $under['min'], 0)
+                     . '</strong><br>חסרים עוד <strong>₪' . number_format((float) $under['need'], 0)
+                     . '</strong> כדי שנוכל לשלוח אליך. אפשר להוסיף עוד משהו לסל, '
+                     . 'או לבחור <strong>איסוף עצמי</strong> ללא מינימום.</span>';
+            }
+        }
         try {
             $engine = Alena_DZ_Hours_Engine::get();
             $now    = new DateTimeImmutable('now', new DateTimeZone('Asia/Jerusalem'));
