@@ -1876,15 +1876,19 @@
    stretching edge to edge on a monitor.
    ========================================================================== */
 @media screen and (min-width: 641px) {
-  body.alena-dark-mobile .alena-dz-hero,
-  body.alena-dark-mobile .alena-dz-search,
-  body.alena-dark-mobile .alena-dz-catnav,
-  body.alena-dark-mobile .alena-dz-shop-sections,
-  body.alena-dark-mobile .alena-club-shop-banner,
-  body.alena-dark-mobile .alena-recent,
-  body.alena-dark-mobile .alena-checkout-wrap,
-  body.alena-dark-mobile .alena-dash,
-  body.alena-dark-mobile .woocommerce-cart .woocommerce {
+  /* Tripled body class on purpose: the phone rules above set `margin: 0` and
+     `margin: 14px` on some of these with the same triple prefix, and a single
+     body class loses to them — which left the header flush against one edge
+     while the sections below it centred correctly. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile :is(
+    .alena-dz-hero, .alena-dz-search, .alena-dz-catnav, .alena-dz-shop-sections,
+    .alena-club-shop-banner, .alena-recent, .alena-checkout-wrap, .alena-dash
+  ) {
+    max-width: 780px !important;
+    width: auto !important;
+    margin-inline: auto !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .woocommerce-cart .woocommerce {
     max-width: 780px !important;
     margin-inline: auto !important;
   }
