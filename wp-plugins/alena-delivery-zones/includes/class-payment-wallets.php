@@ -73,6 +73,22 @@ class Alena_DZ_Payment_Wallets {
                 $rest[$id] = $gw;
             }
         }
+        // The wallet gateway already offers manual card entry inside it, so a
+        // separate "credit card" row is the same payment twice. It is removed
+        // ONLY when a wallet actually survived -- otherwise a customer whose
+        // device has no wallet would be left with cash as the only option.
+        if ($wallet) {
+            foreach (array_keys($rest) as $id) {
+                if (strtolower($id) === 'payplus-payment-gateway') unset($rest[$id]);
+            }
+            // Say what the row really does: card OR the device wallet. Wallet
+            // names stay in English -- that is how they appear on the phone.
+            $brand = $apple ? 'Apple Pay' : 'Google Pay';
+            foreach ($wallet as $gw) {
+                $gw->title = 'תשלום באשראי / ' . $brand;
+            }
+        }
+
         $ordered = $wallet + $rest;
 
         // Ordering alone is not enough: WooCommerce only preselects the first
