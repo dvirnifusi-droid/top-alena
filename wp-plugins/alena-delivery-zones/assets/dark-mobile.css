@@ -2144,17 +2144,15 @@
     }
   }
 
-  /* The address suggestions must drop UNDER the field, over everything else --
-     not push the form down and not hide behind the next card. */
+  /* NOTE: .alena-addr-ac is Google's PlaceAutocompleteElement itself -- the
+     whole widget, field and dropdown together -- not a suggestions container.
+     A previous version here gave it position:absolute + max-height + overflow,
+     which collapsed the widget and killed the suggestions entirely. Leave its
+     box alone; address-autocomplete.css owns it. Only the stacking context is
+     raised, so the list is not covered by the card below. */
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-addr-ac {
-    position: absolute !important;
     z-index: 9999 !important;
-    inset-inline: 0 !important;
-    max-height: 46vh !important;
-    overflow-y: auto !important;
-    background: var(--surface) !important;
-    border: 1px solid var(--line) !important;
-    border-radius: 12px !important;
+    position: relative !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile p#billing_address_1_field {
     position: relative !important;
