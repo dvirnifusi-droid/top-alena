@@ -398,3 +398,50 @@ jQuery(function ($) {
     setTimeout(apply, 300);
   });
 });
+
+
+/* Pressing the orange button with something missing did nothing visible: the
+   error appears at the TOP of the checkout while the customer is at the
+   BOTTOM, next to a fixed button, so nothing on screen changed. Take them to
+   the field that needs fixing and focus it. */
+jQuery(function ($) {
+  if (!$('body').hasClass('woocommerce-checkout')) return;
+
+  function firstProblem() {
+    var $f = $('.woocommerce-invalid input.input-text, .woocommerce-invalid select, .woocommerce-invalid textarea').filter(':visible').first();
+    if ($f.length) return $f;
+    // Required and empty, even before WooCommerce marks it.
+    var $empty = $('#customer_details .validate-required').filter(function () {
+      var $i = $(this).find('input.input-text, select, textarea').first();
+      return $i.length && $i.is(':visible') && !String($i.val() || '').trim();
+    }).first().find('input.input-text, select, textarea').first();
+    if ($empty.length) return $empty;
+    return $();
+  }
+
+  function goToProblem() {
+    var $f = firstProblem();
+    var $target = $f.length ? $f : $('.woocommerce-error, .woocommerce-NoticeGroup').filter(':visible').first();
+    if (!$target.length) return false;
+    $('.alena-field-error').removeClass('alena-field-error');
+    if ($f.length) {
+      // Open any fold hiding it, or scrolling lands on a collapsed block.
+      $f.closest('.alena-folded').removeClass('alena-folded');
+      $f.closest('p, .form-row').addClass('alena-field-error');
+    }
+    var top = $target.offset().top - 110;
+    window.scrollTo({top: top < 0 ? 0 : top, behavior: 'smooth'});
+    if ($f.length) setTimeout(function () { try { $f.trigger('focus'); } catch (e) {} }, 350);
+    return true;
+  }
+
+  // WooCommerce fires this after a failed validation round-trip.
+  $(document.body).on('checkout_error', function () { setTimeout(goToProblem, 60); });
+
+  // And catch the click itself, for fields the browser/plugin flags locally.
+  $(document).on('click', '#place_order', function () {
+    setTimeout(function () {
+      if ($('.woocommerce-invalid:visible').length) goToProblem();
+    }, 120);
+  });
+});
