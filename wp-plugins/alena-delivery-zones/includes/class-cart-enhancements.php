@@ -143,7 +143,8 @@ class Alena_DZ_Cart_Enhancements {
         if (!function_exists('WC') || !WC()->cart) return;
         $min = $this->detect_min_for_current_zone();
         if (!$min) return;
-        $subtotal = (float) WC()->cart->get_subtotal();
+        // inc-VAT, to match the minimum the shipping method enforces.
+        $subtotal = (float) WC()->cart->get_subtotal() + (float) WC()->cart->get_subtotal_tax();
         if ($subtotal >= $min) return;
         $delta = $min - $subtotal;
         printf(

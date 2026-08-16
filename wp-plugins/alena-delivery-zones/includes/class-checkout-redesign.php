@@ -341,7 +341,9 @@ class Alena_DZ_Checkout_Redesign {
 
     public function render_payplus_banner() {
         echo '<tr class="alena-co-payplus-note"><td colspan="2">';
-        echo '<div class="alena-co-payplus-banner">💳 <strong>תשלום במזומן לשליח</strong> זמין עכשיו. תשלום בכרטיס יופעל בקרוב.</div>';
+        // Card and the device wallet are live; the old banner still promised
+        // them "soon" and told customers to pay the driver in cash.
+        echo '<div class="alena-co-payplus-banner">🔒 <strong>תשלום מאובטח</strong> — כרטיס אשראי, ארנק דיגיטלי או מזומן לשליח.</div>';
         echo '</td></tr>';
     }
 

@@ -85,9 +85,16 @@ class Alena_DZ_Shipping_Method extends WC_Shipping_Method {
         }
 
         // Enforce min order
-        $cart_total = (float) ($package['contents_cost'] ?? 0);
-        if ($cart_total <= 0 && function_exists('WC') && WC()->cart) {
-            $cart_total = (float) WC()->cart->get_subtotal();
+        // MUST include tax. contents_cost and get_subtotal() are both EX-tax,
+        // while every price on this menu is quoted inc-VAT -- so a 116 cart
+        // was measured as 98.31 and a 100 minimum silently became 118.
+        $cart_total = 0.0;
+        if (function_exists('WC') && WC()->cart) {
+            $cart_total = (float) WC()->cart->get_subtotal() + (float) WC()->cart->get_subtotal_tax();
+        }
+        if ($cart_total <= 0) {
+            $cart_total = (float) ($package['contents_cost'] ?? 0)
+                        + (float) ($package['contents_taxes'] ? array_sum((array) $package['contents_taxes']) : 0);
         }
 
         $polygon_name = sanitize_text_field($polygon['name']);
