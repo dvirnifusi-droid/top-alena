@@ -239,3 +239,29 @@ jQuery(function ($) {
   run2();
   $(document.body).on('updated_checkout', run2);
 });
+
+
+/* "שמור את כרטיס האשראי בחשבון שלי" is removed at the owner's request.
+   Hidden rather than disabled in PayPlus: the gateway's own setting is left
+   untouched, so bringing it back is deleting these lines. Matched by label
+   text because the markup carries no distinguishing class. */
+jQuery(function ($) {
+  if (!$('body').hasClass('woocommerce-checkout')) return;
+  function hideSaveCard() {
+    $('#payment label, #payment p, #payment .form-row').each(function () {
+      var t = ($(this).text() || '').replace(/\s+/g, ' ').trim();
+      if (t.indexOf('\u05e9\u05de\u05d5\u05e8 \u05d0\u05ea \u05d4\u05db\u05e8\u05d8\u05d9\u05e1') === 0 ||
+          t.indexOf('\u05e9\u05de\u05d5\u05e8 \u05d0\u05ea \u05db\u05e8\u05d8\u05d9\u05e1') === 0) {
+        var $row = $(this).closest('p, .form-row, li').length
+          ? $(this).closest('p, .form-row, li') : $(this);
+        $row.hide();
+        $row.find('input[type=checkbox]').prop('checked', false);
+      }
+    });
+    // the bare checkbox that sits beside that label
+    $('#payment input[type=checkbox][name*="save"], #payment input[type=checkbox][id*="save"]')
+      .prop('checked', false).closest('p, .form-row, label, div').hide();
+  }
+  hideSaveCard();
+  $(document.body).on('updated_checkout payment_method_selected', hideSaveCard);
+});
