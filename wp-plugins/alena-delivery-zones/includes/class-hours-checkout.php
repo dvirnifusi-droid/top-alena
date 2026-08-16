@@ -13,6 +13,7 @@ class Alena_DZ_Hours_Checkout {
         add_filter('woocommerce_package_rates',         [$this, 'maybe_remove_delivery'], 50, 2);
         // WooCommerce blames the customer's address for the missing method.
         // When the real reason is that we are closed, say that instead.
+        add_filter('gettext',                                     [$this, 'rewrite_no_method_notice'], 20, 3);
         add_filter('woocommerce_no_shipping_available_html',      [$this, 'no_shipping_message']);
         add_filter('woocommerce_cart_no_shipping_available_html', [$this, 'no_shipping_message']);
         add_shortcode('alena_open_status',              [$this, 'shortcode_open_status']);
@@ -74,6 +75,29 @@ class Alena_DZ_Hours_Checkout {
      * delivery vanished is that the kitchen is shut. Only replaced when that is
      * genuinely the cause; a real out-of-zone address still gets the original.
      */
+    /**
+     * WooCommerce's submit-time error for a missing shipping method reads
+     * "check your address again" -- which blames the customer for something
+     * that is usually the cart total or the zone. Replaced with the actual
+     * reason, the same way the empty-shipping box is.
+     */
+    public function rewrite_no_method_notice($translated, $text, $domain) {
+        if ($domain !== 'woocommerce') return $translated;
+        if (strpos($text, 'No shipping method has been selected') === false) return $translated;
+
+        if (function_exists('WC') && WC()->session) {
+            $under = WC()->session->get('alena_dz_under_min');
+            if (is_array($under) && !empty($under['min'])) {
+                return 'מינימום הזמנה למשלוח לאזור "' . $under['zone'] . '" הוא ₪'
+                     . number_format((float) $under['min'], 0) . '. חסרים עוד ₪'
+                     . number_format((float) $under['need'], 0)
+                     . ' — אפשר להוסיף עוד משהו לסל, או לעבור לאיסוף עצמי.';
+            }
+        }
+        return 'לא נמצאה שיטת משלוח לכתובת הזו. ייתכן שהיא מחוץ לאזורי החלוקה שלנו, '
+             . 'או שהמשלוחים סגורים כרגע. אפשר לבחור איסוף עצמי, או להתקשר אלינו 03-6228055.';
+    }
+
     public function no_shipping_message($html) {
         // Under the zone minimum is a different situation from closed, and it
         // is the customer's to fix -- so it is said first, with the number.
