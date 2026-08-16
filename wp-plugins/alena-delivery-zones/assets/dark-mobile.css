@@ -1884,12 +1884,12 @@
     .alena-dz-hero, .alena-dz-search, .alena-dz-catnav, .alena-dz-shop-sections,
     .alena-club-shop-banner, .alena-recent, .alena-checkout-wrap, .alena-dash
   ) {
-    max-width: 780px !important;
+    max-width: 1100px !important;
     width: auto !important;
     margin-inline: auto !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .woocommerce-cart .woocommerce {
-    max-width: 780px !important;
+    max-width: 1100px !important;
     margin-inline: auto !important;
   }
 
@@ -1919,5 +1919,25 @@
     max-height: calc(100dvh - 48px) !important;
     max-width: 560px !important;
     border-radius: 20px !important;
+  }
+}
+
+/* Wide screens: two dishes abreast. One tall column of rows wastes most of a
+   monitor, and the row card (photo beside text) tiles cleanly. The "המוזמנים
+   ביותר" strip stays a single scrolling row — that is what it is. */
+@media screen and (min-width: 900px) {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-products:not(.alena-dz-products-popular) {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    column-gap: 34px !important;
+  }
+  /* The hairline is the row separator; with two columns it should not run the
+     full width of the grid. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile ul.alena-dz-products:not(.alena-dz-products-popular) li.alena-dz-card {
+    padding: 16px 0 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-cat-title,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-cat-desc {
+    padding-inline: 0 !important;
   }
 }
