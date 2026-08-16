@@ -112,7 +112,7 @@ class Alena_DZ_Hours_Checkout {
         // ONLY add-ons. Pulling in 'סלט' dragged main-course salads
         // (סלט שוק פרגית ₪68) into a list meant for light extras.
         // 'שתייה' as a substring catches the live name "שתייה קלה".
-        $wanted = ['תוספות', 'שתייה'];
+        $wanted = ['תוספות', 'שתייה', 'קינוח', 'ביניים'];
         $slugs  = [];
         $terms  = get_terms(['taxonomy' => 'product_cat', 'hide_empty' => true]);
         if (is_wp_error($terms) || !$terms) return [];
