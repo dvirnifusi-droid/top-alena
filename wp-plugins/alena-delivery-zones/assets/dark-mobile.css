@@ -1441,6 +1441,11 @@
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-back {
     display: inline-block !important;
+    /* A flex/grid parent stretches an inline-block to the full column; on the
+       checkout that turned the pill into a full-width bar. */
+    width: fit-content !important;
+    align-self: flex-start !important;
+    justify-self: start !important;
     margin-bottom: 14px !important;
     padding: 9px 16px !important;
     border: 1px solid var(--line) !important;
@@ -1939,5 +1944,41 @@
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-cat-title,
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-cat-desc {
     padding-inline: 0 !important;
+  }
+}
+
+/* Wide screens: the sticky top nav is pure duplication. Its four links all
+   exist elsewhere on the page — account in the header, cart in the floating
+   bottom bar, categories in the catnav — so it only eats vertical space.
+   Cart and checkout get their own "חזרה לתפריט" link (see
+   Alena_DZ_Cart_Enhancements::render_back_to_menu) so nothing is stranded.
+   The spacer goes with it, or it leaves a 64px hole. */
+@media screen and (min-width: 900px) {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-tn,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-tn-spacer {
+    display: none !important;
+  }
+}
+
+/* Two white boxes the flattener structurally cannot see: its net is
+   [class*="alena-"] and [class*="woocommerce-"], and these carry neither
+   (`.wc-proceed-to-checkout`, and the bare `.button` on "לעדכן סל קניות").
+   NOTE: woocommerce-cart is a BODY class, so it is chained, not an ancestor. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile.woocommerce-cart .wc-proceed-to-checkout {
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile.woocommerce-cart .cart .actions .button,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile.woocommerce-cart .cart .actions button[name="update_cart"] {
+    background: var(--surface) !important;
+    color: var(--ink-2) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 999px !important;
+    padding: 9px 16px !important;
+    font-weight: 700 !important;
+    text-shadow: none !important;
+    -webkit-text-fill-color: currentColor !important;
   }
 }

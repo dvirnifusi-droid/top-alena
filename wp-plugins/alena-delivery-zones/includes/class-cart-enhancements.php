@@ -24,6 +24,11 @@ class Alena_DZ_Cart_Enhancements {
         // Hook wp_loaded so WC()->cart and WC()->session are fully initialized.
         add_action('wp_loaded', [$this, 'maybe_clear_cart'], 20);
 
+        // Back to the menu — on desktop the top nav is hidden as redundant, so
+        // checkout has to carry its own way out. The cart does NOT get one:
+        // WooCommerce already prints "המשך לקנות עוד" there.
+        add_action('woocommerce_before_checkout_form',     [$this, 'render_back_to_menu'], 5);
+
         // Min-order notice on cart / checkout
         add_action('woocommerce_before_cart',              [$this, 'render_min_notice'], 5);
         add_action('woocommerce_before_checkout_form',     [$this, 'render_min_notice'], 6);
@@ -124,6 +129,14 @@ class Alena_DZ_Cart_Enhancements {
             'count' => WC()->cart->get_cart_contents_count(),
             'total' => WC()->cart->get_cart_total(),
         ]);
+    }
+
+    public function render_back_to_menu() {
+        $shop_url = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : '/shop/';
+        printf(
+            '<a class="alena-dash-back" href="%s">← חזרה לתפריט</a>',
+            esc_url($shop_url)
+        );
     }
 
     public function render_min_notice() {
