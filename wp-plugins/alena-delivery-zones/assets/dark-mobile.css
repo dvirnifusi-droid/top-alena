@@ -1982,3 +1982,88 @@
     -webkit-text-fill-color: currentColor !important;
   }
 }
+
+/* ==========================================================================
+   MOBILE AUDIT FIXES (375px, measured as a guest)
+   Ordered by what costs money first. Everything here carries the tripled body
+   class so it outranks the flattener; see the note at the top of this file.
+   ========================================================================== */
+@media screen {
+
+  /* 1. INVISIBLE TEXT — dark ink left behind on a dark surface.
+        Measured contrast: 1.01, 1.11 and 1.72 against their own backgrounds.
+        1.0 means the text and the background are literally the same colour. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-note label,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-trust-pill strong,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-checkout-map-wrap p {
+    color: var(--ink-2) !important;
+    -webkit-text-fill-color: var(--ink-2) !important;
+    text-shadow: none !important;
+  }
+  /* The legal link has to read as a link, not just be legible. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-otp-legal a,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile a.showcoupon {
+    color: var(--accent) !important;
+    -webkit-text-fill-color: var(--accent) !important;
+    text-decoration: underline !important;
+    text-underline-offset: 3px !important;
+  }
+
+  /* 2. PAYMENT METHOD CHOICE — the radios measured 13x13. This is the most
+        consequential control on the site and it was the smallest. The whole
+        row becomes the target, not just the dot. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment ul.payment_methods li {
+    padding: 2px 0 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment ul.payment_methods li > label {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    min-height: 48px !important;
+    padding: 6px 4px !important;
+    cursor: pointer !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #payment ul.payment_methods input[type="radio"] {
+    width: 22px !important;
+    height: 22px !important;
+    min-width: 22px !important;
+    margin: 0 !important;
+    accent-color: var(--accent) !important;
+  }
+
+  /* 3. REMOVE CONTROLS — 30x30 in the cart, 22x22 on the checkout line.
+        Below the ~44px a thumb actually hits. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-trash-btn,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-line-remove {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+  }
+
+  /* 4. CHECKOUT HERO BLEED — it carries margin-inline:-16px to run edge to
+        edge, but its container has no matching padding, so it hung ~6px off
+        both sides of the page. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-checkout-hero {
+    max-width: 100% !important;
+  }
+  @media (max-width: 640px) {
+    body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-checkout-hero {
+      margin-inline: 0 !important;
+    }
+  }
+
+  /* 5. THE SALMON FOOTER STRIP — a light band under every dark page. It comes
+        from the theme (Elementor), not this plugin, so it is targeted by its
+        element id class; if the footer is ever rebuilt this simply stops
+        matching and the strip returns to the theme's own colour. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .elementor-element-6a44b571,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .elementor-element-6a44b571 * {
+    background-color: var(--bg) !important;
+    background-image: none !important;
+    color: var(--ink-3, var(--ink-2)) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+}
