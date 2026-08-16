@@ -265,3 +265,35 @@ jQuery(function ($) {
   hideSaveCard();
   $(document.body).on('updated_checkout payment_method_selected', hideSaveCard);
 });
+
+
+/* The precise-entrance map is rendered after the whole billing form, which put
+   it ~1300px down the page -- far from the address it belongs to, and the
+   owner could not find it. Moved to sit directly under the street address. */
+jQuery(function ($) {
+  if (!$('body').hasClass('woocommerce-checkout')) return;
+  function moveMap() {
+    var $map = $('.alena-dz-checkout-map-wrap').first();
+    var $addr = $('#billing_address_1_field').first();
+    if (!$map.length || !$addr.length || $map.data('alenaMoved')) return;
+    $map.data('alenaMoved', 1);
+    $map.insertAfter($addr).addClass('alena-map-inline');
+    // Google sizes its canvas once, at init, against the box it was in. After a
+    // move the inner layer keeps the OLD dimensions (measured 676x318 inside a
+    // 634x218 container) and the tiles sit wrong.
+    // google.maps.event.trigger(el, 'resize') does NOT fix this -- that call
+    // wants the map INSTANCE, which this plugin does not expose. A one-pixel
+    // height nudge does: it trips Google's own resize observer and the layer
+    // re-measures. Verified live -- inner and container matched to within 2px.
+    var el = document.getElementById('alena-dz-checkout-map');
+    if (el) {
+      setTimeout(function () {
+        var h = el.getBoundingClientRect().height;
+        el.style.height = (h + 1) + 'px';
+        setTimeout(function () { el.style.height = ''; }, 120);
+      }, 80);
+    }
+  }
+  moveMap();
+  $(document.body).on('updated_checkout', moveMap);
+});

@@ -2423,3 +2423,20 @@
     -webkit-text-fill-color: #ffffff !important;
   }
 }
+
+/* The map now lives inside the billing grid, so it has to span it. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-checkout-map-wrap.alena-map-inline {
+    grid-column: 1 / -1 !important;
+    margin: 0 0 12px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-map-inline #alena-dz-checkout-map {
+    height: 220px !important;
+    border-radius: 14px !important;
+    overflow: hidden !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-map-inline h3 {
+    font-size: 15px !important;
+    margin: 0 0 4px !important;
+  }
+}
