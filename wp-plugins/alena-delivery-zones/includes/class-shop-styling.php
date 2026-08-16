@@ -556,7 +556,22 @@ class Alena_DZ_Shop_Styling {
         .alena-dz-hidden.alena-dz-hidden.alena-dz-hidden.alena-dz-hidden.alena-dz-hidden.alena-dz-hidden.alena-dz-hidden {
           display: none !important;
         }
-        </style>
+        /* Measured at 375px: the ✕ was a 32x28 target. Thumbs need ~44.
+           The script shows this button with an inline display:'' , which hands
+           the value back to CSS — so declaring flex here is safe, and
+           display:none still hides it. */
+        @media (max-width: 640px) {
+          #alena-dz-search-clear {
+            display: flex;
+            min-width: 44px;
+            min-height: 44px;
+            padding: 0 !important;
+            align-items: center;
+            justify-content: center;
+            font-size: 17px;
+          }
+        }
+</style>
         <script>
         (function () {
           const input = document.getElementById('alena-dz-search-input');
