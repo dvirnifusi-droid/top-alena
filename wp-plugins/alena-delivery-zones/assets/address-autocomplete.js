@@ -108,7 +108,20 @@
       if (f.dataset.alenaAc === '1') return;
       f.dataset.alenaAc = '1';
 
-      var el = new Element({ componentRestrictions: { country: ['il'] } });
+      // includedRegionCodes, NOT componentRestrictions. The latter belongs to
+      // the legacy Autocomplete API; PlaceAutocompleteElement silently ignores
+      // options it does not know, so "קורדובה 34" was returning streets in
+      // Colombia and Argentina. The bias keeps Rishon LeZion results on top.
+      var opts = { includedRegionCodes: ['il'] };
+      try {
+        opts.locationBias = { center: { lat: 31.9730, lng: 34.7925 }, radius: 30000 };
+      } catch (e) {}
+      var el;
+      try {
+        el = new Element(opts);
+      } catch (e) {
+        el = new Element({ includedRegionCodes: ['il'] });
+      }
       el.className = 'alena-addr-ac';
       if (f.value) el.value = f.value;
 
