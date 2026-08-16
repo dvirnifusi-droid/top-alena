@@ -562,13 +562,13 @@ class Alena_DZ_Shop_Styling {
           const input = document.getElementById('alena-dz-search-input');
           const clearBtn = document.getElementById('alena-dz-search-clear');
           const empty = document.getElementById('alena-dz-search-empty');
-          const sections = document.querySelectorAll('.alena-dz-cat-section');
+          const sections = document.querySelectorAll('.alena-dz-cat-section:not(.alena-dz-cat-section-popular)');
           if (!input) return;
 
           const HIDE = 'alena-dz-hidden';
           // Blocks that are curation, not search results. While a query is
           // active they would show dishes that do not match it.
-          const asides = document.querySelectorAll('.alena-dz-popular-section, .alena-recent, .alena-club-shop-banner, .alena-dz-catnav');
+          const asides = document.querySelectorAll('.alena-dz-cat-section-popular, .alena-recent, .alena-club-shop-banner, .alena-dz-catnav');
 
           // Hebrew typing reality: a trailing final-form letter, and the
           // quote marks people actually type, should not cost a match.
@@ -586,19 +586,37 @@ class Alena_DZ_Shop_Styling {
 
           function setHidden(el, hidden) { el.classList.toggle(HIDE, hidden); }
 
+          function index(card) {
+            if (!card.dataset.searchName) {
+              const title = card.querySelector('.alena-dz-card-title');
+              card.dataset.searchName = fold(title ? title.textContent : '');
+              card.dataset.searchText = fold(card.textContent);
+            }
+            return card;
+          }
+
           function applyFilter(q) {
             q = fold(q);
             // Every whitespace-separated word must appear somewhere in the
             // dish, so "פיתה קבב" narrows instead of matching either word.
             const terms = q ? q.split(' ').filter(Boolean) : [];
-            let matches = 0;
+            const cards = [];
+            sections.forEach(s => s.querySelectorAll('.alena-dz-card').forEach(c => cards.push(index(c))));
 
+            // Name beats description. Nearly every dish here is described as
+            // coming with "סלט משוויאה", so a plain substring search turned
+            // "סלט" into 19 results led by פיתה קבב. If any dish is NAMED for
+            // the query, those are the answer; descriptions are the fallback
+            // for when nothing is.
+            const hasNameHit = terms.length &&
+              cards.some(c => terms.every(t => c.dataset.searchName.includes(t)));
+            const field = hasNameHit ? 'searchName' : 'searchText';
+
+            let matches = 0;
             sections.forEach(section => {
               let sectionHasMatch = false;
               section.querySelectorAll('.alena-dz-card').forEach(card => {
-                if (!card.dataset.searchText) card.dataset.searchText = fold(card.textContent);
-                const text = card.dataset.searchText;
-                const match = !terms.length || terms.every(t => text.includes(t));
+                const match = !terms.length || terms.every(t => card.dataset[field].includes(t));
                 setHidden(card, !match);
                 if (match) { sectionHasMatch = true; matches++; }
               });
