@@ -2067,3 +2067,16 @@
     -webkit-text-fill-color: currentColor !important;
   }
 }
+
+/* The "דלג לתוכן" skip link and its screen-reader siblings are parked at
+   left:376px on this RTL theme — one pixel past the page edge. It is not
+   pannable and no customer can reach it, but it is enough to make every
+   overflow check report a false positive on the checkout. Parked at 0
+   instead; still 1px and clipped, still revealed on keyboard focus. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .screen-reader-text:not(:focus),
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .elementor-screen-only:not(:focus) {
+    left: 0 !important;
+    right: auto !important;
+  }
+}
