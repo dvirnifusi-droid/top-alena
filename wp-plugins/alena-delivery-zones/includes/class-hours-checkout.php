@@ -189,8 +189,15 @@ class Alena_DZ_Hours_Checkout {
             $out .= '<div class="alena-topup-title">להשלמה מהירה:</div><div class="alena-topup-list">';
             foreach ($items as $it) {
                 $closes = !empty($it['closes']) ? ' data-closes="1"' : '';
+                $thumb = '';
+                $first = $it['ids'][0] ?? 0;
+                if ($first && function_exists('wc_get_product')) {
+                    $prod = wc_get_product($first);
+                    if ($prod) $thumb = $prod->get_image('woocommerce_gallery_thumbnail', ['class' => 'alena-topup-img']);
+                }
                 $out .= '<a class="alena-topup-item" href="#"'
                       . ' data-ids="' . esc_attr(implode(',', $it['ids'])) . '"' . $closes . '>'
+                      . $thumb
                       . '<span class="alena-topup-name">' . esc_html($it['label']) . '</span>'
                       . '<span class="alena-topup-price">₪' . number_format($it['price'], 0) . '</span>'
                       . '</a>';

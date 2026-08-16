@@ -318,8 +318,14 @@ class Alena_DZ_Checkout_Redesign {
         echo '</div>';
         // Wolt-style fulfillment tabs
         echo '<div class="alena-co-tabs" role="tablist">';
-        echo '<button type="button" class="alena-co-tab' . ($mode === 'delivery' ? ' active' : '') . '" data-mode="delivery">🚚 משלוח</button>';
-        echo '<button type="button" class="alena-co-tab' . ($mode === 'pickup' ? ' active' : '') . '" data-mode="pickup">🚶 איסוף עצמי</button>';
+        // Each choice carries its own ETA -- the question a customer is really
+        // answering is "how long", not "which radio button".
+        echo '<button type="button" class="alena-co-tab' . ($mode === 'delivery' ? ' active' : '') . '" data-mode="delivery">'
+           . '<span class="alena-co-tab-ico" aria-hidden="true">🛵</span>'
+           . '<span class="alena-co-tab-txt">משלוח <b>45-55 דק׳</b></span></button>';
+        echo '<button type="button" class="alena-co-tab' . ($mode === 'pickup' ? ' active' : '') . '" data-mode="pickup">'
+           . '<span class="alena-co-tab-ico" aria-hidden="true">🚶</span>'
+           . '<span class="alena-co-tab-txt">איסוף <b>10-30 דק׳</b></span></button>';
         echo '</div>';
         echo '<div class="alena-checkout-main">';
     }

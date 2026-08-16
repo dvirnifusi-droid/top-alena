@@ -2250,3 +2250,91 @@
     text-decoration: none !important;
   }
 }
+
+/* ==========================================================================
+   CHECKOUT: fulfilment pills, folded blocks, reachable pay button
+   ========================================================================== */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-tabs {
+    display: flex !important;
+    gap: 8px !important;
+    margin: 0 0 14px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-tab {
+    flex: 1 1 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    min-height: 48px !important;
+    padding: 8px 12px !important;
+    border-radius: 999px !important;
+    border: 1px solid var(--line) !important;
+    background: var(--surface) !important;
+    color: var(--ink-2) !important;
+    -webkit-text-fill-color: var(--ink-2) !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-tab b {
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-tab.active {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: #05202a !important;
+    -webkit-text-fill-color: #05202a !important;
+  }
+
+  /* Folded blocks -- nothing removed, a caret opens each one. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-folded { display: none !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-fold-bar {
+    display: flex !important;
+    width: 100% !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    min-height: 48px !important;
+    margin: 0 0 12px !important;
+    padding: 10px 14px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 14px !important;
+    background: var(--surface) !important;
+    color: var(--ink) !important;
+    -webkit-text-fill-color: var(--ink) !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    text-align: start !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-fold-total {
+    color: var(--accent) !important;
+    -webkit-text-fill-color: var(--accent) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-fold-bar.is-open .alena-fold-caret {
+    display: inline-block;
+    transform: rotate(180deg);
+  }
+
+  /* The pay button follows the customer instead of waiting at the bottom. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #place_order {
+    position: sticky !important;
+    bottom: 12px !important;
+    z-index: 60 !important;
+    width: 100% !important;
+    min-height: 56px !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,.55) !important;
+  }
+
+  /* Top-up chips carry the dish photo. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-topup-img {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 9px !important;
+    object-fit: cover !important;
+    flex: 0 0 auto !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-topup-item {
+    padding-inline-start: 8px !important;
+  }
+}

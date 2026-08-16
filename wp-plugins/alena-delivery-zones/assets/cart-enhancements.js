@@ -109,3 +109,50 @@ jQuery(function ($) {
     });
   });
 });
+
+
+/* Checkout: fold what the customer has already decided, and keep the pay
+   button reachable. The complaint was scrolling, not missing information --
+   nothing is removed, only folded, and every fold opens. */
+jQuery(function ($) {
+  if (!$('body').hasClass('woocommerce-checkout')) return;
+
+  function foldSummary() {
+    var $rev = $('.woocommerce-checkout-review-order-table').first();
+    if (!$rev.length || $rev.data('alenaFolded')) return;
+    $rev.data('alenaFolded', 1);
+    // WooCommerce REPLACES this table on every update, so the flag above rides
+    // away with the old node while its bar stays behind. Clear stale bars or
+    // they stack up, one per refresh.
+    $('.alena-fold-bar').not('.alena-fold-extra').remove();
+    var count = $rev.find('.cart_item, .alena-co-line').length;
+    // FIRST amount in the total row: the row reads "159 (\u05db\u05d5\u05dc\u05dc 24.25 \u05de\u05e2\u05f4\u05de)",
+    // so .last() was picking up the VAT and calling it the total.
+    var total = ($rev.find('.order-total .amount').first().text() || '').trim();
+    var $bar = $('<button type="button" class="alena-fold-bar"></button>')
+      .html('<span>סיכום ההזמנה · ' + count + ' פריטים</span>' +
+            '<span class="alena-fold-total">' + total + ' <i class="alena-fold-caret">&#9662;</i></span>');
+    $rev.before($bar).addClass('alena-folded');
+    $bar.on('click', function () {
+      $rev.toggleClass('alena-folded');
+      $bar.toggleClass('is-open', !$rev.hasClass('alena-folded'));
+    });
+  }
+
+  function foldOptional() {
+    var $host = $('.alena-dz-extra-fields');
+    if (!$host.length || $host.data('alenaFolded')) return;
+    $host.data('alenaFolded', 1);
+    var $t = $('<button type="button" class="alena-fold-bar alena-fold-extra">' +
+               'פרטים נוספים (קומה, כניסה, הערות) <i class="alena-fold-caret">&#9662;</i></button>');
+    $host.before($t).addClass('alena-folded');
+    $t.on('click', function () {
+      $host.toggleClass('alena-folded');
+      $t.toggleClass('is-open', !$host.hasClass('alena-folded'));
+    });
+  }
+
+  function run() { foldSummary(); foldOptional(); }
+  run();
+  $(document.body).on('updated_checkout', run);
+});
