@@ -36,7 +36,12 @@
  *                           screen and is not part of stages 1-2.
  */
 
-@media (max-width: 640px) {
+/* The theme is no longer phone-only: the owner asked for the desktop to look
+   like the phone. Colours, tokens and component styling now apply at every
+   width; the only thing that changes on a big screen is that the content sits
+   in a centred column instead of stretching across the monitor (see the
+   min-width block at the end of this file). */
+@media screen {
 
   body.alena-dark-mobile {
     --bg:         #0e1117;
@@ -410,6 +415,10 @@
     border-radius: 0 !important;
     box-shadow: none !important;
     background-image: none !important;
+    /* The section keeps a coral fallback colour from shop.css. The photo now
+       lives in its own element, so that coral only ever showed as a stray band
+       around the header. */
+    background-color: var(--bg) !important;
   }
 
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-photo {
@@ -1858,5 +1867,53 @@
     background-color: var(--surface) !important;
     border: 1px solid var(--line) !important;
     color: var(--ink-2) !important;
+  }
+}
+
+/* ==========================================================================
+   DESKTOP — same design, comfortable measure
+   Everything above already applies here. This only stops the phone layout from
+   stretching edge to edge on a monitor.
+   ========================================================================== */
+@media screen and (min-width: 641px) {
+  body.alena-dark-mobile .alena-dz-hero,
+  body.alena-dark-mobile .alena-dz-search,
+  body.alena-dark-mobile .alena-dz-catnav,
+  body.alena-dark-mobile .alena-dz-shop-sections,
+  body.alena-dark-mobile .alena-club-shop-banner,
+  body.alena-dark-mobile .alena-recent,
+  body.alena-dark-mobile .alena-checkout-wrap,
+  body.alena-dark-mobile .alena-dash,
+  body.alena-dark-mobile .woocommerce-cart .woocommerce {
+    max-width: 780px !important;
+    margin-inline: auto !important;
+  }
+
+  /* The dish photo can afford to be larger when there is room for it. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card .alena-dz-card-imgwrap {
+    flex-basis: 104px !important;
+    width: 104px !important;
+    height: 104px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile li.alena-dz-card {
+    padding: 16px 4px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-hero-photo {
+    height: 300px !important;
+    max-height: 300px !important;
+    border-radius: 0 0 18px 18px !important;
+  }
+
+  /* A full-screen dish modal makes sense on a phone; on a monitor it should be
+     a dialog. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal-backdrop {
+    align-items: center !important;
+    padding: 24px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-modal {
+    height: auto !important;
+    max-height: calc(100dvh - 48px) !important;
+    max-width: 560px !important;
+    border-radius: 20px !important;
   }
 }
