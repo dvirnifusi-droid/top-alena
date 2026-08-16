@@ -159,6 +159,17 @@
             // customer only found out at the shipping step. The server now
             // says whether the point falls inside a delivery polygon.
             return sendCoords(lat, lng).done(function (resp) {
+              // A shipping notice from a SUBMIT against the previous address
+              // survives on screen and names the old zone and shortfall. It is
+              // only ever re-added on the next submit, so dropping it here
+              // cannot hide a live problem -- it removes a contradiction.
+              $('.woocommerce-error, .woocommerce-NoticeGroup').each(function () {
+                var t = $(this).text() || '';
+                if (t.indexOf('מינימום הזמנה למשלוח') !== -1 ||
+                    t.indexOf('לא נמצאה שיטת משלוח') !== -1) {
+                  $(this).remove();
+                }
+              });
               $(document.body).trigger('update_checkout');
               var zone = resp && resp.data ? resp.data.zone : null;
               var where = line + (city ? ', ' + city : '');
