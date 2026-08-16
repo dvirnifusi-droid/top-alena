@@ -84,3 +84,28 @@
     });
   }
 })(jQuery);
+
+/* Top-up chips inside the "under the minimum" notice. Adding must NOT reload
+   the checkout: the customer has already typed their name and address, and a
+   page load would throw it away. WooCommerce's AJAX endpoint adds the item and
+   the checkout is refreshed in place. */
+jQuery(function ($) {
+  $(document.body).on('click', '.alena-topup-item', function (e) {
+    e.preventDefault();
+    var $a = $(this);
+    var ids = String($a.data('ids') || '').split(',').filter(Boolean);
+    if (!ids.length || $a.hasClass('is-busy')) return;
+    $a.addClass('is-busy');
+    var url = (window.wc_add_to_cart_params && wc_add_to_cart_params.wc_ajax_url
+      ? wc_add_to_cart_params.wc_ajax_url.replace('%%endpoint%%', 'add_to_cart')
+      : '/?wc-ajax=add_to_cart');
+    // A deal can be more than one product; add them all before refreshing once.
+    $.when.apply($, ids.map(function (id) {
+      return $.post(url, { product_id: id, quantity: 1 });
+    })).always(function () {
+      $a.removeClass('is-busy');
+      $(document.body).trigger('update_checkout');
+      $(document.body).trigger('wc_fragment_refresh');
+    });
+  });
+});

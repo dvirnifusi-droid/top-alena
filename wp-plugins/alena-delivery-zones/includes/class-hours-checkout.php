@@ -98,17 +98,118 @@ class Alena_DZ_Hours_Checkout {
              . 'או שהמשלוחים סגורים כרגע. אפשר לבחור איסוף עצמי, או להתקשר אלינו 03-6228055.';
     }
 
+    /**
+     * Light items priced to close a shortfall. Drinks and sides first, cheapest
+     * that still clears the gap -- a customer ₪54 short should be offered a way
+     * out, not just told the number.
+     */
+    /** Resolve the owner's real category names to slugs -- guessing slugs got
+     *  it wrong once already ("שתייה" instead of "משקאות"), so match by name. */
+    private function topup_category_slugs(): array {
+        // Substring, not equality: the live names are "שתייה קלה" and "סלט",
+        // so an exact list would have matched only "תוספות" -- which is how
+        // this shipped empty the first time.
+        $wanted = ['משקאות', 'שתייה', 'תוספות', 'סלט', 'קינוח'];
+        $slugs  = [];
+        $terms  = get_terms(['taxonomy' => 'product_cat', 'hide_empty' => true]);
+        if (is_wp_error($terms) || !$terms) return [];
+        foreach ($terms as $t) {
+            $name = trim($t->name);
+            foreach ($wanted as $w) {
+                if (mb_strpos($name, $w) !== false) { $slugs[] = $t->slug; break; }
+            }
+        }
+        return $slugs;
+    }
+
+    /** Light items, cheapest first, from the owner's add-on categories. */
+    private function topup_pool(): array {
+        if (!function_exists('wc_get_products')) return [];
+        $slugs = $this->topup_category_slugs();
+        if (!$slugs) return [];
+        $pool = [];
+        foreach (wc_get_products([
+            'status' => 'publish', 'limit' => 60, 'orderby' => 'price', 'order' => 'ASC',
+            'category' => $slugs,
+        ]) as $p) {
+            $price = (float) $p->get_price();
+            if ($price <= 0 || !$p->is_purchasable() || !$p->is_in_stock()) continue;
+            $pool[$p->get_id()] = ['id' => $p->get_id(), 'name' => $p->get_name(), 'price' => $price];
+        }
+        return array_values($pool);
+    }
+
+    /**
+     * Deals that actually close the gap. A single item when one does it; other-
+     * wise the cheapest PAIR that clears it, because telling someone ₪54 short
+     * to add a ₪12 drink just moves the wall.
+     */
+    private function topup_suggestions(float $need, int $limit = 4): array {
+        $pool = $this->topup_pool();
+        if (!$pool) return [];
+        usort($pool, function ($a, $b) { return $a['price'] <=> $b['price']; });
+
+        $out = [];
+        foreach ($pool as $it) {
+            if ($it['price'] >= $need) {
+                $out[] = ['ids' => [$it['id']], 'label' => $it['name'], 'price' => $it['price'], 'closes' => true];
+                if (count($out) >= 2) break;
+            }
+        }
+        // Cheapest pair over the line -- pool is ascending, so the first hit wins.
+        $bestPair = null;
+        for ($i = 0; $i < count($pool) && !$bestPair; $i++) {
+            for ($j = $i + 1; $j < count($pool); $j++) {
+                $sum = $pool[$i]['price'] + $pool[$j]['price'];
+                if ($sum >= $need) {
+                    $bestPair = ['ids' => [$pool[$i]['id'], $pool[$j]['id']],
+                                 'label' => $pool[$i]['name'] . ' + ' . $pool[$j]['name'],
+                                 'price' => $sum, 'closes' => true];
+                    break;
+                }
+            }
+        }
+        if ($bestPair) $out[] = $bestPair;
+
+        foreach ($pool as $it) {
+            if (count($out) >= $limit) break;
+            $out[] = ['ids' => [$it['id']], 'label' => $it['name'], 'price' => $it['price'], 'closes' => false];
+        }
+        return array_slice($out, 0, $limit);
+    }
+
+    private function topup_html(float $need): string {
+        $items = $this->topup_suggestions($need);
+        $cart  = function_exists('wc_get_cart_url') ? wc_get_cart_url() : '/cart/';
+        $out   = '<div class="alena-topup">';
+        if ($items) {
+            $out .= '<div class="alena-topup-title">להשלמה מהירה:</div><div class="alena-topup-list">';
+            foreach ($items as $it) {
+                $closes = !empty($it['closes']) ? ' data-closes="1"' : '';
+                $out .= '<a class="alena-topup-item" href="#"'
+                      . ' data-ids="' . esc_attr(implode(',', $it['ids'])) . '"' . $closes . '>'
+                      . '<span class="alena-topup-name">' . esc_html($it['label']) . '</span>'
+                      . '<span class="alena-topup-price">₪' . number_format($it['price'], 0) . '</span>'
+                      . '</a>';
+            }
+            $out .= '</div>';
+        }
+        $out .= '<a class="alena-topup-cart" href="' . esc_url($cart) . '">← חזרה לסל</a>';
+        return $out . '</div>';
+    }
+
     public function no_shipping_message($html) {
         // Under the zone minimum is a different situation from closed, and it
         // is the customer's to fix -- so it is said first, with the number.
         if (function_exists('WC') && WC()->session) {
             $under = WC()->session->get('alena_dz_under_min');
             if (is_array($under) && !empty($under['min'])) {
+                $need = (float) $under['need'];
                 return '<span class="alena-dz-under-min">🛒 <strong>מינימום הזמנה למשלוח לאזור "'
                      . esc_html($under['zone']) . '" הוא ₪' . number_format((float) $under['min'], 0)
-                     . '</strong><br>חסרים עוד <strong>₪' . number_format((float) $under['need'], 0)
-                     . '</strong> כדי שנוכל לשלוח אליך. אפשר להוסיף עוד משהו לסל, '
-                     . 'או לבחור <strong>איסוף עצמי</strong> ללא מינימום.</span>';
+                     . '</strong><br>חסרים עוד <strong>₪' . number_format($need, 0)
+                     . '</strong> כדי שנוכל לשלוח אליך, או לבחור <strong>איסוף עצמי</strong> ללא מינימום.'
+                     . $this->topup_html($need) . '</span>';
             }
         }
         try {

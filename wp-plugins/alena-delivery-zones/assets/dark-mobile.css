@@ -2190,3 +2190,60 @@
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details p#billing_last_name_field  { order: -2 !important; }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #customer_details p#billing_address_1_field  { order: -1 !important; }
 }
+
+/* Top-up chips in the shortfall notice: a way to close the gap, not just the
+   number. The notice itself is a light WooCommerce box, so these are styled to
+   read on it rather than on the dark canvas. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-topup {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-topup-title {
+    width: 100%;
+    font-weight: 700;
+    font-size: 13.5px;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-topup-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-topup-item {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(0,0,0,.18);
+    background: rgba(0,0,0,.06) !important;
+    color: #1c1c1c !important;
+    -webkit-text-fill-color: #1c1c1c !important;
+    font-weight: 700;
+    text-decoration: none !important;
+  }
+  /* The one item that closes the gap on its own is the answer -- mark it. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-topup-item[data-closes="1"] {
+    border-color: #1e7d4f !important;
+    box-shadow: inset 0 0 0 1px #1e7d4f !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-topup-item.is-busy { opacity: .55; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-topup-price { opacity: .75; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-topup-cart {
+    min-height: 44px;
+    display: inline-flex !important;
+    align-items: center;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(0,0,0,.25);
+    color: #1c1c1c !important;
+    -webkit-text-fill-color: #1c1c1c !important;
+    font-weight: 700;
+    text-decoration: none !important;
+  }
+}
