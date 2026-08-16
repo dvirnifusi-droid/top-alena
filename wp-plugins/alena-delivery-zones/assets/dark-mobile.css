@@ -2440,3 +2440,51 @@
     margin: 0 0 4px !important;
   }
 }
+
+/* One header card: back, fulfilment, and the open/closed note read together. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-head {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 10px !important;
+    margin: 0 0 16px !important;
+    padding: 12px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 18px !important;
+    background: var(--surface) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-head .alena-dash-back {
+    margin: 0 !important;
+    flex: 0 0 auto !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-head .alena-co-tabs {
+    flex: 1 1 240px !important;
+    margin: 0 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-head-note {
+    flex: 1 1 100% !important;
+    margin: 0 !important;
+    padding: 8px 10px !important;
+    border-radius: 12px !important;
+    background: rgba(255,255,255,.04) !important;
+    border: 0 !important;
+    font-size: 13.5px !important;
+    color: var(--ink-2) !important;
+    -webkit-text-fill-color: var(--ink-2) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-co-head-note::before { display: none !important; }
+
+  /* The pay button: narrower than the page, centred, and named for what it does. */
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #place_order {
+    inset-inline: auto !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: min(420px, calc(100% - 32px)) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 10px !important;
+  }
+}

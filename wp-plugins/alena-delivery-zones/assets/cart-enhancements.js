@@ -297,3 +297,104 @@ jQuery(function ($) {
   moveMap();
   $(document.body).on('updated_checkout', moveMap);
 });
+
+
+/* Pay button wording, and one header block instead of three stacked strips. */
+jQuery(function ($) {
+  if (!$('body').hasClass('woocommerce-checkout')) return;
+
+  /* The gateway rewrites the button label after every checkout update, which is
+     why the woocommerce_order_button_text filter never held. Renaming it here,
+     after each render, is the only place that survives. The total chip inside
+     the button is preserved -- it is a child element, not part of the text. */
+  function renameButton() {
+    var el = document.getElementById('place_order');
+    if (!el) return;
+    var label = '\u05ea\u05e9\u05dc\u05d5\u05dd';
+    if (el.tagName === 'INPUT') { el.value = label; return; }
+    // The wording lives in a bare <span>, NOT a text node -- filtering for
+    // nodeType 3 found nothing and the button kept saying "להזמין". The total
+    // sits in its own span and must be left alone.
+    var $lbl = $(el).children('span').not('.alena-co-btn-total').first();
+    if ($lbl.length) {
+      if ($lbl.text().trim() !== label) $lbl.text(label);
+    } else {
+      var $chip = $(el).find('.alena-co-btn-total').detach();
+      $(el).contents().filter(function () { return this.nodeType === 3; }).remove();
+      $(el).prepend(document.createTextNode(label));
+      if ($chip.length) $(el).append($chip);
+    }
+    if (el.value) el.value = label;
+  }
+
+  /* The strip above the form was three separate bands: back-to-menu, the
+     delivery/pickup pills, and the closed notice. They answer one question --
+     "how am I getting this, and when" -- so they become one card. */
+  function groupHeader() {
+    if ($('.alena-co-head').length) return;
+    var $tabs = $('.alena-co-tabs').first();
+    if (!$tabs.length) return;
+    var $box = $('<div class="alena-co-head"></div>').insertBefore($tabs);
+    $('.alena-dash-back').first().appendTo($box);
+    $tabs.appendTo($box);
+    $('.woocommerce-info, .woocommerce-notice, .alena-dz-closed-shipping').each(function () {
+      var t = ($(this).text() || '');
+      if (t.indexOf('\u05e1\u05d2\u05d5\u05e8') !== -1 || t.indexOf('\u05de\u05e9\u05dc\u05d5\u05d7\u05d9\u05dd') !== -1) {
+        $(this).appendTo($box).addClass('alena-co-head-note');
+      }
+    });
+  }
+
+  function run3() { renameButton(); groupHeader(); }
+  run3();
+  $(document.body).on('updated_checkout payment_method_selected', run3);
+});
+
+
+/* The gateway rewrites the pay button's label after every checkout refresh,
+   and its handler runs after ours -- renaming on updated_checkout kept losing
+   the race, which is why the button still read "\u05dc\u05d4\u05d6\u05de\u05d9\u05df" through two attempts.
+   A MutationObserver does not race: whoever writes last, the label is put
+   back. The total chip is a sibling span and is never touched. */
+jQuery(function ($) {
+  if (!$('body').hasClass('woocommerce-checkout')) return;
+  var LABEL = '\u05ea\u05e9\u05dc\u05d5\u05dd';
+  var applying = false;
+
+  function apply() {
+    var el = document.getElementById('place_order');
+    if (!el || applying) return;
+    applying = true;
+    try {
+      if (el.tagName === 'INPUT') {
+        if (el.value !== LABEL) el.value = LABEL;
+      } else {
+        var lbl = el.querySelector('span:not(.alena-co-btn-total)');
+        if (lbl) {
+          if (lbl.textContent.trim() !== LABEL) lbl.textContent = LABEL;
+        } else if (el.textContent.indexOf(LABEL) === -1) {
+          var chip = el.querySelector('.alena-co-btn-total');
+          el.textContent = LABEL;
+          if (chip) el.appendChild(chip);
+        }
+        if (el.value && el.value !== LABEL) el.value = LABEL;
+      }
+    } finally { applying = false; }
+  }
+
+  function watch() {
+    var el = document.getElementById('place_order');
+    if (!el || el.dataset.alenaWatched) return;
+    el.dataset.alenaWatched = '1';
+    apply();
+    if (window.MutationObserver) {
+      new MutationObserver(apply).observe(el, {childList: true, subtree: true, characterData: true});
+    }
+  }
+
+  watch();
+  $(document.body).on('updated_checkout payment_method_selected', function () {
+    setTimeout(watch, 30);
+    setTimeout(apply, 300);
+  });
+});
