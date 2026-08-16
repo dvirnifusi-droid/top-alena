@@ -2544,3 +2544,29 @@
     box-shadow: 0 0 0 2px rgba(239,68,68,.25) !important;
   }
 }
+
+/* White on #f97316 measures 2.80 -- under the 4.5 floor, and this is the one
+   control that must never be hard to read. A deeper orange keeps the colour
+   the owner asked for and takes white text to 5.2. Tap targets on the two
+   links that were just under 44 are raised at the same time. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #place_order {
+    background: #c2410c !important;
+    border-color: #c2410c !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #place_order span {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #place_order .alena-co-btn-total {
+    background: rgba(0,0,0,.28) !important;
+    padding: 4px 10px !important;
+    border-radius: 999px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dash-back,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile a.showcoupon {
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+  }
+}
