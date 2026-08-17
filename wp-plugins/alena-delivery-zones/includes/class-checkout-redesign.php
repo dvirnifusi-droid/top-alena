@@ -183,6 +183,28 @@ class Alena_DZ_Checkout_Redesign {
         $mode = self::current_fulfillment();
         update_post_meta($order_id, '_alena_fulfillment', $mode);
 
+        // A collection order must not carry a delivery address. WooCommerce
+        // copies billing into shipping regardless of the method, so a pickup
+        // order still arrived at Miley with the customer's home address and
+        // got printed as a delivery -- the method id alone was not enough,
+        // because an address that exists will be used. The only reliable fix
+        // is for there to be no address to read.
+        if ($mode === 'pickup' && function_exists('wc_get_order')) {
+            $order = wc_get_order($order_id);
+            if ($order) {
+                foreach ([
+                    'shipping_address_1', 'shipping_address_2', 'shipping_city',
+                    'shipping_postcode', 'shipping_state', 'shipping_company',
+                ] as $field) {
+                    $setter = 'set_' . $field;
+                    if (method_exists($order, $setter)) $order->$setter('');
+                }
+                // Name and country stay: the order still belongs to a person,
+                // and an empty country breaks WooCommerce's own formatting.
+                $order->save();
+            }
+        }
+
         // The leading underscore marks meta as PROTECTED, and the WooCommerce
         // REST API strips protected meta out of the payload it sends. So every
         // webhook consumer -- Miley among them -- received no fulfilment flag
