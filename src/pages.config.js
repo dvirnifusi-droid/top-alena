@@ -187,6 +187,7 @@ import Commissary from './pages/Commissary';
 import CommissaryOrders from './pages/CommissaryOrders';
 import BranchCommissary from './pages/BranchCommissary';
 import CashFlow from './pages/CashFlow';
+import KitchenOrders from './pages/KitchenOrders';
 import MenuManagement from './pages/MenuManagement';
 import PrepSheet from './pages/PrepSheet';
 import DishGuide from './pages/DishGuide';
@@ -347,6 +348,7 @@ export const PAGES = {
     "CommissaryOrders": CommissaryOrders,
     "BranchCommissary": BranchCommissary,
     "CashFlow": CashFlow,
+    "KitchenOrders": KitchenOrders,
     "MenuManagement": MenuManagement,
     "PrepSheet": PrepSheet,
     "DishGuide": DishGuide,
