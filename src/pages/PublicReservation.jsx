@@ -175,6 +175,10 @@ export default function PublicReservationPage() {
   const [date, setDate] = useState(PRESET.date || new Date());
   // What's on that specific evening, if the business set anything up for it.
   const [dayEvent, setDayEvent] = useState(null);
+  // A link pinned to one evening is an invitation to that evening. The recurring
+  // weeknight catalogue is switched off there, because a guest opening a summer
+  // party invitation shouldn't be read a pitch for wine night on the same screen.
+  const eventOnly = PRESET.only && !!dayEvent;
   const [time, setTime] = useState('');
   const [partySize, setPartySize] = useState(2);
   const [customerName, setCustomerName] = useState('');
@@ -846,7 +850,7 @@ export default function PublicReservationPage() {
       `}</style>
 
       {/* ============ THEME RIBBON — live day-aware catalogue (Alena-specific) ============ */}
-      {isAlena && (() => {
+      {isAlena && !eventOnly && (() => {
         const now = new Date();
         const todayD = now.getDay();
         const todayH = now.getHours();
@@ -882,7 +886,7 @@ export default function PublicReservationPage() {
         <div className="max-w-6xl mx-auto lg:grid lg:grid-cols-12 lg:gap-8">
           {/* LEFT — SmartBanner + Booking card */}
           <div className="lg:col-span-7 space-y-4">
-            {isAlena && <SmartReserveBanner />}
+            {isAlena && !eventOnly && <SmartReserveBanner />}
             {/* ============ BOOKING CARD ============ */}
             <main id="booking" ref={bookingCardRef} className="rounded-3xl p-5 md:p-8 space-y-5" style={{ background: '#FFFEFB', border: '1px solid rgba(184,149,86,0.4)', boxShadow: '0 30px 60px -25px rgba(31,27,23,0.30), 0 8px 20px -10px rgba(31,27,23,0.15)' }}>
           <div className="text-center">
@@ -1240,7 +1244,7 @@ export default function PublicReservationPage() {
                 )}
 
                 {/* Specials active in the chosen slot — pulls from THEME_NIGHTS catalogue (Alena) */}
-                {isAlena && time && (() => {
+                {isAlena && !eventOnly && time && (() => {
                   const specials = getSpecialsForSlot(date, time);
                   if (specials.length === 0) return null;
                   return (
