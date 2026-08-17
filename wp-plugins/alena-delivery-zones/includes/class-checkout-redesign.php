@@ -175,7 +175,21 @@ class Alena_DZ_Checkout_Redesign {
     }
 
     public function save_fulfillment_meta($order_id) {
-        update_post_meta($order_id, '_alena_fulfillment', self::current_fulfillment());
+        $mode = self::current_fulfillment();
+        update_post_meta($order_id, '_alena_fulfillment', $mode);
+
+        // The leading underscore marks meta as PROTECTED, and the WooCommerce
+        // REST API strips protected meta out of the payload it sends. So every
+        // webhook consumer -- Miley among them -- received no fulfilment flag
+        // at all, saw a full shipping address (WooCommerce fills one even for
+        // collection) and reasonably concluded "delivery". A pickup order was
+        // printed as a delivery.
+        //
+        // These two are deliberately UNPREFIXED so they survive into the
+        // payload. Hebrew as well as the machine value: integrations differ on
+        // which they read, and a wrong guess here means food sent to a driver.
+        update_post_meta($order_id, 'alena_fulfillment', $mode);
+        update_post_meta($order_id, 'order_type', $mode === 'pickup' ? 'איסוף עצמי' : 'משלוח');
     }
 
     public function show_fulfillment_in_admin($order) {
