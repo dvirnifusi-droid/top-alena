@@ -73,16 +73,16 @@ export default function DayEvents() {
   // Only ever build a link from a real YYYY-MM-DD. A malformed date used to sail
   // straight into the shareable link and produce a page pointing at the wrong
   // year, which is worse than refusing to copy.
-  const linkFor = (d) =>
+  const linkFor = (d, src) =>
     /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''))
-      ? `${window.location.origin}/PublicReservation?date=${d}&only=1`
+      ? `${window.location.origin}/PublicReservation?date=${d}&only=1${src ? `&src=${encodeURIComponent(src)}` : ''}`
       : null;
-  const copy = async (d) => {
-    const url = linkFor(d);
+  const copy = async (d, src) => {
+    const url = linkFor(d, src);
     if (!url) { toast({ title: 'תאריך לא תקין', description: 'שמור/י את הערב מחדש', variant: 'destructive' }); return; }
     try {
       await navigator.clipboard.writeText(url);
-      setCopied(d);
+      setCopied(`${d}|${src || ''}`);
       setTimeout(() => setCopied(''), 1800);
     } catch {
       // Clipboard is blocked outside a secure context or without permission —
@@ -90,6 +90,18 @@ export default function DayEvents() {
       toast({ title: 'העתק ידנית', description: url });
     }
   };
+
+  // One link per channel, so the evening's bookings can be read back by where
+  // they came from. The keys match the ones /ReservationsAnalytics already uses,
+  // so a booking from here lands in the same breakdown as the rest of the year
+  // rather than inventing a parallel set of source names.
+  const CHANNELS = [
+    { key: 'whatsapp', label: 'וואטסאפ', emoji: '💬' },
+    { key: 'instagram', label: 'אינסטגרם', emoji: '📸' },
+    { key: 'facebook', label: 'פייסבוק', emoji: '👍' },
+    { key: 'sms', label: 'SMS', emoji: '✉️' },
+    { key: 'poster', label: 'מודעה/QR', emoji: '📄' },
+  ];
 
   if (loading) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-slate-400" /></div>;
 
@@ -225,10 +237,34 @@ export default function DayEvents() {
                     )}
                   </div>
                   {e.description && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{e.description}</p>}
+                  <div className="mt-2 rounded-lg p-2.5" style={{ background: '#FAF6EC', border: '1px solid #E3D3AC' }}>
+                    <div className="text-[11.5px] font-bold" style={{ color: '#5C4B3A' }}>
+                      קישור לכל ערוץ — כדי לדעת מאיפה הגיעו
+                    </div>
+                    <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                      {CHANNELS.map((c) => (
+                        <button
+                          key={c.key}
+                          type="button"
+                          onClick={() => copy(e.event_date, c.key)}
+                          className="rounded-lg px-2.5 min-h-[36px] text-[12px] border bg-white inline-flex items-center gap-1"
+                          style={{ borderColor: '#E3D3AC', color: '#5C4B3A' }}
+                        >
+                          {copied === `${e.event_date}|${c.key}`
+                            ? <Check className="w-3.5 h-3.5" />
+                            : <span>{c.emoji}</span>}
+                          {copied === `${e.event_date}|${c.key}` ? 'הועתק' : c.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] mt-1.5" style={{ color: '#8A755A' }}>
+                      הפילוח מופיע בדאשבורד ההזמנות — סננו לתאריך של הערב.
+                    </p>
+                  </div>
                   <div className="flex gap-2 mt-2 flex-wrap">
                     <Button size="sm" variant="outline" onClick={() => copy(e.event_date)}>
-                      {copied === e.event_date ? <Check className="w-3.5 h-3.5 ml-1" /> : <Copy className="w-3.5 h-3.5 ml-1" />}
-                      {copied === e.event_date ? 'הועתק' : 'העתק קישור'}
+                      {copied === `${e.event_date}|` ? <Check className="w-3.5 h-3.5 ml-1" /> : <Copy className="w-3.5 h-3.5 ml-1" />}
+                      {copied === `${e.event_date}|` ? 'הועתק' : 'קישור רגיל'}
                     </Button>
                     <Button size="sm" variant="ghost"
                       onClick={() => setForm({ ...EMPTY, ...e, capacity: e.capacity ?? '' })}>
