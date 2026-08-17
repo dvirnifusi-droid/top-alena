@@ -889,8 +889,57 @@ export default function PublicReservationPage() {
             {isAlena && !eventOnly && <SmartReserveBanner />}
             {/* ============ BOOKING CARD ============ */}
             <main id="booking" ref={bookingCardRef} className="rounded-3xl p-5 md:p-8 space-y-5" style={{ background: '#FFFEFB', border: '1px solid rgba(184,149,86,0.4)', boxShadow: '0 30px 60px -25px rgba(31,27,23,0.30), 0 8px 20px -10px rgba(31,27,23,0.15)' }}>
+          {/* What's on that evening — the first thing in the card. Someone who
+              followed an invitation came for the evening, not for a form, and on
+              a phone the poster is the invitation. On desktop the poster itself
+              lives in the side column, so only the words repeat here. */}
+          {dayEvent && (
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{ border: '1px solid rgba(184,149,86,0.45)', background: '#FFFEFB' }}
+            >
+              {dayEvent.image_url && (
+                <img
+                  src={dayEvent.image_url}
+                  alt={dayEvent.title || ''}
+                  className="w-full h-auto lg:hidden"
+                />
+              )}
+              <div className="p-4">
+                <div className="text-lg font-black" style={{ color: '#A04A2E' }}>{dayEvent.title}</div>
+                {dayEvent.description && (
+                  <p className="text-sm mt-1.5 whitespace-pre-wrap leading-relaxed" style={{ color: '#44512C' }}>
+                    {dayEvent.description}
+                  </p>
+                )}
+                {dayEvent.payment_mode && dayEvent.payment_mode !== 'none' && dayEvent.price > 0 && (
+                  <div className="mt-3 rounded-xl px-3 py-2" style={{ background: '#F4ECD8', border: '1px solid rgba(184,149,86,0.5)' }}>
+                    <div className="text-[13px] font-black" style={{ color: '#A04A2E' }}>
+                      {dayEvent.payment_mode === 'ticket' ? 'כרטיס' : 'פיקדון'} ₪{dayEvent.price}
+                      {dayEvent.charge_per === 'person' ? ' לכל סועד' : ' להזמנה'}
+                    </div>
+                    <div className="text-[11.5px] mt-0.5" style={{ color: '#44512C' }}>
+                      {dayEvent.payment_mode === 'ticket'
+                        ? 'התשלום נגבה בעת ההזמנה ומבטיח את מקומכם.'
+                        : 'הכרטיס נתפס בלבד ולא מחויב. חיוב רק במקרה של אי-הגעה.'}
+                    </div>
+                  </div>
+                )}
+                {dayEvent.capacity != null && (
+                  <div className="mt-3 text-[13px] font-bold" style={{ color: dayEvent.sold_out ? '#A04A2E' : '#44512C' }}>
+                    {dayEvent.sold_out
+                      ? 'האירוע מלא — אין מקומות פנויים'
+                      : `נותרו ${dayEvent.seats_left} מקומות מתוך ${dayEvent.capacity}`}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="text-center">
-            <h2 className="brand-display text-3xl md:text-4xl" style={{ color: '#1F1B17' }}>הזמינו שולחן</h2>
+            <h2 className="brand-display text-3xl md:text-4xl" style={{ color: '#1F1B17' }}>
+              {dayEvent ? 'שמרו מקום' : 'הזמינו שולחן'}
+            </h2>
             <p className="text-sm mt-1" style={{ color: '#6B7A4F' }}>ללא דמי שירות · אישור מיידי · ביטול חופשי</p>
           </div>
 
@@ -937,51 +986,6 @@ export default function PublicReservationPage() {
 
           {/* Date / Time / Form — hidden when party > 12 (events flow active) */}
           {!isEventSize && <>
-          {/* What's on that evening. Sits above the date so a guest who followed
-              an event link reads the event first and the form second. */}
-          {dayEvent && (
-            <div
-              className="rounded-2xl overflow-hidden mb-4"
-              style={{ border: '1px solid rgba(184,149,86,0.45)', background: '#FFFEFB' }}
-            >
-              {dayEvent.image_url && (
-                <img
-                  src={dayEvent.image_url}
-                  alt={dayEvent.title || ''}
-                  className="w-full h-auto lg:hidden"
-                />
-              )}
-              <div className="p-4">
-                <div className="text-lg font-black" style={{ color: '#A04A2E' }}>{dayEvent.title}</div>
-                {dayEvent.description && (
-                  <p className="text-sm mt-1.5 whitespace-pre-wrap leading-relaxed" style={{ color: '#44512C' }}>
-                    {dayEvent.description}
-                  </p>
-                )}
-                {dayEvent.payment_mode && dayEvent.payment_mode !== 'none' && dayEvent.price > 0 && (
-                  <div className="mt-3 rounded-xl px-3 py-2" style={{ background: '#F4ECD8', border: '1px solid rgba(184,149,86,0.5)' }}>
-                    <div className="text-[13px] font-black" style={{ color: '#A04A2E' }}>
-                      {dayEvent.payment_mode === 'ticket' ? 'כרטיס' : 'פיקדון'} ₪{dayEvent.price}
-                      {dayEvent.charge_per === 'person' ? ' לכל סועד' : ' להזמנה'}
-                    </div>
-                    <div className="text-[11.5px] mt-0.5" style={{ color: '#44512C' }}>
-                      {dayEvent.payment_mode === 'ticket'
-                        ? 'התשלום נגבה בעת ההזמנה ומבטיח את מקומכם.'
-                        : 'הכרטיס נתפס בלבד ולא מחויב. חיוב רק במקרה של אי-הגעה.'}
-                    </div>
-                  </div>
-                )}
-                {dayEvent.capacity != null && (
-                  <div className="mt-3 text-[13px] font-bold" style={{ color: dayEvent.sold_out ? '#A04A2E' : '#44512C' }}>
-                    {dayEvent.sold_out
-                      ? 'האירוע מלא — אין מקומות פנויים'
-                      : `נותרו ${dayEvent.seats_left} מקומות מתוך ${dayEvent.capacity}`}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           <div>
             <Label icon={<Calendar className="w-4 h-4" />}>תאריך</Label>
             {PRESET.only ? (
