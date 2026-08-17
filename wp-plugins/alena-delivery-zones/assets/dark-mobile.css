@@ -2664,3 +2664,18 @@
     box-shadow: inset 0 0 0 1px var(--accent) !important;
   }
 }
+
+/* The note field is the point; the chips are shortcuts into it. Say so, and
+   make sure the box itself never gets lost among them. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-note-chips-sub {
+    font-size: 13px !important;
+    color: var(--ink-2) !important;
+    -webkit-text-fill-color: var(--ink-2) !important;
+    margin: -4px 0 8px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile #order_comments {
+    min-height: 84px !important;
+    font-size: 16px !important;
+  }
+}

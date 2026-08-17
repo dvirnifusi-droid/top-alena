@@ -28,7 +28,14 @@ class Alena_DZ_Order_Notes {
     public static function defaults(): array {
         return [
             'kitchen'  => ['ללא בצל', 'בלי חריף', 'ללא גלוטן', 'ללא חמוצים'],
-            'delivery' => ['להשאיר ליד הדלת', 'להתקשר כשמגיעים'],
+            'delivery' => [
+                'להשאיר ליד הדלת',
+                'להתקשר כשמגיעים',
+                'לא לצלצל בפעמון',
+                'להשאיר אצל השומר',
+                'יש חניה בחצר',
+                'הכניסה מהחניון',
+            ],
         ];
     }
 
@@ -71,10 +78,9 @@ class Alena_DZ_Order_Notes {
         $split = function ($raw) {
             // No regex: normalise CR out, then split on LF. Avoids escape
             // sequences entirely, which is what mangled this once already.
-            $raw = str_replace("", '', (string) $raw);
+            $raw = str_replace(chr(13), '', (string) $raw);
             $out = [];
-            foreach (explode("
-", $raw) as $line) {
+            foreach (explode(chr(10), $raw) as $line) {
                 $line = trim(sanitize_text_field($line));
                 if ($line !== '') $out[] = $line;
             }
@@ -103,15 +109,13 @@ class Alena_DZ_Order_Notes {
                 <th><label for="chips_kitchen">הערות למטבח</label><br>
                     <span class="description">מוצגות תמיד</span></th>
                 <td><textarea id="chips_kitchen" name="chips_kitchen" rows="7" cols="40"><?php
-                    echo esc_textarea(implode("
-", $c['kitchen'])); ?></textarea></td>
+                    echo esc_textarea(implode(chr(10), $c['kitchen'])); ?></textarea></td>
               </tr>
               <tr>
                 <th><label for="chips_delivery">הערות לשליח</label><br>
                     <span class="description">מוצגות רק בהזמנת משלוח — באיסוף עצמי הן חסרות משמעות</span></th>
                 <td><textarea id="chips_delivery" name="chips_delivery" rows="5" cols="40"><?php
-                    echo esc_textarea(implode("
-", $c['delivery'])); ?></textarea></td>
+                    echo esc_textarea(implode(chr(10), $c['delivery'])); ?></textarea></td>
               </tr>
             </table>
             <?php submit_button('שמור'); ?>
@@ -124,6 +128,7 @@ class Alena_DZ_Order_Notes {
         ?>
         <div class="alena-note-chips-wrap">
           <div class="alena-note-chips-title">📝 משהו שחשוב שנדע?</div>
+          <div class="alena-note-chips-sub">אפשר ללחוץ על מה שמתאים, ולהוסיף כל דבר אחר בשדה שמתחת</div>
           <div class="alena-note-chips">
             <?php foreach ($this->chips() as $chip): ?>
               <button type="button" class="alena-note-chip" data-text="<?php echo esc_attr($chip); ?>">
