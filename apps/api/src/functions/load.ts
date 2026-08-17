@@ -13121,6 +13121,115 @@ registerFn('createReservationChecked', async ({ body, user }: any) => {
   return { success: true, reservation: res.reservation };
 });
 
+
+// ── Day events — selling one specific evening ──────────────────────────────
+// The booking page knew only recurring weeknights, hardcoded in the frontend.
+// A restaurant selling a party on the 28th had nowhere to say what the evening
+// is, and no way to cap it below the room's normal capacity.
+//
+// Isolated raw-SQL table, created on demand: no Prisma model, so a tenant that
+// never uses this carries no schema change and no P2022 risk.
+let _dayEventsEnsured = false;
+async function ensureDayEvents(): Promise<void> {
+  if (_dayEventsEnsured) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "DayEvent" (
+       "id" TEXT PRIMARY KEY,
+       "event_date" DATE NOT NULL,
+       "title" TEXT,
+       "description" TEXT,
+       "image_url" TEXT,
+       "capacity" INTEGER,
+       "active" BOOLEAN NOT NULL DEFAULT true,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "DayEvent_date" ON "DayEvent" ("event_date")`).catch(() => {});
+  _dayEventsEnsured = true;
+}
+
+const ymd = (v: any) => {
+  const s = String(v || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+};
+
+/** Seats already taken for a date — the sum of party sizes, not a row count. */
+async function seatsBookedOn(date: string): Promise<number> {
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT COALESCE(SUM("party_size"),0) AS n FROM "Reservation"
+     WHERE "date"::date = $1::date AND COALESCE("status",'') NOT IN ('cancelled','no_show')`, date,
+  ).catch(() => []);
+  return Number(rows[0]?.n || 0);
+}
+
+registerFn('listDayEvents', async ({ user }: any) => {
+  await requireBackOffice(user, 'listDayEvents');
+  await ensureDayEvents();
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT * FROM "DayEvent" WHERE "event_date" >= CURRENT_DATE - INTERVAL '30 days'
+     ORDER BY "event_date" ASC`).catch(() => []);
+  const out = [];
+  for (const r of rows) {
+    const d = String(r.event_date).slice(0, 10);
+    out.push({ ...r, event_date: d, seats_booked: r.capacity ? await seatsBookedOn(d) : null });
+  }
+  return { ok: true, events: out };
+});
+
+registerFn('saveDayEvent', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'saveDayEvent');
+  await ensureDayEvents();
+  const b = (body || {}) as any;
+  const date = ymd(b.event_date);
+  if (!date) throw new Error('תאריך לא תקין');
+  const title = String(b.title || '').trim();
+  if (!title) throw new Error('חסרה כותרת');
+  const cap = Number(b.capacity);
+  const capacity = Number.isFinite(cap) && cap > 0 ? Math.trunc(cap) : null;
+  const { randomUUID } = await import('node:crypto');
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "DayEvent" ("id","event_date","title","description","image_url","capacity","active","updatedAt")
+     VALUES ($1,$2::date,$3,$4,$5,$6,$7,NOW())
+     ON CONFLICT ("event_date") DO UPDATE SET
+       title=$3, description=$4, image_url=$5, capacity=$6, active=$7, "updatedAt"=NOW()`,
+    randomUUID(), date, title, String(b.description || '').trim() || null,
+    String(b.image_url || '').trim() || null, capacity, b.active !== false,
+  );
+  return { ok: true };
+});
+
+registerFn('deleteDayEvent', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'deleteDayEvent');
+  await ensureDayEvents();
+  const date = ymd((body || {}).event_date);
+  if (!date) throw new Error('תאריך לא תקין');
+  await (prisma as any).$executeRawUnsafe(`DELETE FROM "DayEvent" WHERE "event_date" = $1::date`, date);
+  return { ok: true };
+});
+
+// PUBLIC — what the guest sees for a given date, plus how much room is left.
+registerFn('getPublicDayEvent', async ({ body }: any) => {
+  await ensureDayEvents();
+  const date = ymd((body || {}).date);
+  if (!date) return { ok: true, event: null };
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT * FROM "DayEvent" WHERE "event_date" = $1::date AND "active" = true LIMIT 1`, date,
+  ).catch(() => []);
+  const e = rows[0];
+  if (!e) return { ok: true, event: null };
+  const booked = e.capacity ? await seatsBookedOn(date) : 0;
+  return {
+    ok: true,
+    event: {
+      title: e.title, description: e.description, image_url: e.image_url,
+      capacity: e.capacity ?? null,
+      seats_left: e.capacity ? Math.max(0, e.capacity - booked) : null,
+      sold_out: e.capacity ? booked >= e.capacity : false,
+    },
+  };
+}, { public: true });
+
 registerFn('createPublicReservation', async ({ body, req }: any) => {
   await ensureReservationSourceCols();
   const brand = await getBrandName();
@@ -13153,6 +13262,25 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       if (t != null && open != null && close != null) {
         const inHours = close > open ? (t >= open && t <= close) : (t >= open || t <= close);
         if (!inHours) return { success: false, reason: 'outside_opening_hours' };
+      }
+    }
+  }
+  // A day event can cap the evening below the room's normal capacity. Checked
+  // here rather than in the page, because a direct POST bypasses the page.
+  {
+    await ensureDayEvents();
+    const d = ymd(date);
+    if (d) {
+      const evRows: any[] = await (prisma as any).$queryRawUnsafe(
+        `SELECT capacity FROM "DayEvent" WHERE "event_date"=$1::date AND active=true LIMIT 1`, d,
+      ).catch(() => []);
+      const cap = Number(evRows[0]?.capacity || 0);
+      if (cap > 0) {
+        const booked = await seatsBookedOn(d);
+        const want = Number(party_size) || 0;
+        if (booked + want > cap) {
+          return { success: false, reason: 'event_full', seats_left: Math.max(0, cap - booked) };
+        }
       }
     }
   }

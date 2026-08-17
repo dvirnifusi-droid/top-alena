@@ -173,6 +173,8 @@ const PRESET = typeof window !== 'undefined' ? linkPreset() : { date: null, only
 export default function PublicReservationPage() {
   const [t, lang] = useI18n();
   const [date, setDate] = useState(PRESET.date || new Date());
+  // What's on that specific evening, if the business set anything up for it.
+  const [dayEvent, setDayEvent] = useState(null);
   const [time, setTime] = useState('');
   const [partySize, setPartySize] = useState(2);
   const [customerName, setCustomerName] = useState('');
@@ -235,6 +237,21 @@ export default function PublicReservationPage() {
 
   // --- SEO: Alena points to its showcase URL; every other tenant is its OWN
   // canonical (pointing them at Alena would hand their SEO to Alena).
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const iso = format(date, 'yyyy-MM-dd');
+        const d = await invokePublic('getPublicDayEvent', { date: iso });
+        if (!dead) setDayEvent(d?.event || null);
+      } catch {
+        // A missing day event is the normal case — never block the page for it.
+        if (!dead) setDayEvent(null);
+      }
+    })();
+    return () => { dead = true; };
+  }, [date]);
+
   useEffect(() => {
     const PRIMARY = isMainAlena()
       ? 'https://alena.topalena.com/reserve'
@@ -916,6 +933,34 @@ export default function PublicReservationPage() {
 
           {/* Date / Time / Form — hidden when party > 12 (events flow active) */}
           {!isEventSize && <>
+          {/* What's on that evening. Sits above the date so a guest who followed
+              an event link reads the event first and the form second. */}
+          {dayEvent && (
+            <div
+              className="rounded-2xl overflow-hidden mb-4"
+              style={{ border: '1px solid rgba(184,149,86,0.45)', background: '#FFFEFB' }}
+            >
+              {dayEvent.image_url && (
+                <img src={dayEvent.image_url} alt={dayEvent.title || ''} className="w-full h-40 object-cover" />
+              )}
+              <div className="p-4">
+                <div className="text-lg font-black" style={{ color: '#A04A2E' }}>{dayEvent.title}</div>
+                {dayEvent.description && (
+                  <p className="text-sm mt-1.5 whitespace-pre-wrap leading-relaxed" style={{ color: '#44512C' }}>
+                    {dayEvent.description}
+                  </p>
+                )}
+                {dayEvent.capacity != null && (
+                  <div className="mt-3 text-[13px] font-bold" style={{ color: dayEvent.sold_out ? '#A04A2E' : '#44512C' }}>
+                    {dayEvent.sold_out
+                      ? 'האירוע מלא — אין מקומות פנויים'
+                      : `נותרו ${dayEvent.seats_left} מקומות מתוך ${dayEvent.capacity}`}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div>
             <Label icon={<Calendar className="w-4 h-4" />}>תאריך</Label>
             {PRESET.only ? (

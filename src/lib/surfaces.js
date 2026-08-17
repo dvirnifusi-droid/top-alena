@@ -492,8 +492,12 @@ export const SURFACES = [
             "label": "📊 דאשבורד הזמנות"
           },
           {
+            "page": "DayEvents",
+            "label": "ערבים מיוחדים"
+          },
+          {
             "page": "PublicReservationSettings",
-            "label": "נהל את ההגדרות הכלליות והזמנות"
+            "label": "הגדרות עמוד ההזמנות"
           },
           {
             "page": "DepositSettings",

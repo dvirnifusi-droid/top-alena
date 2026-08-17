@@ -154,6 +154,7 @@ import AdminWhatsAppInbox from './pages/AdminWhatsAppInbox';
 import AdminSettings from './pages/AdminSettings';
 import AppBuilder from './pages/AppBuilder';
 import AgreementAdmin from './pages/AgreementAdmin';
+import DayEvents from './pages/DayEvents';
 import AreaHome from './pages/AreaHome';
 import AreaShift from './pages/AreaShift';
 import AreaTeam from './pages/AreaTeam';
@@ -315,6 +316,7 @@ export const PAGES = {
     "AdminSettings": AdminSettings,
     "AppBuilder": AppBuilder,
     "AgreementAdmin": AgreementAdmin,
+    "DayEvents": DayEvents,
     "AreaHome": AreaHome,
     "AreaShift": AreaShift,
     "AreaTeam": AreaTeam,
