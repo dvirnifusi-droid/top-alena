@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Alena Delivery Zones
  * Description: Google Maps polygon-based delivery zones for WooCommerce. Owner draws delivery polygons on a map; the plugin adds a WC shipping method that geocodes the customer address and matches it to the right polygon (fee, min-order).
- * Version: 0.83.0
+ * Version: 0.84.0
  * Author: Alena / TOPALENA
  * Requires PHP: 7.4
  * Requires at least: 6.5
@@ -12,7 +12,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('ALENA_DZ_VERSION', '0.83.0');
+define('ALENA_DZ_VERSION', '0.84.0');
 define('ALENA_DZ_PATH', plugin_dir_path(__FILE__));
 define('ALENA_DZ_URL',  plugin_dir_url(__FILE__));
 
@@ -33,6 +33,7 @@ require_once ALENA_DZ_PATH . 'includes/class-address-autocomplete.php';
 require_once ALENA_DZ_PATH . 'includes/class-modifiers.php';
 require_once ALENA_DZ_PATH . 'includes/class-combos.php';
 require_once ALENA_DZ_PATH . 'includes/class-features.php';
+require_once ALENA_DZ_PATH . 'includes/class-webhook-payload.php';
 require_once ALENA_DZ_PATH . 'includes/class-payment-wallets.php';
 require_once ALENA_DZ_PATH . 'includes/class-cart-enhancements.php';
 require_once ALENA_DZ_PATH . 'includes/class-mobile-ux.php';
@@ -76,6 +77,7 @@ add_action('plugins_loaded', function () {
     new Alena_DZ_Modifiers();
     new Alena_DZ_Combos();
     new Alena_DZ_Features();
+    new Alena_DZ_Webhook_Payload();
     new Alena_DZ_Payment_Wallets();
     new Alena_DZ_Cart_Enhancements();
     new Alena_DZ_Mobile_UX();

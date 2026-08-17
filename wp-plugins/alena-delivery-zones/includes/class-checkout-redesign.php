@@ -155,12 +155,17 @@ class Alena_DZ_Checkout_Redesign {
                 if ($rate->get_method_id() === 'local_pickup' || $rate->get_method_id() === 'alena_pickup') { $has_pickup = true; break; }
             }
             if (!$has_pickup && class_exists('WC_Shipping_Rate')) {
-                $rates['alena_pickup'] = new WC_Shipping_Rate(
-                    'alena_pickup',
+                // METHOD ID MUST BE local_pickup. It used to be a made-up
+                // 'alena_pickup', and no integration recognises that: Miley read
+                // an unknown method, fell back to delivery, and printed a
+                // collection order with the customer's home address on it.
+                // local_pickup is what every POS and courier system looks for.
+                $rates['local_pickup:alena'] = new WC_Shipping_Rate(
+                    'local_pickup:alena',
                     'איסוף עצמי — רוטשילד 104, ראשון לציון',
                     0,
                     [],
-                    'alena_pickup'
+                    'local_pickup'
                 );
             }
         } else {
