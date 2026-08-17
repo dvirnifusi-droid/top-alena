@@ -100,7 +100,7 @@ class Alena_DZ_Cart_Redesign {
 
         echo '<div class="alena-trust-row">';
         echo '<span class="alena-trust-pill">⭐ <strong>4.9</strong> · אהוב על אלפי לקוחות</span>';
-        echo '<span class="alena-trust-pill">✅ כשר למהדרין</span>';
+        echo '<span class="alena-trust-pill">✅ כשר</span>';
         echo '<span class="alena-trust-pill">' . esc_html($hours_label) . '</span>';
         echo '</div>';
     }
