@@ -1471,15 +1471,30 @@ export default function PublicReservationPage() {
             </div>
           )}
 
-          {/* Deposit notice — kept gentle & reassuring (secures the card, doesn't charge) */}
+          {/* Money notice. A hold and a ticket are not the same promise: the hold
+              copy says the money doesn't leave the account, which would be a lie
+              on a ticketed evening where it is charged at booking. */}
           {depositInfo?.required && (
-            <div className="rounded-2xl p-3 border-2 border-emerald-300 bg-emerald-50 mb-2">
-              <div className="font-bold text-sm text-emerald-900 mb-1">💳 שמירת שולחן — רק מאבטחים את הכרטיס</div>
-              <div className="text-[12px] text-emerald-800 leading-relaxed">
-                בסיום ההזמנה נבקש כרטיס אשראי ל<strong>אבטחה בלבד</strong> — הכסף <strong>לא יורד</strong> מהחשבון, זו רק פורמליות ששומרת לך את השולחן. <br/>
-                ביטול חופשי עד {depositInfo.cancel_hours} שעות לפני. רק אם לא תגיעו ולא תבטלו — נחויב ₪{depositInfo.amount_ils}.
+            depositInfo.day_event?.mode === 'ticket' ? (
+              <div className="rounded-2xl p-3 border-2 mb-2" style={{ borderColor: '#D9BD83', background: '#FAF6EC' }}>
+                <div className="font-bold text-sm mb-1" style={{ color: '#A04A2E' }}>
+                  🎟️ רכישת כרטיס — ₪{depositInfo.amount_ils}
+                </div>
+                <div className="text-[12px] leading-relaxed" style={{ color: '#44512C' }}>
+                  בסיום ההזמנה תועברו לתשלום מאובטח. הסכום <strong>נגבה עכשיו</strong> ומבטיח את מקומכם בערב.
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-2xl p-3 border-2 border-emerald-300 bg-emerald-50 mb-2">
+                <div className="font-bold text-sm text-emerald-900 mb-1">💳 שמירת שולחן — רק מאבטחים את הכרטיס</div>
+                <div className="text-[12px] text-emerald-800 leading-relaxed">
+                  בסיום ההזמנה נבקש כרטיס אשראי ל<strong>אבטחה בלבד</strong> — הכסף <strong>לא יורד</strong> מהחשבון, זו רק פורמליות ששומרת לך את השולחן. <br/>
+                  {depositInfo.day_event
+                    ? <>פיקדון של ₪{depositInfo.amount_ils} לערב. חיוב רק במקרה של אי-הגעה.</>
+                    : <>ביטול חופשי עד {depositInfo.cancel_hours} שעות לפני. רק אם לא תגיעו ולא תבטלו — נחויב ₪{depositInfo.amount_ils}.</>}
+                </div>
+              </div>
+            )
           )}
 
           {/* Marketing consent — Israeli Spam Law (Section 30A) requires explicit opt-in for any non-transactional message */}

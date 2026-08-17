@@ -12011,6 +12011,39 @@ async function computeDepositRequirement(params: {
 }) {
   const { date, time, party_size, is_event } = params;
   const settings: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+
+  // An evening the owner priced overrides the standing rules, and it applies
+  // even when the no-show deposit system is switched off — that toggle governs
+  // the policy for ordinary nights, not a ticket the guest was just told they're
+  // buying. Checked first so both the quote shown before booking and the charge
+  // taken during it come from one place; they used to come from none, because
+  // the function that priced an evening had no caller at all.
+  try {
+    await ensureDayEvents();
+    const evRows: any[] = await (prisma as any).$queryRawUnsafe(
+      `SELECT * FROM "DayEvent" WHERE "event_date"=$1::date AND active=true LIMIT 1`, date,
+    ).catch(() => []);
+    const ev = evRows[0];
+    const evMode = ev?.payment_mode || 'none';
+    const evUnit = Math.round(Number(ev?.price) || 0);
+    if (ev && evMode !== 'none' && evUnit > 0) {
+      const sz2 = Math.max(1, Number(party_size) || 1);
+      const gross = ev.charge_per === 'booking' ? evUnit : evUnit * sz2;
+      return {
+        required: true,
+        amount_ils: capDepositAmount(gross, sz2),
+        reason: `${evMode === 'ticket' ? 'כרטיס' : 'פיקדון'} לערב "${ev.title || date}"`,
+        free_cancel_until_iso: null,
+        // A ticket is charged (1); a deposit stays a J5 hold (2), matching the
+        // wording printed on the booking page.
+        charge_method: evMode === 'ticket' ? 1 : 2,
+        day_event: { title: ev.title || '', mode: evMode, unit: evUnit, charge_per: ev.charge_per || 'person' },
+      };
+    }
+  } catch (e: any) {
+    console.warn('[computeDepositRequirement] day-event pricing skipped', e?.message);
+  }
+
   if (!settings || !settings.enabled) {
     return { required: false, amount_ils: 0, reason: 'מערכת פיקדון לא פעילה', free_cancel_until_iso: null };
   }
@@ -13256,58 +13289,6 @@ registerFn('getPublicDayEvent', async ({ body }: any) => {
   };
 }, { public: true });
 
-// PUBLIC — payment link for a booking on a paid evening. Charge or hold is
-// decided by the event, never by the caller: a client that could pick would be
-// a client that could turn a ₪120 ticket into a ₪0 hold.
-registerFn('getDayEventPaymentLink', async ({ body, req }: any) => {
-  await ensureDayEvents();
-  const b = (body || {}) as any;
-  const date = ymd(b.date);
-  const partySize = Math.max(1, Math.round(Number(b.party_size) || 1));
-  if (!date) throw new Error('תאריך לא תקין');
-
-  const rows: any[] = await (prisma as any).$queryRawUnsafe(
-    `SELECT * FROM "DayEvent" WHERE "event_date"=$1::date AND active=true LIMIT 1`, date,
-  ).catch(() => []);
-  const ev = rows[0];
-  const mode = ev?.payment_mode || 'none';
-  if (!ev || mode === 'none') return { ok: true, required: false };
-
-  const unit = Math.round(Number(ev.price) || 0);
-  if (unit <= 0) return { ok: true, required: false };
-  const amount = ev.charge_per === 'booking' ? unit : unit * partySize;
-
-  const s: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
-  const cred = s?.provider_credentials;
-  if (!cred?.api_key || !cred?.payment_page_uid) {
-    // Said out loud rather than silently letting the guest book for free — an
-    // evening configured to charge but with no terminal is a setup mistake.
-    return { ok: false, required: true, reason: 'payplus_not_configured' };
-  }
-
-  const host = (req as any)?.headers?.host || (process.env.PUBLIC_BASE_URL || 'topalena.com').replace(/^https?:\/\//, '');
-  const base = `https://${host}`;
-  const link = await payplusGenerateLink(cred, {
-    amount,
-    charge_method: mode === 'ticket' ? 1 : 2,
-    customer: {
-      customer_name: String(b.customer_name || ''),
-      email: String(b.customer_email || ''),
-      phone: String(b.customer_phone || ''),
-    },
-    more_info: `dayevent_${date}_${partySize}`,
-    callback_url: `${base}/api/public/fn/payplusCallback`,
-    success_url: `${base}/PublicReservation?date=${date}&only=1&paid=1`,
-    failure_url: `${base}/PublicReservation?date=${date}&only=1&failed=1`,
-  } as any);
-
-  return {
-    ok: true, required: true, mode, amount,
-    charge_per: ev.charge_per || 'person',
-    link: (link as any)?.payment_page_link || null,
-  };
-}, { public: true });
-
 registerFn('createPublicReservation', async ({ body, req }: any) => {
   await ensureReservationSourceCols();
   const brand = await getBrandName();
@@ -13499,16 +13480,26 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   const customer_email = (body as any)?.customer_email
     ? String((body as any).customer_email).slice(0, 200).trim() : null;
   const marketing_consent = !!(body as any)?.marketing_consent;
-  const depositInfo = await computeDepositRequirement({
+  const depositInfo: any = await computeDepositRequirement({
     date, time, party_size: size, is_event: false,
   }).catch(() => ({ required: false, amount_ils: 0 }));
+
+  // Set when the evening carries its own price — see computeDepositRequirement.
+  const eventChargeMethod: number | null = depositInfo?.charge_method ?? null;
   // Will we collect the deposit online (redirect to PayPlus)? Only if required, PayPlus
   // configured+enabled, and not standby. If so, the booking stays 'pending' and NO
   // confirmation is sent until the card is placed — the webhook flips it to 'confirmed'
   // and sends the confirmation then.
   const depSettings: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
   const depCred = depSettings?.provider_credentials;
-  const willCollectDeposit = !!(depositInfo.required && (depositInfo as any).amount_ils > 0 && !isStandby && depSettings?.enabled && depCred?.api_key && depCred?.payment_page_uid);
+  // An evening priced by the owner collects even if the standing deposit system
+  // is switched off — that toggle governs the no-show policy, not a ticket the
+  // guest was just told they're buying.
+  const willCollectDeposit = !!(
+    depositInfo.required && (depositInfo as any).amount_ils > 0 && !isStandby
+    && (depSettings?.enabled || eventChargeMethod !== null)
+    && depCred?.api_key && depCred?.payment_page_uid
+  );
 
   // ── DUPLICATE GUARD ───────────────────────────────────────────────────────
   // There was no server-side dedupe at all: a refresh-resubmit, a browser Back
@@ -13935,7 +13926,7 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       const hostBase = `https://${host}`;
       const link = await payplusGenerateLink(depCred, {
         amount: (depositInfo as any).amount_ils,
-        charge_method: depositChargeMethod(depCred),
+        charge_method: eventChargeMethod ?? depositChargeMethod(depCred),
         customer: { customer_name: String(customer_name).trim(), email: customer_email || '', phone: String(customer_phone).trim() },
         more_info: reservation.id,
         callback_url: `${hostBase}/api/public/fn/payplusCallback`,
