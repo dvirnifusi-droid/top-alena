@@ -13155,7 +13155,14 @@ async function ensureDayEvents(): Promise<void> {
   _dayEventsEnsured = true;
 }
 
+// Postgres DATE arrives from a raw query as a JS Date, and String(date) on one
+// yields "Fri Aug 28 2026 …" — slicing that gave "Fri Aug 28", which is what
+// ended up inside the shareable link and broke it. Dates are formatted from
+// their UTC parts instead of being stringified.
 const ymd = (v: any) => {
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return `${v.getUTCFullYear()}-${String(v.getUTCMonth() + 1).padStart(2, '0')}-${String(v.getUTCDate()).padStart(2, '0')}`;
+  }
   const s = String(v || '').slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
 };
@@ -13177,7 +13184,8 @@ registerFn('listDayEvents', async ({ user }: any) => {
      ORDER BY "event_date" ASC`).catch(() => []);
   const out = [];
   for (const r of rows) {
-    const d = String(r.event_date).slice(0, 10);
+    const d = ymd(r.event_date);
+    if (!d) continue;
     out.push({ ...r, event_date: d, seats_booked: r.capacity ? await seatsBookedOn(d) : null });
   }
   return { ok: true, events: out };

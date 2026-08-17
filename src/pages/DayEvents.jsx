@@ -70,16 +70,24 @@ export default function DayEvents() {
     } finally { setUploading(false); }
   };
 
-  const linkFor = (d) => `${window.location.origin}/PublicReservation?date=${d}&only=1`;
+  // Only ever build a link from a real YYYY-MM-DD. A malformed date used to sail
+  // straight into the shareable link and produce a page pointing at the wrong
+  // year, which is worse than refusing to copy.
+  const linkFor = (d) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''))
+      ? `${window.location.origin}/PublicReservation?date=${d}&only=1`
+      : null;
   const copy = async (d) => {
+    const url = linkFor(d);
+    if (!url) { toast({ title: 'תאריך לא תקין', description: 'שמור/י את הערב מחדש', variant: 'destructive' }); return; }
     try {
-      await navigator.clipboard.writeText(linkFor(d));
+      await navigator.clipboard.writeText(url);
       setCopied(d);
       setTimeout(() => setCopied(''), 1800);
     } catch {
       // Clipboard is blocked outside a secure context or without permission —
       // show the link so it can still be copied by hand.
-      toast({ title: 'העתק ידנית', description: linkFor(d) });
+      toast({ title: 'העתק ידנית', description: url });
     }
   };
 
