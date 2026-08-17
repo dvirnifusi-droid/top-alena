@@ -213,17 +213,14 @@ class Alena_DZ_Cart_Drawer {
         </div>
         <?php endif; ?>
 
-        <div class="alena-drawer-note">
-          <label for="alena-drawer-note-input">📝 הערה למסעדה / שליח</label>
-          <div class="alena-drawer-note-chips">
-            <button type="button" class="alena-drawer-chip" data-text="ללא בצל">ללא בצל</button>
-            <button type="button" class="alena-drawer-chip" data-text="בלי חריף">בלי חריף</button>
-            <button type="button" class="alena-drawer-chip" data-text="ללא גלוטן">ללא גלוטן</button>
-            <button type="button" class="alena-drawer-chip" data-text="להשאיר ליד הדלת">ליד הדלת</button>
-            <button type="button" class="alena-drawer-chip" data-text="להתקשר כשמגיעים">להתקשר כשמגיעים</button>
-          </div>
-          <textarea id="alena-drawer-note-input" placeholder="אלרגיות, מגבלות, הוראות מיוחדות…" rows="2"></textarea>
-        </div>
+        <?php
+        // The note box used to live here and silently threw the text away:
+        // the drawer posted it to admin-ajax as `alena_cart_drawer_note` and no
+        // handler for that action existed, so an allergy note reached nobody.
+        // It is now on the checkout, wired to WooCommerce's own order note.
+        // See includes/class-order-notes.php
+        ?>
+
 
         <div class="alena-drawer-summary">
           <div class="alena-drawer-summary-row">

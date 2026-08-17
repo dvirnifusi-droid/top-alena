@@ -151,8 +151,9 @@ jQuery(function ($) {
     // folding the div alone hid nothing -- the bar appeared and every field
     // stayed on screen. Collect the rows by their labels and fold those too.
     var WANT = ['\u05db\u05e0\u05d9\u05e1\u05d4', '\u05e7\u05d5\u05de\u05d4', '\u05d3\u05d9\u05e8\u05d4',
-                '\u05e7\u05d5\u05d3 \u05dc\u05dc\u05d5\u05d1\u05d9', '\u05e9\u05dd \u05e2\u05dc \u05d4\u05d3\u05dc\u05ea',
-                '\u05d4\u05e2\u05e8\u05d5\u05ea'];
+                '\u05e7\u05d5\u05d3 \u05dc\u05dc\u05d5\u05d1\u05d9', '\u05e9\u05dd \u05e2\u05dc \u05d4\u05d3\u05dc\u05ea'];
+    // NOT the note field: allergies and delivery instructions must be
+    // visible, not hidden one tap deep behind "more details".
     var $rows = $('#customer_details p.form-row').filter(function () {
       var t = ($(this).find('label').first().text() || '').replace(/[*\s]+/g, ' ').trim();
       for (var i = 0; i < WANT.length; i++) { if (t.indexOf(WANT[i]) === 0) return true; }
