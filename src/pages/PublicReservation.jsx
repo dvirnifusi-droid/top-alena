@@ -151,9 +151,28 @@ function captureAttribution() {
 // PAGE
 // ============================================================================
 
+// A link can pin the page to one day: ?date=2026-08-28 opens on that date,
+// &only=1 hides the day picker entirely so the page books that day and no
+// other. Used for a party, a chef's night, a holiday — anything where the
+// business is selling one specific evening rather than "come whenever".
+// &title= replaces the heading so the guest sees the event, not the venue.
+function linkPreset() {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    const raw = (p.get('date') || '').trim();
+    let d = null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const parsed = parse(raw, 'yyyy-MM-dd', new Date());
+      if (!isNaN(parsed.getTime())) d = parsed;
+    }
+    return { date: d, only: p.get('only') === '1' && !!d, title: (p.get('title') || '').trim().slice(0, 80) };
+  } catch { return { date: null, only: false, title: '' }; }
+}
+const PRESET = typeof window !== 'undefined' ? linkPreset() : { date: null, only: false, title: '' };
+
 export default function PublicReservationPage() {
   const [t, lang] = useI18n();
-  const [date, setDate] = useState(new Date());
+  const [date, setDate] = useState(PRESET.date || new Date());
   const [time, setTime] = useState('');
   const [partySize, setPartySize] = useState(2);
   const [customerName, setCustomerName] = useState('');
@@ -899,6 +918,17 @@ export default function PublicReservationPage() {
           {!isEventSize && <>
           <div>
             <Label icon={<Calendar className="w-4 h-4" />}>תאריך</Label>
+            {PRESET.only ? (
+              <div
+                className="mt-2 rounded-xl px-4 py-3 text-center"
+                style={{ background: '#FFFEFB', border: '1px solid rgba(184,149,86,0.35)', color: '#44512C' }}
+              >
+                <div className="text-[11px] font-bold opacity-70">{format(date, 'EEEE', { locale: he })}</div>
+                <div className="text-2xl font-black leading-tight mt-0.5">{format(date, 'd בMMMM', { locale: he })}</div>
+                <div className="text-[11px] opacity-70 mt-0.5">ההזמנה לתאריך הזה בלבד</div>
+              </div>
+            ) : (
+            <>
             <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
               {dateOptions.map(d => {
                 const active = isSameDay(d, date);
@@ -963,6 +993,8 @@ export default function PublicReservationPage() {
               tabIndex={-1}
               aria-hidden="true"
             />
+            </>
+            )}
             {/* Day-level specials tag — visible as soon as a date is picked */}
             {(() => {
               const dayItems = getDaySpecials(date, openingHours);
