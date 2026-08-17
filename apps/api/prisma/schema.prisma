@@ -3336,3 +3336,39 @@ model ChecklistItemExample {
 
   @@index([checklist_id, item_order])
 }
+
+// Orders pulled in from the WooCommerce storefront. See
+// docs/WOO-TOPALENA-ORDERS-SPEC.md. No tenantId: every tenant runs its own
+// database, so the container the row lands in IS the tenant.
+model WooOrder {
+  id            String   @id @default(cuid())
+  wooOrderId    Int      @unique          // idempotency key for retries + reconcile
+  wooNumber     String
+  stage         String   @default("received") // received|accepted|ready|out|delivered|cancelled
+  prepMinutes   Int?                        // what the kitchen promised
+  promisedAt    DateTime?                   // set on accept; lateness is measured from here
+  fulfillment   String   @default("delivery")
+  courierToken  String?  @unique            // per-order link for external couriers
+  courierSentAt DateTime?
+  customerName  String
+  customerPhone String?
+  address       String?
+  total         String
+  items         Json
+  placedAt      DateTime
+  syncedAt      DateTime @updatedAt
+  lastError     String?
+
+  @@index([stage, placedAt])
+}
+
+model WooOrderEvent {
+  id        String   @id @default(cuid())
+  wooOrderId Int
+  stage     String
+  actorId   String?
+  actorName String
+  at        DateTime @default(now())
+
+  @@index([wooOrderId, at])
+}
