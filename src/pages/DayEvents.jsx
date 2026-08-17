@@ -13,7 +13,8 @@ import { useToast } from '@/components/ui/use-toast';
 // "ערב מיוחד" — everything the guest sees for one specific date, and a cap for
 // that evening. Until now the booking page only knew recurring weeknights, and
 // those were hardcoded, so selling a single night wasn't possible at all.
-const EMPTY = { event_date: '', title: '', description: '', image_url: '', capacity: '', active: true };
+const EMPTY = { event_date: '', title: '', description: '', image_url: '', capacity: '',
+  payment_mode: 'none', price: '', charge_per: 'person', active: true };
 
 export default function DayEvents() {
   const { toast } = useToast();
@@ -119,6 +120,60 @@ export default function DayEvents() {
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
           </div>
+          <div className="rounded-lg p-3" style={{ background: '#FAF6EC', border: '1px solid #E3D3AC' }}>
+            <Label>תשלום</Label>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {[
+                { id: 'none', t: 'ללא תשלום', d: 'שמירת מקום בלבד' },
+                { id: 'deposit', t: 'פיקדון', d: 'תפיסת אשראי — נגבה רק אם לא הגיעו' },
+                { id: 'ticket', t: 'מכירת כרטיס', d: 'חיוב מיידי' },
+              ].map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, payment_mode: o.id }))}
+                  className="rounded-lg px-3 min-h-[40px] text-sm border"
+                  style={form.payment_mode === o.id
+                    ? { background: '#C9A15A', color: '#241811', borderColor: '#C9A15A', fontWeight: 700 }
+                    : { background: '#fff', color: '#5C4B3A', borderColor: '#E3D3AC' }}
+                >
+                  {o.t}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11.5px] text-slate-500 mt-1.5">
+              {form.payment_mode === 'ticket'
+                ? 'הכסף נגבה מיד. זהו אירוע מס — צריך מדיניות ביטול והחזר ברורה.'
+                : form.payment_mode === 'deposit'
+                  ? 'הכרטיס נתפס ולא מחויב. חיוב רק אם לא הגיעו, וידנית.'
+                  : 'האורח מזמין בלי לשלם.'}
+            </p>
+            {form.payment_mode !== 'none' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                <div>
+                  <Label>סכום (₪)</Label>
+                  <Input type="number" min="1" value={form.price}
+                    onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>לחשב לפי</Label>
+                  <div className="flex gap-1.5 mt-1">
+                    {[{ id: 'person', t: 'לכל סועד' }, { id: 'booking', t: 'להזמנה' }].map((o) => (
+                      <button key={o.id} type="button"
+                        onClick={() => setForm((f) => ({ ...f, charge_per: o.id }))}
+                        className="rounded-lg px-3 min-h-[40px] text-sm border flex-1"
+                        style={form.charge_per === o.id
+                          ? { background: '#F4ECD8', color: '#241811', borderColor: '#C9A15A', fontWeight: 700 }
+                          : { background: '#fff', color: '#5C4B3A', borderColor: '#E3D3AC' }}>
+                        {o.t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div>
             <Label>תמונה</Label>
             <div className="flex items-center gap-2 mt-1">

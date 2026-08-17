@@ -950,6 +950,19 @@ export default function PublicReservationPage() {
                     {dayEvent.description}
                   </p>
                 )}
+                {dayEvent.payment_mode && dayEvent.payment_mode !== 'none' && dayEvent.price > 0 && (
+                  <div className="mt-3 rounded-xl px-3 py-2" style={{ background: '#F4ECD8', border: '1px solid rgba(184,149,86,0.5)' }}>
+                    <div className="text-[13px] font-black" style={{ color: '#A04A2E' }}>
+                      {dayEvent.payment_mode === 'ticket' ? 'כרטיס' : 'פיקדון'} ₪{dayEvent.price}
+                      {dayEvent.charge_per === 'person' ? ' לכל סועד' : ' להזמנה'}
+                    </div>
+                    <div className="text-[11.5px] mt-0.5" style={{ color: '#44512C' }}>
+                      {dayEvent.payment_mode === 'ticket'
+                        ? 'התשלום נגבה בעת ההזמנה ומבטיח את מקומכם.'
+                        : 'הכרטיס נתפס בלבד ולא מחויב. חיוב רק במקרה של אי-הגעה.'}
+                    </div>
+                  </div>
+                )}
                 {dayEvent.capacity != null && (
                   <div className="mt-3 text-[13px] font-bold" style={{ color: dayEvent.sold_out ? '#A04A2E' : '#44512C' }}>
                     {dayEvent.sold_out

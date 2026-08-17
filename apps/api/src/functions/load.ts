@@ -13146,6 +13146,12 @@ async function ensureDayEvents(): Promise<void> {
      )`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(
     `CREATE UNIQUE INDEX IF NOT EXISTS "DayEvent_date" ON "DayEvent" ("event_date")`).catch(() => {});
+  // Payment per evening. 'none' books as usual; 'deposit' authorises the card
+  // without taking money (PayPlus J5) and is charged only on a no-show;
+  // 'ticket' charges immediately, which is a sale and a tax event on the spot.
+  for (const col of [`"payment_mode" TEXT`, `"price" INTEGER`, `"charge_per" TEXT`]) {
+    await (prisma as any).$executeRawUnsafe(`ALTER TABLE "DayEvent" ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
+  }
   _dayEventsEnsured = true;
 }
 
@@ -13188,13 +13194,22 @@ registerFn('saveDayEvent', async ({ user, body }: any) => {
   const cap = Number(b.capacity);
   const capacity = Number.isFinite(cap) && cap > 0 ? Math.trunc(cap) : null;
   const { randomUUID } = await import('node:crypto');
+  const mode = ['none', 'deposit', 'ticket'].includes(String(b.payment_mode)) ? String(b.payment_mode) : 'none';
+  const priceRaw = Math.round(Number(b.price) || 0);
+  // A paid evening with no price is a booking flow that silently asks for ₪0 —
+  // refuse it here rather than let a guest reach an empty payment page.
+  if (mode !== 'none' && priceRaw <= 0) throw new Error('סכום חייב להיות גדול מ-0 כשיש תשלום');
+  const price = mode === 'none' ? null : priceRaw;
+  const chargePer = String(b.charge_per) === 'booking' ? 'booking' : 'person';
   await (prisma as any).$executeRawUnsafe(
-    `INSERT INTO "DayEvent" ("id","event_date","title","description","image_url","capacity","active","updatedAt")
-     VALUES ($1,$2::date,$3,$4,$5,$6,$7,NOW())
+    `INSERT INTO "DayEvent" ("id","event_date","title","description","image_url","capacity","active","payment_mode","price","charge_per","updatedAt")
+     VALUES ($1,$2::date,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
      ON CONFLICT ("event_date") DO UPDATE SET
-       title=$3, description=$4, image_url=$5, capacity=$6, active=$7, "updatedAt"=NOW()`,
+       title=$3, description=$4, image_url=$5, capacity=$6, active=$7,
+       payment_mode=$8, price=$9, charge_per=$10, "updatedAt"=NOW()`,
     randomUUID(), date, title, String(b.description || '').trim() || null,
     String(b.image_url || '').trim() || null, capacity, b.active !== false,
+    mode, price, chargePer,
   );
   return { ok: true };
 });
@@ -13226,7 +13241,62 @@ registerFn('getPublicDayEvent', async ({ body }: any) => {
       capacity: e.capacity ?? null,
       seats_left: e.capacity ? Math.max(0, e.capacity - booked) : null,
       sold_out: e.capacity ? booked >= e.capacity : false,
+      payment_mode: e.payment_mode || 'none',
+      price: e.price ?? null,
+      charge_per: e.charge_per || 'person',
     },
+  };
+}, { public: true });
+
+// PUBLIC — payment link for a booking on a paid evening. Charge or hold is
+// decided by the event, never by the caller: a client that could pick would be
+// a client that could turn a ₪120 ticket into a ₪0 hold.
+registerFn('getDayEventPaymentLink', async ({ body, req }: any) => {
+  await ensureDayEvents();
+  const b = (body || {}) as any;
+  const date = ymd(b.date);
+  const partySize = Math.max(1, Math.round(Number(b.party_size) || 1));
+  if (!date) throw new Error('תאריך לא תקין');
+
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT * FROM "DayEvent" WHERE "event_date"=$1::date AND active=true LIMIT 1`, date,
+  ).catch(() => []);
+  const ev = rows[0];
+  const mode = ev?.payment_mode || 'none';
+  if (!ev || mode === 'none') return { ok: true, required: false };
+
+  const unit = Math.round(Number(ev.price) || 0);
+  if (unit <= 0) return { ok: true, required: false };
+  const amount = ev.charge_per === 'booking' ? unit : unit * partySize;
+
+  const s: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+  const cred = s?.provider_credentials;
+  if (!cred?.api_key || !cred?.payment_page_uid) {
+    // Said out loud rather than silently letting the guest book for free — an
+    // evening configured to charge but with no terminal is a setup mistake.
+    return { ok: false, required: true, reason: 'payplus_not_configured' };
+  }
+
+  const host = (req as any)?.headers?.host || (process.env.PUBLIC_BASE_URL || 'topalena.com').replace(/^https?:\/\//, '');
+  const base = `https://${host}`;
+  const link = await payplusGenerateLink(cred, {
+    amount,
+    charge_method: mode === 'ticket' ? 1 : 2,
+    customer: {
+      customer_name: String(b.customer_name || ''),
+      email: String(b.customer_email || ''),
+      phone: String(b.customer_phone || ''),
+    },
+    more_info: `dayevent_${date}_${partySize}`,
+    callback_url: `${base}/api/public/fn/payplusCallback`,
+    success_url: `${base}/PublicReservation?date=${date}&only=1&paid=1`,
+    failure_url: `${base}/PublicReservation?date=${date}&only=1&failed=1`,
+  } as any);
+
+  return {
+    ok: true, required: true, mode, amount,
+    charge_per: ev.charge_per || 'person',
+    link: (link as any)?.payment_page_link || null,
   };
 }, { public: true });
 
