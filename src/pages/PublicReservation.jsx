@@ -941,7 +941,11 @@ export default function PublicReservationPage() {
               style={{ border: '1px solid rgba(184,149,86,0.45)', background: '#FFFEFB' }}
             >
               {dayEvent.image_url && (
-                <img src={dayEvent.image_url} alt={dayEvent.title || ''} className="w-full h-40 object-cover" />
+                <img
+                  src={dayEvent.image_url}
+                  alt={dayEvent.title || ''}
+                  className="w-full h-auto lg:hidden"
+                />
               )}
               <div className="p-4">
                 <div className="text-lg font-black" style={{ color: '#A04A2E' }}>{dayEvent.title}</div>
@@ -1513,10 +1517,21 @@ export default function PublicReservationPage() {
       </main>
           </div>{/* /LEFT col */}
 
-          {/* RIGHT — Featured menu vertical sidebar (desktop only) */}
-          {featuredMenu.length > 0 && (
+          {/* RIGHT — the evening's poster when there is one, then the menu. */}
+          {(featuredMenu.length > 0 || dayEvent?.image_url) && (
             <aside className="hidden lg:block lg:col-span-5 mt-8 lg:mt-0">
               <div className="lg:sticky lg:top-6">
+                {dayEvent?.image_url && (
+                  <a
+                    href={dayEvent.image_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-2xl overflow-hidden mb-5"
+                    style={{ border: '1px solid rgba(184,149,86,0.30)' }}
+                  >
+                    <img src={dayEvent.image_url} alt={dayEvent.title || ''} className="w-full h-auto block" />
+                  </a>
+                )}
                 <div className="text-[11px] font-bold uppercase tracking-[0.25em]" style={{ color: '#B89556' }}>המומלצים שלנו</div>
                 <h3 className="brand-display text-2xl md:text-3xl mt-1 mb-4" style={{ color: '#1F1B17' }}>תפריט שיפתח לך תיאבון</h3>
                 <div className="space-y-3">
