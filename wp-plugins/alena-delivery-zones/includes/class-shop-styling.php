@@ -211,6 +211,7 @@ class Alena_DZ_Shop_Styling {
             (new Alena_DZ_Club())->render_shop_banner();
         }
         $this->render_search_bar();
+        $this->render_brand_switch();
         if (class_exists('Alena_DZ_Recent_Orders')) {
             (new Alena_DZ_Recent_Orders())->render_section();
         }
@@ -495,6 +496,75 @@ class Alena_DZ_Shop_Styling {
             if ($img) return $img;
         }
         return null;
+    }
+
+    /**
+     * Brand switcher — two kitchens on one menu. Filters the visible dishes in
+     * the browser rather than reloading, the same way search does; every card
+     * already carries data-brand. Only shown when Zohara actually has products,
+     * so a single-brand shop never sees a pointless toggle.
+     */
+    public function render_brand_switch() {
+        if (!class_exists('Alena_DZ_Brands')) return;
+        $zohara = get_posts([
+            'post_type'   => 'product',
+            'post_status' => 'publish',
+            'numberposts' => 1,
+            'fields'      => 'ids',
+            'tax_query'   => [[
+                'taxonomy' => 'alena_brand',
+                'field'    => 'slug',
+                'terms'    => 'zohara',
+            ]],
+        ]);
+        if (!$zohara) return;
+
+        $z_open = Alena_DZ_Brands::is_open('zohara');
+        $z_sub  = $z_open ? Alena_DZ_Brands::open_until('zohara') : Alena_DZ_Brands::closed_label('zohara');
+        ?>
+        <div class="alena-brand-switch" role="tablist">
+          <button type="button" class="alena-brand-tab is-active" data-brand="all">הכל</button>
+          <button type="button" class="alena-brand-tab" data-brand="alena">
+            <span class="alena-brand-tab-name">עלינא בפיתה</span>
+          </button>
+          <button type="button" class="alena-brand-tab<?php echo $z_open ? '' : ' is-closed'; ?>" data-brand="zohara">
+            <span class="alena-brand-tab-name">חומוס זוהרה</span>
+            <span class="alena-brand-tab-sub"><?php echo esc_html($z_sub); ?></span>
+          </button>
+        </div>
+        <script>
+        (function () {
+          const tabs = document.querySelectorAll('.alena-brand-tab');
+          if (!tabs.length) return;
+          function apply(brand) {
+            document.querySelectorAll('.alena-dz-card').forEach(function (card) {
+              const b = card.getAttribute('data-brand') || 'alena';
+              card.classList.toggle('alena-brand-hidden', brand !== 'all' && b !== brand);
+            });
+            // A category section with nothing left to show is hidden too, so the
+            // menu does not keep empty headers when one brand is selected.
+            document.querySelectorAll('.alena-dz-cat-section').forEach(function (sec) {
+              const anyVisible = sec.querySelector('.alena-dz-card:not(.alena-brand-hidden)');
+              sec.classList.toggle('alena-brand-hidden', !anyVisible);
+            });
+          }
+          tabs.forEach(function (t) {
+            t.addEventListener('click', function () {
+              tabs.forEach(x => x.classList.remove('is-active'));
+              t.classList.add('is-active');
+              apply(t.getAttribute('data-brand'));
+            });
+          });
+          // The /order landing links in with ?brand=zohara so the customer
+          // arrives already filtered to the kitchen they picked.
+          var pre = new URLSearchParams(location.search).get('brand');
+          if (pre) {
+            var t = document.querySelector('.alena-brand-tab[data-brand="' + pre + '"]');
+            if (t) t.click();
+          }
+        })();
+        </script>
+        <?php
     }
 
     public function render_search_bar() {
@@ -854,6 +924,7 @@ class Alena_DZ_Shop_Styling {
         // wonder where half the menu went. It just cannot be added.
         $brand_closed = false;
         $brand_label  = '';
+        $brand        = 'alena';
         if (class_exists('Alena_DZ_Brands')) {
             $brand = Alena_DZ_Brands::brand_of($id);
             if ($brand !== Alena_DZ_Brands::DEFAULT_BRAND) {
@@ -867,7 +938,7 @@ class Alena_DZ_Shop_Styling {
             }
         }
         ?>
-        <li class="<?php echo esc_attr($card_classes); ?>" data-product-id="<?php echo (int) $id; ?>">
+        <li class="<?php echo esc_attr($card_classes); ?>" data-product-id="<?php echo (int) $id; ?>" data-brand="<?php echo esc_attr($brand); ?>">
           <?php if ($brand_label): ?>
             <span class="alena-dz-brand-flag<?php echo $brand_closed ? ' is-closed' : ''; ?>">
               <?php echo esc_html($brand_label); ?>

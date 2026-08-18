@@ -2708,3 +2708,78 @@
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile li.alena-dz-card { position: relative !important; }
 }
+
+/* Brand switcher: two kitchens on one menu. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-brand-hidden { display: none !important; }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-brand-switch {
+    display: flex !important;
+    gap: 8px !important;
+    margin: 10px 14px 4px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-brand-tab {
+    flex: 1 1 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 2px !important;
+    min-height: 50px !important;
+    padding: 7px 10px !important;
+    border-radius: 14px !important;
+    border: 1px solid var(--line) !important;
+    background: var(--surface) !important;
+    color: var(--ink-2) !important;
+    -webkit-text-fill-color: var(--ink-2) !important;
+    font-weight: 700 !important;
+    font-size: 14px !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-brand-tab.is-active {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: #05202a !important;
+    -webkit-text-fill-color: #05202a !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-brand-tab-sub {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    opacity: .85 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-brand-tab.is-closed .alena-brand-tab-sub {
+    color: #fca5a5 !important;
+    -webkit-text-fill-color: #fca5a5 !important;
+    opacity: 1 !important;
+  }
+}
+
+/* Cart line brand tag */
+.alena-line-brand { opacity:.7; font-size:12px; font-weight:600; }
+
+/* /order landing page — its own light-on-dark styling, standalone page. */
+.alena-order-landing {
+  max-width: 760px; margin: 0 auto; padding: 28px 16px 60px;
+  font-family: Heebo, system-ui, sans-serif; color: #f4ecd8;
+  background: #0e1117; min-height: 100vh;
+}
+.alena-order-head { text-align: center; margin-bottom: 22px; }
+.alena-order-head h1 { font-size: 30px; font-weight: 900; margin: 0 0 6px; }
+.alena-order-head p { opacity: .8; margin: 0; }
+.alena-order-cards { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+@media (max-width:560px){ .alena-order-cards { grid-template-columns: 1fr; } }
+.alena-order-card {
+  display: flex; flex-direction: column; text-decoration: none;
+  border: 1px solid #2a3140; border-radius: 20px; overflow: hidden;
+  background: #161b26; color: #f4ecd8; transition: transform .12s;
+}
+.alena-order-card:hover { transform: translateY(-2px); }
+.alena-order-card.is-closed { opacity: .72; }
+.alena-order-card-img { display:block; height: 150px; background-size: cover; background-position: center; }
+.alena-order-card-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 4px; }
+.alena-order-card-name { font-size: 20px; font-weight: 900; }
+.alena-order-card-tag { opacity: .75; font-size: 13.5px; }
+.alena-order-card-status { margin-top: 6px; font-weight: 700; font-size: 13.5px; }
+.alena-order-card-status.closed { color: #fca5a5; }
+.alena-order-both {
+  display: block; text-align: center; margin: 20px auto 0; max-width: 420px;
+  padding: 16px; border-radius: 999px; background: #22c9ee; color: #05202a;
+  font-weight: 800; text-decoration: none; font-size: 17px;
+}
