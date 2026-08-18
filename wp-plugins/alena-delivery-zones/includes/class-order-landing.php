@@ -38,31 +38,50 @@ class Alena_DZ_Order_Landing {
     }
 
     public function render_qr_admin() {
-        $url = home_url('/' . self::SLUG);
+        // Two codes. The pretty /zohara URL is intercepted before our code runs
+        // (WordPress 404 URL-guessing, or the proxy, bounces it to the home
+        // page and no plugin hook could stop it), so the Zohara code points at
+        // the direct /shop/?brand=zohara -- which renders the fully branded
+        // Zohara menu. A flyer QR is scanned, never typed, so the longer URL
+        // costs nothing.
+        $both   = home_url('/' . self::SLUG);
+        $zohara = home_url('/shop/') . '?brand=zohara';
         wp_enqueue_script('alena-qrcode', ALENA_DZ_URL . 'assets/qrcode.min.js', [], ALENA_DZ_VERSION, true);
         ?>
         <div class="wrap" dir="rtl">
-          <h1>דף הזמנה + ברקוד לפלייר</h1>
-          <p>הדף הציבורי: <a href="<?php echo esc_url($url); ?>" target="_blank"><code><?php echo esc_html($url); ?></code></a></p>
-          <p>הברקוד מפנה לדף הזה — לא לתפריט מסוים. כך אפשר לשנות הכל אחריו (מבצע, מותג נוסף, עיצוב) <strong>בלי להדפיס מחדש</strong> את הפלייר.</p>
-          <div id="alena-qr" style="background:#fff;padding:16px;display:inline-block;border-radius:12px"></div>
-          <p><button class="button button-primary" id="alena-qr-dl">הורדת הברקוד (PNG)</button></p>
+          <h1>ברקודים לפלייר</h1>
+          <p>כל ברקוד מפנה לדף שאנחנו שולטים בו — אפשר לשנות הכל אחריו (מבצע, עיצוב, מותג) <strong>בלי להדפיס מחדש</strong>.</p>
+          <div style="display:flex;gap:36px;flex-wrap:wrap">
+            <div>
+              <h2>שתי המסעדות</h2>
+              <p><a href="<?php echo esc_url($both); ?>" target="_blank"><code><?php echo esc_html($both); ?></code></a></p>
+              <div id="qr-both" data-url="<?php echo esc_attr($both); ?>" data-file="alena-zohara-order-qr.png"
+                   style="background:#fff;padding:16px;display:inline-block;border-radius:12px"></div>
+              <p><button class="button" data-dl="qr-both">הורדה (PNG)</button></p>
+            </div>
+            <div>
+              <h2>חומוס זוהרה בלבד</h2>
+              <p><a href="<?php echo esc_url($zohara); ?>" target="_blank"><code><?php echo esc_html($zohara); ?></code></a></p>
+              <div id="qr-zohara" data-url="<?php echo esc_attr($zohara); ?>" data-file="zohara-qr.png"
+                   style="background:#fff;padding:16px;display:inline-block;border-radius:12px"></div>
+              <p><button class="button" data-dl="qr-zohara">הורדה (PNG)</button></p>
+            </div>
+          </div>
           <script>
           (function () {
             function draw(){
-            new QRCode(document.getElementById('alena-qr'), {
-              text: <?php echo wp_json_encode($url); ?>,
-              width: 320, height: 320, correctLevel: QRCode.CorrectLevel.M
-            });
-            document.getElementById('alena-qr-dl').addEventListener('click', function () {
-              var img = document.querySelector('#alena-qr img') || document.querySelector('#alena-qr canvas');
-              var src = img.tagName === 'IMG' ? img.src : img.toDataURL('image/png');
-              var a = document.createElement('a');
-              a.href = src; a.download = 'zohara-alena-order-qr.png'; a.click();
-            });
+              document.querySelectorAll('[id^="qr-"]').forEach(function(box){
+                new QRCode(box, { text: box.dataset.url, width: 300, height: 300, correctLevel: QRCode.CorrectLevel.M });
+              });
+              document.querySelectorAll('[data-dl]').forEach(function(btn){
+                btn.addEventListener('click', function(){
+                  var box = document.getElementById(btn.dataset.dl);
+                  var img = box.querySelector('img') || box.querySelector('canvas');
+                  var src = img.tagName === 'IMG' ? img.src : img.toDataURL('image/png');
+                  var a = document.createElement('a'); a.href = src; a.download = box.dataset.file; a.click();
+                });
+              });
             }
-            // qrcode.min.js is enqueued in the footer, so this body script runs
-            // first; wait for the library rather than racing it.
             (function wait(){ if (typeof QRCode!=='undefined') draw(); else setTimeout(wait,60); })();
           })();
           </script>
@@ -72,10 +91,14 @@ class Alena_DZ_Order_Landing {
 
     public function add_rewrite() {
         add_rewrite_rule('^' . self::SLUG . '/?$', 'index.php?alena_order_page=1', 'top');
+        // /zohara is Zohara's front door: same shop, pinned to its brand. A
+        // redirect keeps all the shop machinery and one shared cart, so a
+        // customer can still cross over to Alena in the same order.
+        add_rewrite_rule('^zohara/?$', 'index.php?alena_zohara_entry=1', 'top');
         // Self-heal: flush once so /order resolves without visiting Permalinks.
-        if (get_option('alena_order_rewrite_v') !== '2') {
+        if (get_option('alena_order_rewrite_v') !== '3') {
             flush_rewrite_rules(false);
-            update_option('alena_order_rewrite_v', '2');
+            update_option('alena_order_rewrite_v', '3');
         }
     }
 
@@ -101,7 +124,25 @@ class Alena_DZ_Order_Landing {
         return strtolower($path) === self::SLUG;
     }
 
+    public function maybe_zohara_entry() {
+        $path = strtolower(trim(parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '', '/'));
+        if (!get_query_var('alena_zohara_entry') && $path !== 'zohara') return;
+        // wc_get_page_permalink('shop') resolved to the site root on this
+        // install, which bounced /zohara to the home page. The menu is at
+        // /shop/, verified working; build the target from there directly.
+        $shop = home_url('/shop/');
+        wp_safe_redirect($shop . '?brand=zohara', 302);
+        exit;
+    }
+
     public function maybe_render() {
+        // /zohara is handled on the SAME hook that provably reaches /order.
+        // The init/template_redirect variants never fired here; this one does.
+        $path = strtolower(trim(parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '', '/'));
+        if ($path === 'zohara' || get_query_var('alena_zohara_entry')) {
+            wp_safe_redirect(home_url('/shop/') . '?brand=zohara', 302);
+            exit;
+        }
         if (!$this->is_order_request()) return;
         // WordPress resolved /order as a 404 before we got here, so clear that
         // on the main query or the theme prints "page not found" in the title.

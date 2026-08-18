@@ -252,6 +252,13 @@ class Alena_DZ_Shop_Styling {
         <?php
     }
 
+    /** The brand this menu view is pinned to, from ?brand=. Only Zohara pins;
+     *  Alena is the whole shop, so there is nothing to pin it to. */
+    public static function locked_brand(): string {
+        $b = isset($_GET['brand']) ? sanitize_key($_GET['brand']) : '';
+        return $b === 'zohara' ? 'zohara' : '';
+    }
+
     public function render_shop_hero() {
         // Pick a hero image: first featured product image, else first product image
         $hero_url = $this->find_hero_image_url();
@@ -295,9 +302,24 @@ class Alena_DZ_Shop_Styling {
             }
             echo '</div>';
         }
+        // Zohara is the same address and delivery, but its own name, line and
+        // status. Locking to it turns this into Zohara's front page without a
+        // second install or a second cart.
+        $locked = self::locked_brand();
+        $hero_name = $locked === 'zohara' ? 'חומוס זוהרה' : 'עלינא בפיתה';
+        $hero_sub  = $locked === 'zohara'
+            ? 'זאת לא עוד חומוסייה, זו זוהרה · מבית עלינא'
+            : 'מטבח ים-תיכוני שמח וצבעוני · כשר';
+        if ($locked === 'zohara' && class_exists('Alena_DZ_Brands')) {
+            $z_open = Alena_DZ_Brands::is_open('zohara');
+            $status = $z_open
+                ? '🟢 ' . (Alena_DZ_Brands::open_until('zohara') ?: 'פתוח עכשיו')
+                : '🔴 ' . Alena_DZ_Brands::closed_label('zohara');
+        }
+
         echo '<div class="alena-dz-hero-inner">';
-        echo '<h1 class="alena-dz-hero-title">עלינא בפיתה</h1>';
-        echo '<p class="alena-dz-hero-sub">מטבח ים-תיכוני שמח וצבעוני · כשר</p>';
+        echo '<h1 class="alena-dz-hero-title">' . esc_html($hero_name) . '</h1>';
+        echo '<p class="alena-dz-hero-sub">' . esc_html($hero_sub) . '</p>';
         echo '<div class="alena-dz-hero-info">';
         echo '<span class="alena-dz-hero-chip">' . esc_html($status) . '</span>';
         echo '<span class="alena-dz-hero-chip">📍 רוטשילד 104, ראשון לציון</span>';
@@ -555,12 +577,20 @@ class Alena_DZ_Shop_Styling {
               apply(t.getAttribute('data-brand'));
             });
           });
-          // The /order landing links in with ?brand=zohara so the customer
-          // arrives already filtered to the kitchen they picked.
+          // /order and /zohara link in with ?brand=, so the customer arrives
+          // already filtered to the kitchen they chose. The cart stays shared,
+          // so they can still flip to the other brand and order from both.
+          // The switcher renders BEFORE the dish sections, so the cards do not
+          // exist yet when this runs. Wait for DOM ready, then pre-select.
           var pre = new URLSearchParams(location.search).get('brand');
           if (pre) {
-            var t = document.querySelector('.alena-brand-tab[data-brand="' + pre + '"]');
-            if (t) t.click();
+            var go = function () {
+              var t = document.querySelector('.alena-brand-tab[data-brand="' + pre + '"]');
+              if (t) t.click();
+            };
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', go);
+            } else { go(); }
           }
         })();
         </script>
