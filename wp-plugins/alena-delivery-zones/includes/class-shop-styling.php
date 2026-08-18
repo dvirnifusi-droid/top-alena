@@ -559,15 +559,23 @@ class Alena_DZ_Shop_Styling {
           const tabs = document.querySelectorAll('.alena-brand-tab');
           if (!tabs.length) return;
           function apply(brand) {
+            var pin = brand !== 'all';
             document.querySelectorAll('.alena-dz-card').forEach(function (card) {
               const b = card.getAttribute('data-brand') || 'alena';
-              card.classList.toggle('alena-brand-hidden', brand !== 'all' && b !== brand);
+              card.classList.toggle('alena-brand-hidden', pin && b !== brand);
             });
             // A category section with nothing left to show is hidden too, so the
             // menu does not keep empty headers when one brand is selected.
             document.querySelectorAll('.alena-dz-cat-section').forEach(function (sec) {
               const anyVisible = sec.querySelector('.alena-dz-card:not(.alena-brand-hidden)');
               sec.classList.toggle('alena-brand-hidden', !anyVisible);
+            });
+            // Curation strips are cross-brand: "order again" re-orders a whole
+            // past order that may mix both kitchens, and the popular strip and
+            // club banner are not brand-specific. On a single-brand view they
+            // step aside -- the same thing search does with them.
+            document.querySelectorAll('.alena-recent, .alena-dz-cat-section-popular, .alena-club-shop-banner').forEach(function (el) {
+              el.classList.toggle('alena-brand-hidden', pin);
             });
           }
           tabs.forEach(function (t) {

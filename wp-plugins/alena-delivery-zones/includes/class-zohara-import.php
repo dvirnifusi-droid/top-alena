@@ -64,6 +64,23 @@ class Alena_DZ_Zohara_Import {
           </table>
           <p><strong>התמונות אינן יורדות בשלב הזה.</strong> 42 תמונות בבקשה אחת חורגות מזמן הריצה של PHP;
              הן נמשכות בהרצה נפרדת אחרי הייבוא.</p>
+          <?php
+          $rep = get_transient('alena_zohara_report');
+          if (is_array($rep)) {
+              echo '<div class="notice notice-info"><p>דוח אחרון: ' . esc_html(wp_json_encode($rep, JSON_UNESCAPED_UNICODE)) . '</p></div>';
+          }
+          $ie = get_transient('alena_zohara_imgerr');
+          if ($ie) {
+              echo '<div class="notice notice-warning"><p>שגיאת תמונה אחרונה: ' . esc_html($ie) . '</p></div>';
+          }
+          $withimg = 0; $zt = get_term_by('slug', self::BRAND_SLUG, 'alena_brand');
+          if ($zt && !is_wp_error($zt)) {
+              $q = get_posts(['post_type'=>'product','posts_per_page'=>-1,'fields'=>'ids',
+                  'tax_query'=>[['taxonomy'=>'alena_brand','field'=>'term_id','terms'=>$zt->term_id]]]);
+              foreach ($q as $pid) if (get_post_thumbnail_id($pid)) $withimg++;
+              echo '<div class="notice notice-success"><p>מנות זוהרה עם תמונה כרגע: <strong>' . (int) $withimg . '</strong> מתוך ' . count($q) . '</p></div>';
+          }
+          ?>
           <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <input type="hidden" name="action" value="alena_zohara_import">
             <?php wp_nonce_field('alena_zohara_import'); ?>
@@ -172,7 +189,6 @@ class Alena_DZ_Zohara_Import {
 
     /** Images in batches — 42 downloads in one request outlives PHP's timeout. */
     private function import_images(): array {
-        require_once ABSPATH . 'wp-admin/includes/media.php';
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/image.php';
 
@@ -187,11 +203,52 @@ class Alena_DZ_Zohara_Import {
 
             if ($done >= 12) { $remaining++; continue; }
 
-            $att = media_sideload_image($url, $id, (string) $d['name'], 'id');
-            if (is_wp_error($att)) { $failed++; continue; }
+            $att = $this->sideload_extensionless($url, $id, (string) $d['name']);
+            if (is_wp_error($att) || !$att) { $failed++; continue; }
             set_post_thumbnail($id, $att);
             $done++;
         }
         return compact('done', 'failed', 'remaining');
+    }
+
+    /**
+     * media_sideload_image refused every Wolt URL: they carry no file
+     * extension (imageproxy.wolt.com/assets/<id>), and it validates on the
+     * extension in the URL, not on the bytes. So download by hand, read the
+     * real type from the Content-Type header, and write the file with a name
+     * WordPress will accept.
+     */
+    private function sideload_extensionless(string $url, int $post_id, string $title) {
+        $resp = wp_remote_get($url, [
+            'timeout'    => 25,
+            'user-agent' => 'Mozilla/5.0 (compatible; AlenaImporter/1.0)',
+            'headers'    => ['Referer' => 'https://wolt.com/'],
+        ]);
+        if (is_wp_error($resp)) { set_transient('alena_zohara_imgerr', $resp->get_error_message(), 300); return $resp; }
+        $code = (int) wp_remote_retrieve_response_code($resp);
+        if ($code !== 200) { set_transient('alena_zohara_imgerr', 'HTTP ' . $code . ' from ' . $url, 300); return false; }
+
+        $body = wp_remote_retrieve_body($resp);
+        if ($body === '') return false;
+
+        $type = strtolower(wp_remote_retrieve_header($resp, 'content-type'));
+        $ext  = strpos($type, 'png') !== false ? 'png'
+              : (strpos($type, 'webp') !== false ? 'webp' : 'jpg');   // Wolt serves mostly jpeg
+
+        $slug = sanitize_title($title) ?: ('zohara-' . $post_id);
+        $file = wp_upload_bits($slug . '-' . $post_id . '.' . $ext, null, $body);
+        if (!empty($file['error'])) return false;
+
+        $filetype = wp_check_filetype($file['file']);
+        $attach_id = wp_insert_attachment([
+            'post_mime_type' => $filetype['type'] ?: ('image/' . $ext),
+            'post_title'     => $title,
+            'post_status'    => 'inherit',
+        ], $file['file'], $post_id);
+        if (is_wp_error($attach_id) || !$attach_id) return false;
+
+        $meta = wp_generate_attachment_metadata($attach_id, $file['file']);
+        wp_update_attachment_metadata($attach_id, $meta);
+        return $attach_id;
     }
 }
