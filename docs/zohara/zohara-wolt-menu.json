@@ -1,58 +1,6315 @@
-[
- {"id":"8c4498dfa167a1515fb6a76b","name":"חומוס גרגירים","price":37,"desc":"חומוס, טחינה, גרגירים, תטבילה, פלפל צ׳ומה ופטרוזיליה. מוגש עם 2 פיתות","img":"https://imageproxy.wolt.com/assets/6979d01df6ee27217dc05220","popular":true},
- {"id":"9e33a447f7252823f6470380","name":"חומוס מסבחה","price":37,"desc":"חומוס, טחינה, גרגירי חומוס חמים שלמים, שמן זית, לימון ומסייר. מוגש עם 2 פיתות","img":"https://imageproxy.wolt.com/assets/6a749c8e284ac410bdde3b80"},
- {"id":"f4230c3bcb67713c59867980","name":"חומוס פול","price":37,"desc":"חומוס, טחינה, פול חם, שמן זית, לימון ופטרוזיליה. מוגש עם 2 פיתות ומסייר","img":"https://imageproxy.wolt.com/assets/6a749e16fcc9c1a69bb83190"},
- {"id":"02385feb2901391f6d8b17cb","name":"חומוס משולש - גרגירים, פול ומסבחה","price":39,"desc":"שליש גרגירים, שליש פול ושליש מסבחה על מצע חומוס, טחינה, שמן זית ופטרוזיליה. מוגש עם 2 פיתות ומסייר","img":"https://imageproxy.wolt.com/assets/6a749f2d1281a30feacdd0c2"},
- {"id":"d260baf3096c7c15d70dfb1b","name":"חומוס סביח","price":37,"desc":"חומוס, חציל, ביצה קשה, עגבניות, גרגירי חומוס, פלפל צ׳ומה, פטרוזיליה, טחינה ועמבה. הסביח מוגש כסלט סביח על החומוס, עם 2 פיתות","img":"https://imageproxy.wolt.com/assets/6979d02bf6ee27217dc05226"},
- {"id":"f4415ded51020d2d4f951c3b","name":"חומוס פטריות","price":46,"desc":"חומוס, טחינה, פורטובלו ושמפניון, גרגירים, תטבילה, פלפל צ׳ומה ופטרוזיליה. מוגש עם 2 פיתות","img":"https://imageproxy.wolt.com/assets/6979d02ef6ee27217dc05227","popular":true},
- {"id":"483ca6bf81a36332613cb964","name":"חומוס ראגו בשר","price":61,"desc":"חומוס, טחינה, פלפל צ׳ומה, צנוברים, פטרוזיליה, תטבילה וחציל פחמים. מוגש עם 2 פיתות","img":"https://imageproxy.wolt.com/assets/6979d033f6ee27217dc0522a","popular":true},
- {"id":"0b6087654bb89eeec622e6b8","name":"חומוס מסאחן פרגית","price":69,"desc":"חומוס, טחינה, בצל כבוש, גרגירים, תטבילה של שיפקה, שקדים קלויים ופטרוזיליה. מוגש עם 2 פיתות","img":"https://imageproxy.wolt.com/assets/6979d027f6ee27217dc05225","popular":true},
-
- {"id":"febb65055ba68636e0df296d","name":"עסקית כל היום | חומוס + צ׳יפס + סלט קצוץ + לימונדה","price":61,"desc":"חומוס לבחירה מוגש עם צ׳יפס, סלט קצוץ ולימונדה","img":"https://imageproxy.wolt.com/assets/6a74a5a81281a30feacdd266"},
- {"id":"6e0d4568c5d6b195d576f9ef","name":"חלה שניצל של זוהרה","price":55,"desc":"שניצל בחלה ביתית של זוהרה עם חומוס, מטבוחה, חציל פחמים, פלפל חריף וטחינה. רק בימי שישי, עד גמר המלאי","img":"https://imageproxy.wolt.com/assets/6a74a702fcc9c1a69bb834a1","note":"מסומן בוולט: אין כרגע"},
- {"id":"fe881f5257e5c913ccb218b6","name":"סביח בפיתה","price":37,"desc":"חומוס, חציל, ביצה קשה, עגבניות, גרגירי חומוס, פלפל צ׳ומה, פטרוזיליה, עמבה וטחינה","img":"https://imageproxy.wolt.com/assets/6979d098f6ee27217dc05250"},
- {"id":"f9db5f93583798f3980c5b31","name":"פלאפל בפיתה זוהרה","price":25,"desc":"פלאפל בפיתה עם חומוס, כרוב כבוש, סלט ירקות, חמוצים וטחינה","img":"https://imageproxy.wolt.com/assets/6a74a02bfcc9c1a69bb832a7"},
-
- {"id":"961f0a663045e76237703622","name":"חומוס במשקל - רבע קילו","price":23,"desc":"רבע קילו חומוס נקי במשקל","img":"https://imageproxy.wolt.com/assets/6a7dbd485b3de04a70aaf704","note":"מסומן בוולט: אין כרגע"},
- {"id":"dd1124f1bc2759a6936ed49f","name":"חומוס במשקל - חצי קילו","price":36,"desc":"חצי קילו חומוס נקי במשקל","img":"https://imageproxy.wolt.com/assets/6a7dbd2c5b3de04a70aaf6fd","note":"מסומן בוולט: אין כרגע"},
-
- {"id":"4558d7d7f85ef2cc6fc0edef","name":"פתיחת שולחן סלטים | ליחיד","price":64,"desc":"צ׳יפס, סלט ישראלי קצוץ, מסייר, זיתים מתובלים, בישבש, כדורי פלאפל ועלי גפן ממולאים — הסלטים של זוהרה בצלחות קטנות, עם בקבוק לימונדה של השוק","img":"https://imageproxy.wolt.com/assets/6a7727cf1281a30feace28d7"},
- {"id":"238d5006c8117e118f275769","name":"מגש חברים | מתאים ל-5 סועדים","price":276,"desc":"5 מנות חומוס לבחירה, 10 פיתות, 2 סלטים ישראליים קצוצים, 2 מנות צ׳יפס, חמוצים והסחוג של זוהרה. מומלץ להזמין מראש","img":"https://imageproxy.wolt.com/assets/6a771291fcc9c1a69bb89a98"},
- {"id":"34f7588c618149e08a866a3a","name":"שולחן זוהרה | מתאים ל-10 סועדים","price":506,"desc":"10 מנות חומוס לבחירה, 20 פיתות טריות, 3 סלטים ישראליים קצוצים ו-3 מנות צ׳יפס חם, זיתים מתובלים, חמוצים והסחוג של זוהרה. מומלץ להזמין מראש","img":"https://imageproxy.wolt.com/assets/6a771b79284ac410bddea561"},
- {"id":"81caa6208113e85cc89d6868","name":"מסיבת חומוס בזוהרה | מתאים ל-15 סועדים","price":712,"desc":"15 מנות חומוס לבחירה, 30 פיתות טריות, 4 סלטים ישראליים קצוצים, 4 מנות צ׳יפס חם, חצילים וגמבות חריפים, זיתים מתובלים, חמוצים והסחוג של זוהרה. מומלץ להזמין יום מראש","img":"https://imageproxy.wolt.com/assets/6a7720dc284ac410bddea5c6"},
-
- {"id":"53c579bfe25e870f488b5619","name":"בצל ממולא","price":37,"desc":"בצל ממולא ואורז, מנה של סבתא","img":"https://imageproxy.wolt.com/assets/6979cffef6ee27217dc05212"},
- {"id":"b64bb88ce6f9b231254488a1","name":"עלי גפן","price":37,"desc":"עלי גפן ממולאים באורז ועשבי תיבול, מבושלים בלימון ושמן זית","img":"https://imageproxy.wolt.com/assets/6979d082f6ee27217dc05249"},
- {"id":"3b59db456126a48175c8429a","name":"כרוב ממולא","price":37,"desc":"עלי כרוב ממולאים באורז","img":null},
-
- {"id":"09f9b17c17c897f2959c0add","name":"צ׳יפס","price":18,"desc":"צ׳יפס אמיתי חתוך עבה, מטוגן טרי ומומלח","img":"https://imageproxy.wolt.com/assets/6979d0e38d71993ce33007b2"},
- {"id":"8a088cf882f4586288b2b741","name":"סלט ישראלי קצוץ","price":18,"desc":"עגבניה, מלפפון, בצל, פטרוזיליה, שמן זית ולימון","img":"https://imageproxy.wolt.com/assets/6a74a1b71281a30feacdd1f8"},
- {"id":"9df2d05d6d82e5d1d115e1b9","name":"5 כדורי פלאפל","price":10,"desc":"5 כדורי פלאפל מטוגנים במקום, פריכים מבחוץ ורכים מבפנים","img":"https://imageproxy.wolt.com/assets/6a74a4051281a30feacdd23e"},
- {"id":"f2f5c96ce7750d94cfb1f4e2","name":"בצל על האש","price":7,"desc":"בצל שלם צרוב על האש, מתוק ומעושן","img":"https://imageproxy.wolt.com/assets/6979d00ef6ee27217dc05219"},
- {"id":"cf7b52a39545132afa6e30c4","name":"שיפוד ירקות על האש","price":19,"desc":"בצל, עגבנייה ופלפל חריף צרובים על הגריל","img":"https://imageproxy.wolt.com/assets/6979d0ec8d71993ce33007b3"},
- {"id":"ee43a8241a7dfcca26955398","name":"מסייר","price":19,"desc":"ירקות מוחמצים בבית, החמוץ שמאזן את החומוס","img":"https://imageproxy.wolt.com/assets/6979d068f6ee27217dc05241"},
- {"id":"97be1e183cda853758823683","name":"זיתים","price":19,"desc":"זיתים מתובלים בשמן זית, שום ולימון","img":"https://imageproxy.wolt.com/assets/6979d014f6ee27217dc0521b"},
- {"id":"c5da9c44bc077e47ecbda258","name":"חמוצים","price":8,"desc":"מלפפון חמוץ","img":"https://imageproxy.wolt.com/assets/6979d042f6ee27217dc05230"},
- {"id":"6159f2f8e96c964e7f091b2d","name":"סחוג","price":12,"desc":"הסחוג של זוהרה — חריף, טרי ונטחן במקום","img":"https://imageproxy.wolt.com/assets/6979d06ff6ee27217dc05243"},
- {"id":"d9eb253e252c8d00ff9b59f8","name":"חצילים גמבות חריף","price":19,"desc":"חצילים וגמבות קלויים ומטוגנים, מתובלים וקצוצים","img":"https://imageproxy.wolt.com/assets/6979d04bf6ee27217dc05235"},
-
- {"id":"2143beb96d3396af3b4f0e68","name":"פיתה","price":4,"desc":"","img":"https://imageproxy.wolt.com/assets/6979d0b88d71993ce33007a2","popular":true},
- {"id":"e2b367f8b824fd1d21d39019","name":"פיתה פתוחה זעתר","price":9,"desc":"פיתה זעתר שרופה על האש","img":"https://imageproxy.wolt.com/assets/6979d0a7f6ee27217dc05258"},
- {"id":"226b6b620544bbfa760f9c06","name":"פיתה פתוחה פלפל צ׳ומה","price":9,"desc":"פיתה פלפל צ׳ומה שרופה על האש","img":"https://imageproxy.wolt.com/assets/6979d0aaf6ee27217dc05259"},
-
- {"id":"07e568db5b0c487fa8557d52","name":"מלבי","price":17,"desc":"מלבי קרמי עם סירופ מלבי ורדים, קוקוס ובוטנים קצוצים","img":"https://imageproxy.wolt.com/assets/6979d062f6ee27217dc05240"},
-
- {"id":"c2b357576714b339c2b46d0b","name":"קוקה קולה","price":15,"desc":"","img":"https://imageproxy.wolt.com/assets/69664bfb66118d5303733c12"},
- {"id":"7887dbf3865b87979ed61276","name":"קולה זירו","price":15,"desc":"","img":"https://imageproxy.wolt.com/assets/69664c0c66118d5303733c17"},
- {"id":"46899069699c7dc020b129a7","name":"ענבים","price":15,"desc":"","img":"https://imageproxy.wolt.com/assets/69664c1a66118d5303733c1c"},
- {"id":"c87e1fb1070774d69e2d027c","name":"לימונדה","price":12,"desc":"","img":null},
- {"id":"92c8a83e146a20fd81b4118d","name":"לימונדה | 1 ליטר","price":17,"desc":"","img":null},
- {"id":"e27506293462289ae1224841","name":"רוזטה","price":12,"desc":"","img":null},
- {"id":"cc83a6fb543f2384b90b8d97","name":"סודה","price":12,"desc":"","img":"https://imageproxy.wolt.com/assets/69664c483585ae8fe5fe73c4"},
- {"id":"17cc86910aa3d876309c266f","name":"מים מינרליים","price":12,"desc":"","img":"https://imageproxy.wolt.com/assets/69664c5b66118d5303733c27"},
-
- {"id":"3fd421efe93e695c59fba68b","name":"גולדסטאר | זכוכית | 330 מ״ל","price":29,"desc":"5% אלכוהול · 18+","img":"https://imageproxy.wolt.com/menu/menu-images/627796d0f276b9d403f31f5d/e50c2a08-d694-11ec-9313-0e41e2b555d0.jpeg","alcohol":true},
- {"id":"5b77cea8029bfed6bef34749","name":"פאולנר | זכוכית | 330 מ״ל","price":29,"desc":"5% אלכוהול · 18+","img":null,"alcohol":true},
-
- {"id":"602e6004c629b1f09193dc97","name":"סכו״ם חד-פעמי","price":0,"desc":"אנא בחרו פריט זה כמספר הסועדים הזקוקים לסכו״ם חד-פעמי","img":"https://imageproxy.wolt.com/assets/66717fd8750bf16648d2aed9","note":"בוולט ללא מחיר"}
-]
+{
+ "source": "restaurant-api.wolt.com/v4/venues/69663638804b01e87f922dd8/menu",
+ "venue": "חומוס זוהרה",
+ "categories": [
+  "מספר סועדים",
+  "עסקית צהריים ",
+  "מגשי אירוח של זוהרה",
+  "חלה שניצל של שישי ",
+  "חומוס במשקל ספיישל שישי ",
+  "חומוס",
+  "בפיתה",
+  "קטנות ומושלמות",
+  "הסלטים של זוהרה",
+  "משהו לנגב איתו",
+  "קינוחים",
+  "אלכוהול",
+  "שתייה קלה"
+ ],
+ "dishes": [
+  {
+   "wolt_id": "3fd421efe93e695c59fba68b",
+   "name": "גולדסטאר | זכוכית | 330 מ״ל",
+   "price": 29.0,
+   "desc": "",
+   "category": "אלכוהול",
+   "image": "https://wolt-menu-images-cdn.wolt.com/menu-images/627796d0f276b9d403f31f5d/e50c2a08-d694-11ec-9313-0e41e2b555d0_d92f677c_f8eb_11eb_809d_9a7dc0e18722_____________.jpeg?overlay=isr-softalcohol",
+   "enabled": true,
+   "alcohol_pct": 5.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "5b77cea8029bfed6bef34749",
+   "name": "פאולנר  | זכוכית | 330 מ״ל",
+   "price": 29.0,
+   "desc": "",
+   "category": "אלכוהול",
+   "image": "https://image-resizer-proxy.development.dev.woltapi.com/wolt-dev-development-restaurant-api-menu-images/menu-images/5fbe3d6b40ccbfedccfd71a0/8aac5fae-48fd-11eb-ba70-da9c86f2b1ac_______.jpeg?overlay=isr-softalcohol",
+   "enabled": true,
+   "alcohol_pct": 5.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "fe881f5257e5c913ccb218b6",
+   "name": "סביח בפיתה",
+   "price": 37.0,
+   "desc": "חומוס, חציל, ביצה קשה, עגבניות, גרגירי חומוס, פלפל צ׳ומה, פטרוזיליה, עמבה וטחינה",
+   "category": "בפיתה",
+   "image": "https://imageproxy.wolt.com/assets/6979d098f6ee27217dc05250",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "שינויים אפשריים",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 9,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא עגבניות",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא גרגרי חומוס",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צ׳ומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פטרוזיליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא חומוס",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספת ביצה קשה?",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "לא, תודה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "תוספת ביצה קשה",
+       "price": 5.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספות בצד",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "סלט דודו",
+       "price": 57.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "צ׳יפס",
+       "price": 18.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "עלי גפן",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "בצל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פלפל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "סיגר בשר",
+       "price": 49.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "f9db5f93583798f3980c5b31",
+   "name": "פלאפל בפיתה זוהרה",
+   "price": 25.0,
+   "desc": "פלאפל בפיתה עם חומוס, כרוב כבוש, סלט ירקות, חמוצים וטחינה.",
+   "category": "בפיתה",
+   "image": "https://imageproxy.wolt.com/assets/6a74a02bfcc9c1a69bb832a7",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "מה לשים לך בפיתה ?",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 7,
+     "free": 0,
+     "values": [
+      {
+       "name": "סלט ירקות",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "כרוב כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חריף",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חמוצים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "cf7b52a39545132afa6e30c4",
+   "name": "שיפוד ירקות על האש",
+   "price": 19.0,
+   "desc": "בצל, עגבנייה ופלפל חריף צרובים על הגריל",
+   "category": "הסלטים של זוהרה",
+   "image": "https://imageproxy.wolt.com/assets/6979d0ec8d71993ce33007b3",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "ee43a8241a7dfcca26955398",
+   "name": "מסייר",
+   "price": 19.0,
+   "desc": "ירקות מוחמצים בבית, החמוץ שמאזן את החומוס",
+   "category": "הסלטים של זוהרה",
+   "image": "https://imageproxy.wolt.com/assets/6979d068f6ee27217dc05241",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "97be1e183cda853758823683",
+   "name": "זיתים",
+   "price": 19.0,
+   "desc": "זיתים מתובלים בשמן זית, שום ולימון",
+   "category": "הסלטים של זוהרה",
+   "image": "https://imageproxy.wolt.com/assets/6979d014f6ee27217dc0521b",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "d9eb253e252c8d00ff9b59f8",
+   "name": "חצילים גמבות חריף",
+   "price": 19.0,
+   "desc": "חצילים וגמבות קלויים ומטוגנים, מתובלים וקצוצים",
+   "category": "הסלטים של זוהרה",
+   "image": "https://imageproxy.wolt.com/assets/6979d04bf6ee27217dc05235",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "6159f2f8e96c964e7f091b2d",
+   "name": "סחוג",
+   "price": 12.0,
+   "desc": "הסחוג של זוהרה — חריף, טרי ונטחן במקום",
+   "category": "הסלטים של זוהרה",
+   "image": "https://imageproxy.wolt.com/assets/6979d06ff6ee27217dc05243",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "c5da9c44bc077e47ecbda258",
+   "name": "חמוצים",
+   "price": 8.0,
+   "desc": "מלפפון חמוץ",
+   "category": "הסלטים של זוהרה",
+   "image": "https://imageproxy.wolt.com/assets/6979d042f6ee27217dc05230",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "f2f5c96ce7750d94cfb1f4e2",
+   "name": "בצל על האש",
+   "price": 7.0,
+   "desc": "בצל שלם צרוב על האש, מתוק ומעושן",
+   "category": "הסלטים של זוהרה",
+   "image": "https://imageproxy.wolt.com/assets/6979d00ef6ee27217dc05219",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "0b6087654bb89eeec622e6b8",
+   "name": "חומוס מסאחן פרגית",
+   "price": 69.0,
+   "desc": "חומוס, טחינה, בצל כבוש, גרגירים, תטבילה של שיפקה, שקדים קלויים ופטרוזיליה מוגש עם 2 פיתות",
+   "category": "חומוס",
+   "image": "https://imageproxy.wolt.com/assets/6979d027f6ee27217dc05225",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "שינויים אפשריים",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא גרגרים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פטרוזיליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספות בתשלום",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 4,
+     "free": 0,
+     "values": [
+      {
+       "name": "פיתה",
+       "price": 4.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ביצה קשה",
+       "price": 5.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פיתה פלפל צ׳ומה על האש",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פיתה זעתר על האש",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספות בצד",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "סלט דודו",
+       "price": 57.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "צ׳יפס",
+       "price": 18.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "עלי גפן",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "בצל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פלפל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "סיגר בשר",
+       "price": 49.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "483ca6bf81a36332613cb964",
+   "name": "חומוס ראגו בשר",
+   "price": 61.0,
+   "desc": "חומוס, טחינה, פלפל צ׳ומה, צנוברים, פטרוזיליה, תטבילה וחציל פחמים מוגש עם 2 פיתות",
+   "category": "חומוס",
+   "image": "https://imageproxy.wolt.com/assets/6979d033f6ee27217dc0522a",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "שינויים אפשריים",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 5,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צ׳ומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פטרוזיליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא גרגירי חומוס",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה שיפקה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספות בתשלום",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 4,
+     "free": 0,
+     "values": [
+      {
+       "name": "פיתה",
+       "price": 4.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ביצה קשה",
+       "price": 5.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פיתה פלפל צ׳ומה על האש",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פיתה זעתר על האש",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספות בצד",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "סלט דודו",
+       "price": 57.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "צ׳יפס",
+       "price": 18.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "עלי גפן",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "בצל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פלפל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "סיגר בשר",
+       "price": 49.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "f4415ded51020d2d4f951c3b",
+   "name": "חומוס פטריות",
+   "price": 46.0,
+   "desc": "חומוס, טחינה, פורטובלו ושמפניון, גרגירים, תטבילה, פלפל צ׳ומה ופטרוזיליה מוגש עם 2 פיתות",
+   "category": "חומוס",
+   "image": "https://imageproxy.wolt.com/assets/6979d02ef6ee27217dc05227",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "שינויים אפשריים",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא גרגרים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צ׳ומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פטרוזיליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספות בתשלום",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 4,
+     "free": 0,
+     "values": [
+      {
+       "name": "פיתה",
+       "price": 4.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ביצה קשה",
+       "price": 5.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פיתה פלפל צ׳ומה על האש",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פיתה זעתר על האש",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספות בצד",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "סלט דודו",
+       "price": 57.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "צ׳יפס",
+       "price": 18.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "עלי גפן",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "בצל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פלפל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "סיגר בשר",
+       "price": 49.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "02385feb2901391f6d8b17cb",
+   "name": "חומוס משולש - גרגירים, פול ומסבחה",
+   "price": 39.0,
+   "desc": "שליש גרגירים, שליש פול ושליש מסבחה על מצע חומוס, טחינה, שמן זית ופטרוזיליה מוגש עם 2 פיתות ומסייר",
+   "category": "חומוס",
+   "image": "https://imageproxy.wolt.com/assets/6a749f2d1281a30feacdd0c2",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "שינויים אפשריים לחומוס",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "8c4498dfa167a1515fb6a76b",
+   "name": "חומוס גרגירים",
+   "price": 37.0,
+   "desc": "חומוס, טחינה, גרגירים, תטבילה, פלפל צ׳ומה ופטרוזיליה מוגש עם 2 פיתות",
+   "category": "חומוס",
+   "image": "https://imageproxy.wolt.com/assets/6979d01df6ee27217dc05220",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "תוספות בצד",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "סלט דודו",
+       "price": 57.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "צ׳יפס",
+       "price": 18.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "עלי גפן",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "בצל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פלפל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "סיגר בשר",
+       "price": 49.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "9e33a447f7252823f6470380",
+   "name": "חומוס מסבחה",
+   "price": 37.0,
+   "desc": "חומוס, טחינה, גרגירי חומוס חמים שלמים, שמן זית, לימון ומסייר מוגש עם 2 פיתות",
+   "category": "חומוס",
+   "image": "https://imageproxy.wolt.com/assets/6a749c8e284ac410bdde3b80",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "שינויים אפשריים לחומוס",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספות בתשלום",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 10,
+     "free": 0,
+     "values": [
+      {
+       "name": "פיתה",
+       "price": 4.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ביצה קשה",
+       "price": 5.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פיתה פלפל צ׳ומה על האש",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פיתה זעתר על האש",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספות בצד",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "סלט דודו",
+       "price": 57.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "צ׳יפס",
+       "price": 18.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "עלי גפן",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "בצל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פלפל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "סיגר בשר",
+       "price": 49.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "f4230c3bcb67713c59867980",
+   "name": "חומוס פול",
+   "price": 37.0,
+   "desc": "חומוס, טחינה, פול חם, שמן זית, לימון, ופטרוזיליה מוגש עם 2 פיתות ומסייר",
+   "category": "חומוס",
+   "image": "https://imageproxy.wolt.com/assets/6a749e16fcc9c1a69bb83190",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "שינויים אפשריים לחומוס",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספות בתשלום",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 10,
+     "free": 0,
+     "values": [
+      {
+       "name": "פיתה",
+       "price": 4.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ביצה קשה",
+       "price": 5.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פיתה פלפל צ׳ומה על האש",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פיתה זעתר על האש",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספות בצד",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "סלט דודו",
+       "price": 57.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "צ׳יפס",
+       "price": 18.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "עלי גפן",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "בצל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פלפל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "סיגר בשר",
+       "price": 49.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "d260baf3096c7c15d70dfb1b",
+   "name": "חומוס סביח",
+   "price": 37.0,
+   "desc": "חומוס, חציל, ביצה קשה, עגבניות, גרגירי חומוס, פלפל צ׳ומה, פטרוזיליה, טחינה ועמבה *הסביח מוגש כסלט סביח על החומוס מוגש עם 2 פיתות",
+   "category": "חומוס",
+   "image": "https://imageproxy.wolt.com/assets/6979d02bf6ee27217dc05226",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "שינויים אפשריים",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 8,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא עגבניות",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא גרגרי חומוס",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צ׳ומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פטרוזיליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספות בתשלום",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 4,
+     "free": 0,
+     "values": [
+      {
+       "name": "פיתה",
+       "price": 4.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ביצה קשה",
+       "price": 5.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פיתה פלפל צ׳ומה על האש",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פיתה זעתר על האש",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "תוספות בצד",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "סלט דודו",
+       "price": 57.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "צ׳יפס",
+       "price": 18.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "עלי גפן",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "בצל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פלפל ממולא",
+       "price": 42.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "סיגר בשר",
+       "price": 49.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "dd1124f1bc2759a6936ed49f",
+   "name": "חומוס במשקל -חצי קילו",
+   "price": 36.0,
+   "desc": "רבע קילו חומוס נקי במשקל  לארוחת שישי - תוקף יום",
+   "category": "חומוס במשקל ספיישל שישי ",
+   "image": "https://imageproxy.wolt.com/assets/6a7dbd2c5b3de04a70aaf6fd",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "961f0a663045e76237703622",
+   "name": "חומוס במשקל - רבע קילו",
+   "price": 23.0,
+   "desc": "רבע קילו חומוס נקי במשקל  לארוחת שישי - תוקף יום",
+   "category": "חומוס במשקל ספיישל שישי ",
+   "image": "https://imageproxy.wolt.com/assets/6a7dbd485b3de04a70aaf704",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "6e0d4568c5d6b195d576f9ef",
+   "name": "חלה שניצל של זוהרה",
+   "price": 55.0,
+   "desc": "שניצל בחלה ביתית של זוהרה עם חומוס, מטבוחה, חציל פחמים, פלפל חריף וטחינה. רק בימי שישי, עד גמר המלאי",
+   "category": "חלה שניצל של שישי ",
+   "image": "https://imageproxy.wolt.com/assets/6a74a702fcc9c1a69bb834a1",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "שינויים אפשריים בחלה שניצל",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 5,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא חומוס",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא מטבוחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל חריף",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "81caa6208113e85cc89d6868",
+   "name": "מסיבת חומוס בזוהרה  | מתאים ל - 15 סועדים",
+   "price": 695.0,
+   "desc": "כשיש 15 אנשים, זו כבר מסיבה. 15 מנות חומוס לבחירה, 30 פיתות טריות, 4 סלטים ישראליים קצוצים, 4 מנות צ׳יפס חם, חצילים וגמבות חריפים, זיתים מתובלים, חמוצים והסחוג של זוהרה. מסיבה שלמה בלי לבשל, לאירוע בבית או לצוות שלם במשרד. מומלץ להזמין יום מראש.",
+   "category": "מגשי אירוח של זוהרה",
+   "image": "https://imageproxy.wolt.com/assets/6a7720dc284ac410bddea5c6",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "חומוס ראשון לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס הראשון",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס הראשון   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס שני לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס השני",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס השני   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס שלישי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס השלישי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס השלישי  ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס רביעי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס הרביעי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס הרביעי ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס חמישי  לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס החמישי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס החמישי   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס שישי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס השישי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס השישי   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס שביעי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס השביעי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויי נוסף לחומוס השביעי   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס שמיני לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס השמיני",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויי נוסף לחומוס השמיני   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס תשיעי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס התשיעי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויי נוסף לחומוס התשיעי  ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס עשירי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס העשירי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויי נוסף לחומוס העשירי ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס מספר 11 לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס ה -11",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויי נוסף לחומוס ה -11 ( סביח / מסאחן )",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס מספר 12 לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס ה -12",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויי נוסף לחומוס ה -12 ( סביח / מסאחן )",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס מספר 13 לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס ה -13",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויי נוסף לחומוס ה -13 ( סביח / מסאחן )",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס מספר 14 לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס ה -14",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויי נוסף לחומוס ה -14 ( סביח / מסאחן )",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס מספר 15 לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס ה -15",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויי נוסף לחומוס ה -15 ( סביח / מסאחן )",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "לימונדה ליטר",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "בקבוק לימונדה",
+       "price": 17.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "2 בקבוקי לימונדה",
+       "price": 33.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "3 בקבוקי לימונדה",
+       "price": 49.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "4 בקבוקי לימונדה",
+       "price": 65.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "5 בקבוקי לימונדה",
+       "price": 81.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "34f7588c618149e08a866a3a",
+   "name": "שולחן זוהרה  | מתאים ל - 10 סועדים",
+   "price": 489.0,
+   "desc": "מגש אירוח ל-10 סועדים הכולל 10 מנות חומוס לבחירה, 20 פיתות טריות, 3 סלטים ישראליים קצוצים ו-3 מנות צ׳יפס חם. לצד אלה מוגשים זיתים מתובלים, חמוצים והסחוג של זוהרה. מומלץ להזמין מראש.",
+   "category": "מגשי אירוח של זוהרה",
+   "image": "https://imageproxy.wolt.com/assets/6a771b79284ac410bddea561",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "חומוס ראשון לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס הראשון",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס הראשון   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס שני לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס השני",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס השני   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס שלישי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס השלישי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס השלישי  ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס רביעי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס הרביעי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס הרביעי ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס חמישי  לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס החמישי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס החמישי   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס שישי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס השישי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס השישי   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס שביעי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס השביעי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויי נוסף לחומוס השביעי   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס שמיני לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס השמיני",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויי נוסף לחומוס השמיני   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס תשיעי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס התשיעי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויי נוסף לחומוס התשיעי  ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס עשירי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס העשירי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויי נוסף לחומוס העשירי ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "לימונדה ליטר",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "בקבוק לימונדה",
+       "price": 17.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "2 בקבוקי לימונדה",
+       "price": 33.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "3 בקבוקי לימונדה",
+       "price": 49.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "4 בקבוקי לימונדה",
+       "price": 65.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "5 בקבוקי לימונדה",
+       "price": 81.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "238d5006c8117e118f275769",
+   "name": "מגש חברים | מתאים ל -5 סועדים",
+   "price": 259.0,
+   "desc": "מגש אירוח המתאים לחמישה סועדים, עם 5 מנות חומוס לבחירה, 10 פיתות, 2 סלטים ישראליים קצוצים, 2 מנות צ׳יפס, חמוצים והסחוג של זוהרה. מתאים למשרד, לאירוח בבית או למפגש עם חברים. מומלץ להזמין מראש.",
+   "category": "מגשי אירוח של זוהרה",
+   "image": "https://imageproxy.wolt.com/assets/6a771291fcc9c1a69bb89a98",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "חומוס ראשון לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס הראשון",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס הראשון   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס שני לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס השני",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס השני   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס שלישי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס השלישי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס השלישי  ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס רביעי לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס הרביעי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס הרביעי ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "חומוס חמישי  לבחירה",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים לחומוס החמישי",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס החמישי   ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "לימונדה ליטר",
+     "type": "Choice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "בקבוק לימונדה",
+       "price": 17.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "2 בקבוקי לימונדה",
+       "price": 33.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "3 בקבוקי לימונדה",
+       "price": 49.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "4 בקבוקי לימונדה",
+       "price": 65.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "5 בקבוקי לימונדה",
+       "price": 81.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "602e6004c629b1f09193dc97",
+   "name": "סכו״ם חד\"פ 🍴",
+   "price": 0.0,
+   "desc": "אנא בחרו פריט זה כמספר הסועדים הזקוקים לסכו\"ם חד\"פ",
+   "category": "מספר סועדים",
+   "image": "https://imageproxy.wolt.com/assets/66717fd8750bf16648d2aed9",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "226b6b620544bbfa760f9c06",
+   "name": "פיתה פתוחה פלפל צ׳ומה",
+   "price": 9.0,
+   "desc": "פיתה פלפל צ׳ומה שרופה על האש",
+   "category": "משהו לנגב איתו",
+   "image": "https://imageproxy.wolt.com/assets/6979d0aaf6ee27217dc05259",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "e2b367f8b824fd1d21d39019",
+   "name": "פיתה פתוחה זעתר",
+   "price": 9.0,
+   "desc": "פיתה זעתר שרופה על האש",
+   "category": "משהו לנגב איתו",
+   "image": "https://imageproxy.wolt.com/assets/6979d0a7f6ee27217dc05258",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "2143beb96d3396af3b4f0e68",
+   "name": "פיתה",
+   "price": 4.0,
+   "desc": "פיתה",
+   "category": "משהו לנגב איתו",
+   "image": "https://imageproxy.wolt.com/assets/6979d0b88d71993ce33007a2",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "4558d7d7f85ef2cc6fc0edef",
+   "name": "פתיחת שולחן סלטים | ליחיד",
+   "price": 64.0,
+   "desc": "צ׳יפס, סלט ישראלי קצוץ, מסייר, זיתים מתובלים, בישבש, כדורי פלאפל ועלי גפן ממולאים — הסלטים של זוהרה בצלחות קטנות, עם בקבוק לימונדה של השוק. ככה פותחים שולחן.",
+   "category": "עסקית צהריים ",
+   "image": "https://imageproxy.wolt.com/assets/6a7727cf1281a30feace28d7",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "febb65055ba68636e0df296d",
+   "name": "עסקית כל היום | חומוס + ציפס + סלט קצוץ + לימונדה",
+   "price": 61.0,
+   "desc": "חומוס לבחירה מוגש עם צ׳יפס, סלט קצוץ ולימונדה",
+   "category": "עסקית צהריים ",
+   "image": "https://imageproxy.wolt.com/assets/6a74a5a81281a30feacdd266",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "בחרו חומוס",
+     "type": "Multichoice",
+     "min": 1,
+     "max": 1,
+     "free": 0,
+     "values": [
+      {
+       "name": "גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "פול",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "מסבחה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "משולש",
+       "price": 2.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס פטריות",
+       "price": 9.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס ראגו בקר",
+       "price": 24.0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן פרגית",
+       "price": 32.0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים אפשריים לחומוס",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "name": "שינויים נוסף לחומוס  ( סביח / מסאחן )",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "חומוס סביח - ללא עגבנייה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא ביצה קשה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא חציל",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס סביח - ללא עמבה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא בצל כבוש",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "חומוס מסאחן - ללא שקדים קלויים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "b64bb88ce6f9b231254488a1",
+   "name": "עלי גפן",
+   "price": 37.0,
+   "desc": "עלי גפן ממולאים באורז ועשבי תיבול, מבושלים בלימון ושמן זית",
+   "category": "קטנות ומושלמות",
+   "image": "https://imageproxy.wolt.com/assets/6979d082f6ee27217dc05249",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": [
+    {
+     "name": "שינויים אפשריים",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 3,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא טחינה גולמית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא רימונים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "wolt_id": "53c579bfe25e870f488b5619",
+   "name": "בצל ממולא",
+   "price": 37.0,
+   "desc": "בצל ממולא  ואורז,  מנה של סבתא",
+   "category": "קטנות ומושלמות",
+   "image": "https://imageproxy.wolt.com/assets/6979cffef6ee27217dc05212",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "3b59db456126a48175c8429a",
+   "name": "כרוב ממולא",
+   "price": 37.0,
+   "desc": "עלי כרוב ממולאים באורז",
+   "category": "קטנות ומושלמות",
+   "image": null,
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "09f9b17c17c897f2959c0add",
+   "name": "צ׳יפס",
+   "price": 18.0,
+   "desc": "צ׳יפס אמיתי חתוך עבה, מטוגן טרי ומומלח",
+   "category": "קטנות ומושלמות",
+   "image": "https://imageproxy.wolt.com/assets/6979d0e38d71993ce33007b2",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "8a088cf882f4586288b2b741",
+   "name": "סלט ישראלי קצוץ",
+   "price": 18.0,
+   "desc": "עגבניה, מלפפון, בצל, פטרוזיליה, שמן זית ולימון",
+   "category": "קטנות ומושלמות",
+   "image": "https://imageproxy.wolt.com/assets/6a74a1b71281a30feacdd1f8",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "9df2d05d6d82e5d1d115e1b9",
+   "name": "5 כדורי פלאפל",
+   "price": 10.0,
+   "desc": "5 כדורי פלאפל מטוגנים במקום, פריכים מבחוץ ורכים מבפנים",
+   "category": "קטנות ומושלמות",
+   "image": "https://imageproxy.wolt.com/assets/6a74a4051281a30feacdd23e",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "07e568db5b0c487fa8557d52",
+   "name": "מלבי",
+   "price": 17.0,
+   "desc": "מלבי קרמי עם סירופ מלבי ורדים, קוקוס ובוטנים קצוצים",
+   "category": "קינוחים",
+   "image": "https://imageproxy.wolt.com/assets/6979d062f6ee27217dc05240",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "92c8a83e146a20fd81b4118d",
+   "name": "לימונדה | 1 ליטר",
+   "price": 17.0,
+   "desc": "",
+   "category": "שתייה קלה",
+   "image": null,
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "c2b357576714b339c2b46d0b",
+   "name": "קוקה קולה",
+   "price": 15.0,
+   "desc": "",
+   "category": "שתייה קלה",
+   "image": "https://imageproxy.wolt.com/assets/69664bfb66118d5303733c12",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "7887dbf3865b87979ed61276",
+   "name": "קולה זירו",
+   "price": 15.0,
+   "desc": "",
+   "category": "שתייה קלה",
+   "image": "https://imageproxy.wolt.com/assets/69664c0c66118d5303733c17",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "46899069699c7dc020b129a7",
+   "name": "ענבים",
+   "price": 15.0,
+   "desc": "",
+   "category": "שתייה קלה",
+   "image": "https://imageproxy.wolt.com/assets/69664c1a66118d5303733c1c",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "e27506293462289ae1224841",
+   "name": "רוזטה",
+   "price": 12.0,
+   "desc": "",
+   "category": "שתייה קלה",
+   "image": null,
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "c87e1fb1070774d69e2d027c",
+   "name": "לימונדה",
+   "price": 12.0,
+   "desc": "",
+   "category": "שתייה קלה",
+   "image": null,
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "cc83a6fb543f2384b90b8d97",
+   "name": "סודה",
+   "price": 12.0,
+   "desc": "",
+   "category": "שתייה קלה",
+   "image": "https://imageproxy.wolt.com/assets/69664c483585ae8fe5fe73c4",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  },
+  {
+   "wolt_id": "17cc86910aa3d876309c266f",
+   "name": "מים מינרליים",
+   "price": 12.0,
+   "desc": "",
+   "category": "שתייה קלה",
+   "image": "https://imageproxy.wolt.com/assets/69664c5b66118d5303733c27",
+   "enabled": true,
+   "alcohol_pct": 0.0,
+   "option_groups": []
+  }
+ ]
+}
