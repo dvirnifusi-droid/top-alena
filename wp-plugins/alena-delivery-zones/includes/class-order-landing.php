@@ -91,15 +91,33 @@ class Alena_DZ_Order_Landing {
 
     public function add_rewrite() {
         add_rewrite_rule('^' . self::SLUG . '/?$', 'index.php?alena_order_page=1', 'top');
-        // /zohara is Zohara's front door: same shop, pinned to its brand. A
-        // redirect keeps all the shop machinery and one shared cart, so a
-        // customer can still cross over to Alena in the same order.
-        add_rewrite_rule('^zohara/?$', 'index.php?alena_zohara_entry=1', 'top');
+        $this->ensure_zohara_page();
         // Self-heal: flush once so /order resolves without visiting Permalinks.
         if (get_option('alena_order_rewrite_v') !== '3') {
             flush_rewrite_rules(false);
             update_option('alena_order_rewrite_v', '3');
         }
+    }
+
+    /**
+     * A real published page at /zohara. The rewrite-rule route was intercepted
+     * by WordPress's 404 URL-guessing before any hook could redirect it; a page
+     * that actually exists is never a 404, so nothing guesses it away. The page
+     * itself just redirects to the branded menu (see maybe_render).
+     */
+    private function ensure_zohara_page() {
+        if (get_option('alena_zohara_page_v') === '1') return;
+        $existing = get_page_by_path('zohara');
+        if (!$existing) {
+            wp_insert_post([
+                'post_title'   => 'חומוס זוהרה',
+                'post_name'    => 'zohara',
+                'post_status'  => 'publish',
+                'post_type'    => 'page',
+                'post_content' => '',
+            ]);
+        }
+        update_option('alena_zohara_page_v', '1');
     }
 
     public function query_var($vars) {
@@ -139,7 +157,7 @@ class Alena_DZ_Order_Landing {
         // /zohara is handled on the SAME hook that provably reaches /order.
         // The init/template_redirect variants never fired here; this one does.
         $path = strtolower(trim(parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '', '/'));
-        if ($path === 'zohara' || get_query_var('alena_zohara_entry')) {
+        if ($path === 'zohara' || is_page('zohara') || get_query_var('alena_zohara_entry')) {
             wp_safe_redirect(home_url('/shop/') . '?brand=zohara', 302);
             exit;
         }

@@ -71,8 +71,8 @@ class Alena_DZ_Webhook_Payload {
             $payload['line_items'][$i]['price']        = wc_format_decimal($grossTotal / $qty, 2);
 
             // --- 2 + 3. clean the meta -------------------------------------
+            $clean = [];
             if (!empty($item['meta_data']) && is_array($item['meta_data'])) {
-                $clean = [];
                 foreach ($item['meta_data'] as $meta) {
                     $key   = (string) ($meta['key'] ?? ($meta->key ?? ''));
                     $value = $meta['value'] ?? ($meta->value ?? '');
@@ -80,8 +80,24 @@ class Alena_DZ_Webhook_Payload {
                     if ($this->is_empty_answer($value)) continue;                // 3
                     $clean[] = $meta;
                 }
-                $payload['line_items'][$i]['meta_data'] = array_values($clean);
             }
+
+            // --- 4. brand on the line, so the bon prints at the right station.
+            // Two kitchens on one order: without this, Miley cannot tell a
+            // Zohara hummus from an Alena pita and both land at one printer.
+            // Added as a visible meta pair, first, so it reads at the top.
+            if (class_exists('Alena_DZ_Brands')) {
+                $pid = (int) ($item['product_id'] ?? 0);
+                if ($pid) {
+                    $brand = Alena_DZ_Brands::brand_of($pid);
+                    $term  = get_term_by('slug', $brand, Alena_DZ_Brands::TAX);
+                    $name  = ($term && !is_wp_error($term)) ? $term->name
+                           : ($brand === 'zohara' ? 'חומוס זוהרה' : 'עלינא בפיתה');
+                    array_unshift($clean, ['key' => 'מטבח', 'value' => $name]);
+                }
+            }
+
+            $payload['line_items'][$i]['meta_data'] = array_values($clean);
         }
 
         return $payload;
