@@ -2679,3 +2679,32 @@
     font-size: 16px !important;
   }
 }
+
+/* A dish from a closed kitchen. Shown, dimmed, and unaddable -- hiding it
+   would make half the menu vanish with no explanation, and a + button that
+   does nothing is worse than no button. */
+@media screen {
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card-closed .alena-dz-card-imgwrap,
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-card-closed .alena-dz-card-body {
+    opacity: .45 !important;
+    filter: grayscale(.6) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-brand-flag {
+    position: absolute !important;
+    inset-inline-start: 10px !important;
+    top: 10px !important;
+    z-index: 3 !important;
+    padding: 4px 10px !important;
+    border-radius: 999px !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    background: rgba(0,0,0,.72) !important;
+    color: var(--accent) !important;
+    -webkit-text-fill-color: var(--accent) !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-dz-brand-flag.is-closed {
+    color: #fca5a5 !important;
+    -webkit-text-fill-color: #fca5a5 !important;
+  }
+  body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile li.alena-dz-card { position: relative !important; }
+}

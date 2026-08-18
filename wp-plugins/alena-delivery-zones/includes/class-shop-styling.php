@@ -848,14 +848,39 @@ class Alena_DZ_Shop_Styling {
         }
         $card_classes = 'alena-dz-card';
         if (!$has_required_mods) $card_classes .= ' alena-dz-card-stepperable';
+
+        // A dish whose kitchen is shut is shown, not hidden: the customer
+        // should learn that Zohara exists and when it is back, rather than
+        // wonder where half the menu went. It just cannot be added.
+        $brand_closed = false;
+        $brand_label  = '';
+        if (class_exists('Alena_DZ_Brands')) {
+            $brand = Alena_DZ_Brands::brand_of($id);
+            if ($brand !== Alena_DZ_Brands::DEFAULT_BRAND) {
+                if (Alena_DZ_Brands::is_open($brand)) {
+                    $brand_label = Alena_DZ_Brands::open_until($brand);   // "זמין עד 17:00"
+                } else {
+                    $brand_closed = true;
+                    $brand_label  = Alena_DZ_Brands::closed_label($brand); // "חוזרים ביום ראשון"
+                    $card_classes .= ' alena-dz-card-closed';
+                }
+            }
+        }
         ?>
         <li class="<?php echo esc_attr($card_classes); ?>" data-product-id="<?php echo (int) $id; ?>">
-          <?php if ($is_featured): ?>
+          <?php if ($brand_label): ?>
+            <span class="alena-dz-brand-flag<?php echo $brand_closed ? ' is-closed' : ''; ?>">
+              <?php echo esc_html($brand_label); ?>
+            </span>
+          <?php endif; ?>
+          <?php if ($is_featured && !$brand_closed): ?>
             <span class="alena-dz-popular-badge">פופולרי</span>
           <?php endif; ?>
           <a class="alena-dz-card-imgwrap" href="<?php echo esc_url($url); ?>">
             <?php echo $img; ?>
-            <span class="alena-dz-card-add" data-product_id="<?php echo $id; ?>" aria-label="הוסף לסל">+</span>
+            <?php if (!$brand_closed): ?>
+              <span class="alena-dz-card-add" data-product_id="<?php echo $id; ?>" aria-label="הוסף לסל">+</span>
+            <?php endif; ?>
           </a>
           <div class="alena-dz-card-body">
             <a class="alena-dz-card-title" href="<?php echo esc_url($url); ?>"><?php echo esc_html($name); ?></a>
