@@ -13182,7 +13182,10 @@ async function ensureDayEvents(): Promise<void> {
   // Payment per evening. 'none' books as usual; 'deposit' authorises the card
   // without taking money (PayPlus J5) and is charged only on a no-show;
   // 'ticket' charges immediately, which is a sale and a tax event on the spot.
-  for (const col of [`"payment_mode" TEXT`, `"price" INTEGER`, `"charge_per" TEXT`]) {
+  // start_time/end_time turn an all-day date into a fixed session — a workshop
+  // at 19:00, not "any time we're open". When start_time is set the booking page
+  // pins that time instead of showing the whole hour grid.
+  for (const col of [`"payment_mode" TEXT`, `"price" INTEGER`, `"charge_per" TEXT`, `"start_time" TEXT`, `"end_time" TEXT`]) {
     await (prisma as any).$executeRawUnsafe(`ALTER TABLE "DayEvent" ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
   }
   _dayEventsEnsured = true;
@@ -13242,15 +13245,21 @@ registerFn('saveDayEvent', async ({ user, body }: any) => {
   if (mode !== 'none' && priceRaw <= 0) throw new Error('סכום חייב להיות גדול מ-0 כשיש תשלום');
   const price = mode === 'none' ? null : priceRaw;
   const chargePer = String(b.charge_per) === 'booking' ? 'booking' : 'person';
+  // A fixed session time. Empty = all-day booking (the full hour grid). Anything
+  // that isn't a clean HH:MM is dropped rather than stored, so a stray value
+  // can't pin the booking page to a time that doesn't exist.
+  const hhmm = (v: any) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || '').trim()) ? String(v).trim() : null);
+  const startTime = hhmm(b.start_time);
+  const endTime = startTime ? hhmm(b.end_time) : null; // an end with no start is meaningless
   await (prisma as any).$executeRawUnsafe(
-    `INSERT INTO "DayEvent" ("id","event_date","title","description","image_url","capacity","active","payment_mode","price","charge_per","updatedAt")
-     VALUES ($1,$2::date,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+    `INSERT INTO "DayEvent" ("id","event_date","title","description","image_url","capacity","active","payment_mode","price","charge_per","start_time","end_time","updatedAt")
+     VALUES ($1,$2::date,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
      ON CONFLICT ("event_date") DO UPDATE SET
        title=$3, description=$4, image_url=$5, capacity=$6, active=$7,
-       payment_mode=$8, price=$9, charge_per=$10, "updatedAt"=NOW()`,
+       payment_mode=$8, price=$9, charge_per=$10, start_time=$11, end_time=$12, "updatedAt"=NOW()`,
     randomUUID(), date, title, String(b.description || '').trim() || null,
     String(b.image_url || '').trim() || null, capacity, b.active !== false,
-    mode, price, chargePer,
+    mode, price, chargePer, startTime, endTime,
   );
   return { ok: true };
 });
@@ -13285,6 +13294,8 @@ registerFn('getPublicDayEvent', async ({ body }: any) => {
       payment_mode: e.payment_mode || 'none',
       price: e.price ?? null,
       charge_per: e.charge_per || 'person',
+      start_time: e.start_time || null,
+      end_time: e.end_time || null,
     },
   };
 }, { public: true });
@@ -13309,8 +13320,22 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
     if (rsForGate && rsForGate.reservations_enabled === false) {
       return { success: false, reason: 'reservations_disabled' };
     }
+    // A fixed-time evening (a workshop, a chef's dinner) is the owner's explicit
+    // override of normal hours — it may well run before the kitchen opens or
+    // after last seating, and its one time is allowed to bypass this gate.
+    let eventPinnedTime: string | null = null;
+    {
+      await ensureDayEvents();
+      const d = ymd(date);
+      if (d) {
+        const r: any[] = await (prisma as any).$queryRawUnsafe(
+          `SELECT start_time FROM "DayEvent" WHERE "event_date"=$1::date AND active=true LIMIT 1`, d,
+        ).catch(() => []);
+        eventPinnedTime = r[0]?.start_time || null;
+      }
+    }
     const oh: any = rsForGate?.opening_hours;
-    if (oh && typeof oh === 'object') {
+    if (oh && typeof oh === 'object' && eventPinnedTime !== String(time)) {
       const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
       const dow = new Date(`${String(date).slice(0, 10)}T12:00:00Z`).getUTCDay();
       const day = oh[dayNames[dow]];

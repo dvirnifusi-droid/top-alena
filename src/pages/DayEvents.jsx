@@ -9,12 +9,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Plus, Trash2, Copy, Image as ImageIcon, Check } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import TimePicker from '@/components/shared/TimePicker';
 
 // "ערב מיוחד" — everything the guest sees for one specific date, and a cap for
 // that evening. Until now the booking page only knew recurring weeknights, and
 // those were hardcoded, so selling a single night wasn't possible at all.
 const EMPTY = { event_date: '', title: '', description: '', image_url: '', capacity: '',
-  payment_mode: 'none', price: '', charge_per: 'person', active: true };
+  payment_mode: 'none', price: '', charge_per: 'person', active: true,
+  start_time: '', end_time: '' };
 
 export default function DayEvents() {
   const { toast } = useToast();
@@ -129,6 +131,29 @@ export default function DayEvents() {
                 onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))} />
             </div>
           </div>
+          <div className="rounded-lg p-3" style={{ background: '#FAF6EC', border: '1px solid #E3D3AC' }}>
+            <Label>שעה קבועה</Label>
+            <p className="text-[11.5px] mt-0.5 mb-2" style={{ color: '#8A755A' }}>
+              לסדנה או ערב שף שמתחילים בשעה מסוימת. השאירו ריק כדי שאפשר יהיה להזמין בכל שעת פתיחה.
+            </p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div>
+                <div className="text-[11px] font-bold mb-1" style={{ color: '#5C4B3A' }}>התחלה</div>
+                <TimePicker value={form.start_time} onChange={(v) => setForm((f) => ({ ...f, start_time: v }))} />
+              </div>
+              <div>
+                <div className="text-[11px] font-bold mb-1" style={{ color: '#5C4B3A' }}>סיום (לא חובה)</div>
+                <TimePicker value={form.end_time} onChange={(v) => setForm((f) => ({ ...f, end_time: v }))} />
+              </div>
+              {form.start_time && (
+                <button type="button"
+                  onClick={() => setForm((f) => ({ ...f, start_time: '', end_time: '' }))}
+                  className="text-[12px] underline self-end mb-2" style={{ color: '#A04A2E' }}>
+                  נקה — הזמנה לכל היום
+                </button>
+              )}
+            </div>
+          </div>
           <div>
             <Label>כותרת *</Label>
             <Input placeholder="מסיבת סוף קיץ" value={form.title}
@@ -230,6 +255,11 @@ export default function DayEvents() {
                     <Badge variant="outline" className="text-xs tabular-nums">
                       {new Date(e.event_date).toLocaleDateString('he-IL')}
                     </Badge>
+                    {e.start_time && (
+                      <Badge variant="outline" className="text-xs tabular-nums" style={{ borderColor: '#C9A15A', color: '#7C5626' }}>
+                        🕒 {e.start_time}{e.end_time ? `–${e.end_time}` : ''}
+                      </Badge>
+                    )}
                     {e.capacity != null && (
                       <Badge className={full ? 'bg-red-100 text-red-800 text-xs' : 'bg-emerald-100 text-emerald-800 text-xs'}>
                         {e.seats_booked ?? 0}/{e.capacity} מקומות
@@ -267,7 +297,7 @@ export default function DayEvents() {
                       {copied === `${e.event_date}|` ? 'הועתק' : 'קישור רגיל'}
                     </Button>
                     <Button size="sm" variant="ghost"
-                      onClick={() => setForm({ ...EMPTY, ...e, capacity: e.capacity ?? '' })}>
+                      onClick={() => setForm({ ...EMPTY, ...e, capacity: e.capacity ?? '', start_time: e.start_time || '', end_time: e.end_time || '' })}>
                       ערוך
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => remove(e.event_date)}>

@@ -179,6 +179,9 @@ export default function PublicReservationPage() {
   // weeknight catalogue is switched off there, because a guest opening a summer
   // party invitation shouldn't be read a pitch for wine night on the same screen.
   const eventOnly = PRESET.only && !!dayEvent;
+  // A workshop or chef's evening runs at a set time, not "any time we're open".
+  // When the evening carries one, the hour grid collapses to that single time.
+  const pinnedTime = dayEvent?.start_time || null;
   const [time, setTime] = useState('');
   const [partySize, setPartySize] = useState(2);
   const [customerName, setCustomerName] = useState('');
@@ -255,6 +258,16 @@ export default function PublicReservationPage() {
     })();
     return () => { dead = true; };
   }, [date]);
+
+  // An evening with a fixed time books at that time — pin it once the event
+  // loads. Runs after the date-change effect (which clears the time), because it
+  // fires when dayEvent resolves, which is later.
+  useEffect(() => {
+    if (dayEvent?.start_time) {
+      setTime(dayEvent.start_time);
+      setSelectedHour(`${dayEvent.start_time.slice(0, 2)}:00`);
+    }
+  }, [dayEvent?.start_time]);
 
   useEffect(() => {
     const PRIMARY = isMainAlena()
@@ -1083,10 +1096,21 @@ export default function PublicReservationPage() {
             })()}
           </div>
 
-          {/* Time slots — two-step: pick HOUR, then expand to quarter-hour strip */}
+          {/* Time slots — two-step: pick HOUR, then expand to quarter-hour strip.
+              A pinned evening skips the whole picker and shows its one time. */}
           <div>
             <Label icon={<Clock className="w-4 h-4" />}>שעה</Label>
-            {hourSlots.length === 0 ? (
+            {pinnedTime ? (
+              <div
+                className="mt-2 rounded-xl px-4 py-3 text-center"
+                style={{ background: '#FFFEFB', border: '1px solid rgba(184,149,86,0.35)', color: '#44512C' }}
+              >
+                <div className="text-2xl font-black leading-tight tabular-nums">
+                  {pinnedTime}{dayEvent?.end_time ? <span className="text-base font-bold opacity-70"> – {dayEvent.end_time}</span> : ''}
+                </div>
+                <div className="text-[11px] opacity-70 mt-0.5">שעת האירוע</div>
+              </div>
+            ) : hourSlots.length === 0 ? (
               <p className="text-sm text-red-600 mt-2 bg-red-50 border border-red-200 rounded-lg p-2">המסעדה סגורה בתאריך זה</p>
             ) : (
               <>
