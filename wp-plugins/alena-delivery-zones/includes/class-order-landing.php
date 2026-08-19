@@ -205,8 +205,10 @@ class Alena_DZ_Order_Landing {
         if (!headers_sent()) {
             setcookie('alena_entered', '1', time() + 2592000, COOKIEPATH ?: '/');
         }
-        // The club banner is styled by club.css, which only auto-loads on WC
-        // pages — /order is not one, so enqueue it here.
+        // The card + club styling live in stylesheets that only auto-load on WC
+        // pages. /order is not a WC page, so without these the brand cards render
+        // as raw unstyled text — enqueue them here explicitly.
+        wp_enqueue_style('alena-dz-dark-mobile', ALENA_DZ_URL . 'assets/dark-mobile.css', [], ALENA_DZ_VERSION);
         wp_enqueue_style('alena-club', ALENA_DZ_URL . 'assets/club.css', [], ALENA_DZ_VERSION);
 
         get_header();
@@ -251,6 +253,8 @@ class Alena_DZ_Order_Landing {
         .alena-order-login-text{flex:1;display:flex;flex-direction:column;gap:2px}
         .alena-order-login-text strong{font-size:16px;font-weight:800}
         .alena-order-login-text small{font-size:12.5px;opacity:.75}
+        .alena-order-login-badge{align-self:flex-start;margin:3px 0;padding:3px 10px;border-radius:999px;
+          font-size:12.5px;font-weight:800;background:#B89556;color:#1F1B17}
         .alena-order-login-arrow{font-size:22px;opacity:.6}
         </style>
         <?php
@@ -275,12 +279,16 @@ class Alena_DZ_Order_Landing {
 
         $login = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : '/my-account/';
         $login = add_query_arg('next', 'order', $login);
+        $incentive = class_exists('Alena_DZ_Club') ? Alena_DZ_Club::join_incentive() : '';
         ?>
         <a class="alena-order-login" href="<?php echo esc_url($login); ?>">
           <span class="alena-order-login-emoji">🎁</span>
           <span class="alena-order-login-text">
             <strong>מתחברים — וההטבות מחכות</strong>
-            <small>נקודות מועדון, הנחות אישיות והזמנה מהירה · חינם</small>
+            <?php if ($incentive): ?>
+              <span class="alena-order-login-badge">🎁 <?php echo esc_html($incentive); ?></span>
+            <?php endif; ?>
+            <small>הזמנה מהירה בלי למלא פרטים כל פעם · חינם</small>
           </span>
           <span class="alena-order-login-arrow">←</span>
         </a>

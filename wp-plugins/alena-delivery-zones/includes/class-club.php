@@ -23,6 +23,7 @@ class Alena_DZ_Club {
     const OPT_KEY       = 'alena_club_api_key';
     const OPT_COIN_VAL  = 'alena_club_coin_value';
     const OPT_EARN_PER  = 'alena_club_earn_per';
+    const OPT_JOIN      = 'alena_club_join_incentive';
 
     const SESSION_REDEEM_COINS = 'alena_club_redeem_coins';
 
@@ -92,6 +93,19 @@ class Alena_DZ_Club {
     public static function earn_per_ils(): float {
         $v = (float) get_option(self::OPT_EARN_PER, 100);
         return $v > 0 ? $v : 100.0;
+    }
+
+    /**
+     * The join incentive shown on the login button. Owner-editable, because the
+     * benefit is the owner's promise to honour — the club API grants no automatic
+     * welcome gift. Defaults to a line that is already true today (the points
+     * economy), so it never over-promises until the owner sets a real offer.
+     */
+    public static function join_incentive(): string {
+        $custom = trim((string) get_option(self::OPT_JOIN, ''));
+        if ($custom !== '') return $custom;
+        $coin = (int) round(self::coin_value_ils());
+        return 'צוברים נקודות על כל הזמנה — כל נקודה ₪' . $coin . ' בקופה';
     }
 
     public static function is_configured(): bool {
@@ -597,6 +611,7 @@ class Alena_DZ_Club {
         register_setting('alena_club', self::OPT_KEY,      ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
         register_setting('alena_club', self::OPT_COIN_VAL, ['type' => 'number', 'sanitize_callback' => 'floatval']);
         register_setting('alena_club', self::OPT_EARN_PER, ['type' => 'number', 'sanitize_callback' => 'floatval']);
+        register_setting('alena_club', self::OPT_JOIN,     ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
     }
 
     public function render_admin() {
@@ -641,6 +656,13 @@ class Alena_DZ_Club {
                 <td>
                   <input type="number" step="1" min="1" name="<?php echo self::OPT_EARN_PER; ?>" value="<?php echo esc_attr($earn_p); ?>" /> ש״ח להזמנה = נקודה אחת
                   <p class="description">ברירת מחדל: 100 ש״ח להזמנה = נקודה אחת</p>
+                </td>
+              </tr>
+              <tr>
+                <th>תמריץ הצטרפות (בכפתור ההתחברות)</th>
+                <td>
+                  <input type="text" name="<?php echo self::OPT_JOIN; ?>" value="<?php echo esc_attr(get_option(self::OPT_JOIN, '')); ?>" style="width:420px" placeholder="<?php echo esc_attr(self::join_incentive()); ?>" />
+                  <p class="description">מה שכתוב פה מופיע כהטבת-הצטרפות על כפתור ההתחברות בדף הכניסה. השאירו ריק כדי להשתמש בברירת המחדל (ערך הנקודות). <strong>מה שתבטיחו כאן — כדאי לכבד בפועל</strong> (למשל: "קינוח מתנה בהזמנה הראשונה").</p>
                 </td>
               </tr>
             </table>
