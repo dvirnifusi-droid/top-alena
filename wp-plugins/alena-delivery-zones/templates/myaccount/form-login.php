@@ -2,17 +2,24 @@
 /**
  * Phone+OTP login / registration template — overrides WC's default form-login.php
  *
- * Two modes (via ?mode= URL param):
- *   - login    (default): phone → code → done
- *   - register: full profile form → code → done (also POSTs to /api/club/register)
+ * One card, two modes. The tabs switch CLIENT-SIDE (no page reload) — both field
+ * sets live in the DOM and phone-auth.js toggles them by flipping data-mode on
+ * the wrapper. The old version linked ?mode=register and reloaded the whole page
+ * on every tab tap, which felt slow.
  *
- * The register form mirrors topalena.com/Club so the same customer record gets
- * captured regardless of where the customer signs up.
+ * The register fields mirror topalena.com/Club so the same customer record is
+ * captured wherever the customer signs up.
  */
 if (!defined('ABSPATH')) exit;
 
-$mode_param = isset($_GET['mode']) ? sanitize_text_field((string) $_GET['mode']) : 'login';
+$mode_param  = isset($_GET['mode']) ? sanitize_text_field((string) $_GET['mode']) : 'login';
 $is_register = ($mode_param === 'register');
+
+// Which mode a given block starts hidden in (JS flips these on tab switch).
+$reg_hidden = $is_register ? '' : 'hidden';
+$log_hidden = $is_register ? 'hidden' : '';
+
+$incentive = class_exists('Alena_DZ_Club') ? Alena_DZ_Club::join_incentive() : '';
 
 // City dropdown — delivery area first, then the rest of the country
 $cities = [
@@ -27,40 +34,37 @@ do_action('woocommerce_before_customer_login_form');
 
 <div class="alena-otp-wrap" dir="rtl" data-mode="<?php echo esc_attr($is_register ? 'register' : 'login'); ?>">
   <div class="alena-otp-card">
-    <div class="alena-otp-emoji" aria-hidden="true">📱</div>
+    <div class="alena-otp-emoji" aria-hidden="true">🥙</div>
 
     <div class="alena-otp-tabs" role="tablist">
-      <a href="<?php echo esc_url(wc_get_page_permalink('myaccount')); ?>"
-         class="alena-otp-tab <?php echo !$is_register ? 'is-active' : ''; ?>">התחברות</a>
-      <a href="<?php echo esc_url(add_query_arg('mode', 'register', wc_get_page_permalink('myaccount'))); ?>"
-         class="alena-otp-tab <?php echo $is_register ? 'is-active' : ''; ?>">הרשמה למועדון</a>
+      <button type="button" class="alena-otp-tab <?php echo !$is_register ? 'is-active' : ''; ?>" data-mode="login">התחברות</button>
+      <button type="button" class="alena-otp-tab <?php echo $is_register ? 'is-active' : ''; ?>" data-mode="register">הרשמה למועדון</button>
     </div>
 
-    <h2 class="alena-otp-title">
-      <?php echo $is_register ? '🌿 מועדון הלקוחות של עלינא' : 'התחברות מהירה'; ?>
-    </h2>
-    <p class="alena-otp-sub">
-      <?php echo $is_register
-        ? 'הצטרפו חינם — הטבות, מתנה ביום ההולדת, ועדכונים על מנות חדשות לפני כולם'
-        : 'תכניסו טלפון, נשלח לכם קוד בוואטסאפ'; ?>
-    </p>
+    <h2 class="alena-otp-title alena-otp-only-login"  <?php echo $log_hidden; ?>>התחברות מהירה</h2>
+    <h2 class="alena-otp-title alena-otp-only-register" <?php echo $reg_hidden; ?>>🌿 מועדון הלקוחות של עלינא</h2>
+
+    <p class="alena-otp-sub alena-otp-only-login"  <?php echo $log_hidden; ?>>מכניסים טלפון, מקבלים קוד בוואטסאפ — וזהו</p>
+    <p class="alena-otp-sub alena-otp-only-register" <?php echo $reg_hidden; ?>>הצטרפות חינם — הטבות, מתנה ביום ההולדת ועדכונים על מנות חדשות לפני כולם</p>
+
+    <?php if ($incentive): ?>
+      <div class="alena-otp-incentive alena-otp-only-register" <?php echo $reg_hidden; ?>>🎁 <?php echo esc_html($incentive); ?></div>
+    <?php endif; ?>
 
     <!-- Step 1 -->
     <form class="alena-otp-form" id="alena-otp-step-phone" autocomplete="off" novalidate>
-      <?php if ($is_register): ?>
 
-      <label class="alena-otp-label">שם מלא *
-        <input type="text" id="alena-otp-name" name="name"
-               placeholder="ישראל ישראלי" autocomplete="name" required />
+      <label class="alena-otp-label alena-otp-only-register" <?php echo $reg_hidden; ?>>שם מלא *
+        <input type="text" id="alena-otp-name" name="name" placeholder="ישראל ישראלי" autocomplete="name" />
       </label>
 
-      <label class="alena-otp-label">טלפון נייד *
+      <label class="alena-otp-label">טלפון נייד
         <input type="tel" inputmode="tel" id="alena-otp-phone" name="phone"
                placeholder="050-0000000" autocomplete="tel" required dir="ltr" />
       </label>
 
-      <label class="alena-otp-label">עיר מגורים *
-        <select id="alena-otp-city" name="city" required>
+      <label class="alena-otp-label alena-otp-only-register" <?php echo $reg_hidden; ?>>עיר מגורים *
+        <select id="alena-otp-city" name="city">
           <option value="">— בחרו עיר —</option>
           <?php foreach ($cities as $c): ?>
             <option value="<?php echo esc_attr($c); ?>"><?php echo esc_html($c); ?></option>
@@ -68,7 +72,7 @@ do_action('woocommerce_before_customer_login_form');
         </select>
       </label>
 
-      <div class="alena-otp-row">
+      <div class="alena-otp-row alena-otp-only-register" <?php echo $reg_hidden; ?>>
         <label class="alena-otp-label">
           <span>🎂 תאריך לידה</span>
           <input type="date" id="alena-otp-birthday" name="birthday" />
@@ -81,27 +85,18 @@ do_action('woocommerce_before_customer_login_form');
         </label>
       </div>
 
-      <label class="alena-otp-label">אימייל (אופציונלי)
-        <input type="email" id="alena-otp-email" name="email"
-               placeholder="you@email.com" autocomplete="email" />
+      <label class="alena-otp-label alena-otp-only-register" <?php echo $reg_hidden; ?>>אימייל (אופציונלי)
+        <input type="email" id="alena-otp-email" name="email" placeholder="you@email.com" autocomplete="email" />
       </label>
 
-      <label class="alena-otp-consent">
+      <label class="alena-otp-consent alena-otp-only-register" <?php echo $reg_hidden; ?>>
         <input type="checkbox" id="alena-otp-consent" checked />
         <span>אני מאשר/ת קבלת הודעות והטבות מעלינא ב-WhatsApp/SMS/אימייל. ניתן להסיר בכל רגע — משיבים "הסר" לכל הודעה.</span>
       </label>
 
-      <?php else: ?>
-
-      <label class="alena-otp-label">מספר טלפון
-        <input type="tel" inputmode="tel" id="alena-otp-phone" name="phone"
-               placeholder="050-1234567" autocomplete="tel" required dir="ltr" />
-      </label>
-
-      <?php endif; ?>
-
       <button type="submit" class="alena-otp-cta">
-        <?php echo $is_register ? '🌿 הצטרפו למועדון' : 'שלחו לי קוד ←'; ?>
+        <span class="alena-otp-only-login"  <?php echo $log_hidden; ?>>שלחו לי קוד ←</span>
+        <span class="alena-otp-only-register" <?php echo $reg_hidden; ?>>🌿 הצטרפו למועדון</span>
       </button>
       <p class="alena-otp-error" id="alena-otp-phone-error" hidden></p>
     </form>
@@ -117,7 +112,10 @@ do_action('woocommerce_before_customer_login_form');
                id="alena-otp-code" name="code" placeholder="123456"
                autocomplete="one-time-code" required dir="ltr" />
       </label>
-      <button type="submit" class="alena-otp-cta"><?php echo $is_register ? '✓ הצטרף' : '✓ התחבר'; ?></button>
+      <button type="submit" class="alena-otp-cta">
+        <span class="alena-otp-only-login"  <?php echo $log_hidden; ?>>✓ התחבר</span>
+        <span class="alena-otp-only-register" <?php echo $reg_hidden; ?>>✓ הצטרף</span>
+      </button>
       <p class="alena-otp-meta">
         לא קיבלתם? <a href="#" id="alena-otp-resend">שלחו שוב</a>
         <span id="alena-otp-cooldown" hidden> · בעוד <span id="alena-otp-cooldown-sec">60</span> שניות</span>
@@ -125,13 +123,8 @@ do_action('woocommerce_before_customer_login_form');
       <p class="alena-otp-error" id="alena-otp-code-error" hidden></p>
     </form>
 
-    <p class="alena-otp-legal">
-      <?php if ($is_register): ?>
-        עלינא · רוטשילד 104, ראשון לציון · 03-6228055
-      <?php else: ?>
-        בהמשך אתם מסכימים ל<a href="<?php echo esc_url(get_privacy_policy_url() ?: '#'); ?>">תקנון ומדיניות הפרטיות</a>
-      <?php endif; ?>
-    </p>
+    <p class="alena-otp-legal alena-otp-only-register" <?php echo $reg_hidden; ?>>עלינא · רוטשילד 104, ראשון לציון · 03-6228055</p>
+    <p class="alena-otp-legal alena-otp-only-login" <?php echo $log_hidden; ?>>בהמשך אתם מסכימים ל<a href="<?php echo esc_url(get_privacy_policy_url() ?: '#'); ?>">תקנון ומדיניות הפרטיות</a></p>
   </div>
 </div>
 

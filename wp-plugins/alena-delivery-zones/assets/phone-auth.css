@@ -144,6 +144,23 @@
   box-shadow: 0 2px 8px rgba(30,74,58,0.10);
 }
 .alena-otp-tab:hover:not(.is-active) { color: #1c1c1c !important; }
+.alena-otp-tab { border: 0; background: transparent; cursor: pointer; font-family: inherit; }
+
+/* Instant tab switch: hidden must beat the grid/flex display on rows + consent,
+   or a hidden register field would still show. */
+.alena-otp-wrap [hidden] { display: none !important; }
+
+/* Join incentive — a gold pill under the register sub-title. */
+.alena-otp-incentive {
+  display: inline-block;
+  margin: 2px auto 18px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 13.5px;
+  background: linear-gradient(135deg, #B89556, #d9bd83);
+  color: #1F1B17;
+}
 
 /* Marketing consent checkbox */
 .alena-otp-consent {

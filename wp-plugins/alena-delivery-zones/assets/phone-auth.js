@@ -71,7 +71,27 @@
     });
   }
 
-  const isRegister = ($('.alena-otp-wrap').attr('data-mode') === 'register');
+  // Mode is read LIVE, not once — the tabs flip it client-side with no reload.
+  const $wrap = $('.alena-otp-wrap');
+  function isReg() { return $wrap.attr('data-mode') === 'register'; }
+
+  $('.alena-otp-tab').on('click', function () {
+    const mode = $(this).data('mode');
+    if ($wrap.attr('data-mode') === mode) return;
+    $wrap.attr('data-mode', mode);
+    $('.alena-otp-tab').removeClass('is-active');
+    $(this).addClass('is-active');
+    // Show the fields that belong to this mode, hide the others.
+    $('.alena-otp-only-register').prop('hidden', mode !== 'register');
+    $('.alena-otp-only-login').prop('hidden', mode !== 'login');
+    hideError($errPhone);
+    // Back to step 1 if they had opened the code step.
+    $codeForm.attr('hidden', true);
+    $phoneForm.removeAttr('hidden');
+    setTimeout(function () {
+      (mode === 'register' ? $('#alena-otp-name') : $phoneIn).trigger('focus');
+    }, 30);
+  });
 
   $phoneForm.on('submit', function (e) {
     e.preventDefault();
@@ -83,7 +103,7 @@
     }
     let name = '', city = '', birthday = '', anniversary = '', email = '';
     let consent = false;
-    if (isRegister) {
+    if (isReg()) {
       name = ($('#alena-otp-name').val() || '').trim();
       if (name.length < 2) {
         $('#alena-otp-name').trigger('focus').css('border-color', '#c83a3a');
@@ -102,7 +122,7 @@
       consent = $('#alena-otp-consent').is(':checked');
     }
     const $btn = $(this).find('.alena-otp-cta');
-    const orig = $btn.text();
+    const orig = $btn.html();   // html, not text — the button holds mode spans
     $btn.prop('disabled', true).text('שולח…');
 
     // For register: first hit /api/club/register via WP proxy, THEN send OTP
@@ -110,7 +130,7 @@
     // .always(), which native promises don't have (login path used to throw
     // TypeError here and leave the button stuck on "שולח…").
     const registerThenSend = function () {
-      if (!isRegister) return $.Deferred().resolve().promise();
+      if (!isReg()) return $.Deferred().resolve().promise();
       return $.post(window.ajaxurl || '/wp-admin/admin-ajax.php', {
         action:      'alena_club_register',
         nonce:       AlenaPhoneAuth.registerNonce || '',
@@ -127,13 +147,13 @@
     registerThenSend().always(function () {
       sendCode(phone)
         .done(function (r) {
-          $btn.prop('disabled', false).text(orig);
+          $btn.prop('disabled', false).html(orig);
           if (!r || !r.ok) {
             showError($errPhone, (r && r.message) || 'שליחה נכשלה');
             return;
           }
           // Stash name for the verify step
-          if (isRegister) window.__alenaRegName = name;
+          if (isReg()) window.__alenaRegName = name;
           $shown.text(phone);
           $phoneForm.attr('hidden', true);
           $codeForm.removeAttr('hidden');
@@ -145,7 +165,7 @@
           startCooldown(60);
         })
         .fail(function (xhr) {
-          $btn.prop('disabled', false).text(orig);
+          $btn.prop('disabled', false).html(orig);
           const r = xhr.responseJSON || {};
           showError($errPhone, r.message || ('שליחה נכשלה (HTTP ' + xhr.status + ')'));
         });
@@ -162,7 +182,7 @@
       return;
     }
     const $btn = $(this).find('.alena-otp-cta');
-    const orig = $btn.text();
+    const orig = $btn.html();
     $btn.prop('disabled', true).text('מתחבר…');
 
     verifyCode(phone, code)
@@ -179,12 +199,12 @@
           } catch (e) {}
           window.location.href = dest;
         } else {
-          $btn.prop('disabled', false).text(orig);
+          $btn.prop('disabled', false).html(orig);
           showError($errCode, (r && r.message) || 'שגיאה');
         }
       })
       .fail(function (xhr) {
-        $btn.prop('disabled', false).text(orig);
+        $btn.prop('disabled', false).html(orig);
         const r = xhr.responseJSON || {};
         showError($errCode, r.message || ('קוד שגוי (HTTP ' + xhr.status + ')'));
       });
