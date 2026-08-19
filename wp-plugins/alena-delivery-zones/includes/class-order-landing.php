@@ -211,8 +211,30 @@ class Alena_DZ_Order_Landing {
         wp_enqueue_style('alena-dz-dark-mobile', ALENA_DZ_URL . 'assets/dark-mobile.css', [], ALENA_DZ_VERSION);
         wp_enqueue_style('alena-club', ALENA_DZ_URL . 'assets/club.css', [], ALENA_DZ_VERSION);
 
-        get_header();
-        ?>
+        // A standalone page on purpose — NOT get_header()/get_footer(). The
+        // theme's top nav and its menu block are chrome the entry page does not
+        // need, and .alena-order-landing was written for a standalone page (its
+        // own dark background, centred column). wp_head()/wp_footer() still fire,
+        // so every enqueued style and script — cards, club banner, cart — loads.
+        ?><!doctype html>
+        <html <?php language_attributes(); ?>>
+        <head>
+          <meta charset="<?php bloginfo('charset'); ?>">
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+          <?php wp_head(); ?>
+          <style>
+            /* The entry page is its own front door — no nav chrome on top of it.
+               Hides the theme header/menu AND the plugin's own top nav (.alena-tn);
+               the brand cards, account strip and bottom cart bar are all the
+               navigation this page needs. */
+            #alena-official-link, .elementor-location-header, #masthead, header#masthead,
+            #site-header, .site-header, #colophon, footer.site-footer,
+            .alena-tn, .alena-top-nav { display:none !important; }
+            html, body { background:#0e1117; margin:0; }
+            .alena-order-landing { padding-top: 40px; }
+          </style>
+        </head>
+        <body <?php body_class('alena-order-page'); ?>>
         <div class="alena-order-landing" dir="rtl">
           <div class="alena-order-head">
             <h1>מה בא לכם היום?</h1>
@@ -230,8 +252,10 @@ class Alena_DZ_Order_Landing {
 
           <a class="alena-order-both" href="<?php echo esc_url($shop . '?brand=all'); ?>">להזמין משתיהן יחד →</a>
         </div>
+        <?php wp_footer(); ?>
+        </body>
+        </html>
         <?php
-        get_footer();
         exit;
     }
 
