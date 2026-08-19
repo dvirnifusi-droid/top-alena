@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Alena Delivery Zones
  * Description: Google Maps polygon-based delivery zones for WooCommerce. Owner draws delivery polygons on a map; the plugin adds a WC shipping method that geocodes the customer address and matches it to the right polygon (fee, min-order).
- * Version: 0.95.3
+ * Version: 0.95.5
  * Author: Alena / TOPALENA
  * Requires PHP: 7.4
  * Requires at least: 6.5
@@ -12,7 +12,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('ALENA_DZ_VERSION', '0.95.3');
+define('ALENA_DZ_VERSION', '0.95.5');
 define('ALENA_DZ_PATH', plugin_dir_path(__FILE__));
 define('ALENA_DZ_URL',  plugin_dir_url(__FILE__));
 
@@ -252,6 +252,13 @@ add_action('template_redirect', function () {
     if (is_admin()) return;
     if (current_user_can('edit_posts') && !empty($_GET['edit'])) return; // ?edit=1 bypass
     if (defined('REST_REQUEST') && REST_REQUEST) return;
+
+    // The ordering flow owns these routes. Without this bail, a dropped /order
+    // rewrite makes WordPress resolve /order as the home page, and this landing
+    // would swallow the brand chooser.
+    $req_path = strtolower(trim((string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/'));
+    if (in_array($req_path, ['order', 'zohara'], true)) return;
+    if (function_exists('is_shop') && is_shop()) return; // the menu runs its own entry gate
 
     // Pages that should show the landing instead of the old Elementor content
     $is_landing_page = is_front_page() || is_home();

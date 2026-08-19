@@ -19,7 +19,13 @@ class Alena_DZ_Order_Landing {
     public function __construct() {
         add_action('init', [$this, 'add_rewrite']);
         add_filter('query_vars', [$this, 'query_var']);
-        add_action('template_redirect', [$this, 'maybe_render']);
+        // Priority 1: the entry gate and the /order + /zohara handling must run
+        // BEFORE the site's home-page landing redirect. When a plugin update
+        // drops the /order rewrite, WordPress resolves /order as the home page,
+        // and the landing (registered earlier, default priority) would otherwise
+        // swallow it. Running first — and matching /order by path — makes this
+        // immune to the rewrite cache.
+        add_action('template_redirect', [$this, 'maybe_render'], 1);
         add_action('admin_menu', [$this, 'menu']);
 
         // Where each line came from, on the cart and checkout summary.
@@ -161,6 +167,24 @@ class Alena_DZ_Order_Landing {
             wp_safe_redirect(home_url('/shop/') . '?brand=zohara', 302);
             exit;
         }
+
+        // Entry gate: the brand chooser is the front door. A fresh visit to the
+        // menu with no brand chosen is sent to /order first. Choosing a brand
+        // (?brand=…) — or having chosen anytime in the last 30 days — lets the
+        // menu through, so it never loops and never nags mid-session.
+        if (function_exists('is_shop') && is_shop() && !is_admin()) {
+            $has_brand = isset($_GET['brand']) && $_GET['brand'] !== '';
+            $entered   = !empty($_COOKIE['alena_entered']);
+            if ($has_brand) {
+                if (!$entered && !headers_sent()) {
+                    setcookie('alena_entered', '1', time() + 2592000, COOKIEPATH ?: '/');
+                }
+            } elseif (!$entered) {
+                wp_safe_redirect(home_url('/' . self::SLUG), 302);
+                exit;
+            }
+        }
+
         if (!$this->is_order_request()) return;
         // WordPress resolved /order as a 404 before we got here, so clear that
         // on the main query or the theme prints "page not found" in the title.
@@ -177,6 +201,14 @@ class Alena_DZ_Order_Landing {
         $alena_img  = get_option('alena_brand_img_alena', '');
         $zohara_img = get_option('alena_brand_img_zohara', '');
 
+        // Reaching the chooser counts as entering, so the menu is not re-gated.
+        if (!headers_sent()) {
+            setcookie('alena_entered', '1', time() + 2592000, COOKIEPATH ?: '/');
+        }
+        // The club banner is styled by club.css, which only auto-loads on WC
+        // pages — /order is not one, so enqueue it here.
+        wp_enqueue_style('alena-club', ALENA_DZ_URL . 'assets/club.css', [], ALENA_DZ_VERSION);
+
         get_header();
         ?>
         <div class="alena-order-landing" dir="rtl">
@@ -185,6 +217,8 @@ class Alena_DZ_Order_Landing {
             <p>שתי מסעדות, סל אחד — אפשר להזמין משתיהן יחד</p>
           </div>
 
+          <?php $this->render_account_strip(); ?>
+
           <div class="alena-order-cards">
             <?php
             $this->card('עלינא בפיתה', 'מטבח ים-תיכוני שמח וצבעוני', $alena_img, $alena, $shop . '?brand=alena');
@@ -192,11 +226,65 @@ class Alena_DZ_Order_Landing {
             ?>
           </div>
 
-          <a class="alena-order-both" href="<?php echo esc_url($shop); ?>">להזמין משתיהן יחד →</a>
+          <a class="alena-order-both" href="<?php echo esc_url($shop . '?brand=all'); ?>">להזמין משתיהן יחד →</a>
         </div>
         <?php
         get_footer();
         exit;
+    }
+
+    /**
+     * The account strip at the top of the entry page — this is where a known
+     * customer sees their benefits up front. Logged-in members get the full
+     * club banner (name, tier, points, ₪ waiting); everyone else gets one
+     * prominent, skippable login button. The menu itself stays open either way.
+     */
+    private function render_account_strip() {
+        ?>
+        <style>
+        .alena-order-login{display:flex;align-items:center;gap:12px;max-width:560px;margin:0 auto 18px;
+          padding:14px 18px;border-radius:16px;text-decoration:none;
+          background:linear-gradient(135deg,rgba(184,149,86,0.22),rgba(184,149,86,0.10));
+          border:1px solid rgba(184,149,86,0.45);color:inherit;transition:transform .15s ease}
+        .alena-order-login:hover{transform:translateY(-2px)}
+        .alena-order-login-emoji{font-size:26px;line-height:1}
+        .alena-order-login-text{flex:1;display:flex;flex-direction:column;gap:2px}
+        .alena-order-login-text strong{font-size:16px;font-weight:800}
+        .alena-order-login-text small{font-size:12.5px;opacity:.75}
+        .alena-order-login-arrow{font-size:22px;opacity:.6}
+        </style>
+        <?php
+        if (is_user_logged_in()) {
+            if (class_exists('Alena_DZ_Club')) {
+                ob_start();
+                (new Alena_DZ_Club())->render_shop_banner();
+                $html = ob_get_clean();
+                if (trim($html) !== '') { echo $html; return; }
+            }
+            // Logged in but no club banner to show — a quiet link to the account.
+            $acct = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : '/my-account/';
+            printf(
+                '<a class="alena-order-login" href="%s"><span class="alena-order-login-emoji">👤</span>'
+                . '<span class="alena-order-login-text"><strong>האיזור שלי</strong>'
+                . '<small>ההזמנות וההטבות שלך</small></span>'
+                . '<span class="alena-order-login-arrow">←</span></a>',
+                esc_url($acct)
+            );
+            return;
+        }
+
+        $login = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : '/my-account/';
+        $login = add_query_arg('next', 'order', $login);
+        ?>
+        <a class="alena-order-login" href="<?php echo esc_url($login); ?>">
+          <span class="alena-order-login-emoji">🎁</span>
+          <span class="alena-order-login-text">
+            <strong>מתחברים — וההטבות מחכות</strong>
+            <small>נקודות מועדון, הנחות אישיות והזמנה מהירה · חינם</small>
+          </span>
+          <span class="alena-order-login-arrow">←</span>
+        </a>
+        <?php
     }
 
     private function card($name, $tagline, $img, $status, $href) {
