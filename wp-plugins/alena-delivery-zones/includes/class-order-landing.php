@@ -234,6 +234,24 @@ class Alena_DZ_Order_Landing {
             .alena-order-landing { padding-top: 40px; }
             /* Read the photo from the custom property the lazy-loader can't touch. */
             .alena-order-card-img { background-image: var(--alena-card-photo); }
+            /* Install-to-home-screen button + iOS instructions sheet. */
+            .alena-order-install { display:block; width:100%; max-width:640px; margin:16px auto 0;
+              padding:14px; border-radius:14px; border:1.5px dashed rgba(184,149,86,.6);
+              background:transparent; color:#f4ecd8; font-weight:800; font-size:15px; cursor:pointer;
+              font-family:inherit; }
+            .alena-order-install:hover { background:rgba(184,149,86,.12); }
+            .alena-order-install[hidden] { display:none; }
+            .alena-install-ios { position:fixed; inset:0; background:rgba(0,0,0,.6);
+              display:flex; align-items:flex-end; justify-content:center; z-index:99999; }
+            .alena-install-ios[hidden] { display:none; }
+            .alena-install-ios-card { background:#161b26; color:#f4ecd8; border-radius:22px 22px 0 0;
+              padding:26px 22px 40px; max-width:520px; width:100%; position:relative;
+              border:1px solid #2a3140; border-bottom:none; }
+            .alena-install-close { position:absolute; top:14px; inset-inline-start:16px; background:none;
+              border:none; color:#9fb0c7; font-size:20px; cursor:pointer; }
+            .alena-install-ios-emoji { font-size:40px; text-align:center; }
+            .alena-install-ios-card h3 { text-align:center; margin:6px 0 16px; font-size:20px; }
+            .alena-install-ios-card ol { margin:0; padding-inline-start:22px; line-height:1.9; font-size:15px; }
           </style>
         </head>
         <body <?php body_class('alena-order-page'); ?>>
@@ -253,7 +271,49 @@ class Alena_DZ_Order_Landing {
           </div>
 
           <a class="alena-order-both" href="<?php echo esc_url($shop . '?brand=all'); ?>">להזמין משתיהן יחד →</a>
+
+          <button type="button" id="alena-install-btn" class="alena-order-install" hidden>📲 התקינו את האפליקציה למסך הבית</button>
         </div>
+
+        <div id="alena-install-ios" class="alena-install-ios" hidden>
+          <div class="alena-install-ios-card" dir="rtl">
+            <button type="button" id="alena-install-close" class="alena-install-close" aria-label="סגור">✕</button>
+            <div class="alena-install-ios-emoji">📲</div>
+            <h3>התקנה למסך הבית</h3>
+            <ol>
+              <li>הקישו על כפתור <strong>שיתוף</strong> בתחתית הדפדפן</li>
+              <li>גללו ובחרו <strong>הוספה למסך הבית</strong> ➕</li>
+              <li>אשרו — והאפליקציה תופיע כמו כל אפליקציה אחרת</li>
+            </ol>
+          </div>
+        </div>
+
+        <script>
+        (function () {
+          var btn = document.getElementById('alena-install-btn');
+          if (!btn) return;
+          // Already installed? Nothing to offer.
+          if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) return;
+          var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+          var deferred = null;
+          // Android/Chrome fires this when the app is installable — capture it and
+          // reveal the button; clicking it opens the native install sheet.
+          window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; btn.hidden = false; });
+          // iOS never fires that event, so show the button and give instructions.
+          if (isIOS) btn.hidden = false;
+          btn.addEventListener('click', function () {
+            if (deferred) {
+              deferred.prompt();
+              if (deferred.userChoice) deferred.userChoice.then(function () { deferred = null; btn.hidden = true; });
+              return;
+            }
+            var m = document.getElementById('alena-install-ios'); if (m) m.hidden = false;
+          });
+          var close = document.getElementById('alena-install-close');
+          if (close) close.addEventListener('click', function () { document.getElementById('alena-install-ios').hidden = true; });
+          document.getElementById('alena-install-ios').addEventListener('click', function (e) { if (e.target === this) this.hidden = true; });
+        })();
+        </script>
         <?php wp_footer(); ?>
         </body>
         </html>
@@ -287,14 +347,22 @@ class Alena_DZ_Order_Landing {
         .alena-order-guest{display:block;text-align:center;color:#9fb0c7;text-decoration:underline;
           text-underline-offset:3px;font-size:13.5px;padding:6px}
         .alena-order-guest:hover{color:#f4ecd8}
+        .alena-order-logout{display:block;text-align:center;max-width:560px;margin:-6px auto 18px;
+          color:#9fb0c7;text-decoration:none;font-size:13px;font-weight:600;padding:4px}
+        .alena-order-logout:hover{color:#f4ecd8}
         </style>
         <?php
+        $logout = wp_logout_url(home_url('/order'));
         if (is_user_logged_in()) {
             if (class_exists('Alena_DZ_Club')) {
                 ob_start();
                 (new Alena_DZ_Club())->render_shop_banner();
                 $html = ob_get_clean();
-                if (trim($html) !== '') { echo $html; return; }
+                if (trim($html) !== '') {
+                    echo $html;
+                    echo '<a class="alena-order-logout" href="' . esc_url($logout) . '">התנתקות ←</a>';
+                    return;
+                }
             }
             // Logged in but not a club member yet — invite them to join.
             $acct = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : '/my-account/';
@@ -309,12 +377,16 @@ class Alena_DZ_Order_Landing {
               </span>
               <span class="alena-order-login-arrow">←</span>
             </a>
+            <a class="alena-order-logout" href="<?php echo esc_url($logout); ?>">התנתקות ←</a>
             <?php
             return;
         }
 
         $acct  = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : '/my-account/';
-        $login = add_query_arg('next', 'order', $acct);
+        // phone-auth.js only honours a `next` that starts with "/", so pass the
+        // path — otherwise it silently drops it and lands them on /my-account
+        // instead of back here to pick a kitchen.
+        $login = add_query_arg('next', '/order/', $acct);
         $shop  = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : '/shop/';
         $incentive = class_exists('Alena_DZ_Club') ? Alena_DZ_Club::join_incentive() : '';
         ?>

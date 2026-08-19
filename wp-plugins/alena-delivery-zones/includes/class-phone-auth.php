@@ -52,6 +52,13 @@ class Alena_DZ_Phone_Auth {
         add_action('admin_notices',        [$this, 'admin_notice_test_mode']);
         // Make sure phone-based users don't need email
         add_filter('woocommerce_registration_errors', [$this, 'strip_email_required'], 10, 3);
+
+        // Keep a phone-verified customer signed in for a good while — they log in
+        // with a WhatsApp code, so re-entering it every 2 weeks is friction with
+        // no security upside. Remembered sessions last 60 days.
+        add_filter('auth_cookie_expiration', function ($len, $user_id, $remember) {
+            return $remember ? 60 * DAY_IN_SECONDS : $len;
+        }, 10, 3);
     }
 
     public function enqueue() {

@@ -43,7 +43,7 @@ class Alena_DZ_PWA {
             'name'             => 'עלינא בפיתה',
             'short_name'       => 'עלינא',
             'description'      => 'מטבח ים-תיכוני שמח וצבעוני · כשר',
-            'start_url'        => home_url('/shop/'),
+            'start_url'        => home_url('/order'),
             'display'          => 'standalone',
             'orientation'      => 'portrait',
             'background_color' => '#faf6f1',
