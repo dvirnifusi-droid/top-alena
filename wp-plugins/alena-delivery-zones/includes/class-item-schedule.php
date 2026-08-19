@@ -40,6 +40,11 @@ class Alena_DZ_Item_Schedule {
         // not a lock; a stale tab or a crafted request is stopped here.
         add_filter('woocommerce_is_purchasable',         [$this, 'block_when_out'], 25, 2);
         add_filter('woocommerce_add_to_cart_validation', [$this, 'validate_add'], 25, 3);
+
+        // Note on the single-product page. Hooked to the summary, not to the
+        // add-to-cart form, because a blocked dish renders no add-to-cart form
+        // at all — the note has to show either way.
+        add_action('woocommerce_single_product_summary', [$this, 'product_note'], 25);
     }
 
     /* ---------------- data ---------------- */
@@ -111,6 +116,34 @@ class Alena_DZ_Item_Schedule {
 
     public static function is_scheduled_closed($product_id, ?DateTimeImmutable $now = null): bool {
         return self::schedule_of($product_id) && !self::is_available($product_id, $now);
+    }
+
+    /** Always the full window, regardless of open/closed: "זמין בשישי 09:00–15:00". */
+    public static function availability_line($product_id): string {
+        $s = self::schedule_of($product_id);
+        if (!$s) return '';
+        $from = $s['from'] ?? '';
+        $to   = $s['to']   ?? '';
+        $range = ($from && $to && !($from === '00:00' && $to === '23:59'))
+            ? (' ' . $from . '–' . $to) : '';
+        return 'זמין ' . self::days_phrase($s['days']) . $range;
+    }
+
+    /** The availability note on the single-product page. */
+    public function product_note() {
+        global $product;
+        if (!$product) return;
+        $pid  = $product->get_id();
+        $line = self::availability_line($pid);
+        if (!$line) return;
+
+        $closed = self::is_scheduled_closed($pid);
+        $bg     = $closed ? 'rgba(184,149,86,0.18)' : 'rgba(68,81,44,0.14)';
+        $bar    = $closed ? '#B89556' : '#44512C';
+        echo '<p class="alena-sched-note" style="display:flex;align-items:center;gap:8px;'
+           . 'margin:12px 0;padding:10px 14px;border-radius:10px;font-weight:600;'
+           . 'background:' . $bg . ';border-inline-start:4px solid ' . $bar . '">'
+           . '<span style="font-size:18px">🕐</span><span>' . esc_html($line) . '</span></p>';
     }
 
     /* ---------------- guards ---------------- */
