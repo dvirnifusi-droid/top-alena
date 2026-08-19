@@ -799,6 +799,51 @@
    "alcohol_pct": 0.0,
    "option_groups": [
     {
+     "name": "שינויים אפשריים לחומוס",
+     "type": "Multichoice",
+     "min": 0,
+     "max": 6,
+     "free": 0,
+     "values": [
+      {
+       "name": "ללא גרגירים",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא תטבילה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פלפל צומה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא טחינה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא פיטרוזליה",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      },
+      {
+       "name": "ללא שמן זית",
+       "price": 0,
+       "default": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
      "name": "תוספות בצד",
      "type": "Multichoice",
      "min": 0,

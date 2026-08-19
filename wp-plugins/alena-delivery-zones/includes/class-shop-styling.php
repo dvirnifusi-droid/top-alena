@@ -975,6 +975,20 @@ class Alena_DZ_Shop_Styling {
                 }
             }
         }
+
+        // Per-dish window (Friday specials). Only applied when the brand itself
+        // is open — a shut brand already dims the whole thing, and stacking two
+        // labels would just be noise. Same greyed treatment, its own label.
+        if (!$brand_closed && class_exists('Alena_DZ_Item_Schedule')) {
+            if (Alena_DZ_Item_Schedule::is_scheduled_closed($id)) {
+                $brand_closed = true;   // reuse the closed rendering below
+                $brand_label  = Alena_DZ_Item_Schedule::label($id); // "זמין בשישי 09:00–15:00"
+                $card_classes .= ' alena-dz-card-closed';
+            } else {
+                $sched_open_label = Alena_DZ_Item_Schedule::label($id); // "זמין עד 15:00" or ''
+                if ($sched_open_label && !$brand_label) $brand_label = $sched_open_label;
+            }
+        }
         ?>
         <li class="<?php echo esc_attr($card_classes); ?>" data-product-id="<?php echo (int) $id; ?>" data-brand="<?php echo esc_attr($brand); ?>">
           <?php if ($brand_label): ?>
