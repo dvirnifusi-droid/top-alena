@@ -229,7 +229,7 @@ class Alena_DZ_Order_Landing {
                navigation this page needs. */
             #alena-official-link, .elementor-location-header, #masthead, header#masthead,
             #site-header, .site-header, #colophon, footer.site-footer,
-            .alena-tn, .alena-top-nav { display:none !important; }
+            .alena-tn, .alena-top-nav, #alena-shop-cart-bar, .alena-shop-cart-bar { display:none !important; }
             html, body { background:#0e1117; margin:0; }
             .alena-order-landing { padding-top: 40px; }
             /* Read the photo from the custom property the lazy-loader can't touch. */
@@ -344,7 +344,7 @@ class Alena_DZ_Order_Landing {
         $owner = (string) get_option('alena_brand_img_' . $brand, '');
         if ($owner) return $owner;
 
-        $key    = 'alena_brand_photo_v2_' . $brand;
+        $key    = 'alena_brand_photo_v4_' . $brand;
         $cached = get_transient($key);
         if (is_string($cached) && $cached !== '') return $cached;
 
@@ -374,7 +374,23 @@ class Alena_DZ_Order_Landing {
             'tax_query'      => $tax,
         ];
 
-        $q   = get_posts($args);
+        // Prefer the brand's signature dish — a hummus bowl for Zohara (from the
+        // חומוס category, so it's a real bowl and not a combo that merely mentions
+        // hummus), a pita dish for Alena — then fall back to newest non-drink.
+        $sig = $args;
+        if ($brand === 'zohara') {
+            $c = get_term_by('name', 'חומוס', 'product_cat');
+            if ($c && !is_wp_error($c)) {
+                $sig['tax_query'][] = ['taxonomy' => 'product_cat', 'field' => 'term_id', 'terms' => [(int) $c->term_id], 'operator' => 'IN'];
+            } else {
+                $sig['s'] = 'חומוס';
+            }
+        } else {
+            $sig['s'] = 'פיתה';
+        }
+        $q = get_posts($sig);
+        if (!$q) $q = get_posts($args);
+
         $url = $q ? (string) wp_get_attachment_image_url(get_post_thumbnail_id($q[0]), 'large') : '';
         if ($url !== '') set_transient($key, $url, 6 * HOUR_IN_SECONDS);
         return $url;
