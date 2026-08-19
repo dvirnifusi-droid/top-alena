@@ -30,6 +30,10 @@ class Alena_DZ_Order_Alerts {
 
     public function on_new_order($order_id) {
         try {
+            // The bon-preview diagnostic builds a throwaway order to render the
+            // slip; it must never ring the kitchen or fan out anywhere.
+            if (class_exists('Alena_DZ_Bon_Preview') && Alena_DZ_Bon_Preview::$running) return;
+
             $order = wc_get_order($order_id);
             if (!$order) return;
 
