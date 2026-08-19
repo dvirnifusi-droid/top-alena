@@ -27,6 +27,67 @@ class Alena_DZ_Webhook_Payload {
 
     public function __construct() {
         add_filter('woocommerce_webhook_payload', [$this, 'shape'], 20, 4);
+
+        // The kitchen webhook (Miley/בתאבון) is configured on order.created, which
+        // fires the MOMENT the order is created — before the card is charged. A
+        // failed payment would then leave the kitchen preparing an order that was
+        // never paid. So we block that automatic delivery entirely and dispatch
+        // to the kitchen ourselves, only once the order is actually paid.
+        add_filter('woocommerce_webhook_should_deliver', [$this, 'block_premature'], 10, 3);
+        add_action('woocommerce_order_status_processing', [$this, 'send_when_paid'], 5);
+        add_action('woocommerce_order_status_completed',  [$this, 'send_when_paid'], 5);
+    }
+
+    /** The outgoing webhook that feeds the kitchen (Miley / endpoint.gomiley.com). */
+    private function is_kitchen_webhook($webhook): bool {
+        return $webhook && strpos((string) $webhook->get_delivery_url(), 'gomiley') !== false;
+    }
+
+    private function kitchen_webhook_ids(): array {
+        global $wpdb;
+        $ids = $wpdb->get_col(
+            "SELECT webhook_id FROM {$wpdb->prefix}wc_webhooks WHERE delivery_url LIKE '%gomiley%' AND status = 'active'"
+        );
+        return array_map('intval', (array) $ids);
+    }
+
+    /**
+     * Stop WooCommerce from firing the kitchen webhook on its own. It is wired to
+     * order.created (before payment); we send it manually on the paid transition.
+     */
+    public function block_premature($should, $webhook, $arg) {
+        if ($this->is_kitchen_webhook($webhook)) return false;
+        return $should;
+    }
+
+    /**
+     * Send the order to the kitchen once — and only once — it is paid. COD lands
+     * in 'processing' at checkout (a confirmed order), and a card order reaches
+     * 'processing' only after the gateway confirms payment, so both are covered
+     * without ever sending an unpaid card order.
+     */
+    public function send_when_paid($order_id) {
+        // Never for the throwaway preview order.
+        if (class_exists('Alena_DZ_Bon_Preview') && Alena_DZ_Bon_Preview::$running) return;
+
+        $order = wc_get_order($order_id);
+        if (!$order) return;
+        if ($order->get_meta('_alena_sent_to_kitchen')) return;   // exactly once
+
+        $sent = false;
+        foreach ($this->kitchen_webhook_ids() as $id) {
+            $wh = function_exists('wc_get_webhook') ? wc_get_webhook($id) : null;
+            if ($wh && $wh->get_status() === 'active') {
+                // deliver() bypasses should_deliver() — it is our explicit send.
+                $wh->deliver($order_id);
+                $sent = true;
+            }
+        }
+        if ($sent) {
+            $order->update_meta_data('_alena_sent_to_kitchen', current_time('mysql'));
+            $order->add_order_note('✅ נשלח למטבח (מיילי) לאחר אישור התשלום');
+            $order->save();
+        }
     }
 
     /** Internal bookkeeping that should never reach a printer. */
