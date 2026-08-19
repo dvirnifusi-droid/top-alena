@@ -280,6 +280,11 @@ class Alena_DZ_Order_Landing {
         .alena-order-login-badge{align-self:flex-start;margin:3px 0;padding:3px 10px;border-radius:999px;
           font-size:12.5px;font-weight:800;background:#B89556;color:#1F1B17}
         .alena-order-login-arrow{font-size:22px;opacity:.6}
+        .alena-order-account{max-width:560px;margin:0 auto 18px}
+        .alena-order-account .alena-order-login{margin:0 0 8px}
+        .alena-order-guest{display:block;text-align:center;color:#9fb0c7;text-decoration:underline;
+          text-underline-offset:3px;font-size:13.5px;padding:6px}
+        .alena-order-guest:hover{color:#f4ecd8}
         </style>
         <?php
         if (is_user_logged_in()) {
@@ -289,33 +294,42 @@ class Alena_DZ_Order_Landing {
                 $html = ob_get_clean();
                 if (trim($html) !== '') { echo $html; return; }
             }
-            // Logged in but no club banner to show — a quiet link to the account.
+            // Logged in but not a club member yet — invite them to join.
             $acct = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : '/my-account/';
-            printf(
-                '<a class="alena-order-login" href="%s"><span class="alena-order-login-emoji">👤</span>'
-                . '<span class="alena-order-login-text"><strong>האיזור שלי</strong>'
-                . '<small>ההזמנות וההטבות שלך</small></span>'
-                . '<span class="alena-order-login-arrow">←</span></a>',
-                esc_url($acct)
-            );
+            $inc  = class_exists('Alena_DZ_Club') ? Alena_DZ_Club::join_incentive() : '';
+            ?>
+            <a class="alena-order-login" href="<?php echo esc_url($acct); ?>">
+              <span class="alena-order-login-emoji">🎁</span>
+              <span class="alena-order-login-text">
+                <strong>הצטרפו למועדון הלקוחות</strong>
+                <?php if ($inc): ?><span class="alena-order-login-badge">🎁 <?php echo esc_html($inc); ?></span><?php endif; ?>
+                <small>האיזור האישי שלך · ההזמנות וההטבות ←</small>
+              </span>
+              <span class="alena-order-login-arrow">←</span>
+            </a>
+            <?php
             return;
         }
 
-        $login = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : '/my-account/';
-        $login = add_query_arg('next', 'order', $login);
+        $acct  = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : '/my-account/';
+        $login = add_query_arg('next', 'order', $acct);
+        $shop  = function_exists('wc_get_page_permalink') ? wc_get_page_permalink('shop') : '/shop/';
         $incentive = class_exists('Alena_DZ_Club') ? Alena_DZ_Club::join_incentive() : '';
         ?>
-        <a class="alena-order-login" href="<?php echo esc_url($login); ?>">
-          <span class="alena-order-login-emoji">🎁</span>
-          <span class="alena-order-login-text">
-            <strong>מתחברים — וההטבות מחכות</strong>
-            <?php if ($incentive): ?>
-              <span class="alena-order-login-badge">🎁 <?php echo esc_html($incentive); ?></span>
-            <?php endif; ?>
-            <small>הזמנה מהירה בלי למלא פרטים כל פעם · חינם</small>
-          </span>
-          <span class="alena-order-login-arrow">←</span>
-        </a>
+        <div class="alena-order-account">
+          <a class="alena-order-login" href="<?php echo esc_url($login); ?>">
+            <span class="alena-order-login-emoji">🎁</span>
+            <span class="alena-order-login-text">
+              <strong>התחברות / הרשמה למועדון</strong>
+              <?php if ($incentive): ?>
+                <span class="alena-order-login-badge">🎁 <?php echo esc_html($incentive); ?></span>
+              <?php endif; ?>
+              <small>טלפון + קוד · חדשים נרשמים באותו מקום, בשנייה</small>
+            </span>
+            <span class="alena-order-login-arrow">←</span>
+          </a>
+          <a class="alena-order-guest" href="<?php echo esc_url($shop . '?brand=all'); ?>">להמשיך בלי התחברות ←</a>
+        </div>
         <?php
     }
 
