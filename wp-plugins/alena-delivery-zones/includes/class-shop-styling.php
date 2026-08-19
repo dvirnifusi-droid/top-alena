@@ -321,7 +321,7 @@ class Alena_DZ_Shop_Styling {
         echo '<h1 class="alena-dz-hero-title">' . esc_html($hero_name) . '</h1>';
         echo '<p class="alena-dz-hero-sub">' . esc_html($hero_sub) . '</p>';
         echo '<div class="alena-dz-hero-info">';
-        echo '<span class="alena-dz-hero-chip">' . esc_html($status) . '</span>';
+        echo '<span class="alena-dz-hero-chip alena-dz-hero-chip-status">' . esc_html($status) . '</span>';
         echo '<span class="alena-dz-hero-chip">📍 רוטשילד 104, ראשון לציון</span>';
         echo '<span class="alena-dz-hero-chip">🚚 משלוחים מ-₪17</span>';
         echo '<span class="alena-dz-hero-chip">💰 מינ׳ הזמנה ₪70</span>';
@@ -543,6 +543,41 @@ class Alena_DZ_Shop_Styling {
 
         $z_open = Alena_DZ_Brands::is_open('zohara');
         $z_sub  = $z_open ? Alena_DZ_Brands::open_until('zohara') : Alena_DZ_Brands::closed_label('zohara');
+
+        // The hero header (name, tagline, status) has to follow the chosen tab,
+        // not just the ?brand= it loaded with — otherwise flipping עלינא/זוהרה
+        // leaves the wrong kitchen's title on screen. Both variants are computed
+        // here and swapped in the browser, exactly like the card filter.
+        $alena_status = '🟢 פתוח עכשיו';
+        if (class_exists('Alena_DZ_Hours_Engine')) {
+            try {
+                $now = new DateTimeImmutable('now', new DateTimeZone('Asia/Jerusalem'));
+                $s   = Alena_DZ_Hours_Engine::get()->status('delivery', $now);
+                $alena_status = $s['open'] ? '🟢 פתוח עכשיו' : '🔴 סגור · ' . ($s['reason'] ?? '');
+            } catch (Exception $e) { /* ignore */ }
+        }
+        $zoh_status = $z_open
+            ? '🟢 ' . (Alena_DZ_Brands::open_until('zohara') ?: 'פתוח עכשיו')
+            : '🔴 ' . Alena_DZ_Brands::closed_label('zohara');
+
+        $clean = fn($t) => trim(str_replace(['🟢', '🔴', '⏰'], '', $t));
+        $hero_data = [
+            // "all" reuses Alena's hero — Alena is the whole shop.
+            'alena' => [
+                'name'       => 'עלינא בפיתה',
+                'sub'        => 'מטבח ים-תיכוני שמח וצבעוני · כשר',
+                'status'     => $alena_status,
+                'statusText' => $clean($alena_status),
+                'open'       => strpos($alena_status, '🟢') !== false,
+            ],
+            'zohara' => [
+                'name'       => 'חומוס זוהרה',
+                'sub'        => 'זאת לא עוד חומוסייה, זו זוהרה · מבית עלינא',
+                'status'     => $zoh_status,
+                'statusText' => $clean($zoh_status),
+                'open'       => $z_open,
+            ],
+        ];
         ?>
         <div class="alena-brand-switch" role="tablist">
           <button type="button" class="alena-brand-tab is-active" data-brand="all">הכל</button>
@@ -558,7 +593,29 @@ class Alena_DZ_Shop_Styling {
         (function () {
           const tabs = document.querySelectorAll('.alena-brand-tab');
           if (!tabs.length) return;
+          var HERO = <?php echo wp_json_encode($hero_data, JSON_UNESCAPED_UNICODE); ?>;
+          function swapHero(brand) {
+            var d = HERO[brand === 'zohara' ? 'zohara' : 'alena'];
+            if (!d) return;
+            var title = document.querySelector('.alena-dz-hero-title');
+            var sub   = document.querySelector('.alena-dz-hero-sub');
+            var chip  = document.querySelector('.alena-dz-hero-chip-status');
+            var line  = document.querySelector('.alena-dz-hero-status');
+            if (title) title.textContent = d.name;
+            if (sub)   sub.textContent   = d.sub;
+            if (chip)  chip.textContent  = d.status;
+            if (line) {
+              line.className = 'alena-dz-hero-status ' + (d.open ? 'is-open' : 'is-closed');
+              line.textContent = '';
+              var dot = document.createElement('span');
+              dot.className = 'alena-dz-hero-status-dot';
+              dot.setAttribute('aria-hidden', 'true');
+              line.appendChild(dot);
+              line.appendChild(document.createTextNode(d.statusText));
+            }
+          }
           function apply(brand) {
+            swapHero(brand);
             var pin = brand !== 'all';
             document.querySelectorAll('.alena-dz-card').forEach(function (card) {
               const b = card.getAttribute('data-brand') || 'alena';
