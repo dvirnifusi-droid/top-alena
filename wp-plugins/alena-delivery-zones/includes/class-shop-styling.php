@@ -508,6 +508,55 @@ class Alena_DZ_Shop_Styling {
         return $urls;
     }
 
+    /**
+     * Hero photos for one brand tab: 'all' (both), 'alena' (everything not
+     * Zohara), or 'zohara'. Same excluded-category and featured-first logic as
+     * the cross-brand carousel, just narrowed to the chosen kitchen so the
+     * photos follow the tab.
+     */
+    private function hero_slides_for(string $brand, int $limit = 5): array {
+        $exclude = [];
+        foreach (self::HERO_EXCLUDED_CATEGORIES as $name) {
+            $t = get_term_by('name', $name, 'product_cat');
+            if ($t) $exclude[] = (int) $t->term_id;
+        }
+        $tax = [];
+        if ($exclude) {
+            $tax[] = ['taxonomy' => 'product_cat', 'field' => 'term_id', 'terms' => $exclude, 'operator' => 'NOT IN'];
+        }
+        if ($brand === 'zohara') {
+            $tax[] = ['taxonomy' => 'alena_brand', 'field' => 'slug', 'terms' => ['zohara'], 'operator' => 'IN'];
+        } elseif ($brand === 'alena') {
+            // Everything that is not Zohara — including products with no brand
+            // term at all, which NOT IN still returns.
+            $tax[] = ['taxonomy' => 'alena_brand', 'field' => 'slug', 'terms' => ['zohara'], 'operator' => 'NOT IN'];
+        }
+        $query = [
+            'post_type'      => 'product',
+            'post_status'    => 'publish',
+            'posts_per_page' => 24,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'fields'         => 'ids',
+            'meta_query'     => [['key' => '_thumbnail_id', 'compare' => 'EXISTS']],
+        ];
+        if ($tax) {
+            if (count($tax) > 1) $tax['relation'] = 'AND';
+            $query['tax_query'] = $tax;
+        }
+        $candidates = get_posts($query);
+        $featured   = array_values(array_intersect(wc_get_featured_product_ids(), $candidates));
+        $ordered    = array_values(array_unique(array_merge($featured, $candidates)));
+
+        $urls = [];
+        foreach ($ordered as $pid) {
+            $img = wp_get_attachment_image_url(get_post_thumbnail_id($pid), 'large');
+            if ($img && !in_array($img, $urls, true)) $urls[] = $img;
+            if (count($urls) >= $limit) break;
+        }
+        return $urls;
+    }
+
     private function find_hero_image_url(): ?string {
         // The hero used to pick a random product, which is how a bottle of
         // mineral water ended up as the first thing a customer sees. Draw from
@@ -596,6 +645,7 @@ class Alena_DZ_Shop_Styling {
                 'status'     => $alena_status,
                 'statusText' => $clean($alena_status),
                 'open'       => strpos($alena_status, '🟢') !== false,
+                'photos'     => $this->hero_slides_for('all'),
             ],
             'alena' => [
                 'name'       => 'עלינא בפיתה',
@@ -603,6 +653,7 @@ class Alena_DZ_Shop_Styling {
                 'status'     => $alena_status,
                 'statusText' => $clean($alena_status),
                 'open'       => strpos($alena_status, '🟢') !== false,
+                'photos'     => $this->hero_slides_for('alena'),
             ],
             'zohara' => [
                 'name'       => 'חומוס זוהרה',
@@ -610,6 +661,7 @@ class Alena_DZ_Shop_Styling {
                 'status'     => $zoh_status,
                 'statusText' => $clean($zoh_status),
                 'open'       => $z_open,
+                'photos'     => $this->hero_slides_for('zohara'),
             ],
         ];
         ?>
@@ -646,6 +698,15 @@ class Alena_DZ_Shop_Styling {
               dot.setAttribute('aria-hidden', 'true');
               line.appendChild(dot);
               line.appendChild(document.createTextNode(d.statusText));
+            }
+            // Photos follow the tab too. Reassign the existing slide elements'
+            // background (a CSS custom property the lazy-loader leaves alone),
+            // cycling the brand's list to fill however many slides were rendered.
+            if (d.photos && d.photos.length) {
+              var slides = document.querySelectorAll('.alena-dz-hero-slide');
+              slides.forEach(function (sl, idx) {
+                sl.style.setProperty('--alena-hero-photo', 'url(' + d.photos[idx % d.photos.length] + ')');
+              });
             }
           }
           function apply(brand) {
