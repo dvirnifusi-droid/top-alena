@@ -179,7 +179,12 @@ class Alena_DZ_Zohara_Import {
                     'values' => $values,
                 ];
             }
-            update_post_meta($new_id, '_alena_modifiers', wp_json_encode($groups));
+            // JSON_UNESCAPED_UNICODE is not optional here: without it, the
+            // Hebrew names encode as ת escapes, and update_post_meta runs
+            // wp_unslash() on the value — which strips the backslash and leaves
+            // literal "u05ea" text on the option group. Keep the Hebrew literal
+            // so there is no backslash to lose (matches the Alena importer).
+            update_post_meta($new_id, '_alena_modifiers', wp_json_encode($groups, JSON_UNESCAPED_UNICODE));
 
             $id ? $updated++ : $created++;
         }
