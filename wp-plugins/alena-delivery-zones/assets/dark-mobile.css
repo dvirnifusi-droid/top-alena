@@ -1576,6 +1576,12 @@
     box-shadow: 0 0 0 3px rgba(34,201,238,0.15) !important;
   }
   body.alena-dark-mobile.alena-dark-mobile.alena-dark-mobile .alena-otp-cta {
+    /* display+width: the theme's `.woocommerce button` rule makes buttons
+       inline-block/auto, which parked the CTA at the inline-start (right, in RTL)
+       looking off-centre. Force it back to a full-width block. */
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
     border-radius: 14px !important;
     padding: 17px 20px !important;
     box-shadow: 0 10px 24px rgba(34,201,238,0.22) !important;
