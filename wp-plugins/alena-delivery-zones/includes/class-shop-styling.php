@@ -259,6 +259,24 @@ class Alena_DZ_Shop_Styling {
         return $b === 'zohara' ? 'zohara' : '';
     }
 
+    /** Whether Zohara actually has products — the switcher and the combined
+     *  "הכל" hero only make sense once a second kitchen exists. */
+    private function has_zohara_products(): bool {
+        if (!class_exists('Alena_DZ_Brands')) return false;
+        $z = get_posts([
+            'post_type'   => 'product',
+            'post_status' => 'publish',
+            'numberposts' => 1,
+            'fields'      => 'ids',
+            'tax_query'   => [[
+                'taxonomy' => 'alena_brand',
+                'field'    => 'slug',
+                'terms'    => 'zohara',
+            ]],
+        ]);
+        return !empty($z);
+    }
+
     public function render_shop_hero() {
         // Pick a hero image: first featured product image, else first product image
         $hero_url = $this->find_hero_image_url();
@@ -305,16 +323,25 @@ class Alena_DZ_Shop_Styling {
         // Zohara is the same address and delivery, but its own name, line and
         // status. Locking to it turns this into Zohara's front page without a
         // second install or a second cart.
-        $locked = self::locked_brand();
-        $hero_name = $locked === 'zohara' ? 'חומוס זוהרה' : 'עלינא בפיתה';
-        $hero_sub  = $locked === 'zohara'
-            ? 'זאת לא עוד חומוסייה, זו זוהרה · מבית עלינא'
-            : 'מטבח ים-תיכוני שמח וצבעוני · כשר';
-        if ($locked === 'zohara' && class_exists('Alena_DZ_Brands')) {
-            $z_open = Alena_DZ_Brands::is_open('zohara');
-            $status = $z_open
-                ? '🟢 ' . (Alena_DZ_Brands::open_until('zohara') ?: 'פתוח עכשיו')
-                : '🔴 ' . Alena_DZ_Brands::closed_label('zohara');
+        $locked     = self::locked_brand();
+        $has_zohara = $this->has_zohara_products();
+        if ($locked === 'zohara') {
+            $hero_name = 'חומוס זוהרה';
+            $hero_sub  = 'זאת לא עוד חומוסייה, זו זוהרה · מבית עלינא';
+            if (class_exists('Alena_DZ_Brands')) {
+                $z_open = Alena_DZ_Brands::is_open('zohara');
+                $status = $z_open
+                    ? '🟢 ' . (Alena_DZ_Brands::open_until('zohara') ?: 'פתוח עכשיו')
+                    : '🔴 ' . Alena_DZ_Brands::closed_label('zohara');
+            }
+        } elseif ($has_zohara) {
+            // "הכל" is the default tab and it means both kitchens. Showing only
+            // "עלינא בפיתה" here read as if Zohara were not part of the shop.
+            $hero_name = 'עלינא בפיתה × חומוס זוהרה';
+            $hero_sub  = 'שתי מסעדות, סל אחד — אפשר להזמין משתיהן יחד';
+        } else {
+            $hero_name = 'עלינא בפיתה';
+            $hero_sub  = 'מטבח ים-תיכוני שמח וצבעוני · כשר';
         }
 
         echo '<div class="alena-dz-hero-inner">';
@@ -562,7 +589,14 @@ class Alena_DZ_Shop_Styling {
 
         $clean = fn($t) => trim(str_replace(['🟢', '🔴', '⏰'], '', $t));
         $hero_data = [
-            // "all" reuses Alena's hero — Alena is the whole shop.
+            // "הכל" = both kitchens together; its own title, not Alena's.
+            'all' => [
+                'name'       => 'עלינא בפיתה × חומוס זוהרה',
+                'sub'        => 'שתי מסעדות, סל אחד — אפשר להזמין משתיהן יחד',
+                'status'     => $alena_status,
+                'statusText' => $clean($alena_status),
+                'open'       => strpos($alena_status, '🟢') !== false,
+            ],
             'alena' => [
                 'name'       => 'עלינא בפיתה',
                 'sub'        => 'מטבח ים-תיכוני שמח וצבעוני · כשר',
@@ -595,7 +629,7 @@ class Alena_DZ_Shop_Styling {
           if (!tabs.length) return;
           var HERO = <?php echo wp_json_encode($hero_data, JSON_UNESCAPED_UNICODE); ?>;
           function swapHero(brand) {
-            var d = HERO[brand === 'zohara' ? 'zohara' : 'alena'];
+            var d = HERO[brand] || HERO.alena;
             if (!d) return;
             var title = document.querySelector('.alena-dz-hero-title');
             var sub   = document.querySelector('.alena-dz-hero-sub');
