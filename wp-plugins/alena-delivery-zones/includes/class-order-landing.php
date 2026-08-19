@@ -198,8 +198,8 @@ class Alena_DZ_Order_Landing {
 
         // Owner-set brand art (Media Library), falling back to nothing rather
         // than a broken image.
-        $alena_img  = get_option('alena_brand_img_alena', '');
-        $zohara_img = get_option('alena_brand_img_zohara', '');
+        $alena_img  = $this->brand_photo('alena');
+        $zohara_img = $this->brand_photo('zohara');
 
         // Reaching the chooser counts as entering, so the menu is not re-gated.
         if (!headers_sent()) {
@@ -232,6 +232,8 @@ class Alena_DZ_Order_Landing {
             .alena-tn, .alena-top-nav { display:none !important; }
             html, body { background:#0e1117; margin:0; }
             .alena-order-landing { padding-top: 40px; }
+            /* Read the photo from the custom property the lazy-loader can't touch. */
+            .alena-order-card-img { background-image: var(--alena-card-photo); }
           </style>
         </head>
         <body <?php body_class('alena-order-page'); ?>>
@@ -333,12 +335,60 @@ class Alena_DZ_Order_Landing {
         <?php
     }
 
+    /**
+     * A photo for a brand card. Owner-set art (Media Library) wins; otherwise
+     * the newest product photo of that brand, so the entry looks appetising with
+     * zero setup. Cached for 6 hours so it costs no query on a normal page load.
+     */
+    private function brand_photo(string $brand): string {
+        $owner = (string) get_option('alena_brand_img_' . $brand, '');
+        if ($owner) return $owner;
+
+        $key    = 'alena_brand_photo_v2_' . $brand;
+        $cached = get_transient($key);
+        if (is_string($cached) && $cached !== '') return $cached;
+
+        // Keep drinks and dips out — a soda bottle is not an appetising cover.
+        $exclude = [];
+        foreach (['שתייה קלה', 'אלכוהול', 'משהו לנגב איתו', 'מספר סועדים'] as $cname) {
+            $t = get_term_by('name', $cname, 'product_cat');
+            if ($t && !is_wp_error($t)) $exclude[] = (int) $t->term_id;
+        }
+        $tax = ['relation' => 'AND',
+            $brand === 'zohara'
+                ? ['taxonomy' => 'alena_brand', 'field' => 'slug', 'terms' => ['zohara'], 'operator' => 'IN']
+                : ['taxonomy' => 'alena_brand', 'field' => 'slug', 'terms' => ['zohara'], 'operator' => 'NOT IN'],
+        ];
+        if ($exclude) {
+            $tax[] = ['taxonomy' => 'product_cat', 'field' => 'term_id', 'terms' => $exclude, 'operator' => 'NOT IN'];
+        }
+
+        $args = [
+            'post_type'      => 'product',
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'post_status'    => 'publish',
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => [['key' => '_thumbnail_id', 'compare' => 'EXISTS']],
+            'tax_query'      => $tax,
+        ];
+
+        $q   = get_posts($args);
+        $url = $q ? (string) wp_get_attachment_image_url(get_post_thumbnail_id($q[0]), 'large') : '';
+        if ($url !== '') set_transient($key, $url, 6 * HOUR_IN_SECONDS);
+        return $url;
+    }
+
     private function card($name, $tagline, $img, $status, $href) {
         $closed = empty($status['open']);
         ?>
         <a class="alena-order-card<?php echo $closed ? ' is-closed' : ''; ?>" href="<?php echo esc_url($href); ?>">
           <?php if ($img): ?>
-            <span class="alena-order-card-img" style="background-image:url('<?php echo esc_url($img); ?>')"></span>
+            <?php // Custom property, not background-image: the site's lazy-loader
+                  // rewrites inline background-image into data-back and empties the
+                  // style (same trap the hero hit). It leaves custom properties alone. ?>
+            <span class="alena-order-card-img" style="--alena-card-photo:url('<?php echo esc_url($img); ?>')"></span>
           <?php endif; ?>
           <span class="alena-order-card-body">
             <span class="alena-order-card-name"><?php echo esc_html($name); ?></span>

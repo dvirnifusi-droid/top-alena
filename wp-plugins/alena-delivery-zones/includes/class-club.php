@@ -147,8 +147,19 @@ class Alena_DZ_Club {
     }
 
     public function lookup_phone(string $phone): ?array {
+        // Cached for 2 minutes. This lookup is a blocking HTTP call to
+        // topalena.com and it fired on EVERY page load for a logged-in member —
+        // the /order banner, the /shop banner, the cart redemption box — stacking
+        // seconds onto each page. The balance can be up to 2 min stale for display;
+        // the actual redemption at order-complete is always a fresh API call.
+        $norm = preg_replace('/\D/', '', $phone);
+        $key  = 'alena_club_lu_' . md5($norm);
+        $cached = get_transient($key);
+        if (is_array($cached)) return $cached;
+
         $r = $this->api_request('/api/club/lookup', 'POST', ['phone' => $phone]);
         if (!$r['ok']) return null;
+        if (is_array($r['data'])) set_transient($key, $r['data'], 120);
         return $r['data'];
     }
 
