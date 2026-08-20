@@ -391,7 +391,9 @@ class Alena_DZ_Club {
         $subtotal_incl = (float) $cart->get_subtotal() + (float) $cart->get_subtotal_tax();
         if ($subtotal_incl <= 0) return;
 
-        $gross = $subtotal_incl * ($pct / 100);
+        // Round the discount to whole shekels — a loyalty discount that reads
+        // "-24.80" looks messier than a clean "-25".
+        $gross = round($subtotal_incl * ($pct / 100));
         if ($gross <= 0) return;
 
         $label = 'הנחת חבר מועדון (' . self::fmt_pct($pct) . '%)';
