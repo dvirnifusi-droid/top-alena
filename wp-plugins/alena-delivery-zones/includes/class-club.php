@@ -24,6 +24,7 @@ class Alena_DZ_Club {
     const OPT_COIN_VAL  = 'alena_club_coin_value';
     const OPT_EARN_PER  = 'alena_club_earn_per';
     const OPT_JOIN      = 'alena_club_join_incentive';
+    const OPT_MEMBER_PCT = 'alena_club_member_discount_pct';
 
     const SESSION_REDEEM_COINS = 'alena_club_redeem_coins';
 
@@ -43,6 +44,7 @@ class Alena_DZ_Club {
         add_action('woocommerce_cart_totals_before_order_total',     [$this, 'render_redemption_box']);
         add_action('woocommerce_review_order_before_order_total',    [$this, 'render_redemption_box']);
         add_action('woocommerce_cart_calculate_fees',                [$this, 'apply_redemption_fee']);
+        add_action('woocommerce_cart_calculate_fees',                [$this, 'apply_member_discount'], 9);
         add_action('woocommerce_checkout_create_order',              [$this, 'attach_redemption_to_order'], 10, 2);
         add_action('woocommerce_cart_emptied',                       [$this, 'clear_redemption']);
 
@@ -104,8 +106,22 @@ class Alena_DZ_Club {
     public static function join_incentive(): string {
         $custom = trim((string) get_option(self::OPT_JOIN, ''));
         if ($custom !== '') return $custom;
+        $pct = self::member_discount_pct();
+        if ($pct > 0) {
+            return self::fmt_pct($pct) . '% הנחה לחברי מועדון + נקודות על כל הזמנה';
+        }
         $coin = (int) round(self::coin_value_ils());
         return 'צוברים נקודות על כל הזמנה — כל נקודה ₪' . $coin . ' בקופה';
+    }
+
+    /** Standing % discount for a logged-in club member. Default 10%, owner-editable. */
+    public static function member_discount_pct(): float {
+        $v = (float) get_option(self::OPT_MEMBER_PCT, 10);
+        return max(0.0, min(90.0, $v));
+    }
+
+    private static function fmt_pct(float $p): string {
+        return rtrim(rtrim(number_format($p, 1), '0'), '.');
     }
 
     public static function is_configured(): bool {
@@ -350,6 +366,46 @@ class Alena_DZ_Club {
           </td>
         </tr>
         <?php
+    }
+
+    /** A logged-in, phone-verified customer is a club member (login auto-joins). */
+    private function is_member_for_discount(): bool {
+        if (!is_user_logged_in()) return false;
+        $phone = (string) get_user_meta(get_current_user_id(), 'billing_phone', true);
+        return $phone !== '';
+    }
+
+    /**
+     * Standing club-member discount — X% off the food subtotal, applied
+     * automatically at cart + checkout for a logged-in member. Menu prices
+     * INCLUDE VAT, so the fee is entered net and marked taxable; WooCommerce then
+     * grosses it back to exactly the promised amount off the price the customer
+     * sees (the same trick the coin redemption uses).
+     */
+    public function apply_member_discount(\WC_Cart $cart): void {
+        $pct = self::member_discount_pct();
+        if ($pct <= 0) return;
+        if (!$this->is_member_for_discount()) return;
+
+        // Food only — not delivery.
+        $subtotal_incl = (float) $cart->get_subtotal() + (float) $cart->get_subtotal_tax();
+        if ($subtotal_incl <= 0) return;
+
+        $gross = $subtotal_incl * ($pct / 100);
+        if ($gross <= 0) return;
+
+        $label = 'הנחת חבר מועדון (' . self::fmt_pct($pct) . '%)';
+        if (function_exists('wc_prices_include_tax') && wc_prices_include_tax()) {
+            $rate = 0.0;
+            if (class_exists('WC_Tax')) {
+                $rates = WC_Tax::get_rates();
+                if ($rates) { $first = reset($rates); $rate = (float) ($first['rate'] ?? 0); }
+            }
+            if ($rate <= 0) $rate = 18.0;
+            $cart->add_fee($label, -1 * ($gross / (1 + ($rate / 100))), true);
+            return;
+        }
+        $cart->add_fee($label, -1 * $gross, false);
     }
 
     public function apply_redemption_fee(\WC_Cart $cart): void {
@@ -623,6 +679,7 @@ class Alena_DZ_Club {
         register_setting('alena_club', self::OPT_COIN_VAL, ['type' => 'number', 'sanitize_callback' => 'floatval']);
         register_setting('alena_club', self::OPT_EARN_PER, ['type' => 'number', 'sanitize_callback' => 'floatval']);
         register_setting('alena_club', self::OPT_JOIN,     ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field']);
+        register_setting('alena_club', self::OPT_MEMBER_PCT, ['type' => 'number', 'sanitize_callback' => 'floatval']);
     }
 
     public function render_admin() {
@@ -667,6 +724,13 @@ class Alena_DZ_Club {
                 <td>
                   <input type="number" step="1" min="1" name="<?php echo self::OPT_EARN_PER; ?>" value="<?php echo esc_attr($earn_p); ?>" /> ש״ח להזמנה = נקודה אחת
                   <p class="description">ברירת מחדל: 100 ש״ח להזמנה = נקודה אחת</p>
+                </td>
+              </tr>
+              <tr>
+                <th>הנחת חבר מועדון (%)</th>
+                <td>
+                  <input type="number" step="1" min="0" max="90" name="<?php echo self::OPT_MEMBER_PCT; ?>" value="<?php echo esc_attr(self::member_discount_pct()); ?>" /> %
+                  <p class="description">הנחה קבועה שמתקבלת אוטומטית בסל לכל חבר מועדון <strong>מחובר</strong> (על מחיר המנות, לא על המשלוח). 0 = מכובה. ברירת מחדל: 10%.</p>
                 </td>
               </tr>
               <tr>
