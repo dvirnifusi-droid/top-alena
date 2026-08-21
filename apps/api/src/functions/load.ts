@@ -2791,6 +2791,67 @@ registerFn('sendSms', async ({ body }) => {
 // Diagnostic — exposes which Twilio env vars are set and tests if the
 // configured WhatsApp sender is registered with Twilio (cheap GET to the
 // IncomingPhoneNumbers list). Used by /AdminWhatsApp.
+// One-off owner action: create a UTILITY-category booking-confirmation template
+// and submit it to Meta for WhatsApp approval. The current template is MARKETING,
+// which Meta throttles (error 63049 — silent non-delivery to first-time bookers).
+// A Utility template is exempt. Returns the new Content SID to wire in once Meta
+// approves. Uses the same creds sendWhatsApp uses; no console login involved.
+registerFn('submitConfirmUtilityTemplate', async ({ user, body }: any) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') throw new Error('admin only');
+  const { sid, token } = await twilioAuth();
+  if (!sid || !token) throw new Error('Twilio credentials missing');
+  const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+  const brand = String((body || {}).brand || 'עלינא');
+  const name = String((body || {}).name || 'booking_confirmation_utility_he')
+    .toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 60);
+  // Strictly transactional — no address, parking, promo, or "hope to see you".
+  // Variables 1..6 match exactly what every send site already passes.
+  const templateBody =
+    `שלום {{1}}, ההזמנה שלך ב${brand} אושרה.\n\n` +
+    `תאריך: {{2}}\nשעה: {{3}}\nמספר סועדים: {{4}}\n\n` +
+    `לצפייה או לביטול ההזמנה: {{5}}\n\n{{6}}`;
+  const createRes = await fetch('https://content.twilio.com/v1/Content', {
+    method: 'POST',
+    headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      friendly_name: name,
+      language: 'he',
+      variables: { '1': 'דני', '2': '28/08/2026', '3': '20:00', '4': '4', '5': 'https://topalena.com/ReservationView?token=abc123', '6': 'ביטול חופשי עד 3 שעות לפני' },
+      types: { 'twilio/text': { body: templateBody } },
+    }),
+  });
+  const created: any = await createRes.json().catch(() => ({}));
+  if (!createRes.ok) return { ok: false, step: 'create', status: createRes.status, error: created?.message || created };
+  const contentSid = created.sid;
+  const apprRes = await fetch(`https://content.twilio.com/v1/Content/${contentSid}/ApprovalRequests/whatsapp`, {
+    method: 'POST',
+    headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, category: 'UTILITY' }),
+  });
+  const appr: any = await apprRes.json().catch(() => ({}));
+  return {
+    ok: apprRes.ok, content_sid: contentSid, friendly_name: name,
+    approval_status: appr?.whatsapp?.status || appr?.status || null,
+    approval: apprRes.ok ? appr : (appr?.message || appr),
+  };
+});
+
+// Poll the WhatsApp approval status of a Content template (owner-only).
+registerFn('checkTemplateApproval', async ({ user, body }: any) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') throw new Error('admin only');
+  const contentSid = String((body || {}).content_sid || '').trim();
+  if (!contentSid) throw new Error('content_sid required');
+  const { sid, token } = await twilioAuth();
+  const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+  const r = await fetch(`https://content.twilio.com/v1/Content/${contentSid}/ApprovalRequests`, {
+    headers: { Authorization: `Basic ${auth}` },
+  });
+  const j: any = await r.json().catch(() => ({}));
+  return { ok: r.ok, content_sid: contentSid, status: j?.whatsapp?.status || null, category: j?.whatsapp?.category || null, rejection_reason: j?.whatsapp?.rejection_reason || null, raw: j };
+});
+
 registerFn('getWhatsAppStatus', async ({ user }) => {
   if (!user) throw new Error('auth required');
   if ((user as any).role !== 'admin' && (user as any).role !== 'owner') {
