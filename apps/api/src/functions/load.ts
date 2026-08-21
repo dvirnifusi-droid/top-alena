@@ -2801,7 +2801,7 @@ registerFn('getWhatsAppStatus', async ({ user }) => {
   const { sid, token } = await twilioAuth();
   const dbCred: any = (await (prisma as any).restaurantProfile.findFirst({ select: { twilio_credentials: true } }).catch(() => null))?.twilio_credentials || {};
   const from = process.env.TWILIO_WHATSAPP_FROM ?? (process.env.TWILIO_PHONE_NUMBER ? `whatsapp:${process.env.TWILIO_PHONE_NUMBER}` : '');
-  const templateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
+  const templateSid = confirmWaTemplateSid();
   const mask = (s: string | undefined) => s ? `${s.slice(0, 6)}…${s.slice(-4)}` : '';
   const out: any = {
     has_sid: !!sid,
@@ -12884,7 +12884,7 @@ async function notifyReservationConfirmed(r: any): Promise<void> {
     sendSms(phone, smsBody, { statusCallback: resvStatusCallback() })
       .then((res: any) => logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'confirmation', to: phone, body: smsBody, result: res }))
       .catch((e: any) => { console.warn('[confirm sms]', e?.message); logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'confirmation', to: phone, body: smsBody, error: e }); });
-    const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
+    const waTemplateSid = confirmWaTemplateSid();
     sendWhatsAppTemplate(phone, waTemplateSid, {
       '1': r.customer_name || '', '2': dateStr, '3': r.time || '', '4': String(r.party_size || ''), '5': trackUrl, '6': 'ניתן לבטל לפי מדיניות ההזמנה',
     }, { statusCallback: resvStatusCallback() })
@@ -13027,7 +13027,7 @@ export async function sendReservationReminders() {
         ``, `לצפייה בפרטים: ${trackUrl}`,
       ].join('\n');
       sendSms(phone, body).catch((e: any) => console.warn('[reminder sms]', e?.message));
-      const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
+      const waTemplateSid = confirmWaTemplateSid();
       // Keep the SID: "didn't answer" is only meaningful once the message is known
       // to have ARRIVED, and ~47% of business-initiated WhatsApp silently doesn't
       // (Twilio 63016). The status callback flips confirm_request_delivered.
@@ -13239,6 +13239,20 @@ async function logResvMsg(opts: {
 function resvStatusCallback(): string {
   const base = (process.env.PUBLIC_BASE_URL || 'https://topalena.com').replace(/\/$/, '');
   return `${base}/api/twilio/whatsapp-inbox`;
+}
+
+// The Meta-approved WhatsApp Content template for a booking confirmation, in one
+// place so it swaps once. Env-overridable, so a new SID needs no redeploy.
+//
+// ⚠️ The default below (HXe32b…) is Meta-classified as a MARKETING template.
+// Meta throttles marketing templates — recipients who never wrote to the business
+// (every first-time booker) often don't get them, failing with error 63049
+// ("Meta chose not to deliver this marketing message"). A booking confirmation is
+// a UTILITY message; a Utility-category template is exempt from that throttling
+// and delivers reliably. Once the Utility template is approved, set
+// TWILIO_WA_TEMPLATE_SID to its SID (or replace the fallback here).
+function confirmWaTemplateSid(): string {
+  return process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
 }
 
 let _dayEventsEnsured = false;
@@ -13855,7 +13869,7 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   // WhatsApp — use the approved template (booking_confirmation_he, SID HX42...).
   // Business-initiated requires a Meta-approved template; passing variables that
   // match the {{1}}..{{6}} placeholders in the template body.
-  const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
+  const waTemplateSid = confirmWaTemplateSid();
   // Three DIFFERENT states, three different messages. They used to collapse into
   // two: "confirmed" vs "everything else", and "everything else" said *waitlist*.
   // So a guest whose table was held and who only needed to pay a deposit was told
