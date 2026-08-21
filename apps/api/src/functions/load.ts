@@ -2821,7 +2821,7 @@ registerFn('submitConfirmUtilityTemplate', async ({ user, body }: any) => {
     body: JSON.stringify({
       friendly_name: name,
       language: 'he',
-      variables: { '1': 'דני', '2': '28/08/2026', '3': '20:00', '4': '4', '5': 'https://topalena.com/ReservationView?token=abc123', '6': 'ביטול חופשי עד 3 שעות לפני' },
+      variables: (body || {}).sample_vars || { '1': 'דני', '2': '28/08/2026', '3': '20:00', '4': '4', '5': 'https://topalena.com/ReservationView?token=abc123', '6': 'ביטול חופשי עד 3 שעות לפני' },
       types: { 'twilio/text': { body: templateBody } },
     }),
   });
@@ -13091,8 +13091,8 @@ export async function sendReservationReminders() {
         `לא מסתדר? השיבו *מבטל* — נשחרר את השולחן למישהו אחר.`,
         ``, `לצפייה בפרטים: ${trackUrl}`,
       ].join('\n');
-      sendSms(phone, body).catch((e: any) => console.warn('[reminder sms]', e?.message));
-      const waTemplateSid = confirmWaTemplateSid();
+      sendSms(phone, body, { statusCallback: resvStatusCallback() }).catch((e: any) => console.warn('[reminder sms]', e?.message));
+      const waTemplateSid = reminderWaTemplateSid();
       // Keep the SID: "didn't answer" is only meaningful once the message is known
       // to have ARRIVED, and ~47% of business-initiated WhatsApp silently doesn't
       // (Twilio 63016). The status callback flips confirm_request_delivered.
@@ -13100,7 +13100,7 @@ export async function sendReservationReminders() {
       try {
         const sent: any = await sendWhatsAppTemplate(phone, waTemplateSid, {
           '1': r.customer_name || '', '2': dateStr, '3': r.time || '', '4': String(r.party_size || ''), '5': trackUrl, '6': 'השיבו מאשר או מבטל',
-        });
+        }, { statusCallback: resvStatusCallback() });
         confirmSid = sent?.sid || null;
       } catch {
         await sendWhatsApp(phone, body).then((s: any) => { confirmSid = s?.sid || null; }).catch(() => {});
@@ -13317,6 +13317,14 @@ function resvStatusCallback(): string {
 // UTILITY message; the Utility category is exempt from that throttling.
 function confirmWaTemplateSid(): string {
   return process.env.TWILIO_WA_TEMPLATE_SID || 'HXacf2dfc77ce746802d79e7a975e21e9d';
+}
+
+// The day-of reminder ("reply מאשר / מבטל") is a different message from the
+// confirmation, so it gets its own Utility template. Until that template is
+// approved and set here (or via env), it safely falls back to the confirmation
+// template — which already delivers — so the reminder is never broken.
+function reminderWaTemplateSid(): string {
+  return process.env.TWILIO_WA_REMINDER_TEMPLATE_SID || confirmWaTemplateSid();
 }
 
 let _dayEventsEnsured = false;
