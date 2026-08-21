@@ -31,6 +31,7 @@ import { pendingLabel, pendingExplanation, bookedLabel, confirmationState, findT
 import GuestKnowledgePanel from '@/components/seating/GuestKnowledgePanel';
 import StandbyPanel from '@/components/seating/StandbyPanel';
 import ConfirmationsPanel from '@/components/seating/ConfirmationsPanel';
+import ReservationMessagesPanel from '@/components/reservations/ReservationMessagesPanel';
 import { base44 } from '@/api/base44Client';
 import VoiceControl from '@/components/voice/VoiceControl';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
@@ -360,6 +361,14 @@ function ReservationEditDialog({ open, setOpen, reservation, onUpdate, tables, r
                 </div>
 
                 <DepositSection reservation={reservation} onDone={() => { onUpdate(); setOpen(false); }} />
+
+                {/* Every SMS / WhatsApp / email this guest was sent about the booking,
+                    with delivery status — so the team can see what actually went out. */}
+                {reservation?.id && (
+                    <div className="mt-3">
+                        <ReservationMessagesPanel reservationId={reservation.id} />
+                    </div>
+                )}
 
                 {/* Guest first — the card is about a PERSON. Name/phone used to sit at the
                     very bottom under the logistics, so on a phone you scrolled past
