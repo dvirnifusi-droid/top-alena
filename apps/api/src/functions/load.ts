@@ -2806,11 +2806,15 @@ registerFn('submitConfirmUtilityTemplate', async ({ user, body }: any) => {
   const name = String((body || {}).name || 'booking_confirmation_utility_he')
     .toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 60);
   // Strictly transactional — no address, parking, promo, or "hope to see you".
-  // Variables 1..6 match exactly what every send site already passes.
-  const templateBody =
-    `שלום {{1}}, ההזמנה שלך ב${brand} אושרה.\n\n` +
-    `תאריך: {{2}}\nשעה: {{3}}\nמספר סועדים: {{4}}\n\n` +
-    `לצפייה או לביטול ההזמנה: {{5}}\n\n{{6}}`;
+  // Variables 1..6 match exactly what every send site already passes. Meta rejects
+  // a template that STARTS or ENDS with a variable, so it opens with "שלום" and
+  // closes with a fixed signature line. Overridable via body for quick iteration.
+  const templateBody = String((body || {}).template_body ||
+    (`שלום {{1}}, ההזמנה שלך ב${brand} אושרה.\n\n` +
+     `תאריך: {{2}}\nשעה: {{3}}\nמספר סועדים: {{4}}\n\n` +
+     `{{6}}\n\n` +
+     `לצפייה או לביטול ההזמנה: {{5}}\n` +
+     `צוות ${brand}`));
   const createRes = await fetch('https://content.twilio.com/v1/Content', {
     method: 'POST',
     headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
