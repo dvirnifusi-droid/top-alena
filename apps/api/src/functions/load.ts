@@ -13091,7 +13091,9 @@ export async function sendReservationReminders() {
         `לא מסתדר? השיבו *מבטל* — נשחרר את השולחן למישהו אחר.`,
         ``, `לצפייה בפרטים: ${trackUrl}`,
       ].join('\n');
-      sendSms(phone, body, { statusCallback: resvStatusCallback() }).catch((e: any) => console.warn('[reminder sms]', e?.message));
+      sendSms(phone, body, { statusCallback: resvStatusCallback() })
+        .then((s: any) => logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'reminder', to: phone, body, result: s }))
+        .catch((e: any) => { console.warn('[reminder sms]', e?.message); logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'reminder', to: phone, body, error: e }); });
       const waTemplateSid = reminderWaTemplateSid();
       // Keep the SID: "didn't answer" is only meaningful once the message is known
       // to have ARRIVED, and ~47% of business-initiated WhatsApp silently doesn't
@@ -13102,8 +13104,10 @@ export async function sendReservationReminders() {
           '1': r.customer_name || '', '2': dateStr, '3': r.time || '', '4': String(r.party_size || ''), '5': trackUrl, '6': 'השיבו מאשר או מבטל',
         }, { statusCallback: resvStatusCallback() });
         confirmSid = sent?.sid || null;
-      } catch {
+        logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'reminder', to: phone, body, result: sent });
+      } catch (e: any) {
         await sendWhatsApp(phone, body).then((s: any) => { confirmSid = s?.sid || null; }).catch(() => {});
+        logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'reminder', to: phone, body, error: e });
       }
       if (r.customer_email) {
         sendEmail({
@@ -13450,6 +13454,32 @@ registerFn('getReservationMessages', async ({ user, body }: any) => {
        FROM "ReservationMessage" WHERE "reservation_id"=$1 ORDER BY "createdAt" ASC`, id,
   ).catch(() => []);
   return { ok: true, messages: rows };
+});
+
+// TEST (owner): send the day-of reminder WhatsApp for ONE reservation, bypassing
+// the time window, to verify the reminder template + delivery. Logs like the real
+// send so the result shows up in the reservation's message history.
+registerFn('testReservationReminder', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'testReservationReminder');
+  const id = String((body || {}).reservation_id || '').trim();
+  if (!id) throw new Error('reservation_id required');
+  const r: any = await db.reservation.findUnique({ where: { id } });
+  if (!r) throw new Error('not_found');
+  const brand = await getBrandName().catch(() => 'המסעדה');
+  const base = process.env.PUBLIC_BASE_URL || 'https://topalena.com';
+  const trackUrl = r.tracking_token ? `${base}/ReservationView?token=${r.tracking_token}` : base;
+  const dateStr = (r.date instanceof Date ? r.date.toISOString() : String(r.date)).slice(0, 10).split('-').reverse().join('/');
+  const phone = String(r.customer_phone || '').trim();
+  const sidUsed = reminderWaTemplateSid();
+  const bodyText = `תזכורת: ההזמנה שלך ב${brand} — ${dateStr} ${r.time}. השיבו מאשר או מבטל.`;
+  let sent: any = null, error: string | null = null;
+  try {
+    sent = await sendWhatsAppTemplate(phone, sidUsed, {
+      '1': r.customer_name || '', '2': dateStr, '3': r.time || '', '4': String(r.party_size || ''), '5': trackUrl, '6': 'השיבו מאשר או מבטל',
+    }, { statusCallback: resvStatusCallback() });
+  } catch (e: any) { error = e?.message || String(e); }
+  await logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'reminder', to: phone, body: bodyText, result: sent, error });
+  return { ok: !error, template_sid: sidUsed, sid: sent?.sid || null, error };
 });
 
 // PUBLIC — what the guest sees for a given date, plus how much room is left.
