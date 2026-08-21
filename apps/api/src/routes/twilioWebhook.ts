@@ -19,7 +19,7 @@ import { tryHandleDailyHoursReply } from '../lib/dailyHoursReply.js';
 import { transcribeWhatsAppVoice } from '../lib/whatsappVoice.js';
 import { runConversationAgent } from '../lib/whatsappConversation.js';
 import { tryHandleOnboardingMessage, tryHandleOnboardingMedia, isOnboardingActive } from '../lib/whatsappOnboarding.js';
-import { sendWhatsApp } from '../lib/twilio.js';
+import { sendWhatsApp, sendSms } from '../lib/twilio.js';
 import { handleGuestConfirmationReply } from '../functions/load.js';
 import {
   resolveTenantFromMessage,
@@ -225,6 +225,35 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
                  AND $4 > (CASE "status" WHEN 'read' THEN 4 WHEN 'delivered' THEN 3 WHEN 'failed' THEN 2 WHEN 'sent' THEN 1 ELSE 0 END)`,
               mapped, errorCode || null, sid, newRank,
             ).catch(() => {});
+            // SMS FALLBACK: a booking WhatsApp that actually FAILED delivery → send
+            // the SMS now, so the guest still gets it. This is where the "SMS only on
+            // the ~few % WhatsApp misses" saving comes from — we no longer send SMS
+            // up front. Idempotent: skip if an SMS for this reservation+kind already
+            // exists (covers a duplicate/retried callback and the sync fallback).
+            if (newRank === 2) {
+              try {
+                const rows: any[] = await (prisma as any).$queryRawUnsafe(
+                  `SELECT "reservation_id","to_addr","body","kind" FROM "ReservationMessage" WHERE "provider_sid"=$1 AND "channel"='whatsapp' LIMIT 1`, sid,
+                );
+                const rr = rows[0];
+                if (rr && ['confirmation', 'reminder'].includes(rr.kind) && rr.to_addr && rr.body) {
+                  const existing: any[] = await (prisma as any).$queryRawUnsafe(
+                    `SELECT 1 FROM "ReservationMessage" WHERE "reservation_id"=$1 AND "kind"=$2 AND "channel"='sms' LIMIT 1`, rr.reservation_id, rr.kind,
+                  );
+                  if (!existing.length) {
+                    const sent: any = await sendSms(rr.to_addr, rr.body).catch(() => null);
+                    const { randomUUID } = await import('node:crypto');
+                    await (prisma as any).$executeRawUnsafe(
+                      `INSERT INTO "ReservationMessage" ("id","reservation_id","channel","kind","to_addr","body","status","provider_sid","createdAt")
+                       VALUES ($1,$2,'sms',$3,$4,$5,$6,$7,NOW())`,
+                      randomUUID(), rr.reservation_id, rr.kind, rr.to_addr, rr.body,
+                      sent?.skipped ? 'skipped' : sent?.sid ? 'sent' : 'failed', sent?.sid || null,
+                    ).catch(() => {});
+                    req.log.info({ reservation: rr.reservation_id, kind: rr.kind }, '[twilio-webhook] WhatsApp failed → SMS fallback sent');
+                  }
+                }
+              } catch (e: any) { req.log.warn({ err: e?.message }, '[twilio-webhook] sms fallback failed'); }
+            }
           }
         }
         req.log.info({ sid, messageStatus }, '[twilio-webhook] status update');

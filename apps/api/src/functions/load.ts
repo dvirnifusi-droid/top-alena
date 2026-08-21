@@ -2791,6 +2791,44 @@ registerFn('sendSms', async ({ body }) => {
 // Diagnostic — exposes which Twilio env vars are set and tests if the
 // configured WhatsApp sender is registered with Twilio (cheap GET to the
 // IncomingPhoneNumbers list). Used by /AdminWhatsApp.
+// Real messaging spend, straight from Twilio's per-message `price` field, split
+// SMS vs WhatsApp — so "WhatsApp is cheaper" is a number, not a claim. Also counts
+// delivered/failed per channel, which is the other half of the story (a cheap
+// message that never arrives isn't cheap).
+registerFn('getMessagingCostBreakdown', async ({ user, body }: any) => {
+  if (!user) throw new Error('auth required');
+  if ((user as any).role !== 'admin' && (user as any).role !== 'owner') throw new Error('admin only');
+  const { sid, token } = await twilioAuth();
+  if (!sid || !token) throw new Error('Twilio credentials missing');
+  const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+  const pages = Math.min(Math.max(Number((body || {}).pages) || 3, 1), 10); // ≤10k msgs
+  const USD_ILS = 3.7;
+  const agg: any = { sms: { count: 0, cost: 0, delivered: 0, failed: 0 }, whatsapp: { count: 0, cost: 0, delivered: 0, failed: 0 } };
+  let url: string | null = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json?PageSize=1000`;
+  let fetched = 0;
+  for (let p = 0; p < pages && url; p++) {
+    const res: any = await fetch(url, { headers: { Authorization: `Basic ${auth}` } });
+    const j: any = await res.json().catch(() => ({}));
+    for (const m of (j.messages || [])) {
+      const isWa = String(m.to || '').startsWith('whatsapp:') || String(m.from || '').startsWith('whatsapp:');
+      const b = isWa ? agg.whatsapp : agg.sms;
+      b.count++;
+      b.cost += Math.abs(Number(m.price) || 0);
+      if (['delivered', 'read'].includes(m.status)) b.delivered++;
+      if (['failed', 'undelivered'].includes(m.status)) b.failed++;
+    }
+    fetched += (j.messages || []).length;
+    url = j.next_page_uri ? `https://api.twilio.com${j.next_page_uri}` : null;
+  }
+  const fmt = (b: any) => ({
+    count: b.count, delivered: b.delivered, failed: b.failed,
+    delivered_pct: b.count ? Math.round((b.delivered / b.count) * 100) : 0,
+    cost_ils: +(b.cost * USD_ILS).toFixed(2),
+    avg_ils: b.count ? +((b.cost * USD_ILS) / b.count).toFixed(3) : 0,
+  });
+  return { fetched, sms: fmt(agg.sms), whatsapp: fmt(agg.whatsapp) };
+});
+
 // One-off owner action: create a UTILITY-category booking-confirmation template
 // and submit it to Meta for WhatsApp approval. The current template is MARKETING,
 // which Meta throttles (error 63049 — silent non-delivery to first-time bookers).
@@ -12946,15 +12984,20 @@ async function notifyReservationConfirmed(r: any): Promise<void> {
       ...(depLine ? [depLine] : []),
       ``, `📋 צפיה בהזמנה: ${trackUrl}`,
     ].join('\n');
-    sendSms(phone, smsBody, { statusCallback: resvStatusCallback() })
-      .then((res: any) => logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'confirmation', to: phone, body: smsBody, result: res }))
-      .catch((e: any) => { console.warn('[confirm sms]', e?.message); logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'confirmation', to: phone, body: smsBody, error: e }); });
+    // WhatsApp (Utility) primary; SMS only if WhatsApp can't be sent (sync catch
+    // here, or async via the status webhook) — the expensive Hebrew SMS stops
+    // firing on every confirmation.
     const waTemplateSid = confirmWaTemplateSid();
     sendWhatsAppTemplate(phone, waTemplateSid, {
       '1': r.customer_name || '', '2': dateStr, '3': r.time || '', '4': String(r.party_size || ''), '5': trackUrl, '6': 'ניתן לבטל לפי מדיניות ההזמנה',
     }, { statusCallback: resvStatusCallback() })
       .then((res: any) => logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'confirmation', to: phone, body: smsBody, result: res }))
-      .catch((e: any) => { sendWhatsApp(phone, smsBody).catch(() => {}); logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'confirmation', to: phone, body: smsBody, error: e || 'template_failed' }); });
+      .catch((e: any) => {
+        logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'confirmation', to: phone, body: smsBody, error: e || 'template_failed' });
+        sendSms(phone, smsBody, { statusCallback: resvStatusCallback() })
+          .then((res: any) => logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'confirmation', to: phone, body: smsBody, result: res }))
+          .catch((e2: any) => console.warn('[confirm sms fallback]', e2?.message));
+      });
     if (r.customer_email) {
       const emailBody = `אישור הזמנה — ${dateStr} בשעה ${r.time}${depLine ? ' · ' + depLine : ''}`;
       sendEmail({
@@ -13091,9 +13134,8 @@ export async function sendReservationReminders() {
         `לא מסתדר? השיבו *מבטל* — נשחרר את השולחן למישהו אחר.`,
         ``, `לצפייה בפרטים: ${trackUrl}`,
       ].join('\n');
-      sendSms(phone, body, { statusCallback: resvStatusCallback() })
-        .then((s: any) => logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'reminder', to: phone, body, result: s }))
-        .catch((e: any) => { console.warn('[reminder sms]', e?.message); logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'reminder', to: phone, body, error: e }); });
+      // WhatsApp (Utility) primary; SMS only if WhatsApp can't be sent. The
+      // expensive SMS no longer fires on every reminder.
       const waTemplateSid = reminderWaTemplateSid();
       // Keep the SID: "didn't answer" is only meaningful once the message is known
       // to have ARRIVED, and ~47% of business-initiated WhatsApp silently doesn't
@@ -13106,8 +13148,10 @@ export async function sendReservationReminders() {
         confirmSid = sent?.sid || null;
         logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'reminder', to: phone, body, result: sent });
       } catch (e: any) {
-        await sendWhatsApp(phone, body).then((s: any) => { confirmSid = s?.sid || null; }).catch(() => {});
         logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'reminder', to: phone, body, error: e });
+        const s: any = await sendSms(phone, body, { statusCallback: resvStatusCallback() }).catch(() => null);
+        confirmSid = s?.sid || confirmSid;
+        if (s) logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'reminder', to: phone, body, result: s });
       }
       if (r.customer_email) {
         sendEmail({
@@ -13964,10 +14008,14 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       ].join('\n');
   // SMS — but NOT when we're about to collect a deposit: the confirmation is held
   // until the card is placed (sent from the webhook on authorization).
-  const smsKind = isStandby ? 'standby' : 'confirmation';
-  if (!willCollectDeposit) sendSms(String(customer_phone).trim(), smsBody, { statusCallback: resvStatusCallback() })
-    .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'sms', kind: smsKind, to: customer_phone, body: smsBody, result: r }))
-    .catch((e) => { console.warn('[reservation] sms failed', e?.message); logResvMsg({ reservation_id: reservation.id, channel: 'sms', kind: smsKind, to: customer_phone, body: smsBody, error: e }); });
+  // SMS is the expensive channel (Hebrew = 70 chars/segment, ~₪5+/msg). A plain
+  // confirmation no longer pays for it up front — WhatsApp (Utility, cheap and now
+  // delivering) is primary, and SMS fires only if WhatsApp fails: synchronously in
+  // the catch below, or async via the status webhook. Standby keeps its immediate
+  // SMS (rare, and the guest has no held table so every channel matters).
+  if (!willCollectDeposit && isStandby) sendSms(String(customer_phone).trim(), smsBody, { statusCallback: resvStatusCallback() })
+    .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'sms', kind: 'standby', to: customer_phone, body: smsBody, result: r }))
+    .catch((e) => { console.warn('[reservation] sms failed', e?.message); logResvMsg({ reservation_id: reservation.id, channel: 'sms', kind: 'standby', to: customer_phone, body: smsBody, error: e }); });
   // WhatsApp — use the approved template (booking_confirmation_he, SID HX42...).
   // Business-initiated requires a Meta-approved template; passing variables that
   // match the {{1}}..{{6}} placeholders in the template body.
@@ -14011,10 +14059,13 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
     )
       .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: 'confirmation', to: customer_phone, body: smsBody, result: r }))
       .catch((e) => {
-        console.warn('[reservation] whatsapp template failed, falling back to free-form', e?.message);
-        // Fallback to free-form (only works if customer pinged us in last 24h; otherwise quietly skipped)
-        sendWhatsApp(String(customer_phone).trim(), smsBody).catch(() => {});
+        console.warn('[reservation] whatsapp template failed — SMS fallback', e?.message);
         logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: 'confirmation', to: customer_phone, body: smsBody, error: e });
+        // WhatsApp couldn't even be sent → pay for the SMS after all, so the guest
+        // still gets their confirmation.
+        sendSms(String(customer_phone).trim(), smsBody, { statusCallback: resvStatusCallback() })
+          .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'sms', kind: 'confirmation', to: customer_phone, body: smsBody, result: r }))
+          .catch(() => {});
       });
   }
   // willCollectDeposit && !isStandby: the "complete your deposit" message is sent
