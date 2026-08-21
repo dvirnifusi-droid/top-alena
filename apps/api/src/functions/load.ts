@@ -13309,15 +13309,14 @@ function resvStatusCallback(): string {
 // The Meta-approved WhatsApp Content template for a booking confirmation, in one
 // place so it swaps once. Env-overridable, so a new SID needs no redeploy.
 //
-// ⚠️ The default below (HXe32b…) is Meta-classified as a MARKETING template.
-// Meta throttles marketing templates — recipients who never wrote to the business
-// (every first-time booker) often don't get them, failing with error 63049
-// ("Meta chose not to deliver this marketing message"). A booking confirmation is
-// a UTILITY message; a Utility-category template is exempt from that throttling
-// and delivers reliably. Once the Utility template is approved, set
-// TWILIO_WA_TEMPLATE_SID to its SID (or replace the fallback here).
+// This is the UTILITY-category template (booking_confirmation_utility_he,
+// Meta-approved 2026-08-21). It replaced HXe32b… — a MARKETING-classified
+// template that Meta throttled: first-time bookers who never wrote to the
+// business failed with error 63049 ("Meta chose not to deliver this marketing
+// message"), a major cause of silent non-delivery. A booking confirmation is a
+// UTILITY message; the Utility category is exempt from that throttling.
 function confirmWaTemplateSid(): string {
-  return process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
+  return process.env.TWILIO_WA_TEMPLATE_SID || 'HXacf2dfc77ce746802d79e7a975e21e9d';
 }
 
 let _dayEventsEnsured = false;
