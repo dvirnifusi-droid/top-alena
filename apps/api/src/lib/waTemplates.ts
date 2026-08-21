@@ -490,7 +490,7 @@ export async function templateStatus(): Promise<Array<{
   return out;
 }
 
-export type SendResult = { sent: boolean; via: 'template' | 'freeform' | 'sms' | 'none'; reason?: string };
+export type SendResult = { sent: boolean; via: 'template' | 'freeform' | 'sms' | 'none'; reason?: string; sid?: string };
 
 /**
  * Send through the template when one is approved, and fall back to the plain
@@ -520,6 +520,8 @@ export async function sendTemplated(opts: {
   skipFreeform?: boolean;
   /** Shorter text for SMS, where every 70 Hebrew characters is another charge. */
   smsText?: string;
+  /** Twilio delivery-receipt endpoint — attached to whichever channel actually sends. */
+  statusCallback?: string;
 }): Promise<SendResult> {
   if (!opts.to) return { sent: false, via: 'none', reason: 'no_recipient' };
 
@@ -545,8 +547,8 @@ export async function sendTemplated(opts: {
         const s = String(v ?? '').replace(/\s+/g, ' ').trim();
         variables[String(i + 1)] = s.length ? s : '—';
       });
-      const out: any = await sendWhatsAppTemplate(opts.to, sid, variables);
-      if (!out?.skipped) return { sent: true, via: 'template' };
+      const out: any = await sendWhatsAppTemplate(opts.to, sid, variables, { statusCallback: opts.statusCallback });
+      if (!out?.skipped) return { sent: true, via: 'template', sid: out?.sid };
     } catch (e: any) {
       // A rejected or mismatched template must not swallow the message.
       console.warn(`[wa-template] ${opts.kind} failed, falling back:`, e?.message);
@@ -556,12 +558,12 @@ export async function sendTemplated(opts: {
   if (!opts.skipFreeform) {
     try {
       const { sendWhatsApp } = await import('./twilio.js');
-      const out: any = await sendWhatsApp(opts.to, opts.freeformText);
+      const out: any = await sendWhatsApp(opts.to, opts.freeformText, { statusCallback: opts.statusCallback });
       if (!out?.skipped) {
         // Twilio accepts and only later marks it undelivered if the window is
-        // closed, so this is "handed over", not "arrived". Without a template
-        // there is no way to know from here.
-        return { sent: true, via: 'freeform' };
+        // closed, so this is "handed over", not "arrived". The status callback is
+        // the only trustworthy signal of what actually happened.
+        return { sent: true, via: 'freeform', sid: out?.sid };
       }
     } catch (e: any) {
       console.warn(`[wa-template] ${opts.kind} freeform failed:`, e?.message);
@@ -571,8 +573,8 @@ export async function sendTemplated(opts: {
   if (opts.smsFallback) {
     try {
       const { sendSms } = await import('./twilio.js');
-      const out: any = await sendSms(opts.to, opts.smsText || opts.freeformText);
-      if (!out?.skipped) return { sent: true, via: 'sms' };
+      const out: any = await sendSms(opts.to, opts.smsText || opts.freeformText, { statusCallback: opts.statusCallback });
+      if (!out?.skipped) return { sent: true, via: 'sms', sid: out?.sid };
     } catch (e: any) {
       console.warn(`[wa-template] ${opts.kind} sms failed:`, e?.message);
     }

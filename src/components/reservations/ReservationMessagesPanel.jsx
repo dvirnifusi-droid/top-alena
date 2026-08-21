@@ -20,8 +20,9 @@ const KIND_HE = {
   reconfirm: 'אישור מחדש',
 };
 const STATUS = {
-  sent: { t: 'נשלח', bg: '#EAF3E1', fg: '#3F6B1F' },
-  delivered: { t: 'נמסר', bg: '#DDEFD0', fg: '#2F5417' },
+  sent: { t: 'נשלח', bg: '#EFE7D6', fg: '#8A755A' },
+  delivered: { t: 'נמסר ✓', bg: '#DDEFD0', fg: '#2F5417' },
+  read: { t: 'נקרא ✓✓', bg: '#CFE8F5', fg: '#1C5A76' },
   failed: { t: 'נכשל', bg: '#F7E0DA', fg: '#A8442A' },
   skipped: { t: 'לא נשלח', bg: '#EFE7D6', fg: '#8A755A' },
 };

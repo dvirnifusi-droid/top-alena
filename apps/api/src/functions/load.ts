@@ -12881,13 +12881,13 @@ async function notifyReservationConfirmed(r: any): Promise<void> {
       ...(depLine ? [depLine] : []),
       ``, `📋 צפיה בהזמנה: ${trackUrl}`,
     ].join('\n');
-    sendSms(phone, smsBody)
+    sendSms(phone, smsBody, { statusCallback: resvStatusCallback() })
       .then((res: any) => logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'confirmation', to: phone, body: smsBody, result: res }))
       .catch((e: any) => { console.warn('[confirm sms]', e?.message); logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'confirmation', to: phone, body: smsBody, error: e }); });
     const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
     sendWhatsAppTemplate(phone, waTemplateSid, {
       '1': r.customer_name || '', '2': dateStr, '3': r.time || '', '4': String(r.party_size || ''), '5': trackUrl, '6': 'ניתן לבטל לפי מדיניות ההזמנה',
-    })
+    }, { statusCallback: resvStatusCallback() })
       .then((res: any) => logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'confirmation', to: phone, body: smsBody, result: res }))
       .catch((e: any) => { sendWhatsApp(phone, smsBody).catch(() => {}); logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'confirmation', to: phone, body: smsBody, error: e || 'template_failed' }); });
     if (r.customer_email) {
@@ -13230,6 +13230,15 @@ async function logResvMsg(opts: {
   } catch (e: any) {
     console.warn('[logResvMsg]', e?.message);
   }
+}
+
+// Twilio delivery receipts for reservation messages land on this tenant's own
+// status endpoint (PUBLIC_BASE_URL is per-tenant), where the webhook flips the
+// ReservationMessage row from 'sent' to delivered/read/failed. Same endpoint the
+// reconfirmation flow already uses.
+function resvStatusCallback(): string {
+  const base = (process.env.PUBLIC_BASE_URL || 'https://topalena.com').replace(/\/$/, '');
+  return `${base}/api/twilio/whatsapp-inbox`;
 }
 
 let _dayEventsEnsured = false;
@@ -13840,7 +13849,7 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   // SMS — but NOT when we're about to collect a deposit: the confirmation is held
   // until the card is placed (sent from the webhook on authorization).
   const smsKind = isStandby ? 'standby' : 'confirmation';
-  if (!willCollectDeposit) sendSms(String(customer_phone).trim(), smsBody)
+  if (!willCollectDeposit) sendSms(String(customer_phone).trim(), smsBody, { statusCallback: resvStatusCallback() })
     .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'sms', kind: smsKind, to: customer_phone, body: smsBody, result: r }))
     .catch((e) => { console.warn('[reservation] sms failed', e?.message); logResvMsg({ reservation_id: reservation.id, channel: 'sms', kind: smsKind, to: customer_phone, body: smsBody, error: e }); });
   // WhatsApp — use the approved template (booking_confirmation_he, SID HX42...).
@@ -13865,6 +13874,7 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       freeformText: smsBody,
       smsText: smsBody,
       smsFallback: true,
+      statusCallback: resvStatusCallback(),
     })
       .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: 'standby', to: customer_phone, body: standbyMsg, result: r }))
       .catch((e) => { console.warn('[reservation] standby notify failed', e?.message); logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: 'standby', to: customer_phone, body: standbyMsg, error: e }); });
@@ -13881,6 +13891,7 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
         '5': trackUrl,
         '6': cancelLine,
       },
+      { statusCallback: resvStatusCallback() },
     )
       .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: 'confirmation', to: customer_phone, body: smsBody, result: r }))
       .catch((e) => {
@@ -14076,6 +14087,7 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
           freeformText: paySms,
           smsText: paySms,
           smsFallback: true,
+          statusCallback: resvStatusCallback(),
         })
           .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: isTicket ? 'ticket_request' : 'deposit_request', to: customer_phone, body: payMsg, result: r }))
           .catch((e) => { console.warn('[reservation] deposit-pending notify failed', e?.message); logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: isTicket ? 'ticket_request' : 'deposit_request', to: customer_phone, body: payMsg, error: e }); });

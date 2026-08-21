@@ -208,6 +208,25 @@ export const twilioWebhookRoutes: FastifyPluginAsync = async (app) => {
             data: { confirm_request_delivered: ['delivered', 'read'].includes(messageStatus) },
           }).catch(() => {});
         }
+        // Per-reservation message log (raw-SQL table, no Prisma model). Advance the
+        // row's status MONOTONICALLY by finality rank — sent < failed < delivered
+        // < read — so a stale/reordered callback can never downgrade a message
+        // that already delivered back to "failed" or "sent".
+        {
+          const newRank = messageStatus === 'read' ? 4
+            : messageStatus === 'delivered' ? 3
+            : (messageStatus === 'failed' || messageStatus === 'undelivered') ? 2
+            : 0; // 'sent'/'queued' from the callback add nothing over the row's own 'sent'
+          if (sid && newRank > 0) {
+            const mapped = newRank === 2 ? 'failed' : messageStatus; // undelivered → failed
+            await (prisma as any).$executeRawUnsafe(
+              `UPDATE "ReservationMessage" SET "status"=$1, "error"=COALESCE($2,"error")
+               WHERE "provider_sid"=$3
+                 AND $4 > (CASE "status" WHEN 'read' THEN 4 WHEN 'delivered' THEN 3 WHEN 'failed' THEN 2 WHEN 'sent' THEN 1 ELSE 0 END)`,
+              mapped, errorCode || null, sid, newRank,
+            ).catch(() => {});
+          }
+        }
         req.log.info({ sid, messageStatus }, '[twilio-webhook] status update');
       } else if (from && (body || numMedia > 0)) {
         // A guest answering "מאשר" / "מבטל" to today's reconfirmation is handled

@@ -30,7 +30,7 @@ export async function twilioAuth(): Promise<{ sid?: string; token?: string }> {
 // sending a real SMS/WhatsApp to a real person. Every send path checks it.
 export const OUTBOUND_DISABLED = () => process.env.OUTBOUND_DISABLED === 'true';
 
-export async function sendSms(to: string, body: string) {
+export async function sendSms(to: string, body: string, opts: { statusCallback?: string } = {}) {
   if (OUTBOUND_DISABLED()) return { skipped: true, reason: 'outbound_disabled' };
   const { sid, token } = await twilioAuth();
   const from = process.env.TWILIO_PHONE_NUMBER;
@@ -39,13 +39,16 @@ export async function sendSms(to: string, body: string) {
     return { skipped: true };
   }
   const creds = Buffer.from(`${sid}:${token}`).toString('base64');
+  const smsParams: Record<string, string> = { From: from, To: normalizeIsraeliPhone(to), Body: body };
+  // Delivery receipts: Twilio POSTs status events (sent/delivered/failed) here.
+  if (opts.statusCallback) smsParams.StatusCallback = opts.statusCallback;
   const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
     method: 'POST',
     headers: {
       Authorization: `Basic ${creds}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: new URLSearchParams({ From: from, To: normalizeIsraeliPhone(to), Body: body }),
+    body: new URLSearchParams(smsParams),
   });
   const data: any = await res.json();
   if (!res.ok) throw new Error(data?.message || `twilio_${res.status}`);
@@ -59,6 +62,7 @@ export async function sendWhatsAppTemplate(
   to: string,
   templateSid: string,
   variables: Record<string, string>,
+  opts: { statusCallback?: string } = {},
 ) {
   if (OUTBOUND_DISABLED()) return { skipped: true, reason: 'outbound_disabled' };
   const { sid, token } = await twilioAuth();
@@ -77,6 +81,8 @@ export async function sendWhatsAppTemplate(
     ContentSid: templateSid,
     ContentVariables: JSON.stringify(variables),
   };
+  // Delivery receipts (sent/delivered/read/failed) → status callback endpoint.
+  if (opts.statusCallback) params.StatusCallback = opts.statusCallback;
   const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
     method: 'POST',
     headers: { Authorization: `Basic ${creds}`, 'Content-Type': 'application/x-www-form-urlencoded' },
