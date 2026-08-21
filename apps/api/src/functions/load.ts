@@ -13762,7 +13762,26 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   // Business-initiated requires a Meta-approved template; passing variables that
   // match the {{1}}..{{6}} placeholders in the template body.
   const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
-  if (!isStandby && !willCollectDeposit) {
+  // Three DIFFERENT states, three different messages. They used to collapse into
+  // two: "confirmed" vs "everything else", and "everything else" said *waitlist*.
+  // So a guest whose table was held and who only needed to pay a deposit was told
+  // "נרשמת לרשימת ההמתנה" — a table exists, nothing is on a waitlist. The deposit
+  // case now says nothing here; its message is sent once the payment link exists
+  // (below), so it can carry the link.
+  if (isStandby) {
+    // Genuine waitlist — the restaurant is full at that hour and no table is held.
+    // Was free-form only, so a guest who hadn't messaged in 24h got nothing; the
+    // template delivers via WhatsApp when approved, SMS otherwise.
+    sendTemplated({
+      kind: 'guest_table_ready',
+      to: String(customer_phone).trim(),
+      vars: [customer_name, brand, 'נרשמת לרשימת ההמתנה — זו אינה הזמנה מאושרת. צוות האירוח בודק אם אפשר לפנות שולחן ויעדכן אותך.', trackUrl],
+      freeformText: smsBody,
+      smsText: smsBody,
+      smsFallback: true,
+    }).catch((e) => console.warn('[reservation] standby notify failed', e?.message));
+  } else if (!willCollectDeposit) {
+    // Confirmed, no card needed — the approved booking-confirmation template.
     sendWhatsAppTemplate(
       String(customer_phone).trim(),
       waTemplateSid,
@@ -13779,20 +13798,9 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       // Fallback to free-form (only works if customer pinged us in last 24h; otherwise quietly skipped)
       sendWhatsApp(String(customer_phone).trim(), smsBody).catch(() => {});
     });
-  } else {
-    // Standby ("you're on the waitlist"): the audit found this was free-form
-    // only, so any guest who had not messaged in 24h received nothing. Route it
-    // through the guest_table_ready template — WhatsApp when approved, SMS
-    // otherwise — so the waitlist confirmation actually arrives.
-    sendTemplated({
-      kind: 'guest_table_ready',
-      to: String(customer_phone).trim(),
-      vars: [customer_name, brand, 'נרשמת לרשימת ההמתנה — זו אינה הזמנה מאושרת. צוות האירוח בודק אם אפשר לפנות שולחן ויעדכן אותך.', trackUrl],
-      freeformText: smsBody,
-      smsText: smsBody,
-      smsFallback: true,
-    }).catch((e) => console.warn('[reservation] standby notify failed', e?.message));
   }
+  // willCollectDeposit && !isStandby: the "complete your deposit" message is sent
+  // after the link is generated, further down.
   // Email — best-effort if address provided (held until card is placed for deposit bookings).
   // A standby signup used to get this same "ההזמנה שלך אושרה ✅" email, subject line
   // included. Nothing was approved: no table was held and the guest may never be
@@ -13960,6 +13968,26 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       });
       deposit_link = link.payment_page_link || null;
       await db.reservation.update({ where: { id: reservation.id }, data: { deposit_provider_ref: link.page_request_uid || null } as any });
+      // The "complete your payment" message — the one a card-required booking
+      // should get, in place of the waitlist message it used to get by mistake.
+      // Carries the payment link so a guest who closed the PayPlus page (or never
+      // saw it) can still finish. Reuses the generic table-update template so it
+      // reaches a brand-new number, not only one that messaged us in 24h.
+      if (deposit_link) {
+        const isTicket = eventChargeMethod === 1;
+        const payMsg = isTicket
+          ? `כדי להבטיח את מקומך יש להשלים את התשלום (₪${(depositInfo as any).amount_ils}) בקישור.`
+          : `שמרנו לך שולחן! כדי לאשר סופית יש להשלים אבטחת כרטיס אשראי בקישור (הכרטיס נתפס בלבד — לא מחויב).`;
+        const paySms = `${brand}: ${payMsg} ${deposit_link}`;
+        sendTemplated({
+          kind: 'guest_table_ready',
+          to: String(customer_phone).trim(),
+          vars: [customer_name, brand, payMsg, deposit_link],
+          freeformText: paySms,
+          smsText: paySms,
+          smsFallback: true,
+        }).catch((e) => console.warn('[reservation] deposit-pending notify failed', e?.message));
+      }
     } catch (e: any) {
       console.warn('[createPublicReservation] deposit link failed — cancelling (no deposit = no booking)', e?.message);
       // No payment page could be created → NO booking. Free the table + tell the guest to retry.
