@@ -12881,17 +12881,24 @@ async function notifyReservationConfirmed(r: any): Promise<void> {
       ...(depLine ? [depLine] : []),
       ``, `📋 צפיה בהזמנה: ${trackUrl}`,
     ].join('\n');
-    sendSms(phone, smsBody).catch((e: any) => console.warn('[confirm sms]', e?.message));
+    sendSms(phone, smsBody)
+      .then((res: any) => logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'confirmation', to: phone, body: smsBody, result: res }))
+      .catch((e: any) => { console.warn('[confirm sms]', e?.message); logResvMsg({ reservation_id: r.id, channel: 'sms', kind: 'confirmation', to: phone, body: smsBody, error: e }); });
     const waTemplateSid = process.env.TWILIO_WA_TEMPLATE_SID || 'HXe32bf95b3bb21200c84537b79749f5aa';
     sendWhatsAppTemplate(phone, waTemplateSid, {
       '1': r.customer_name || '', '2': dateStr, '3': r.time || '', '4': String(r.party_size || ''), '5': trackUrl, '6': 'ניתן לבטל לפי מדיניות ההזמנה',
-    }).catch(() => { sendWhatsApp(phone, smsBody).catch(() => {}); });
+    })
+      .then((res: any) => logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'confirmation', to: phone, body: smsBody, result: res }))
+      .catch((e: any) => { sendWhatsApp(phone, smsBody).catch(() => {}); logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'confirmation', to: phone, body: smsBody, error: e || 'template_failed' }); });
     if (r.customer_email) {
+      const emailBody = `אישור הזמנה — ${dateStr} בשעה ${r.time}${depLine ? ' · ' + depLine : ''}`;
       sendEmail({
         to: r.customer_email,
         subject: `אישור הזמנה - ${dateStr} בשעה ${r.time} - ${brand}`,
         html: `<div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding:24px;background:#fafafa;border-radius:12px;color:#1f1b17"><p style="font-size:18px;margin:0 0 4px">שלום ${r.customer_name || ''} 👋</p><p style="margin:0 0 16px;color:#a04a2e;font-size:20px;font-weight:bold">ההזמנה שלך ב${brand} אושרה ✅</p><div style="background:#fff;border:1px solid #e5d9c4;border-radius:10px;padding:16px"><p style="margin:4px 0">📅 <b>${dateStr}</b> בשעה <b>${r.time}</b></p><p style="margin:4px 0">👥 <b>${r.party_size} סועדים</b></p>${depLine ? `<p style="margin:4px 0">${depLine}</p>` : ''}</div><p style="margin:24px 0 0;text-align:center"><a href="${trackUrl}" style="background:#a04a2e;color:#F4ECD8;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block">📋 צפיה בהזמנה</a></p></div>`,
-      }).catch((e: any) => console.warn('[confirm email]', e?.message));
+      })
+        .then((res: any) => logResvMsg({ reservation_id: r.id, channel: 'email', kind: 'confirmation', to: r.customer_email, body: emailBody, result: res }))
+        .catch((e: any) => { console.warn('[confirm email]', e?.message); logResvMsg({ reservation_id: r.id, channel: 'email', kind: 'confirmation', to: r.customer_email, body: emailBody, error: e }); });
     }
   } catch (e: any) { console.warn('[notifyReservationConfirmed]', e?.message); }
 }
@@ -13162,6 +13169,69 @@ registerFn('createReservationChecked', async ({ body, user }: any) => {
 //
 // Isolated raw-SQL table, created on demand: no Prisma model, so a tenant that
 // never uses this carries no schema change and no P2022 risk.
+// ── Per-reservation message log ──────────────────────────────────────────────
+// Every message the system sends a guest about their booking — confirmation,
+// waitlist, deposit request, reminder — used to vanish the moment it left: the
+// senders POST to Twilio and return, writing nothing. So a business could not
+// answer "what did this guest actually receive, and did it arrive?". This log
+// answers that, tied to the reservation. Isolated raw-SQL table, no Prisma model.
+let _resvMsgEnsured = false;
+async function ensureReservationMessages(): Promise<void> {
+  if (_resvMsgEnsured) return;
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "ReservationMessage" (
+       "id" TEXT PRIMARY KEY,
+       "reservation_id" TEXT NOT NULL,
+       "channel" TEXT,
+       "kind" TEXT,
+       "to_addr" TEXT,
+       "body" TEXT,
+       "status" TEXT,
+       "provider_sid" TEXT,
+       "error" TEXT,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+     )`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "ReservationMessage_resv" ON "ReservationMessage" ("reservation_id","createdAt")`).catch(() => {});
+  _resvMsgEnsured = true;
+}
+
+// Record one outbound guest message. Best-effort and never throws: a logging
+// failure must not break a booking or a webhook. `result` is whatever the sender
+// returned ({success,sid} | {skipped} | {sent,via}); `error` is a thrown failure.
+// Interprets those into one of: sent | delivered | skipped | failed.
+async function logResvMsg(opts: {
+  reservation_id?: string | null; channel: string; kind: string;
+  to: string; body: string; result?: any; error?: any;
+}): Promise<void> {
+  try {
+    if (!opts.reservation_id) return;
+    await ensureReservationMessages();
+    const r = opts.result || {};
+    const status = opts.error
+      ? 'failed'
+      : r.skipped
+        ? 'skipped'
+        : r.sent === false
+          ? 'failed'
+          : 'sent';
+    const sid = r.sid || null;
+    // sendTemplated reports the channel it actually used (template/freeform/sms).
+    const channel = r.via || opts.channel;
+    const { randomUUID } = await import('node:crypto');
+    await (prisma as any).$executeRawUnsafe(
+      `INSERT INTO "ReservationMessage"
+        ("id","reservation_id","channel","kind","to_addr","body","status","provider_sid","error","createdAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
+      randomUUID(), opts.reservation_id, channel, opts.kind,
+      String(opts.to || '').slice(0, 120), String(opts.body || '').slice(0, 4000),
+      status, sid, opts.error ? String(opts.error?.message || opts.error).slice(0, 400) : null,
+    );
+  } catch (e: any) {
+    console.warn('[logResvMsg]', e?.message);
+  }
+}
+
 let _dayEventsEnsured = false;
 async function ensureDayEvents(): Promise<void> {
   if (_dayEventsEnsured) return;
@@ -13271,6 +13341,20 @@ registerFn('deleteDayEvent', async ({ user, body }: any) => {
   if (!date) throw new Error('תאריך לא תקין');
   await (prisma as any).$executeRawUnsafe(`DELETE FROM "DayEvent" WHERE "event_date" = $1::date`, date);
   return { ok: true };
+});
+
+// Back-office: the full message history for one reservation — every SMS,
+// WhatsApp and email the system sent this guest, in order, with delivery status.
+registerFn('getReservationMessages', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'getReservationMessages');
+  await ensureReservationMessages();
+  const id = String((body || {}).reservation_id || '').trim();
+  if (!id) throw new Error('reservation_id required');
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(
+    `SELECT "channel","kind","to_addr","body","status","provider_sid","error","createdAt"
+       FROM "ReservationMessage" WHERE "reservation_id"=$1 ORDER BY "createdAt" ASC`, id,
+  ).catch(() => []);
+  return { ok: true, messages: rows };
 });
 
 // PUBLIC — what the guest sees for a given date, plus how much room is left.
@@ -13755,9 +13839,10 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       ].join('\n');
   // SMS — but NOT when we're about to collect a deposit: the confirmation is held
   // until the card is placed (sent from the webhook on authorization).
-  if (!willCollectDeposit) sendSms(String(customer_phone).trim(), smsBody).catch((e) =>
-    console.warn('[reservation] sms failed', e?.message)
-  );
+  const smsKind = isStandby ? 'standby' : 'confirmation';
+  if (!willCollectDeposit) sendSms(String(customer_phone).trim(), smsBody)
+    .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'sms', kind: smsKind, to: customer_phone, body: smsBody, result: r }))
+    .catch((e) => { console.warn('[reservation] sms failed', e?.message); logResvMsg({ reservation_id: reservation.id, channel: 'sms', kind: smsKind, to: customer_phone, body: smsBody, error: e }); });
   // WhatsApp — use the approved template (booking_confirmation_he, SID HX42...).
   // Business-initiated requires a Meta-approved template; passing variables that
   // match the {{1}}..{{6}} placeholders in the template body.
@@ -13772,14 +13857,17 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
     // Genuine waitlist — the restaurant is full at that hour and no table is held.
     // Was free-form only, so a guest who hadn't messaged in 24h got nothing; the
     // template delivers via WhatsApp when approved, SMS otherwise.
+    const standbyMsg = 'נרשמת לרשימת ההמתנה — זו אינה הזמנה מאושרת. צוות האירוח בודק אם אפשר לפנות שולחן ויעדכן אותך.';
     sendTemplated({
       kind: 'guest_table_ready',
       to: String(customer_phone).trim(),
-      vars: [customer_name, brand, 'נרשמת לרשימת ההמתנה — זו אינה הזמנה מאושרת. צוות האירוח בודק אם אפשר לפנות שולחן ויעדכן אותך.', trackUrl],
+      vars: [customer_name, brand, standbyMsg, trackUrl],
       freeformText: smsBody,
       smsText: smsBody,
       smsFallback: true,
-    }).catch((e) => console.warn('[reservation] standby notify failed', e?.message));
+    })
+      .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: 'standby', to: customer_phone, body: standbyMsg, result: r }))
+      .catch((e) => { console.warn('[reservation] standby notify failed', e?.message); logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: 'standby', to: customer_phone, body: standbyMsg, error: e }); });
   } else if (!willCollectDeposit) {
     // Confirmed, no card needed — the approved booking-confirmation template.
     sendWhatsAppTemplate(
@@ -13793,11 +13881,14 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
         '5': trackUrl,
         '6': cancelLine,
       },
-    ).catch((e) => {
-      console.warn('[reservation] whatsapp template failed, falling back to free-form', e?.message);
-      // Fallback to free-form (only works if customer pinged us in last 24h; otherwise quietly skipped)
-      sendWhatsApp(String(customer_phone).trim(), smsBody).catch(() => {});
-    });
+    )
+      .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: 'confirmation', to: customer_phone, body: smsBody, result: r }))
+      .catch((e) => {
+        console.warn('[reservation] whatsapp template failed, falling back to free-form', e?.message);
+        // Fallback to free-form (only works if customer pinged us in last 24h; otherwise quietly skipped)
+        sendWhatsApp(String(customer_phone).trim(), smsBody).catch(() => {});
+        logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: 'confirmation', to: customer_phone, body: smsBody, error: e });
+      });
   }
   // willCollectDeposit && !isStandby: the "complete your deposit" message is sent
   // after the link is generated, further down.
@@ -13865,13 +13956,12 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
         </p>
       </div>
     `;
-    sendEmail({
-      to: customer_email,
-      subject: isStandby
-        ? `🟡 נרשמת לרשימת ההמתנה - ${dateStr} בשעה ${time} - ${brand}`
-        : `אישור הזמנה - ${dateStr} בשעה ${time} - ${brand}`,
-      html,
-    }).catch((e) => console.warn('[reservation] email failed', e?.message));
+    const emailSubject = isStandby
+      ? `🟡 נרשמת לרשימת ההמתנה - ${dateStr} בשעה ${time} - ${brand}`
+      : `אישור הזמנה - ${dateStr} בשעה ${time} - ${brand}`;
+    sendEmail({ to: customer_email, subject: emailSubject, html })
+      .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'email', kind: isStandby ? 'standby' : 'confirmation', to: customer_email, body: emailSubject, result: r }))
+      .catch((e) => { console.warn('[reservation] email failed', e?.message); logResvMsg({ reservation_id: reservation.id, channel: 'email', kind: isStandby ? 'standby' : 'confirmation', to: customer_email, body: emailSubject, error: e }); });
   }
 
   // Upsert the customer club record by phone.
@@ -13986,7 +14076,9 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
           freeformText: paySms,
           smsText: paySms,
           smsFallback: true,
-        }).catch((e) => console.warn('[reservation] deposit-pending notify failed', e?.message));
+        })
+          .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: isTicket ? 'ticket_request' : 'deposit_request', to: customer_phone, body: payMsg, result: r }))
+          .catch((e) => { console.warn('[reservation] deposit-pending notify failed', e?.message); logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: isTicket ? 'ticket_request' : 'deposit_request', to: customer_phone, body: payMsg, error: e }); });
       }
     } catch (e: any) {
       console.warn('[createPublicReservation] deposit link failed — cancelling (no deposit = no booking)', e?.message);
