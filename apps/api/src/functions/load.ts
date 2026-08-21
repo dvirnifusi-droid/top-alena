@@ -13320,11 +13320,11 @@ function confirmWaTemplateSid(): string {
 }
 
 // The day-of reminder ("reply מאשר / מבטל") is a different message from the
-// confirmation, so it gets its own Utility template. Until that template is
-// approved and set here (or via env), it safely falls back to the confirmation
-// template — which already delivers — so the reminder is never broken.
+// confirmation, so it has its own Utility template (booking_reminder_utility_he,
+// Meta-approved UTILITY 2026-08-21). Env-overridable; falls back to the
+// confirmation template if ever cleared, so the reminder is never broken.
 function reminderWaTemplateSid(): string {
-  return process.env.TWILIO_WA_REMINDER_TEMPLATE_SID || confirmWaTemplateSid();
+  return process.env.TWILIO_WA_REMINDER_TEMPLATE_SID || 'HXfc82bbc2e6204da8b1c59957638ab215';
 }
 
 let _dayEventsEnsured = false;
