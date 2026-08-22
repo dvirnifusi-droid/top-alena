@@ -37,11 +37,18 @@ async function saveSecret(key: string, value: string, note: string): Promise<voi
   }
 }
 
+// The delivery site sits behind an aggressive nginx cache that keys on URL and
+// ignores our auth header — it would serve a stale 401 to an authorised call.
+// A unique query param per request guarantees a cache miss → the real response.
+function bust(u: string): string {
+  return u + (u.includes('?') ? '&' : '?') + '_=' + Date.now();
+}
+
 async function callWp(method: 'GET' | 'POST', payload?: any): Promise<any> {
   const url = await getSecret(URL_KEY);
   const key = await getSecret(KEY_KEY);
   if (!url || !key) return { connected: false };
-  const res = await fetch(url, {
+  const res = await fetch(bust(url), {
     method,
     headers: {
       'X-Alena-Control-Key': key,
@@ -87,7 +94,7 @@ registerFn('connectDeliverySite', async ({ user, body }) => {
   const endpoint = /\/wp-json\//.test(url) ? url : (url + '/wp-json/alena/v1/control/settings');
 
   try {
-    const res = await fetch(endpoint, { headers: { 'X-Alena-Control-Key': key } });
+    const res = await fetch(bust(endpoint), { headers: { 'X-Alena-Control-Key': key } });
     if (!res.ok) return { connected: false, error: 'המפתח או הכתובת שגויים (HTTP ' + res.status + ')' };
     const data: any = await res.json();
     // Only persist once we know they work.
