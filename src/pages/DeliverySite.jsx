@@ -72,6 +72,12 @@ export default function DeliverySite() {
         features: Object.fromEntries(
           Object.entries(settings.features || {}).map(([slug, f]) => [slug, !!f.enabled]),
         ),
+        zones: (settings.zones || []).map((z) => ({
+          id: z.id,
+          name: z.name,
+          delivery_fee: Number(z.delivery_fee) || 0,
+          min_order: Number(z.min_order) || 0,
+        })),
       };
       const d = (await base44.functions.setDeliverySiteControl({ settings: payload }))?.data || {};
       if (d.settings) setSettings(d.settings);
@@ -86,6 +92,8 @@ export default function DeliverySite() {
   const setClub = (k, v) => setSettings((s) => ({ ...s, club: { ...s.club, [k]: v } }));
   const setFeature = (slug, v) =>
     setSettings((s) => ({ ...s, features: { ...s.features, [slug]: { ...s.features[slug], enabled: v } } }));
+  const setZone = (id, k, v) =>
+    setSettings((s) => ({ ...s, zones: (s.zones || []).map((z) => (z.id === id ? { ...z, [k]: v } : z)) }));
 
   return (
     <PageGuard pageName="DeliverySite" pageTitle="אתר משלוחים">
@@ -176,6 +184,30 @@ export default function DeliverySite() {
                     <Switch checked={!!f.enabled} onCheckedChange={(v) => setFeature(slug, v)} />
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6 space-y-2">
+                <div className="text-lg font-bold">🛵 אזורי חלוקה ודמי משלוח</div>
+                <p className="text-xs text-slate-500 mb-1">שם, דמי משלוח ומינימום הזמנה לכל אזור. צורת האזור על המפה נערכת בוורדפרס.</p>
+                {(settings.zones || []).map((z) => (
+                  <div key={z.id} className="grid grid-cols-12 gap-2 items-end border-b last:border-0 border-slate-100 py-2">
+                    <div className="col-span-6">
+                      <Label className="text-xs">אזור</Label>
+                      <Input value={z.name || ''} onChange={(e) => setZone(z.id, 'name', e.target.value)} />
+                    </div>
+                    <div className="col-span-3">
+                      <Label className="text-xs">משלוח ₪</Label>
+                      <Input type="number" min="0" value={z.delivery_fee} onChange={(e) => setZone(z.id, 'delivery_fee', e.target.value)} />
+                    </div>
+                    <div className="col-span-3">
+                      <Label className="text-xs">מינ׳ ₪</Label>
+                      <Input type="number" min="0" value={z.min_order} onChange={(e) => setZone(z.id, 'min_order', e.target.value)} />
+                    </div>
+                  </div>
+                ))}
+                {!(settings.zones || []).length && <p className="text-sm text-slate-500">אין אזורי חלוקה מוגדרים.</p>}
               </CardContent>
             </Card>
 
