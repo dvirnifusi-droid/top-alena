@@ -71,6 +71,7 @@ export const adminLinks = [
   { title: "🎛 מטה תפעול", url: createPageUrl("OperationsHub"), icon: LayoutGrid, isSubItem: true, color: "cinnamon" },
   { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "cinnamon" },
   { title: "🍽 ניהול תפריט", url: createPageUrl("MenuManagement"), icon: Utensils, isSubItem: true, color: "cinnamon" },
+  { title: "🛵 אתר משלוחים", url: createPageUrl("DeliverySite"), icon: Gift, isSubItem: true, color: "cinnamon" },
   { title: "👨‍🍳 דף הכנות", url: createPageUrl("PrepSheet"), icon: ChefHat, isSubItem: true, color: "cinnamon" },
   { title: "📖 מדריך מנות", url: createPageUrl("DishGuide"), icon: Utensils, isSubItem: true, color: "cinnamon" },
   { title: "ניהול שולחנות", url: createPageUrl("TablesManagement"), icon: Utensils, isSubItem: true, color: "cinnamon" },
