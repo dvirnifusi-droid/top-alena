@@ -10,6 +10,27 @@ import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 
+// Resize an image file to a sane size before upload — a phone photo is 3–5MB and
+// would blow the JSON body; 1200px/JPEG keeps it ~150KB and looks fine on a card.
+function fileToDataUrl(file, maxPx = 1200, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 // Owner remote for the alenabepita.co.il delivery site. Talks to the WordPress
 // control bridge through the app backend (which holds the secret key). See
 // apps/api/src/functions/deliverySiteControl.ts.
@@ -33,6 +54,7 @@ export default function DeliverySite() {
   const [expanded, setExpanded] = useState({});
   const [savingId, setSavingId] = useState(null);
   const [savedId, setSavedId] = useState(null);
+  const [uploadingImgId, setUploadingImgId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -87,6 +109,14 @@ export default function DeliverySite() {
           delivery_fee: Number(z.delivery_fee) || 0,
           min_order: Number(z.min_order) || 0,
         })),
+        brand_images: settings.brand_images || {},
+        cart_eta: {
+          delivery_min: Number(settings.cart_eta?.delivery_min) || 0,
+          delivery_max: Number(settings.cart_eta?.delivery_max) || 0,
+          pickup_min: Number(settings.cart_eta?.pickup_min) || 0,
+          pickup_max: Number(settings.cart_eta?.pickup_max) || 0,
+        },
+        note_chips: settings.note_chips || {},
       };
       const d = (await base44.functions.setDeliverySiteControl({ settings: payload }))?.data || {};
       if (d.settings) setSettings(d.settings);
@@ -131,6 +161,26 @@ export default function DeliverySite() {
       setSavingId(null);
     }
   };
+  const uploadImage = async (p, file) => {
+    if (!file) return;
+    setUploadingImgId(p.id); setError('');
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const d = (await base44.functions.setDeliverySiteProductImage({ id: p.id, filename: file.name || 'dish.jpg', data: dataUrl }))?.data || {};
+      if (d.ok && d.image) setProduct(p.id, 'image', d.image + '?t=' + Date.now());
+      else setError(d.error || 'העלאת תמונה נכשלה');
+    } catch (e) {
+      setError(e?.message || 'העלאת תמונה נכשלה');
+    } finally {
+      setUploadingImgId(null);
+    }
+  };
+  const setImg = (brand, v) =>
+    setSettings((s) => ({ ...s, brand_images: { ...(s.brand_images || {}), [brand]: v } }));
+  const setEta = (k, v) =>
+    setSettings((s) => ({ ...s, cart_eta: { ...(s.cart_eta || {}), [k]: v } }));
+  const setChips = (which, text) =>
+    setSettings((s) => ({ ...s, note_chips: { ...(s.note_chips || {}), [which]: text.split('\n').map((x) => x.trim()).filter(Boolean) } }));
 
   return (
     <PageGuard pageName="DeliverySite" pageTitle="אתר משלוחים">
@@ -249,6 +299,38 @@ export default function DeliverySite() {
             </Card>
 
             <Card>
+              <CardContent className="p-6 space-y-4">
+                <div className="text-lg font-bold">⚙️ הגדרות נוספות</div>
+
+                <div>
+                  <Label className="text-sm font-semibold">🖼️ תמונות מותג (בדף הכניסה)</Label>
+                  <div className="space-y-2 mt-1">
+                    <div><Label className="text-xs">עלינא בפיתה — URL</Label><Input dir="ltr" value={settings.brand_images?.alena || ''} onChange={(e) => setImg('alena', e.target.value)} /></div>
+                    <div><Label className="text-xs">חומוס זוהרה — URL</Label><Input dir="ltr" value={settings.brand_images?.zohara || ''} onChange={(e) => setImg('zohara', e.target.value)} /></div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-semibold">⏱️ זמני הכנה (דקות)</Label>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    <div><Label className="text-xs">משלוח — מ־</Label><Input type="number" value={settings.cart_eta?.delivery_min ?? ''} onChange={(e) => setEta('delivery_min', e.target.value)} /></div>
+                    <div><Label className="text-xs">משלוח — עד</Label><Input type="number" value={settings.cart_eta?.delivery_max ?? ''} onChange={(e) => setEta('delivery_max', e.target.value)} /></div>
+                    <div><Label className="text-xs">איסוף — מ־</Label><Input type="number" value={settings.cart_eta?.pickup_min ?? ''} onChange={(e) => setEta('pickup_min', e.target.value)} /></div>
+                    <div><Label className="text-xs">איסוף — עד</Label><Input type="number" value={settings.cart_eta?.pickup_max ?? ''} onChange={(e) => setEta('pickup_max', e.target.value)} /></div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-semibold">📝 צ׳יפים להערות (שורה לכל צ׳יפ)</Label>
+                  <div className="space-y-2 mt-1">
+                    <div><Label className="text-xs">מטבח</Label><Textarea rows={3} value={(settings.note_chips?.kitchen || []).join('\n')} onChange={(e) => setChips('kitchen', e.target.value)} /></div>
+                    <div><Label className="text-xs">משלוח</Label><Textarea rows={2} value={(settings.note_chips?.delivery || []).join('\n')} onChange={(e) => setChips('delivery', e.target.value)} /></div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
               <CardContent className="p-6 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="text-lg font-bold flex items-center gap-2"><Utensils className="w-5 h-5" /> עריכת תפריט</div>
@@ -268,9 +350,18 @@ export default function DeliverySite() {
                       {products.filter((p) => !search || (p.name || '').includes(search)).map((p) => (
                         <div key={p.id} className="border border-slate-200 rounded-xl p-3">
                           <div className="flex items-center gap-2">
-                            {p.image
-                              ? <img src={p.image} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-                              : <div className="w-10 h-10 rounded-lg bg-slate-100 flex-shrink-0" />}
+                            <label className="relative cursor-pointer flex-shrink-0" title="החלף תמונה">
+                              {p.image
+                                ? <img src={p.image} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                                : <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 text-lg">+</div>}
+                              {uploadingImgId === p.id && (
+                                <span className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center">
+                                  <Loader2 className="w-4 h-4 text-white animate-spin" />
+                                </span>
+                              )}
+                              <input type="file" accept="image/*" className="hidden"
+                                onChange={(e) => uploadImage(p, e.target.files && e.target.files[0])} />
+                            </label>
                             <Input className="flex-1" value={p.name || ''} onChange={(e) => setProduct(p.id, 'name', e.target.value)} />
                             <Input type="number" className="w-20" value={p.price ?? ''} onChange={(e) => setProduct(p.id, 'price', e.target.value)} />
                             <div className="flex flex-col items-center">

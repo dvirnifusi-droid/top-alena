@@ -137,6 +137,19 @@ registerFn('setDeliverySiteProduct', async ({ user, body }) => {
   return await res.json();
 });
 
+registerFn('setDeliverySiteProductImage', async ({ user, body }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/product-image'), {
+    method: 'POST',
+    headers: { 'X-Alena-Control-Key': c.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new Error('העלאת תמונה נכשלה (HTTP ' + res.status + ')');
+  return await res.json();
+});
+
 // Let the owner disconnect (clears the stored key).
 registerFn('disconnectDeliverySite', async ({ user }) => {
   await requireOwner(user);
