@@ -13,7 +13,10 @@ if (!defined('ABSPATH')) exit;
 class Alena_DZ_Control_Center {
 
     public function __construct() {
-        add_action('admin_menu', [$this, 'menu'], 1);
+        // Default priority (10): the parent menu is registered at 10 too, and an
+        // earlier priority would run before the parent exists and drop the submenu.
+        // The $position arg on add_submenu_page still floats it to the top.
+        add_action('admin_menu', [$this, 'menu']);
     }
 
     public function menu(): void {
