@@ -10,6 +10,8 @@ import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
 
+const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
 // Resize an image file to a sane size before upload — a phone photo is 3–5MB and
 // would blow the JSON body; 1200px/JPEG keeps it ~150KB and looks fine on a card.
 function fileToDataUrl(file, maxPx = 1200, quality = 0.82) {
@@ -117,6 +119,8 @@ export default function DeliverySite() {
           pickup_max: Number(settings.cart_eta?.pickup_max) || 0,
         },
         note_chips: settings.note_chips || {},
+        hours: settings.hours || {},
+        specials: settings.specials || {},
       };
       const d = (await base44.functions.setDeliverySiteControl({ settings: payload }))?.data || {};
       if (d.settings) setSettings(d.settings);
@@ -181,6 +185,25 @@ export default function DeliverySite() {
     setSettings((s) => ({ ...s, cart_eta: { ...(s.cart_eta || {}), [k]: v } }));
   const setChips = (which, text) =>
     setSettings((s) => ({ ...s, note_chips: { ...(s.note_chips || {}), [which]: text.split('\n').map((x) => x.trim()).filter(Boolean) } }));
+  // Hours: edit from/to of an existing range, preserving any extra elements
+  // (motzash+30 stays as text; a Friday {category_slug} object at [2] is kept).
+  const setHour = (service, day, idx, pos, v) =>
+    setSettings((s) => {
+      const h = JSON.parse(JSON.stringify(s.hours || {}));
+      if (!h[service]) h[service] = {};
+      if (!h[service][day]) h[service][day] = [];
+      if (!h[service][day][idx]) h[service][day][idx] = ['', ''];
+      h[service][day][idx][pos] = v;
+      return { ...s, hours: h };
+    });
+  const setSpecial = (pid, patch) =>
+    setSettings((s) => ({ ...s, specials: { ...(s.specials || {}), [pid]: { ...(s.specials || {})[pid], ...patch } } }));
+  const toggleSpecialDay = (pid, day) =>
+    setSettings((s) => {
+      const cur = ((s.specials || {})[pid]?.days || []).map(Number);
+      const days = cur.includes(day) ? cur.filter((d) => d !== day) : [...cur, day].sort();
+      return { ...s, specials: { ...(s.specials || {}), [pid]: { ...(s.specials || {})[pid], days } } };
+    });
 
   return (
     <PageGuard pageName="DeliverySite" pageTitle="אתר משלוחים">
@@ -327,6 +350,64 @@ export default function DeliverySite() {
                     <div><Label className="text-xs">משלוח</Label><Textarea rows={2} value={(settings.note_chips?.delivery || []).join('\n')} onChange={(e) => setChips('delivery', e.target.value)} /></div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6 space-y-3">
+                <div className="text-lg font-bold">🕐 שעות פעילות</div>
+                <p className="text-xs text-slate-500">שעת פתיחה/סגירה לכל יום. השאירו טוקנים מיוחדים כמו <code>motzash+30</code> (צאת שבת) כפי שהם.</p>
+                {['delivery', 'pickup'].map((svc) => (
+                  <div key={svc} className="border border-slate-200 rounded-xl p-3">
+                    <div className="font-semibold text-sm mb-1">{svc === 'delivery' ? '🚚 משלוח' : '🛍️ איסוף'}</div>
+                    {DAYS.map((dname, day) => {
+                      const ranges = (settings.hours?.[svc]?.[day] || settings.hours?.[svc]?.[String(day)] || []);
+                      return (
+                        <div key={day} className="flex items-center gap-2 py-1">
+                          <span className="w-12 text-sm text-slate-600">{dname}</span>
+                          {ranges.length ? ranges.map((r, idx) => (
+                            <div key={idx} className="flex items-center gap-1">
+                              <Input dir="ltr" className="w-24 h-8 text-sm" value={r[0] ?? ''} onChange={(e) => setHour(svc, String(day), idx, 0, e.target.value)} />
+                              <span className="text-slate-400">–</span>
+                              <Input dir="ltr" className="w-24 h-8 text-sm" value={r[1] ?? ''} onChange={(e) => setHour(svc, String(day), idx, 1, e.target.value)} />
+                            </div>
+                          )) : <span className="text-xs text-slate-400">סגור</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6 space-y-3">
+                <div className="text-lg font-bold">📅 תזמון ספיישל (מנות בימים/שעות)</div>
+                {Object.keys(settings.specials || {}).length === 0 && <p className="text-sm text-slate-500">אין מנות מתוזמנות.</p>}
+                {Object.entries(settings.specials || {}).map(([pid, sp]) => {
+                  const prod = (products || []).find((p) => String(p.id) === String(pid));
+                  const days = (sp.days || []).map(Number);
+                  return (
+                    <div key={pid} className="border border-slate-200 rounded-xl p-3 space-y-2">
+                      <div className="font-semibold text-sm">{prod ? prod.name : 'מנה #' + pid}</div>
+                      <div className="flex flex-wrap gap-1">
+                        {DAYS.map((dn, d) => (
+                          <button key={d} type="button" onClick={() => toggleSpecialDay(pid, d)}
+                            className={`text-xs px-2 py-1 rounded-full border ${days.includes(d) ? 'bg-emerald-600 text-white border-emerald-600' : 'border-slate-300 text-slate-500'}`}>
+                            {dn.slice(0, 1)}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs">שעות</Label>
+                        <Input dir="ltr" className="w-24 h-8 text-sm" value={sp.from || ''} onChange={(e) => setSpecial(pid, { from: e.target.value })} />
+                        <span className="text-slate-400">–</span>
+                        <Input dir="ltr" className="w-24 h-8 text-sm" value={sp.to || ''} onChange={(e) => setSpecial(pid, { to: e.target.value })} />
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-slate-500">שמות המנות מוצגים לאחר טעינת התפריט למטה.</p>
               </CardContent>
             </Card>
 
