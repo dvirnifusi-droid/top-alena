@@ -28,10 +28,11 @@ export default function DeliverySite() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await base44.functions.getDeliverySiteControl({});
-      setConnected(!!r?.connected);
-      setSettings(r?.settings || null);
-      setError(r?.error || '');
+      // base44.functions returns axios-style { data, status } — the body is in .data.
+      const d = (await base44.functions.getDeliverySiteControl({}))?.data || {};
+      setConnected(!!d.connected);
+      setSettings(d.settings || null);
+      setError(d.error || '');
     } catch (e) {
       setError(e?.message || 'טעינה נכשלה');
     } finally {
@@ -44,11 +45,11 @@ export default function DeliverySite() {
   const connect = async () => {
     setConnecting(true); setError('');
     try {
-      const r = await base44.functions.connectDeliverySite({ url, key });
-      if (r?.connected) {
-        setConnected(true); setSettings(r.settings || null); setKey('');
+      const d = (await base44.functions.connectDeliverySite({ url, key }))?.data || {};
+      if (d.connected) {
+        setConnected(true); setSettings(d.settings || null); setKey('');
       } else {
-        setError(r?.error || 'החיבור נכשל');
+        setError(d.error || 'החיבור נכשל');
       }
     } catch (e) {
       setError(e?.message || 'החיבור נכשל');
@@ -72,8 +73,8 @@ export default function DeliverySite() {
           Object.entries(settings.features || {}).map(([slug, f]) => [slug, !!f.enabled]),
         ),
       };
-      const r = await base44.functions.setDeliverySiteControl({ settings: payload });
-      if (r?.settings) setSettings(r.settings);
+      const d = (await base44.functions.setDeliverySiteControl({ settings: payload }))?.data || {};
+      if (d.settings) setSettings(d.settings);
       setSavedAt(new Date());
     } catch (e) {
       setError(e?.message || 'השמירה נכשלה');
