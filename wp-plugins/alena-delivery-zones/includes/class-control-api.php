@@ -57,8 +57,16 @@ class Alena_DZ_Control_API {
         return $key !== '' && $sent !== '' && hash_equals($key, $sent);
     }
 
+    /** An auth-gated endpoint must never be cached — the server's nginx cache
+     *  otherwise serves a stale 401/200 by URL and ignores the key header. */
+    private function no_cache(\WP_REST_Response $r): \WP_REST_Response {
+        nocache_headers();
+        $r->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        return $r;
+    }
+
     public function get_settings(): \WP_REST_Response {
-        return rest_ensure_response(['ok' => true, 'settings' => $this->snapshot()]);
+        return $this->no_cache(rest_ensure_response(['ok' => true, 'settings' => $this->snapshot()]));
     }
 
     public function set_settings(\WP_REST_Request $req): \WP_REST_Response {
@@ -92,7 +100,7 @@ class Alena_DZ_Control_API {
             update_option(Alena_DZ_Features::OPT, $saved);
         }
 
-        return rest_ensure_response(['ok' => true, 'settings' => $this->snapshot()]);
+        return $this->no_cache(rest_ensure_response(['ok' => true, 'settings' => $this->snapshot()]));
     }
 
     /** The current settings, shaped for the app. */
