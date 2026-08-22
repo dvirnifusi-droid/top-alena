@@ -9,6 +9,7 @@ import './checklistAi.js';
 import './employeePay.js';
 import './cashflowLive.js';
 import './wooOrders.js';
+import './deliverySiteControl.js';
 import './bankStatement.js';
 import './capitalForecast.js';
 import { getOrCreateLeadToken } from './eventThanks.js';
