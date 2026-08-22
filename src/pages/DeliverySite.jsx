@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Store, Link2, Save, Check, RefreshCw } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Loader2, Store, Link2, Save, Check, RefreshCw, Search, Utensils } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
@@ -24,6 +25,14 @@ export default function DeliverySite() {
   const [url, setUrl] = useState('');
   const [key, setKey] = useState('');
   const [connecting, setConnecting] = useState(false);
+
+  // menu editor (lazy — only fetched when opened)
+  const [products, setProducts] = useState(null);
+  const [menuLoading, setMenuLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState({});
+  const [savingId, setSavingId] = useState(null);
+  const [savedId, setSavedId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,6 +103,34 @@ export default function DeliverySite() {
     setSettings((s) => ({ ...s, features: { ...s.features, [slug]: { ...s.features[slug], enabled: v } } }));
   const setZone = (id, k, v) =>
     setSettings((s) => ({ ...s, zones: (s.zones || []).map((z) => (z.id === id ? { ...z, [k]: v } : z)) }));
+
+  const loadMenu = async () => {
+    setMenuLoading(true);
+    try {
+      const d = (await base44.functions.getDeliverySiteProducts({}))?.data || {};
+      setProducts(Array.isArray(d.products) ? d.products : []);
+    } catch (e) {
+      setError(e?.message || 'טעינת התפריט נכשלה');
+    } finally {
+      setMenuLoading(false);
+    }
+  };
+  const setProduct = (id, k, v) =>
+    setProducts((ps) => ps.map((p) => (p.id === id ? { ...p, [k]: v } : p)));
+  const saveProduct = async (p) => {
+    setSavingId(p.id); setError('');
+    try {
+      const d = (await base44.functions.setDeliverySiteProduct({
+        id: p.id, name: p.name, price: p.price, description: p.description, in_stock: p.in_stock,
+      }))?.data || {};
+      if (d.ok) { setSavedId(p.id); setTimeout(() => setSavedId(null), 1500); }
+      else setError(d.error || 'שמירת המנה נכשלה');
+    } catch (e) {
+      setError(e?.message || 'שמירת המנה נכשלה');
+    } finally {
+      setSavingId(null);
+    }
+  };
 
   return (
     <PageGuard pageName="DeliverySite" pageTitle="אתר משלוחים">
@@ -208,6 +245,56 @@ export default function DeliverySite() {
                   </div>
                 ))}
                 {!(settings.zones || []).length && <p className="text-sm text-slate-500">אין אזורי חלוקה מוגדרים.</p>}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-lg font-bold flex items-center gap-2"><Utensils className="w-5 h-5" /> עריכת תפריט</div>
+                  {products && <span className="text-xs text-slate-500">{products.length} מנות</span>}
+                </div>
+                {products === null ? (
+                  <Button variant="outline" onClick={loadMenu} disabled={menuLoading}>
+                    {menuLoading ? <><Loader2 className="w-4 h-4 animate-spin ml-2" /> טוען…</> : 'טען את התפריט לעריכה'}
+                  </Button>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute top-3 right-3 text-slate-400" />
+                      <Input className="pr-9" placeholder="חיפוש מנה…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                    </div>
+                    <div className="max-h-[60vh] overflow-auto space-y-2">
+                      {products.filter((p) => !search || (p.name || '').includes(search)).map((p) => (
+                        <div key={p.id} className="border border-slate-200 rounded-xl p-3">
+                          <div className="flex items-center gap-2">
+                            {p.image
+                              ? <img src={p.image} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                              : <div className="w-10 h-10 rounded-lg bg-slate-100 flex-shrink-0" />}
+                            <Input className="flex-1" value={p.name || ''} onChange={(e) => setProduct(p.id, 'name', e.target.value)} />
+                            <Input type="number" className="w-20" value={p.price ?? ''} onChange={(e) => setProduct(p.id, 'price', e.target.value)} />
+                            <div className="flex flex-col items-center">
+                              <Switch checked={!!p.in_stock} onCheckedChange={(v) => setProduct(p.id, 'in_stock', v)} />
+                              <span className="text-[10px] text-slate-400">{p.in_stock ? 'זמין' : 'אזל'}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between mt-2">
+                            <button className="text-xs text-slate-500 underline" onClick={() => setExpanded((x) => ({ ...x, [p.id]: !x[p.id] }))}>
+                              {expanded[p.id] ? 'הסתר תיאור' : 'תיאור'}
+                            </button>
+                            <Button size="sm" onClick={() => saveProduct(p)} disabled={savingId === p.id}>
+                              {savingId === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : savedId === p.id ? 'נשמר ✓' : 'שמור'}
+                            </Button>
+                          </div>
+                          {expanded[p.id] && (
+                            <Textarea className="mt-2" rows={3} value={p.description || ''} onChange={(e) => setProduct(p.id, 'description', e.target.value)} />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-500">כאן עורכים שם, מחיר, תיאור וזמינות. עריכת תמונות — בסלייס הבא.</p>
+                  </>
+                )}
               </CardContent>
             </Card>
 

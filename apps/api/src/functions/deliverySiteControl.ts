@@ -106,6 +106,37 @@ registerFn('connectDeliverySite', async ({ user, body }) => {
   }
 });
 
+// ---- The menu itself (WooCommerce products) ----
+async function productsBase(): Promise<{ base: string; key: string } | null> {
+  const url = await getSecret(URL_KEY);
+  const key = await getSecret(KEY_KEY);
+  if (!url || !key) return null;
+  return { base: url.replace(/\/settings.*$/, ''), key };  // .../alena/v1/control
+}
+
+registerFn('getDeliverySiteProducts', async ({ user }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/products'), { headers: { 'X-Alena-Control-Key': c.key } });
+  if (!res.ok) throw new Error('שגיאת טעינת תפריט (HTTP ' + res.status + ')');
+  const data: any = await res.json();
+  return { connected: true, products: data.products || [] };
+});
+
+registerFn('setDeliverySiteProduct', async ({ user, body }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/product'), {
+    method: 'POST',
+    headers: { 'X-Alena-Control-Key': c.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new Error('שמירת מנה נכשלה (HTTP ' + res.status + ')');
+  return await res.json();
+});
+
 // Let the owner disconnect (clears the stored key).
 registerFn('disconnectDeliverySite', async ({ user }) => {
   await requireOwner(user);
