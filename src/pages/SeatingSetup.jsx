@@ -132,7 +132,7 @@ function DepositSection({ reservation, onDone }) {
     const [nowTick, setNowTick] = useState(Date.now());
     const st = reservation?.deposit_status;
     const amt = reservation?.deposit_amount;
-    // Live 5-minute countdown while a deposit request is out (pending).
+    // Live countdown while a deposit request is out (pending).
     useEffect(() => {
         if (st !== 'pending') return;
         const id = setInterval(() => setNowTick(Date.now()), 1000);
@@ -140,15 +140,17 @@ function DepositSection({ reservation, onDone }) {
     }, [st]);
     // The PayPlus link the guest receives is valid for a full 24h server-side.
     // The UI used to count down 5 MINUTES and then shout "פג תוקף", so a guest who
-    // didn't pay within five minutes looked expired while the link still worked —
-    // and managers thought they had to re-send. The window now matches the real
-    // validity (default 24h) and is adjustable via deposit_link_valid_min.
-    const LINK_VALID_MIN = (() => {
+    // didn't pay within five minutes looked expired while the link still worked.
+    // The window is now the manager's choice (default 24h, the real validity),
+    // persisted so it sticks. "Re-send" resets it and re-notifies the guest.
+    const [linkValidMin, setLinkValidMin] = useState(() => {
         try { const v = parseInt(localStorage.getItem('deposit_link_valid_min') || '', 10); if (Number.isFinite(v) && v > 0) return v; } catch {}
         return 24 * 60;
-    })();
+    });
+    const chooseWindow = (min) => { setLinkValidMin(min); try { localStorage.setItem('deposit_link_valid_min', String(min)); } catch {} };
+    const WINDOW_OPTIONS = [{ m: 60, l: 'שעה' }, { m: 360, l: '6 שע׳' }, { m: 720, l: '12 שע׳' }, { m: 1440, l: '24 שע׳' }];
     const sentAt = reservation?.deposit_sent_at ? new Date(reservation.deposit_sent_at).getTime() : null;
-    const remainMs = sentAt != null ? Math.max(0, sentAt + LINK_VALID_MIN * 60 * 1000 - nowTick) : null;
+    const remainMs = sentAt != null ? Math.max(0, sentAt + linkValidMin * 60 * 1000 - nowTick) : null;
     const remainTxt = (() => {
         if (remainMs == null) return null;
         const totalMin = Math.floor(remainMs / 60000);
@@ -186,12 +188,28 @@ function DepositSection({ reservation, onDone }) {
                 <span className="font-bold text-sm">💳 פיקדון{amt ? ` · ₪${amt}` : ''}</span>
                 {badge && <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${badge.c}`}>{badge.t}</span>}
             </div>
+            {/* How long the guest has to complete the deposit — the manager's choice.
+                Applies to the countdown shown; "שלח שוב" resets the clock and
+                re-sends the link, which is how you give someone more time. */}
+            {(st === 'pending' || !st || st === 'failed' || st === 'released') && (
+                <div className="flex items-center gap-1 mb-2 flex-wrap">
+                    <span className="text-[10px] font-bold text-gray-500">⏱️ זמן להשלמה:</span>
+                    {WINDOW_OPTIONS.map(o => (
+                        <button
+                            key={o.m}
+                            onClick={() => chooseWindow(o.m)}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors
+                                ${linkValidMin === o.m ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200 hover:border-slate-400'}`}
+                        >{o.l}</button>
+                    ))}
+                </div>
+            )}
             <div className="flex flex-wrap gap-2">
                 {(!st || st === 'failed' || st === 'released') && (
                     <Button size="sm" disabled={busy} onClick={sendDeposit}>שלח בקשת פיקדון</Button>
                 )}
                 {st === 'pending' && (
-                    <Button size="sm" variant="outline" disabled={busy} onClick={sendDeposit}>שלח שוב</Button>
+                    <Button size="sm" variant="outline" disabled={busy} onClick={sendDeposit}>🔄 שלח שוב (מאפס את הזמן)</Button>
                 )}
                 {st === 'authorized' && (
                     <>
