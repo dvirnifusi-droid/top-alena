@@ -658,949 +658,6 @@ const FACILITY_TYPES = {
     cashier: { name: 'קופה', icon: '💳', color: 'bg-emerald-300 border-emerald-500 text-emerald-900' }
 };
 
-
-// ────────────────────────────────────────────────────────────────────────
-// Hoisted to module scope so their identity is STABLE across renders. As
-// inline consts they were rebuilt every parent render, so React remounted
-// them each time — wiping the hostess's search/filter state on every 60s
-// poll (B1) and re-running their bodies for nothing. Parent scope reaches
-// them through one shared __ctx object (built as __seatingCtx before the
-// main return). Bodies are verbatim; the trailing `};` is a harmless
-// empty statement after the function declaration.
-// ────────────────────────────────────────────────────────────────────────
-function ReservationCard({ reservation, compact = false, __ctx }) {
-    const { getReservationStatusConfig, visitsFor, FLAG_CONFIGS, setEditingReservation, setIsEditReservationOpen, reservations, setAiPrefillQuestion, setAiOpen, STATUS_OPTIONS, STATUS_CONFIGS, setStatus, setHostessFlag } = __ctx;
-        const statusConfig = getReservationStatusConfig(reservation.status, reservation.assigned_table, reservation);
-        const customerInfo = reservation.customer_name || `לקוח ${reservation.id?.slice(-4)}`;
-
-        const isReturning = visitsFor(reservation.customer_phone) > 1;
-        const flag = reservation.hostess_flag || '';
-        const flagMeta = FLAG_CONFIGS[flag];
-
-        const openEdit = (e) => {
-            // open edit only when clicking outside any inline control
-            if (e.target.closest('button, [role="menuitem"], [data-popover-trigger]')) return;
-            setEditingReservation(reservation);
-            setIsEditReservationOpen(true);
-        };
-
-        const phoneTel = (reservation.customer_phone || '').replace(/[^\d+]/g, '');
-
-        // Strong status-driven background (Ontopo style)
-        const cardBg = statusConfig.cardBg || 'bg-white';
-        const cardText = statusConfig.cardText || 'text-gray-900';
-        // Source short label (Hebrew)
-        const SOURCE_LABEL = {
-            instagram: 'אינסטגרם', tiktok: 'TikTok', facebook: 'פייסבוק',
-            google: 'גוגל', whatsapp: 'WhatsApp', qr: 'QR', sms: 'SMS',
-            email: 'אימייל', direct: 'אונליין ישיר', other: 'אחר',
-        };
-        const sourceLabel = reservation.source ? (SOURCE_LABEL[reservation.source] || reservation.source) : null;
-
-        // The next booking ON THIS TABLE — the only "next" a hostess cares about,
-        // because it's when they have to turn this table. This used to be the next
-        // reservation of the WHOLE DAY regardless of table, so a party at 12:00 on
-        // tables 20/30/31 showed "הבא: 12:15" for someone on tables 100/150 — a
-        // turnover that never happens. Now it only fires when a later booking
-        // actually shares one of this reservation's tables.
-        const nextReservation = (() => {
-            if (!reservation.time || !reservation.date) return null;
-            const myTables = Array.isArray(reservation.assigned_table)
-                ? reservation.assigned_table.map(String) : [];
-            if (!myTables.length) return null; // no table assigned → no turnover
-            const sameTableLater = reservations.filter(o =>
-                o.id !== reservation.id &&
-                o.date === reservation.date &&
-                o.time && o.time > reservation.time &&
-                (o.status || 'pending') !== 'cancelled' &&
-                Array.isArray(o.assigned_table) &&
-                o.assigned_table.map(String).some(t => myTables.includes(t))
-            );
-            sameTableLater.sort((a, b) => a.time.localeCompare(b.time));
-            return sameTableLater[0] || null;
-        })();
-
-        const askAiForThis = (e) => {
-            e.stopPropagation();
-            const q = `איזה שולחן הכי טוב להושיב את ${reservation.customer_name || 'הלקוח'} (${reservation.party_size || '?'} סועדים) בשעה ${reservation.time?.slice(0,5) || ''}? קח בחשבון את ההזמנות האחרות והשולחנות הפנויים עכשיו.`;
-            setAiPrefillQuestion(q);
-            setAiOpen(true);
-        };
-
-        // === Compact rail card (Ontopo-style, 6-8 fit in viewport) ===
-        if (compact) {
-            return (
-                <div
-                    className={`px-2.5 py-1.5 rounded-lg border-2 border-transparent transition-colors hover:brightness-110 cursor-pointer relative overflow-hidden ${cardBg} ${cardText} ${isReturning ? 'ring-2 ring-pink-300' : ''}`}
-                    onClick={openEdit}
-                >
-                    {flagMeta && (
-                        <div className={`absolute top-0 bottom-0 right-0 w-1 ${flagMeta.color}`}></div>
-                    )}
-                    <div className="flex items-center justify-between gap-2">
-                        {/* RIGHT in RTL: time + table/status */}
-                        <div className="flex items-center gap-2 min-w-0">
-                            <div className="font-black text-lg leading-none tabular-nums">{reservation.time?.slice(0, 5) || '--:--'}</div>
-                            <div className="flex flex-col gap-0.5 min-w-0">
-                                <div className="font-bold text-sm truncate">{customerInfo}</div>
-                                <div className="text-[10px] opacity-80 truncate">
-                                    {sourceLabel || 'אונליין'}{isReturning ? ' · חוזר' : ''}
-                                </div>
-                            </div>
-                        </div>
-                        {/* LEFT in RTL: party + table + status + flag */}
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <span className="text-base font-black opacity-90">👥{reservation.party_size || '?'}</span>
-                            {(reservation.deposit_status === 'authorized' || reservation.deposit_status === 'captured') && (
-                                <span className="text-[11px] font-bold rounded px-1 bg-emerald-100 text-emerald-800" title={reservation.deposit_status === 'captured' ? 'פיקדון חויב' : 'אשראי/פיקדון נתפס'}>
-                                    {reservation.deposit_status === 'captured' ? '💰' : '💳'}
-                                </span>
-                            )}
-                            {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
-                                <span className="text-[11px] font-bold bg-white/40 rounded px-1">🪑{reservation.assigned_table.join(',')}</span>
-                            )}
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <button
-                                        data-popover-trigger
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/80 text-amber-900 hover:bg-white shadow-sm"
-                                    >{statusConfig.label}</button>
-                                </PopoverTrigger>
-                                <PopoverContent className="p-1.5 w-44" dir="rtl" align="start">
-                                    <div className="text-[10px] font-bold text-gray-500 px-2 py-1">החלף סטטוס:</div>
-                                    {STATUS_OPTIONS.map(s => {
-                                        const sc = STATUS_CONFIGS[s];
-                                        const active = (reservation.status || 'pending') === s;
-                                        return (
-                                            <button
-                                                key={s}
-                                                onClick={(e) => { e.stopPropagation(); setStatus(reservation, s); }}
-                                                className={`w-full text-right text-xs font-bold px-2 py-1.5 rounded my-0.5 flex items-center gap-2 ${
-                                                    active ? sc.color + ' ring-2 ring-indigo-400' : `${sc.color} opacity-75 hover:opacity-100`
-                                                }`}
-                                            >{sc.label}</button>
-                                        );
-                                    })}
-                                </PopoverContent>
-                            </Popover>
-                            {flagMeta && (
-                                <span title={flagMeta.label} className={`w-2.5 h-2.5 rounded-full ${flagMeta.color} border border-white`}></span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        return (
-            <div
-                className={`p-3.5 rounded-xl border-2 border-transparent transition-all hover:shadow-lg cursor-pointer relative overflow-hidden ${cardBg} ${cardText} ${isReturning ? 'ring-2 ring-pink-300 ring-offset-1' : ''}`}
-                onClick={openEdit}
-            >
-                {/* Flag stripe on right edge — full height */}
-                {flagMeta && (
-                    <div className={`absolute top-0 bottom-0 right-0 w-1.5 ${flagMeta.color}`}></div>
-                )}
-
-                {/* TOP ROW (RTL): status pill on RIGHT, time on LEFT */}
-                <div className="flex items-start justify-between gap-2">
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <button
-                                data-popover-trigger
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-900 hover:bg-amber-200 transition-colors shadow-sm"
-                            >
-                                {statusConfig.label}
-                            </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="p-1.5 w-44" dir="rtl" align="start">
-                            <div className="text-[10px] font-bold text-gray-500 px-2 py-1">החלף סטטוס:</div>
-                            {STATUS_OPTIONS.map(s => {
-                                const sc = STATUS_CONFIGS[s];
-                                const active = (reservation.status || 'pending') === s;
-                                return (
-                                    <button
-                                        key={s}
-                                        onClick={(e) => { e.stopPropagation(); setStatus(reservation, s); }}
-                                        className={`w-full text-right text-xs font-bold px-2 py-1.5 rounded my-0.5 flex items-center gap-2 ${
-                                            active ? sc.color + ' ring-2 ring-indigo-400' : `${sc.color} opacity-75 hover:opacity-100`
-                                        }`}
-                                    >
-                                        {sc.label}
-                                    </button>
-                                );
-                            })}
-                        </PopoverContent>
-                    </Popover>
-                    <div className="flex items-center gap-1.5">
-                        <button
-                            data-popover-trigger
-                            onClick={askAiForThis}
-                            title="שאל את AI לאיזה שולחן להושיב"
-                            className="text-base w-7 h-7 rounded-full bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] text-white shadow hover:scale-110 transition-transform flex items-center justify-center"
-                        >✨</button>
-                        <div className="font-black text-2xl leading-none">
-                            {reservation.time?.slice(0, 5) || '--:--'}
-                        </div>
-                    </div>
-                </div>
-
-                {/* MIDDLE ROW: party size │ name (Ontopo style) + flag dot */}
-                <div className="mt-2.5 flex items-center gap-2">
-                    {/* Party size as big number */}
-                    <span className="text-2xl font-black opacity-95">{reservation.party_size || '?'}</span>
-                    {/* White divider */}
-                    <span className="w-px h-7 bg-white/40"></span>
-                    {/* Name */}
-                    <div className="font-bold text-lg truncate flex-1 min-w-0">{customerInfo}</div>
-                    {/* Flag dot */}
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <button
-                                data-popover-trigger
-                                onClick={(e) => e.stopPropagation()}
-                                title={flagMeta?.label || 'הוסף דגל'}
-                                className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition-all ${
-                                    flagMeta ? `${flagMeta.color} border-white shadow` : 'bg-white/30 border-white/70 hover:bg-white/50'
-                                }`}
-                            ></button>
-                        </PopoverTrigger>
-                        <PopoverContent className="p-2 w-52" dir="rtl" align="end">
-                            <div className="text-[10px] font-bold text-gray-500 mb-1.5">בחר דגל:</div>
-                            {Object.entries(FLAG_CONFIGS).map(([k, v]) => (
-                                <button
-                                    key={k}
-                                    onClick={(e) => { e.stopPropagation(); setHostessFlag(reservation, k); }}
-                                    className={`w-full flex items-center gap-2 text-xs font-bold px-2 py-1.5 rounded my-0.5 hover:bg-gray-100 ${flag === k ? 'bg-gray-100 ring-2 ring-indigo-400' : ''}`}
-                                >
-                                    <span className={`w-3 h-3 rounded-full ${v.color}`}></span>
-                                    <span className="text-gray-800">{v.label}</span>
-                                </button>
-                            ))}
-                            {flag && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); setHostessFlag(reservation, ''); }}
-                                    className="w-full text-[11px] text-gray-500 hover:text-red-600 py-1 mt-1 border-t"
-                                >ניקוי דגל</button>
-                            )}
-                        </PopoverContent>
-                    </Popover>
-                </div>
-
-                {/* TABLE + PHONE row */}
-                <div className="mt-1.5 flex items-center justify-between gap-2 text-sm opacity-90">
-                    {phoneTel ? (
-                        <a
-                            href={`tel:${phoneTel}`}
-                            onClick={(e) => e.stopPropagation()}
-                            data-popover-trigger
-                            className="text-xs hover:underline opacity-80 hover:opacity-100"
-                            dir="ltr"
-                        >
-                            {reservation.customer_phone}
-                        </a>
-                    ) : <span></span>}
-                    <span className="flex items-center gap-2">
-                        {(reservation.deposit_status === 'authorized' || reservation.deposit_status === 'captured') && (
-                            <span className="flex items-center gap-1 text-[12px] font-bold rounded-full px-2 py-0.5 bg-emerald-100 text-emerald-800">
-                                {reservation.deposit_status === 'captured'
-                                    ? `💰 פיקדון חויב${reservation.deposit_charge_amount ? ` ₪${reservation.deposit_charge_amount}` : ''}`
-                                    : `💳 אשראי נתפס${reservation.deposit_amount ? ` ₪${reservation.deposit_amount}` : ''}`}
-                            </span>
-                        )}
-                        {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
-                            <span className="flex items-center gap-1 font-bold">
-                                <span className="text-base">🪑</span>
-                                <span className="text-lg">{reservation.assigned_table.join(',')}</span>
-                            </span>
-                        )}
-                    </span>
-                </div>
-
-                {/* SOURCE + EXTRAS row */}
-                {(sourceLabel || reservation.special_occasion || reservation.special_requests || isReturning) && (
-                    <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] opacity-90">
-                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                            {sourceLabel && <span>הזמנה {sourceLabel}{reservation.campaign ? ` · ${reservation.campaign}` : ''}</span>}
-                            {reservation.special_occasion && <span>· 🎉 {reservation.special_occasion}</span>}
-                        </div>
-                        {isReturning && (
-                            <span className="bg-pink-200 text-pink-900 px-1.5 py-0.5 rounded-full text-[9px] font-bold flex-shrink-0">חוזר</span>
-                        )}
-                    </div>
-                )}
-                {reservation.special_requests && (
-                    <div className="mt-1 italic text-[11px] opacity-75 truncate" title={reservation.special_requests}>
-                        "{reservation.special_requests}"
-                    </div>
-                )}
-
-                {/* NEXT reservation chip */}
-                {nextReservation && (
-                    <div className="mt-2 flex items-center gap-1.5 text-[10px] font-bold bg-white/40 backdrop-blur-sm rounded-full px-2 py-1 w-fit">
-                        <span>⏭️</span>
-                        <span>הבא בשולחן: {nextReservation.time?.slice(0,5)} · {nextReservation.customer_name || 'לקוח'} ({nextReservation.party_size || '?'})</span>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-function ReservationsDashboard({ hideDatePicker = false, __ctx } = {}) {
-    const { reservations, selectedStatus, setSelectedStatus, selectedFlag, setSelectedFlag, selectedDate, setSelectedDate } = __ctx;
-        const [timeFilter, setTimeFilter] = useState('');
-        const [timeBucket, setTimeBucket] = useState('all'); // all|morning|noon|evening|night
-        // Apply time bucket → set time filter to first hour digit of range
-        const TIME_BUCKETS = {
-            all:     { label: 'הכל',      test: () => true },
-            morning: { label: 'בוקר',     test: (t) => t >= '06:00' && t < '12:00' },
-            noon:    { label: 'צהריים',   test: (t) => t >= '12:00' && t < '17:00' },
-            evening: { label: 'ערב',      test: (t) => t >= '17:00' && t < '22:00' },
-            night:   { label: 'לילה',     test: (t) => t >= '22:00' || t < '06:00' },
-        };
-        const [searchTerm, setSearchTerm] = useState('');
-        // Show only reservations with NO table assigned yet — the ones the hostess
-        // still has to seat.
-        const [onlyUnassigned, setOnlyUnassigned] = useState(false);
-        // Compact list density — 6-8 cards per viewport. Persisted across renders.
-        const [compactMode, setCompactMode] = useState(() => {
-            try { return localStorage.getItem('seating_compact_mode') !== 'off'; } catch { return true; }
-        });
-        const toggleCompact = () => {
-            setCompactMode(v => {
-                const next = !v;
-                try { localStorage.setItem('seating_compact_mode', next ? 'on' : 'off'); } catch {}
-                return next;
-            });
-        };
-
-        const filteredReservations = reservations.filter(r => {
-            const statusMatch = selectedStatus === 'all' || (r.status || 'pending') === selectedStatus;
-            const timeMatch = !timeFilter || (r.time && r.time.startsWith(timeFilter));
-            const bucketMatch = timeBucket === 'all' || (r.time && TIME_BUCKETS[timeBucket]?.test(r.time));
-            const flagMatch = selectedFlag === 'all'
-                || (selectedFlag === 'none' && !r.hostess_flag)
-                || (r.hostess_flag === selectedFlag);
-            const q = searchTerm.trim().toLowerCase();
-            const searchMatch = !q || (
-                (r.customer_name || '').toLowerCase().includes(q) ||
-                (r.customer_phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
-            );
-            const assignedMatch = !onlyUnassigned
-                || !(Array.isArray(r.assigned_table) && r.assigned_table.length > 0);
-            return statusMatch && timeMatch && bucketMatch && flagMatch && searchMatch && assignedMatch;
-        });
-
-        // How many reservations still have no table — drives the filter chip's badge.
-        const unassignedCount = reservations.filter(r =>
-            !(Array.isArray(r.assigned_table) && r.assigned_table.length > 0)
-            && !['cancelled', 'no_show', 'completed'].includes(r.status)
-        ).length;
-
-        const flagCounts = reservations.reduce((c, r) => {
-            const f = r.hostess_flag || 'none';
-            c[f] = (c[f] || 0) + 1;
-            return c;
-        }, {});
-
-        const totalGuests = filteredReservations.reduce((sum, res) => sum + (res.party_size || 0), 0);
-
-        const statusCounts = reservations.reduce((counts, reservation) => {
-            const status = reservation.status || 'pending';
-            counts[status] = (counts[status] || 0) + 1;
-            counts.total = (counts.total || 0) + 1;
-            return counts;
-        }, {});
-
-        return (
-            <div className="bg-white rounded-lg p-4 shadow-sm border">
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                    <h3 className="text-lg font-bold flex items-center gap-2">
-                        <Calendar className="w-5 h-5 text-[#44512C]" />
-                        הזמנות ({filteredReservations.length}) - סה"כ {totalGuests} אורחים
-                    </h3>
-                    
-                    {!hideDatePicker && (
-                    <div className="flex items-center gap-1.5">
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                    <Calendar className="w-4 h-4 ml-2" />
-                                    {format(selectedDate, 'dd/MM/yyyy')}
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                                <CalendarComponent
-                                    mode="single"
-                                    selected={selectedDate}
-                                    onSelect={date => { if(date) setSelectedDate(date)}}
-                                    initialFocus
-                                />
-                            </PopoverContent>
-                        </Popover>
-                        <Button
-                            variant="outline" size="sm"
-                            className={format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'bg-slate-900 text-white' : ''}
-                            onClick={() => setSelectedDate(new Date())}
-                        >היום</Button>
-                    </div>
-                    )}
-                </div>
-
-                {/* Search box — name or phone */}
-                <div className="mb-2 relative">
-                    <Input
-                        type="search"
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        placeholder="🔍 חפש לפי שם או טלפון..."
-                        className="w-full pr-3"
-                    />
-                </div>
-
-                {/* Hour bucket filter — quick chips, no typing */}
-                <div className="mb-2 flex flex-wrap gap-1">
-                    {['all','morning','noon','evening','night'].map(k => {
-                        const active = timeBucket === k;
-                        const emoji = { all: '🕐', morning: '🌅', noon: '☀️', evening: '🌙', night: '🌃' }[k];
-                        return (
-                            <button
-                                key={k}
-                                onClick={() => setTimeBucket(k)}
-                                className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors
-                                    ${active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200 hover:border-slate-400'}`}
-                            >{emoji} {TIME_BUCKETS[k].label}</button>
-                        );
-                    })}
-                    {/* Only reservations still WITHOUT a table — what the hostess has left to seat. */}
-                    <button
-                        onClick={() => setOnlyUnassigned(v => !v)}
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors
-                            ${onlyUnassigned ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300 hover:border-amber-500'}`}
-                        title="הזמנות ללא שולחן משובץ"
-                    >🪑 בלי שולחן{unassignedCount ? ` (${unassignedCount})` : ''}</button>
-                </div>
-
-                <div className="flex gap-2 mb-4">
-                    {/* A native time input renders in the BROWSER's locale — on an iPhone
-                        set to English that's a 12-hour AM/PM field ("--:-- --"), while
-                        reservations store 24-hour "HH:mm". The filter then matched nothing.
-                        Plain text + 24h pattern keeps both sides in the same format. */}
-                    <Input
-                        type="text"
-                        inputMode="numeric"
-                        dir="ltr"
-                        maxLength={5}
-                        value={timeFilter}
-                        onChange={e => {
-                            let v = e.target.value.replace(/[^\d:]/g, '');
-                            if (v.length === 2 && !v.includes(':') && timeFilter.length < 2) v += ':';
-                            setTimeFilter(v.slice(0, 5));
-                        }}
-                        className="w-24 text-center tabular-nums"
-                        placeholder="20:00"
-                        title="סינון לפי שעה — פורמט 24 שעות, למשל 20:00"
-                    />
-                    <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                        <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="בחר סטטוס" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">הכל ({statusCounts.total || 0})</SelectItem>
-                            <SelectItem value="request">בקשה ({statusCounts.request || 0})</SelectItem>
-                            <SelectItem value="pending">ממתין ({statusCounts.pending || 0})</SelectItem>
-                            <SelectItem value="confirmed">מאושר ({statusCounts.confirmed || 0})</SelectItem>
-                            <SelectItem value="standby">סטנדבי ({statusCounts.standby || 0})</SelectItem>
-                            <SelectItem value="seated">יושב ({statusCounts.seated || 0})</SelectItem>
-                            <SelectItem value="finishing_soon">מסיים בקרוב ({statusCounts.finishing_soon || 0})</SelectItem>
-                            <SelectItem value="completed">סיים ({statusCounts.completed || 0})</SelectItem>
-                            <SelectItem value="cancelled">בוטל ({statusCounts.cancelled || 0})</SelectItem>
-                            <SelectItem value="no_show">הבריז ({statusCounts.no_show || 0})</SelectItem>
-                            <SelectItem value="deleted">מחוק ({statusCounts.deleted || 0})</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                {/* Flag filter — colored pill row */}
-                <div className="mb-4 flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase">דגל:</span>
-                    {[
-                        { k: 'all',    label: 'הכל',  cls: 'bg-gray-100 text-gray-700 border-gray-200' },
-                        { k: 'none',   label: '○',    cls: 'bg-white text-gray-500 border-gray-300', title: 'בלי דגל' },
-                        { k: 'green',  label: '●',    cls: 'bg-emerald-500 text-white border-emerald-700', title: 'התקשרנו, מגיע' },
-                        { k: 'orange', label: '●',    cls: 'bg-orange-500 text-white border-orange-700', title: 'התקשרנו, מאחר' },
-                        { k: 'red',    label: '●',    cls: 'bg-red-500 text-white border-red-700', title: 'התקשרנו, לא ענה' },
-                        { k: 'black',  label: '●',    cls: 'bg-zinc-900 text-white border-zinc-700', title: 'בעייתי' },
-                    ].map(f => {
-                        const count = f.k === 'all'
-                            ? reservations.length
-                            : (flagCounts[f.k] || 0);
-                        const active = selectedFlag === f.k;
-                        return (
-                            <button
-                                key={f.k}
-                                onClick={() => setSelectedFlag(f.k)}
-                                title={f.title || f.label}
-                                className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-all
-                                    ${f.cls} ${active ? 'ring-2 ring-indigo-500 ring-offset-1 scale-105' : 'opacity-70 hover:opacity-100'}`}
-                            >
-                                {f.label} <span className="opacity-80">({count})</span>
-                            </button>
-                        );
-                    })}
-                </div>
-
-                {/* Density toggle */}
-                <div className="flex items-center justify-end mb-1.5 gap-1">
-                    <button
-                        onClick={toggleCompact}
-                        title={compactMode ? 'הצג קלפים גדולים' : 'הצג קלפים קומפקטיים'}
-                        className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-colors
-                            ${compactMode ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200'}`}
-                    >{compactMode ? '☰ קומפקטי' : '▦ מורחב'}</button>
-                </div>
-                <div className={`overflow-y-auto ${compactMode ? 'space-y-1 max-h-[calc(100vh-180px)]' : 'space-y-2 max-h-[calc(100vh-200px)]'}`}>
-                    {filteredReservations.length > 0 ? (
-                        filteredReservations.map(reservation => (
-                            <ReservationCard key={reservation.id} reservation={reservation} compact={compactMode} __ctx={__ctx} />
-                        ))
-                    ) : (
-                        <div className="text-center py-8 text-gray-500">
-                            <Calendar className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                            <p>אין הזמנות</p>
-                            {selectedStatus !== 'all' && (
-                                <p className="text-sm">עם הסינון הנוכחי</p>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
-    };
-
-function TableDetailsDialog({ table, session, __ctx }) {
-    const { getStepInfo, reservations, tables, getTableSession, setEditingReservation, setIsEditReservationOpen, setTableDetailsOpen, startMultiTableSelection, moveOccupantToTable, handleReleaseTable, handleTableStatusChange, getActiveTime, setTables, setCombos, showToast, tableSettingsOpen, setTableSettingsOpen, tableIncidentsOpen, setTableIncidentsOpen, setIncidentTableNumber, setQuickSeatTable, setQuickSeatOpen } = __ctx;
-        if (!table) return null;
-
-        const progress = session ? Math.round(((session.steps_completed?.length || 0) / 23) * 100) : 0;
-        const currentStepInfo = getStepInfo(session?.current_step);
-        
-        const futureReservations = reservations.filter(r => 
-            Array.isArray(r.assigned_table) && r.assigned_table.includes(table.table_number) && 
-            (r.status === 'confirmed' || r.status === 'pending') &&
-            new Date(`${r.date}T${r.time}`) > new Date()
-        ).sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
-
-        const availableTables = tables.filter(t => t.table_number !== table.table_number && !getTableSession(t.table_number));
-
-        // A guest seated via a RESERVATION (not a live session) — so we can offer
-        // edit / move for them too (the session path is handled separately below).
-        const seatedRes = reservations.find(r =>
-            Array.isArray(r.assigned_table) && r.assigned_table.includes(table.table_number) &&
-            r.date === format(new Date(), 'yyyy-MM-dd') && r.status === 'seated'
-        );
-
-        const handleEditReservation = (reservation) => {
-            setEditingReservation(reservation);
-            setIsEditReservationOpen(true);
-            setTableDetailsOpen(false);
-        };
-
-        const handleMoveReservation = (reservation) => {
-            startMultiTableSelection(reservation.id);
-            setTableDetailsOpen(false);
-        };
-        
-        // Shared with the phone list's 🔀 button — see moveOccupantToTable.
-        const handleMoveToSpecificTable = async (targetTable) => {
-            setTableDetailsOpen(false);
-            await moveOccupantToTable(table.table_number, targetTable);
-        };
-
-        return (
-            <DialogContent className="w-full h-full sm:h-auto max-w-full sm:max-w-[700px] sm:max-h-[85vh] overflow-y-auto rounded-none sm:rounded-lg" dir="rtl">
-                {/* The dialog used to open on "🚨 פתח תקרית" and "הסר שולחן מהמערכת" —
-                    an emergency and a destructive setup action — with "who is sitting
-                    here" buried below them. Live state first; setup collapses at the
-                    bottom. */}
-                <DialogHeader>
-                    <DialogTitle className="text-xl">שולחן {table.table_number}</DialogTitle>
-                    <div className="text-[13px] text-gray-500">
-                        {table.area || 'ללא אזור'} · {table.location === 'indoor' ? '🏠 פנים' : '🌿 חוץ'} ·{' '}
-                        {table.min_capacity === table.max_capacity ? table.max_capacity : `${table.min_capacity}-${table.max_capacity}`} מקומות
-                    </div>
-                </DialogHeader>
-
-                <div className="space-y-4 py-3">
-                    {futureReservations.length > 0 && (
-                        <div className="border rounded-lg p-4 bg-[#F4ECD8]">
-                            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                                <Calendar className="w-5 h-5 text-[#44512C]" />
-                                הזמנות עתידיות ({futureReservations.length})
-                            </h3>
-                            <div className="space-y-2">
-                                {futureReservations.map((reservation) => {
-                                    // Two parties on one table at the same time is physically
-                                    // impossible; listing them as an ordinary row let it pass
-                                    // unnoticed. Flag it where the manager is already looking.
-                                    const clashes = findTableConflicts(reservations, table.table_number, reservation);
-                                    return (
-                                    <div key={reservation.id} className={`bg-white p-3 rounded border flex justify-between items-center group ${
-                                        clashes.length ? 'border-rose-300 bg-rose-50' : 'border-[#E8D9B5]'
-                                    }`}>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-semibold text-[#2E3819]">{reservation.customer_name}</span>
-                                                <span className="text-sm text-gray-600">({reservation.party_size} אנשים)</span>
-                                                <span className="text-sm text-[#44512C]">
-                                                    {format(new Date(reservation.date), 'dd/MM')} בשעה {reservation.time?.slice(0, 5)}
-                                                </span>
-                                            </div>
-                                            {reservation.special_requests && (
-                                                <div className="text-xs text-gray-500 mt-1">"{reservation.special_requests}"</div>
-                                            )}
-                                            {clashes.length > 0 && (
-                                                <div className="text-[11px] text-rose-700 font-semibold mt-1">
-                                                    ⚠️ מתנגש עם {clashes.map(c => `${c.customer_name} ${String(c.time).slice(0, 5)}`).join(' · ')} — אותו שולחן באותו זמן
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => handleEditReservation(reservation)}>
-                                                <Edit className="w-4 h-4" />
-                                            </Button>
-                                            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => handleMoveReservation(reservation)}>
-                                                <ArrowRight className="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
-                    
-                    {!session && seatedRes && (
-                        <div className="border rounded-lg p-4 bg-green-50 border-green-200">
-                            <h3 className="font-bold text-lg mb-1 flex items-center gap-2">
-                                <Users className="w-5 h-5 text-green-600" />
-                                יושבים כעת: {seatedRes.customer_name} <span className="text-sm text-gray-500">({seatedRes.party_size} · {seatedRes.time?.slice(0, 5)})</span>
-                            </h3>
-                            <p className="text-xs text-gray-500 mb-3">אפשר לערוך את ההזמנה או להעביר את היושבים לשולחן אחר.</p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <Button variant="outline" onClick={() => handleEditReservation(seatedRes)}>
-                                    <Edit className="w-4 h-4 ml-2" /> ערוך הזמנה
-                                </Button>
-                                <Button variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => handleMoveReservation(seatedRes)}>
-                                    <ArrowRight className="w-4 h-4 ml-2" /> העבר לשולחן אחר
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-
-                    {session && (
-                        <>
-                            <div className="border rounded-lg p-4 bg-[#F4ECD8]">
-                                <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                                    <Users className="w-5 h-5 text-[#44512C]" />
-                                    פרטי הפגישה הפעילה
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <Label className="text-sm font-semibold text-gray-600">שם הלקוח</Label>
-                                        <div className="text-lg">{session.customer_name || 'לא צוין'}</div>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm font-semibold text-gray-600">מספר אנשים</Label>
-                                        <div className="text-lg">{session.party_size}</div>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm font-semibold text-gray-600">מלצר אחראי</Label>
-                                        <div className="text-lg">{session.waiter_name}</div>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm font-semibold text-gray-600 flex items-center gap-1">
-                                            <Phone className="w-4 h-4" />
-                                            טלפון לקוח
-                                        </Label>
-                                        <div className="text-lg">{session.customer_phone || 'לא צוין'}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="border rounded-lg p-4 bg-orange-50">
-                                <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                                    <Wrench className="w-5 h-5 text-orange-600" />
-                                    פעולות על השולחן
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <Button 
-                                        onClick={() => handleReleaseTable(table.table_number)}
-                                        variant="outline"
-                                        className="bg-[#F4ECD8] border-[#D9BD83] text-yellow-800 hover:bg-yellow-200"
-                                    >
-                                        <Ban className="w-4 h-4 ml-2" />
-                                        הוצא מישיבה
-                                    </Button>
-                                    <Button 
-                                        onClick={() => handleTableStatusChange(table.table_number, 'cleaning')}
-                                        variant="outline"
-                                        className="bg-[#F4ECD8] border-[#D9BD83] text-yellow-800 hover:bg-yellow-200"
-                                    >
-                                        <Ban className="w-4 h-4 ml-2" />
-                                        העבר לניקוי
-                                    </Button>
-                                    
-                                    <div className="md:col-span-2">
-                                        <h4 className="font-bold text-md mb-2 flex items-center gap-2">
-                                            <ArrowRight className="w-4 h-4 text-orange-600" />
-                                            העברת הזמנה לשולחן אחר:
-                                        </h4>
-                                        <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
-                                            {availableTables.length > 0 ? (
-                                                availableTables.map(availableTable => (
-                                                    <Button 
-                                                        key={availableTable.table_number}
-                                                        variant="outline" 
-                                                        size="sm"
-                                                        className="justify-between"
-                                                        onClick={() => handleMoveToSpecificTable(availableTable.table_number)}
-                                                    >
-                                                        <span>{availableTable.table_number}</span>
-                                                        <span className="text-xs">({availableTable.min_capacity}-{availableTable.max_capacity})</span>
-                                                    </Button>
-                                                ))
-                                            ) : (
-                                                <p className="text-gray-500 text-sm col-span-3">אין שולחנות פנויים כרגע להעברה.</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="border rounded-lg p-4 bg-green-50">
-                                <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                                    <Clock className="w-5 h-5 text-green-600" />
-                                    זמני הפגישה
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <Label className="text-sm font-semibold text-gray-600">התחיל בשעה</Label>
-                                        <div className="text-lg">
-                                            {session.session_start ? 
-                                                new Date(session.session_start).toLocaleTimeString('he-IL', {hour: '2-digit', minute: '2-digit'}) 
-                                                : 'לא ידוע'
-                                            }
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm font-semibold text-gray-600">זמן פעיל</Label>
-                                        <div className="text-lg font-bold text-green-600">{getActiveTime(session)}</div>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm font-semibold text-gray-600">זמן סיום מעורב</Label>
-                                        <div className="text-lg">
-                                            {session.session_end ? 
-                                                new Date(session.session_end).toLocaleTimeString('he-IL', {hour: '2-digit', minute: '2-digit'}) 
-                                                : 'עדיין פעיל'
-                                            }
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="border rounded-lg p-4 bg-[#F4ECD8]">
-                                <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                                    <ChefHat className="w-5 h-5 text-[#A04A2E]" />
-                                    התקדמות השירות
-                                </h3>
-                                <div className="space-y-3">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-sm font-semibold">שלב נוכחי: {session.current_step}/23</span>
-                                        <span className="text-lg font-bold text-[#A04A2E]">{progress}%</span>
-                                    </div>
-                                    <Progress value={progress} className="h-3" />
-                                    <div className="bg-white p-3 rounded border">
-                                        <div className="font-semibold text-[#7A3722]">{currentStepInfo?.step_name || 'שלב לא ידוע'}</div>
-                                        <div className="text-sm text-gray-600 mt-1">{currentStepInfo?.description || ''}</div>
-                                    </div>
-                                    <div className="text-sm text-gray-600">
-                                        <span className="font-semibold">שלבים שהושלמו:</span> {session.steps_completed?.length || 0}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="border rounded-lg p-4 bg-orange-50">
-                                <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                                    <ChefHat className="w-5 h-5 text-orange-600" />
-                                    פרטי הזמנה
-                                </h3>
-                                <div className="space-y-3">
-                                    <div>
-                                        <Label className="text-sm font-semibold text-gray-600">סגנון השולחן</Label>
-                                        <div className="text-lg capitalize">{session.table_style?.replace('_', ' ') || 'רגיל'}</div>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm font-semibold text-gray-600">בקשות מיוחדות</Label>
-                                        <div className="text-sm bg-white p-2 rounded border">
-                                            {session.special_requests || 'אין בקשות מיוחדות'}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm font-semibold text-gray-600">הערות</Label>
-                                        <div className="text-sm bg-white p-2 rounded border">
-                                            {session.notes || 'אין הערות'}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-3 p-3 bg-[#F4ECD8] rounded-lg">
-                                    <div className="text-sm text-yellow-800">
-                                        💡 <strong>הערה:</strong> מערכת ההזמנות עדיין לא מחוברת. בעתיד כאן יופיעו פרטי המנות שהוזמנו ומה עדיין חסר.
-                                    </div>
-                                </div>
-                            </div>
-                        </>
-                    )}
-
-                    {/* Free — and it really is free. This used to render alongside
-                        "יושבים כעת" whenever a guest was seated straight off a
-                        reservation (no TableSession), so the same dialog said the table
-                        was both occupied and empty. */}
-                    {!session && !seatedRes && (
-                        <div className="text-center py-6">
-                            <div className="text-5xl mb-3">😴</div>
-                            <h3 className="text-xl font-bold text-gray-600 mb-1">השולחן פנוי</h3>
-                            <p className="text-gray-500 mb-4 text-sm">אין פעילות כרגע בשולחן זה</p>
-                            {/* The most common hostess gesture — "guest at the door, this table
-                                is open" — had no path from the map at all: the empty state was a
-                                dead end and she had to leave the table, open הושבה מהירה and find
-                                it again in a grid. */}
-                            <Button
-                                onClick={() => {
-                                    setQuickSeatTable(table);
-                                    setTableDetailsOpen(false);
-                                    setQuickSeatOpen(true);
-                                }}
-                                className="bg-[#A04A2E] hover:bg-[#7A3722] text-white font-bold gap-2 px-6 py-5 text-base"
-                            >
-                                🪑 הושב כאן
-                            </Button>
-                            <p className="text-[11px] text-gray-400 mt-2">
-                                מזמין מזדמן או אורח מהתור — {table.min_capacity}-{table.max_capacity} סועדים
-                            </p>
-                        </div>
-                    )}
-
-                    {/* ── Setup, collapsed. Shape, zone and "remove from the system" are
-                        things you touch when building the map, not during service. */}
-                    <div className="border rounded-lg overflow-hidden">
-                        <button
-                            onClick={() => setTableSettingsOpen(v => !v)}
-                            className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 text-[13px] font-semibold text-gray-700"
-                        >
-                            <span className="text-gray-400 text-[11px]">{tableSettingsOpen ? '▲' : '▼'}</span>
-                            <span>⚙️ הגדרות השולחן</span>
-                        </button>
-                        {tableSettingsOpen && (
-                            <div className="p-3 space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex gap-2">
-                                        <Button
-                                            size="sm"
-                                            variant={table.shape !== 'round' ? 'default' : 'outline'}
-                                            onClick={() => setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, shape: 'rect' } : t))}
-                                        >⬛ מרובע</Button>
-                                        <Button
-                                            size="sm"
-                                            variant={table.shape === 'round' ? 'default' : 'outline'}
-                                            onClick={() => setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, shape: 'round' } : t))}
-                                        >⭕ עגול</Button>
-                                    </div>
-                                    <Label className="text-sm font-semibold text-gray-600">צורה</Label>
-                                </div>
-
-                                {/* Move a table between zones — or out of all of them. Zone
-                                    backdrops are drawn from their members' bounding box, so one
-                                    stray table stretches a zone across the room and its colour
-                                    bleeds over everything. Reassigning is the real fix. */}
-                                <div className="flex items-center justify-between">
-                                    <select
-                                        value={table.area || ''}
-                                        onChange={(e) => {
-                                            const area = e.target.value || null;
-                                            setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, area } : t));
-                                            showToast(`שולחן ${table.table_number} הועבר ל${area || 'ללא אזור'} — לחץ "שמור" במפה`);
-                                        }}
-                                        className="border rounded-lg px-2 py-1.5 text-sm bg-white"
-                                    >
-                                        <option value="">ללא אזור</option>
-                                        {[...new Set(tables.map(t => t.area).filter(Boolean))].map(a => (
-                                            <option key={a} value={a}>{a}</option>
-                                        ))}
-                                    </select>
-                                    <Label className="text-sm font-semibold text-gray-600">אזור</Label>
-                                </div>
-
-                                <p className="text-[11px] text-gray-400">שינוי צורה או אזור נשמר בלחיצה על "שמור" בפס המפה.</p>
-
-                                {/* Remove this table from the WHOLE system — map, every priority list, auto-assign */}
-                                <Button
-                                    variant="outline"
-                                    className="w-full text-red-700 border-red-300 hover:bg-red-50"
-                                    onClick={() => {
-                                        const num = String(table.table_number);
-                                        if (session || seatedRes) {
-                                            alert('לא ניתן להסיר שולחן שיושבים עליו כרגע. שחרר אותו קודם.');
-                                            return;
-                                        }
-                                        if (!window.confirm(`להסיר את שולחן ${num} מהמערכת לגמרי?\n\nהוא ייעלם מהמפה, מכל רשימות העדיפות ומהשיבוץ האוטומטי.\n(יש ללחוץ "שמור" אחר כך כדי לשמור.)`)) return;
-                                        // Drop the table, scrub it from every other table's combinable_with,
-                                        // and remove any priority entry (combo) that referenced it.
-                                        setTables(prev => prev
-                                            .filter(t => String(t.table_number) !== num)
-                                            .map(t => ({ ...t, combinable_with: (Array.isArray(t.combinable_with) ? t.combinable_with : []).filter(x => String(x) !== num) })));
-                                        setCombos(prev => prev.filter(c => !((Array.isArray(c.tables) ? c.tables : []).map(String).includes(num))));
-                                        setTableDetailsOpen(false);
-                                    }}
-                                >
-                                    <Trash2 className="w-4 h-4 ml-2" />
-                                    הסר שולחן מהמערכת
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Incidents, collapsed — opening one is rare and reading the log rarer. */}
-                    <div className="border rounded-lg overflow-hidden">
-                        <button
-                            onClick={() => setTableIncidentsOpen(v => !v)}
-                            className="w-full flex items-center justify-between px-3 py-2.5 bg-red-50 text-[13px] font-semibold text-red-700"
-                        >
-                            <span className="text-red-300 text-[11px]">{tableIncidentsOpen ? '▲' : '▼'}</span>
-                            <span>🚨 תקריות</span>
-                        </button>
-                        {tableIncidentsOpen && (
-                            <div className="p-3 space-y-3">
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="w-full bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
-                                    onClick={() => { setTableDetailsOpen(false); setIncidentTableNumber(table.table_number); }}
-                                >
-                                    🚨 פתח תקרית חדשה
-                                </Button>
-                                <TableIncidentHistory tableNumber={table.table_number} />
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </DialogContent>
-        );
-    };
-
-
 export default function SeatingSetup() {
     const brandName = useTenantBranding()?.name || 'המסעדה';
     const isAlena = isMainAlena();
@@ -2913,6 +1970,284 @@ export default function SeatingSetup() {
     };
 
 
+    const ReservationCard = ({ reservation, compact = false }) => {
+        const statusConfig = getReservationStatusConfig(reservation.status, reservation.assigned_table, reservation);
+        const customerInfo = reservation.customer_name || `לקוח ${reservation.id?.slice(-4)}`;
+
+        const isReturning = visitsFor(reservation.customer_phone) > 1;
+        const flag = reservation.hostess_flag || '';
+        const flagMeta = FLAG_CONFIGS[flag];
+
+        const openEdit = (e) => {
+            // open edit only when clicking outside any inline control
+            if (e.target.closest('button, [role="menuitem"], [data-popover-trigger]')) return;
+            setEditingReservation(reservation);
+            setIsEditReservationOpen(true);
+        };
+
+        const phoneTel = (reservation.customer_phone || '').replace(/[^\d+]/g, '');
+
+        // Strong status-driven background (Ontopo style)
+        const cardBg = statusConfig.cardBg || 'bg-white';
+        const cardText = statusConfig.cardText || 'text-gray-900';
+        // Source short label (Hebrew)
+        const SOURCE_LABEL = {
+            instagram: 'אינסטגרם', tiktok: 'TikTok', facebook: 'פייסבוק',
+            google: 'גוגל', whatsapp: 'WhatsApp', qr: 'QR', sms: 'SMS',
+            email: 'אימייל', direct: 'אונליין ישיר', other: 'אחר',
+        };
+        const sourceLabel = reservation.source ? (SOURCE_LABEL[reservation.source] || reservation.source) : null;
+
+        // The next booking ON THIS TABLE — the only "next" a hostess cares about,
+        // because it's when they have to turn this table. This used to be the next
+        // reservation of the WHOLE DAY regardless of table, so a party at 12:00 on
+        // tables 20/30/31 showed "הבא: 12:15" for someone on tables 100/150 — a
+        // turnover that never happens. Now it only fires when a later booking
+        // actually shares one of this reservation's tables.
+        const nextReservation = (() => {
+            if (!reservation.time || !reservation.date) return null;
+            const myTables = Array.isArray(reservation.assigned_table)
+                ? reservation.assigned_table.map(String) : [];
+            if (!myTables.length) return null; // no table assigned → no turnover
+            const sameTableLater = reservations.filter(o =>
+                o.id !== reservation.id &&
+                o.date === reservation.date &&
+                o.time && o.time > reservation.time &&
+                (o.status || 'pending') !== 'cancelled' &&
+                Array.isArray(o.assigned_table) &&
+                o.assigned_table.map(String).some(t => myTables.includes(t))
+            );
+            sameTableLater.sort((a, b) => a.time.localeCompare(b.time));
+            return sameTableLater[0] || null;
+        })();
+
+        const askAiForThis = (e) => {
+            e.stopPropagation();
+            const q = `איזה שולחן הכי טוב להושיב את ${reservation.customer_name || 'הלקוח'} (${reservation.party_size || '?'} סועדים) בשעה ${reservation.time?.slice(0,5) || ''}? קח בחשבון את ההזמנות האחרות והשולחנות הפנויים עכשיו.`;
+            setAiPrefillQuestion(q);
+            setAiOpen(true);
+        };
+
+        // === Compact rail card (Ontopo-style, 6-8 fit in viewport) ===
+        if (compact) {
+            return (
+                <div
+                    className={`px-2.5 py-1.5 rounded-lg border-2 border-transparent transition-colors hover:brightness-110 cursor-pointer relative overflow-hidden ${cardBg} ${cardText} ${isReturning ? 'ring-2 ring-pink-300' : ''}`}
+                    onClick={openEdit}
+                >
+                    {flagMeta && (
+                        <div className={`absolute top-0 bottom-0 right-0 w-1 ${flagMeta.color}`}></div>
+                    )}
+                    <div className="flex items-center justify-between gap-2">
+                        {/* RIGHT in RTL: time + table/status */}
+                        <div className="flex items-center gap-2 min-w-0">
+                            <div className="font-black text-lg leading-none tabular-nums">{reservation.time?.slice(0, 5) || '--:--'}</div>
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                                <div className="font-bold text-sm truncate">{customerInfo}</div>
+                                <div className="text-[10px] opacity-80 truncate">
+                                    {sourceLabel || 'אונליין'}{isReturning ? ' · חוזר' : ''}
+                                </div>
+                            </div>
+                        </div>
+                        {/* LEFT in RTL: party + table + status + flag */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span className="text-base font-black opacity-90">👥{reservation.party_size || '?'}</span>
+                            {(reservation.deposit_status === 'authorized' || reservation.deposit_status === 'captured') && (
+                                <span className="text-[11px] font-bold rounded px-1 bg-emerald-100 text-emerald-800" title={reservation.deposit_status === 'captured' ? 'פיקדון חויב' : 'אשראי/פיקדון נתפס'}>
+                                    {reservation.deposit_status === 'captured' ? '💰' : '💳'}
+                                </span>
+                            )}
+                            {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
+                                <span className="text-[11px] font-bold bg-white/40 rounded px-1">🪑{reservation.assigned_table.join(',')}</span>
+                            )}
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <button
+                                        data-popover-trigger
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/80 text-amber-900 hover:bg-white shadow-sm"
+                                    >{statusConfig.label}</button>
+                                </PopoverTrigger>
+                                <PopoverContent className="p-1.5 w-44" dir="rtl" align="start">
+                                    <div className="text-[10px] font-bold text-gray-500 px-2 py-1">החלף סטטוס:</div>
+                                    {STATUS_OPTIONS.map(s => {
+                                        const sc = STATUS_CONFIGS[s];
+                                        const active = (reservation.status || 'pending') === s;
+                                        return (
+                                            <button
+                                                key={s}
+                                                onClick={(e) => { e.stopPropagation(); setStatus(reservation, s); }}
+                                                className={`w-full text-right text-xs font-bold px-2 py-1.5 rounded my-0.5 flex items-center gap-2 ${
+                                                    active ? sc.color + ' ring-2 ring-indigo-400' : `${sc.color} opacity-75 hover:opacity-100`
+                                                }`}
+                                            >{sc.label}</button>
+                                        );
+                                    })}
+                                </PopoverContent>
+                            </Popover>
+                            {flagMeta && (
+                                <span title={flagMeta.label} className={`w-2.5 h-2.5 rounded-full ${flagMeta.color} border border-white`}></span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div
+                className={`p-3.5 rounded-xl border-2 border-transparent transition-all hover:shadow-lg cursor-pointer relative overflow-hidden ${cardBg} ${cardText} ${isReturning ? 'ring-2 ring-pink-300 ring-offset-1' : ''}`}
+                onClick={openEdit}
+            >
+                {/* Flag stripe on right edge — full height */}
+                {flagMeta && (
+                    <div className={`absolute top-0 bottom-0 right-0 w-1.5 ${flagMeta.color}`}></div>
+                )}
+
+                {/* TOP ROW (RTL): status pill on RIGHT, time on LEFT */}
+                <div className="flex items-start justify-between gap-2">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <button
+                                data-popover-trigger
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-900 hover:bg-amber-200 transition-colors shadow-sm"
+                            >
+                                {statusConfig.label}
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="p-1.5 w-44" dir="rtl" align="start">
+                            <div className="text-[10px] font-bold text-gray-500 px-2 py-1">החלף סטטוס:</div>
+                            {STATUS_OPTIONS.map(s => {
+                                const sc = STATUS_CONFIGS[s];
+                                const active = (reservation.status || 'pending') === s;
+                                return (
+                                    <button
+                                        key={s}
+                                        onClick={(e) => { e.stopPropagation(); setStatus(reservation, s); }}
+                                        className={`w-full text-right text-xs font-bold px-2 py-1.5 rounded my-0.5 flex items-center gap-2 ${
+                                            active ? sc.color + ' ring-2 ring-indigo-400' : `${sc.color} opacity-75 hover:opacity-100`
+                                        }`}
+                                    >
+                                        {sc.label}
+                                    </button>
+                                );
+                            })}
+                        </PopoverContent>
+                    </Popover>
+                    <div className="flex items-center gap-1.5">
+                        <button
+                            data-popover-trigger
+                            onClick={askAiForThis}
+                            title="שאל את AI לאיזה שולחן להושיב"
+                            className="text-base w-7 h-7 rounded-full bg-gradient-to-br from-[#A04A2E] to-[#A04A2E] text-white shadow hover:scale-110 transition-transform flex items-center justify-center"
+                        >✨</button>
+                        <div className="font-black text-2xl leading-none">
+                            {reservation.time?.slice(0, 5) || '--:--'}
+                        </div>
+                    </div>
+                </div>
+
+                {/* MIDDLE ROW: party size │ name (Ontopo style) + flag dot */}
+                <div className="mt-2.5 flex items-center gap-2">
+                    {/* Party size as big number */}
+                    <span className="text-2xl font-black opacity-95">{reservation.party_size || '?'}</span>
+                    {/* White divider */}
+                    <span className="w-px h-7 bg-white/40"></span>
+                    {/* Name */}
+                    <div className="font-bold text-lg truncate flex-1 min-w-0">{customerInfo}</div>
+                    {/* Flag dot */}
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <button
+                                data-popover-trigger
+                                onClick={(e) => e.stopPropagation()}
+                                title={flagMeta?.label || 'הוסף דגל'}
+                                className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition-all ${
+                                    flagMeta ? `${flagMeta.color} border-white shadow` : 'bg-white/30 border-white/70 hover:bg-white/50'
+                                }`}
+                            ></button>
+                        </PopoverTrigger>
+                        <PopoverContent className="p-2 w-52" dir="rtl" align="end">
+                            <div className="text-[10px] font-bold text-gray-500 mb-1.5">בחר דגל:</div>
+                            {Object.entries(FLAG_CONFIGS).map(([k, v]) => (
+                                <button
+                                    key={k}
+                                    onClick={(e) => { e.stopPropagation(); setHostessFlag(reservation, k); }}
+                                    className={`w-full flex items-center gap-2 text-xs font-bold px-2 py-1.5 rounded my-0.5 hover:bg-gray-100 ${flag === k ? 'bg-gray-100 ring-2 ring-indigo-400' : ''}`}
+                                >
+                                    <span className={`w-3 h-3 rounded-full ${v.color}`}></span>
+                                    <span className="text-gray-800">{v.label}</span>
+                                </button>
+                            ))}
+                            {flag && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setHostessFlag(reservation, ''); }}
+                                    className="w-full text-[11px] text-gray-500 hover:text-red-600 py-1 mt-1 border-t"
+                                >ניקוי דגל</button>
+                            )}
+                        </PopoverContent>
+                    </Popover>
+                </div>
+
+                {/* TABLE + PHONE row */}
+                <div className="mt-1.5 flex items-center justify-between gap-2 text-sm opacity-90">
+                    {phoneTel ? (
+                        <a
+                            href={`tel:${phoneTel}`}
+                            onClick={(e) => e.stopPropagation()}
+                            data-popover-trigger
+                            className="text-xs hover:underline opacity-80 hover:opacity-100"
+                            dir="ltr"
+                        >
+                            {reservation.customer_phone}
+                        </a>
+                    ) : <span></span>}
+                    <span className="flex items-center gap-2">
+                        {(reservation.deposit_status === 'authorized' || reservation.deposit_status === 'captured') && (
+                            <span className="flex items-center gap-1 text-[12px] font-bold rounded-full px-2 py-0.5 bg-emerald-100 text-emerald-800">
+                                {reservation.deposit_status === 'captured'
+                                    ? `💰 פיקדון חויב${reservation.deposit_charge_amount ? ` ₪${reservation.deposit_charge_amount}` : ''}`
+                                    : `💳 אשראי נתפס${reservation.deposit_amount ? ` ₪${reservation.deposit_amount}` : ''}`}
+                            </span>
+                        )}
+                        {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
+                            <span className="flex items-center gap-1 font-bold">
+                                <span className="text-base">🪑</span>
+                                <span className="text-lg">{reservation.assigned_table.join(',')}</span>
+                            </span>
+                        )}
+                    </span>
+                </div>
+
+                {/* SOURCE + EXTRAS row */}
+                {(sourceLabel || reservation.special_occasion || reservation.special_requests || isReturning) && (
+                    <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] opacity-90">
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                            {sourceLabel && <span>הזמנה {sourceLabel}{reservation.campaign ? ` · ${reservation.campaign}` : ''}</span>}
+                            {reservation.special_occasion && <span>· 🎉 {reservation.special_occasion}</span>}
+                        </div>
+                        {isReturning && (
+                            <span className="bg-pink-200 text-pink-900 px-1.5 py-0.5 rounded-full text-[9px] font-bold flex-shrink-0">חוזר</span>
+                        )}
+                    </div>
+                )}
+                {reservation.special_requests && (
+                    <div className="mt-1 italic text-[11px] opacity-75 truncate" title={reservation.special_requests}>
+                        "{reservation.special_requests}"
+                    </div>
+                )}
+
+                {/* NEXT reservation chip */}
+                {nextReservation && (
+                    <div className="mt-2 flex items-center gap-1.5 text-[10px] font-bold bg-white/40 backdrop-blur-sm rounded-full px-2 py-1 w-fit">
+                        <span>⏭️</span>
+                        <span>הבא בשולחן: {nextReservation.time?.slice(0,5)} · {nextReservation.customer_name || 'לקוח'} ({nextReservation.party_size || '?'})</span>
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     // ── יישר מפה ────────────────────────────────────────────────────────────
     // Zones are computed as the bounding box of their tables, so when tables from
@@ -2986,6 +2321,236 @@ export default function SeatingSetup() {
         return fullName.split(' ')[0];
     };
 
+    const ReservationsDashboard = ({ hideDatePicker = false } = {}) => {
+        const [timeFilter, setTimeFilter] = useState('');
+        const [timeBucket, setTimeBucket] = useState('all'); // all|morning|noon|evening|night
+        // Apply time bucket → set time filter to first hour digit of range
+        const TIME_BUCKETS = {
+            all:     { label: 'הכל',      test: () => true },
+            morning: { label: 'בוקר',     test: (t) => t >= '06:00' && t < '12:00' },
+            noon:    { label: 'צהריים',   test: (t) => t >= '12:00' && t < '17:00' },
+            evening: { label: 'ערב',      test: (t) => t >= '17:00' && t < '22:00' },
+            night:   { label: 'לילה',     test: (t) => t >= '22:00' || t < '06:00' },
+        };
+        const [searchTerm, setSearchTerm] = useState('');
+        // Show only reservations with NO table assigned yet — the ones the hostess
+        // still has to seat.
+        const [onlyUnassigned, setOnlyUnassigned] = useState(false);
+        // Compact list density — 6-8 cards per viewport. Persisted across renders.
+        const [compactMode, setCompactMode] = useState(() => {
+            try { return localStorage.getItem('seating_compact_mode') !== 'off'; } catch { return true; }
+        });
+        const toggleCompact = () => {
+            setCompactMode(v => {
+                const next = !v;
+                try { localStorage.setItem('seating_compact_mode', next ? 'on' : 'off'); } catch {}
+                return next;
+            });
+        };
+
+        const filteredReservations = reservations.filter(r => {
+            const statusMatch = selectedStatus === 'all' || (r.status || 'pending') === selectedStatus;
+            const timeMatch = !timeFilter || (r.time && r.time.startsWith(timeFilter));
+            const bucketMatch = timeBucket === 'all' || (r.time && TIME_BUCKETS[timeBucket]?.test(r.time));
+            const flagMatch = selectedFlag === 'all'
+                || (selectedFlag === 'none' && !r.hostess_flag)
+                || (r.hostess_flag === selectedFlag);
+            const q = searchTerm.trim().toLowerCase();
+            const searchMatch = !q || (
+                (r.customer_name || '').toLowerCase().includes(q) ||
+                (r.customer_phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
+            );
+            const assignedMatch = !onlyUnassigned
+                || !(Array.isArray(r.assigned_table) && r.assigned_table.length > 0);
+            return statusMatch && timeMatch && bucketMatch && flagMatch && searchMatch && assignedMatch;
+        });
+
+        // How many reservations still have no table — drives the filter chip's badge.
+        const unassignedCount = reservations.filter(r =>
+            !(Array.isArray(r.assigned_table) && r.assigned_table.length > 0)
+            && !['cancelled', 'no_show', 'completed'].includes(r.status)
+        ).length;
+
+        const flagCounts = reservations.reduce((c, r) => {
+            const f = r.hostess_flag || 'none';
+            c[f] = (c[f] || 0) + 1;
+            return c;
+        }, {});
+
+        const totalGuests = filteredReservations.reduce((sum, res) => sum + (res.party_size || 0), 0);
+
+        const statusCounts = reservations.reduce((counts, reservation) => {
+            const status = reservation.status || 'pending';
+            counts[status] = (counts[status] || 0) + 1;
+            counts.total = (counts.total || 0) + 1;
+            return counts;
+        }, {});
+
+        return (
+            <div className="bg-white rounded-lg p-4 shadow-sm border">
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-[#44512C]" />
+                        הזמנות ({filteredReservations.length}) - סה"כ {totalGuests} אורחים
+                    </h3>
+                    
+                    {!hideDatePicker && (
+                    <div className="flex items-center gap-1.5">
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                    <Calendar className="w-4 h-4 ml-2" />
+                                    {format(selectedDate, 'dd/MM/yyyy')}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <CalendarComponent
+                                    mode="single"
+                                    selected={selectedDate}
+                                    onSelect={date => { if(date) setSelectedDate(date)}}
+                                    initialFocus
+                                />
+                            </PopoverContent>
+                        </Popover>
+                        <Button
+                            variant="outline" size="sm"
+                            className={format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'bg-slate-900 text-white' : ''}
+                            onClick={() => setSelectedDate(new Date())}
+                        >היום</Button>
+                    </div>
+                    )}
+                </div>
+
+                {/* Search box — name or phone */}
+                <div className="mb-2 relative">
+                    <Input
+                        type="search"
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        placeholder="🔍 חפש לפי שם או טלפון..."
+                        className="w-full pr-3"
+                    />
+                </div>
+
+                {/* Hour bucket filter — quick chips, no typing */}
+                <div className="mb-2 flex flex-wrap gap-1">
+                    {['all','morning','noon','evening','night'].map(k => {
+                        const active = timeBucket === k;
+                        const emoji = { all: '🕐', morning: '🌅', noon: '☀️', evening: '🌙', night: '🌃' }[k];
+                        return (
+                            <button
+                                key={k}
+                                onClick={() => setTimeBucket(k)}
+                                className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors
+                                    ${active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200 hover:border-slate-400'}`}
+                            >{emoji} {TIME_BUCKETS[k].label}</button>
+                        );
+                    })}
+                    {/* Only reservations still WITHOUT a table — what the hostess has left to seat. */}
+                    <button
+                        onClick={() => setOnlyUnassigned(v => !v)}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors
+                            ${onlyUnassigned ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300 hover:border-amber-500'}`}
+                        title="הזמנות ללא שולחן משובץ"
+                    >🪑 בלי שולחן{unassignedCount ? ` (${unassignedCount})` : ''}</button>
+                </div>
+
+                <div className="flex gap-2 mb-4">
+                    {/* A native time input renders in the BROWSER's locale — on an iPhone
+                        set to English that's a 12-hour AM/PM field ("--:-- --"), while
+                        reservations store 24-hour "HH:mm". The filter then matched nothing.
+                        Plain text + 24h pattern keeps both sides in the same format. */}
+                    <Input
+                        type="text"
+                        inputMode="numeric"
+                        dir="ltr"
+                        maxLength={5}
+                        value={timeFilter}
+                        onChange={e => {
+                            let v = e.target.value.replace(/[^\d:]/g, '');
+                            if (v.length === 2 && !v.includes(':') && timeFilter.length < 2) v += ':';
+                            setTimeFilter(v.slice(0, 5));
+                        }}
+                        className="w-24 text-center tabular-nums"
+                        placeholder="20:00"
+                        title="סינון לפי שעה — פורמט 24 שעות, למשל 20:00"
+                    />
+                    <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                        <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="בחר סטטוס" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">הכל ({statusCounts.total || 0})</SelectItem>
+                            <SelectItem value="request">בקשה ({statusCounts.request || 0})</SelectItem>
+                            <SelectItem value="pending">ממתין ({statusCounts.pending || 0})</SelectItem>
+                            <SelectItem value="confirmed">מאושר ({statusCounts.confirmed || 0})</SelectItem>
+                            <SelectItem value="standby">סטנדבי ({statusCounts.standby || 0})</SelectItem>
+                            <SelectItem value="seated">יושב ({statusCounts.seated || 0})</SelectItem>
+                            <SelectItem value="finishing_soon">מסיים בקרוב ({statusCounts.finishing_soon || 0})</SelectItem>
+                            <SelectItem value="completed">סיים ({statusCounts.completed || 0})</SelectItem>
+                            <SelectItem value="cancelled">בוטל ({statusCounts.cancelled || 0})</SelectItem>
+                            <SelectItem value="no_show">הבריז ({statusCounts.no_show || 0})</SelectItem>
+                            <SelectItem value="deleted">מחוק ({statusCounts.deleted || 0})</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* Flag filter — colored pill row */}
+                <div className="mb-4 flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">דגל:</span>
+                    {[
+                        { k: 'all',    label: 'הכל',  cls: 'bg-gray-100 text-gray-700 border-gray-200' },
+                        { k: 'none',   label: '○',    cls: 'bg-white text-gray-500 border-gray-300', title: 'בלי דגל' },
+                        { k: 'green',  label: '●',    cls: 'bg-emerald-500 text-white border-emerald-700', title: 'התקשרנו, מגיע' },
+                        { k: 'orange', label: '●',    cls: 'bg-orange-500 text-white border-orange-700', title: 'התקשרנו, מאחר' },
+                        { k: 'red',    label: '●',    cls: 'bg-red-500 text-white border-red-700', title: 'התקשרנו, לא ענה' },
+                        { k: 'black',  label: '●',    cls: 'bg-zinc-900 text-white border-zinc-700', title: 'בעייתי' },
+                    ].map(f => {
+                        const count = f.k === 'all'
+                            ? reservations.length
+                            : (flagCounts[f.k] || 0);
+                        const active = selectedFlag === f.k;
+                        return (
+                            <button
+                                key={f.k}
+                                onClick={() => setSelectedFlag(f.k)}
+                                title={f.title || f.label}
+                                className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-all
+                                    ${f.cls} ${active ? 'ring-2 ring-indigo-500 ring-offset-1 scale-105' : 'opacity-70 hover:opacity-100'}`}
+                            >
+                                {f.label} <span className="opacity-80">({count})</span>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* Density toggle */}
+                <div className="flex items-center justify-end mb-1.5 gap-1">
+                    <button
+                        onClick={toggleCompact}
+                        title={compactMode ? 'הצג קלפים גדולים' : 'הצג קלפים קומפקטיים'}
+                        className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-colors
+                            ${compactMode ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200'}`}
+                    >{compactMode ? '☰ קומפקטי' : '▦ מורחב'}</button>
+                </div>
+                <div className={`overflow-y-auto ${compactMode ? 'space-y-1 max-h-[calc(100vh-180px)]' : 'space-y-2 max-h-[calc(100vh-200px)]'}`}>
+                    {filteredReservations.length > 0 ? (
+                        filteredReservations.map(reservation => (
+                            <ReservationCard key={reservation.id} reservation={reservation} compact={compactMode} />
+                        ))
+                    ) : (
+                        <div className="text-center py-8 text-gray-500">
+                            <Calendar className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                            <p>אין הזמנות</p>
+                            {selectedStatus !== 'all' && (
+                                <p className="text-sm">עם הסינון הנוכחי</p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
 
     const handleReleaseTable = async (tableNumber) => {
         const session = getTableSession(tableNumber);
@@ -3031,6 +2596,424 @@ export default function SeatingSetup() {
         }
     };
 
+    const TableDetailsDialog = ({ table, session }) => {
+        if (!table) return null;
+
+        const progress = session ? Math.round(((session.steps_completed?.length || 0) / 23) * 100) : 0;
+        const currentStepInfo = getStepInfo(session?.current_step);
+        
+        const futureReservations = reservations.filter(r => 
+            Array.isArray(r.assigned_table) && r.assigned_table.includes(table.table_number) && 
+            (r.status === 'confirmed' || r.status === 'pending') &&
+            new Date(`${r.date}T${r.time}`) > new Date()
+        ).sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
+
+        const availableTables = tables.filter(t => t.table_number !== table.table_number && !getTableSession(t.table_number));
+
+        // A guest seated via a RESERVATION (not a live session) — so we can offer
+        // edit / move for them too (the session path is handled separately below).
+        const seatedRes = reservations.find(r =>
+            Array.isArray(r.assigned_table) && r.assigned_table.includes(table.table_number) &&
+            r.date === format(new Date(), 'yyyy-MM-dd') && r.status === 'seated'
+        );
+
+        const handleEditReservation = (reservation) => {
+            setEditingReservation(reservation);
+            setIsEditReservationOpen(true);
+            setTableDetailsOpen(false);
+        };
+
+        const handleMoveReservation = (reservation) => {
+            startMultiTableSelection(reservation.id);
+            setTableDetailsOpen(false);
+        };
+        
+        // Shared with the phone list's 🔀 button — see moveOccupantToTable.
+        const handleMoveToSpecificTable = async (targetTable) => {
+            setTableDetailsOpen(false);
+            await moveOccupantToTable(table.table_number, targetTable);
+        };
+
+        return (
+            <DialogContent className="w-full h-full sm:h-auto max-w-full sm:max-w-[700px] sm:max-h-[85vh] overflow-y-auto rounded-none sm:rounded-lg" dir="rtl">
+                {/* The dialog used to open on "🚨 פתח תקרית" and "הסר שולחן מהמערכת" —
+                    an emergency and a destructive setup action — with "who is sitting
+                    here" buried below them. Live state first; setup collapses at the
+                    bottom. */}
+                <DialogHeader>
+                    <DialogTitle className="text-xl">שולחן {table.table_number}</DialogTitle>
+                    <div className="text-[13px] text-gray-500">
+                        {table.area || 'ללא אזור'} · {table.location === 'indoor' ? '🏠 פנים' : '🌿 חוץ'} ·{' '}
+                        {table.min_capacity === table.max_capacity ? table.max_capacity : `${table.min_capacity}-${table.max_capacity}`} מקומות
+                    </div>
+                </DialogHeader>
+
+                <div className="space-y-4 py-3">
+                    {futureReservations.length > 0 && (
+                        <div className="border rounded-lg p-4 bg-[#F4ECD8]">
+                            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                                <Calendar className="w-5 h-5 text-[#44512C]" />
+                                הזמנות עתידיות ({futureReservations.length})
+                            </h3>
+                            <div className="space-y-2">
+                                {futureReservations.map((reservation) => {
+                                    // Two parties on one table at the same time is physically
+                                    // impossible; listing them as an ordinary row let it pass
+                                    // unnoticed. Flag it where the manager is already looking.
+                                    const clashes = findTableConflicts(reservations, table.table_number, reservation);
+                                    return (
+                                    <div key={reservation.id} className={`bg-white p-3 rounded border flex justify-between items-center group ${
+                                        clashes.length ? 'border-rose-300 bg-rose-50' : 'border-[#E8D9B5]'
+                                    }`}>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-semibold text-[#2E3819]">{reservation.customer_name}</span>
+                                                <span className="text-sm text-gray-600">({reservation.party_size} אנשים)</span>
+                                                <span className="text-sm text-[#44512C]">
+                                                    {format(new Date(reservation.date), 'dd/MM')} בשעה {reservation.time?.slice(0, 5)}
+                                                </span>
+                                            </div>
+                                            {reservation.special_requests && (
+                                                <div className="text-xs text-gray-500 mt-1">"{reservation.special_requests}"</div>
+                                            )}
+                                            {clashes.length > 0 && (
+                                                <div className="text-[11px] text-rose-700 font-semibold mt-1">
+                                                    ⚠️ מתנגש עם {clashes.map(c => `${c.customer_name} ${String(c.time).slice(0, 5)}`).join(' · ')} — אותו שולחן באותו זמן
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => handleEditReservation(reservation)}>
+                                                <Edit className="w-4 h-4" />
+                                            </Button>
+                                            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => handleMoveReservation(reservation)}>
+                                                <ArrowRight className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {!session && seatedRes && (
+                        <div className="border rounded-lg p-4 bg-green-50 border-green-200">
+                            <h3 className="font-bold text-lg mb-1 flex items-center gap-2">
+                                <Users className="w-5 h-5 text-green-600" />
+                                יושבים כעת: {seatedRes.customer_name} <span className="text-sm text-gray-500">({seatedRes.party_size} · {seatedRes.time?.slice(0, 5)})</span>
+                            </h3>
+                            <p className="text-xs text-gray-500 mb-3">אפשר לערוך את ההזמנה או להעביר את היושבים לשולחן אחר.</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <Button variant="outline" onClick={() => handleEditReservation(seatedRes)}>
+                                    <Edit className="w-4 h-4 ml-2" /> ערוך הזמנה
+                                </Button>
+                                <Button variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => handleMoveReservation(seatedRes)}>
+                                    <ArrowRight className="w-4 h-4 ml-2" /> העבר לשולחן אחר
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
+                    {session && (
+                        <>
+                            <div className="border rounded-lg p-4 bg-[#F4ECD8]">
+                                <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                                    <Users className="w-5 h-5 text-[#44512C]" />
+                                    פרטי הפגישה הפעילה
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label className="text-sm font-semibold text-gray-600">שם הלקוח</Label>
+                                        <div className="text-lg">{session.customer_name || 'לא צוין'}</div>
+                                    </div>
+                                    <div>
+                                        <Label className="text-sm font-semibold text-gray-600">מספר אנשים</Label>
+                                        <div className="text-lg">{session.party_size}</div>
+                                    </div>
+                                    <div>
+                                        <Label className="text-sm font-semibold text-gray-600">מלצר אחראי</Label>
+                                        <div className="text-lg">{session.waiter_name}</div>
+                                    </div>
+                                    <div>
+                                        <Label className="text-sm font-semibold text-gray-600 flex items-center gap-1">
+                                            <Phone className="w-4 h-4" />
+                                            טלפון לקוח
+                                        </Label>
+                                        <div className="text-lg">{session.customer_phone || 'לא צוין'}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="border rounded-lg p-4 bg-orange-50">
+                                <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                                    <Wrench className="w-5 h-5 text-orange-600" />
+                                    פעולות על השולחן
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <Button 
+                                        onClick={() => handleReleaseTable(table.table_number)}
+                                        variant="outline"
+                                        className="bg-[#F4ECD8] border-[#D9BD83] text-yellow-800 hover:bg-yellow-200"
+                                    >
+                                        <Ban className="w-4 h-4 ml-2" />
+                                        הוצא מישיבה
+                                    </Button>
+                                    <Button 
+                                        onClick={() => handleTableStatusChange(table.table_number, 'cleaning')}
+                                        variant="outline"
+                                        className="bg-[#F4ECD8] border-[#D9BD83] text-yellow-800 hover:bg-yellow-200"
+                                    >
+                                        <Ban className="w-4 h-4 ml-2" />
+                                        העבר לניקוי
+                                    </Button>
+                                    
+                                    <div className="md:col-span-2">
+                                        <h4 className="font-bold text-md mb-2 flex items-center gap-2">
+                                            <ArrowRight className="w-4 h-4 text-orange-600" />
+                                            העברת הזמנה לשולחן אחר:
+                                        </h4>
+                                        <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
+                                            {availableTables.length > 0 ? (
+                                                availableTables.map(availableTable => (
+                                                    <Button 
+                                                        key={availableTable.table_number}
+                                                        variant="outline" 
+                                                        size="sm"
+                                                        className="justify-between"
+                                                        onClick={() => handleMoveToSpecificTable(availableTable.table_number)}
+                                                    >
+                                                        <span>{availableTable.table_number}</span>
+                                                        <span className="text-xs">({availableTable.min_capacity}-{availableTable.max_capacity})</span>
+                                                    </Button>
+                                                ))
+                                            ) : (
+                                                <p className="text-gray-500 text-sm col-span-3">אין שולחנות פנויים כרגע להעברה.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="border rounded-lg p-4 bg-green-50">
+                                <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                                    <Clock className="w-5 h-5 text-green-600" />
+                                    זמני הפגישה
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <Label className="text-sm font-semibold text-gray-600">התחיל בשעה</Label>
+                                        <div className="text-lg">
+                                            {session.session_start ? 
+                                                new Date(session.session_start).toLocaleTimeString('he-IL', {hour: '2-digit', minute: '2-digit'}) 
+                                                : 'לא ידוע'
+                                            }
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <Label className="text-sm font-semibold text-gray-600">זמן פעיל</Label>
+                                        <div className="text-lg font-bold text-green-600">{getActiveTime(session)}</div>
+                                    </div>
+                                    <div>
+                                        <Label className="text-sm font-semibold text-gray-600">זמן סיום מעורב</Label>
+                                        <div className="text-lg">
+                                            {session.session_end ? 
+                                                new Date(session.session_end).toLocaleTimeString('he-IL', {hour: '2-digit', minute: '2-digit'}) 
+                                                : 'עדיין פעיל'
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="border rounded-lg p-4 bg-[#F4ECD8]">
+                                <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                                    <ChefHat className="w-5 h-5 text-[#A04A2E]" />
+                                    התקדמות השירות
+                                </h3>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm font-semibold">שלב נוכחי: {session.current_step}/23</span>
+                                        <span className="text-lg font-bold text-[#A04A2E]">{progress}%</span>
+                                    </div>
+                                    <Progress value={progress} className="h-3" />
+                                    <div className="bg-white p-3 rounded border">
+                                        <div className="font-semibold text-[#7A3722]">{currentStepInfo?.step_name || 'שלב לא ידוע'}</div>
+                                        <div className="text-sm text-gray-600 mt-1">{currentStepInfo?.description || ''}</div>
+                                    </div>
+                                    <div className="text-sm text-gray-600">
+                                        <span className="font-semibold">שלבים שהושלמו:</span> {session.steps_completed?.length || 0}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="border rounded-lg p-4 bg-orange-50">
+                                <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                                    <ChefHat className="w-5 h-5 text-orange-600" />
+                                    פרטי הזמנה
+                                </h3>
+                                <div className="space-y-3">
+                                    <div>
+                                        <Label className="text-sm font-semibold text-gray-600">סגנון השולחן</Label>
+                                        <div className="text-lg capitalize">{session.table_style?.replace('_', ' ') || 'רגיל'}</div>
+                                    </div>
+                                    <div>
+                                        <Label className="text-sm font-semibold text-gray-600">בקשות מיוחדות</Label>
+                                        <div className="text-sm bg-white p-2 rounded border">
+                                            {session.special_requests || 'אין בקשות מיוחדות'}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <Label className="text-sm font-semibold text-gray-600">הערות</Label>
+                                        <div className="text-sm bg-white p-2 rounded border">
+                                            {session.notes || 'אין הערות'}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-3 p-3 bg-[#F4ECD8] rounded-lg">
+                                    <div className="text-sm text-yellow-800">
+                                        💡 <strong>הערה:</strong> מערכת ההזמנות עדיין לא מחוברת. בעתיד כאן יופיעו פרטי המנות שהוזמנו ומה עדיין חסר.
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    {/* Free — and it really is free. This used to render alongside
+                        "יושבים כעת" whenever a guest was seated straight off a
+                        reservation (no TableSession), so the same dialog said the table
+                        was both occupied and empty. */}
+                    {!session && !seatedRes && (
+                        <div className="text-center py-6">
+                            <div className="text-5xl mb-3">😴</div>
+                            <h3 className="text-xl font-bold text-gray-600 mb-1">השולחן פנוי</h3>
+                            <p className="text-gray-500 mb-4 text-sm">אין פעילות כרגע בשולחן זה</p>
+                            {/* The most common hostess gesture — "guest at the door, this table
+                                is open" — had no path from the map at all: the empty state was a
+                                dead end and she had to leave the table, open הושבה מהירה and find
+                                it again in a grid. */}
+                            <Button
+                                onClick={() => {
+                                    setQuickSeatTable(table);
+                                    setTableDetailsOpen(false);
+                                    setQuickSeatOpen(true);
+                                }}
+                                className="bg-[#A04A2E] hover:bg-[#7A3722] text-white font-bold gap-2 px-6 py-5 text-base"
+                            >
+                                🪑 הושב כאן
+                            </Button>
+                            <p className="text-[11px] text-gray-400 mt-2">
+                                מזמין מזדמן או אורח מהתור — {table.min_capacity}-{table.max_capacity} סועדים
+                            </p>
+                        </div>
+                    )}
+
+                    {/* ── Setup, collapsed. Shape, zone and "remove from the system" are
+                        things you touch when building the map, not during service. */}
+                    <div className="border rounded-lg overflow-hidden">
+                        <button
+                            onClick={() => setTableSettingsOpen(v => !v)}
+                            className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 text-[13px] font-semibold text-gray-700"
+                        >
+                            <span className="text-gray-400 text-[11px]">{tableSettingsOpen ? '▲' : '▼'}</span>
+                            <span>⚙️ הגדרות השולחן</span>
+                        </button>
+                        {tableSettingsOpen && (
+                            <div className="p-3 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant={table.shape !== 'round' ? 'default' : 'outline'}
+                                            onClick={() => setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, shape: 'rect' } : t))}
+                                        >⬛ מרובע</Button>
+                                        <Button
+                                            size="sm"
+                                            variant={table.shape === 'round' ? 'default' : 'outline'}
+                                            onClick={() => setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, shape: 'round' } : t))}
+                                        >⭕ עגול</Button>
+                                    </div>
+                                    <Label className="text-sm font-semibold text-gray-600">צורה</Label>
+                                </div>
+
+                                {/* Move a table between zones — or out of all of them. Zone
+                                    backdrops are drawn from their members' bounding box, so one
+                                    stray table stretches a zone across the room and its colour
+                                    bleeds over everything. Reassigning is the real fix. */}
+                                <div className="flex items-center justify-between">
+                                    <select
+                                        value={table.area || ''}
+                                        onChange={(e) => {
+                                            const area = e.target.value || null;
+                                            setTables(prev => prev.map(t => t.table_number === table.table_number ? { ...t, area } : t));
+                                            showToast(`שולחן ${table.table_number} הועבר ל${area || 'ללא אזור'} — לחץ "שמור" במפה`);
+                                        }}
+                                        className="border rounded-lg px-2 py-1.5 text-sm bg-white"
+                                    >
+                                        <option value="">ללא אזור</option>
+                                        {[...new Set(tables.map(t => t.area).filter(Boolean))].map(a => (
+                                            <option key={a} value={a}>{a}</option>
+                                        ))}
+                                    </select>
+                                    <Label className="text-sm font-semibold text-gray-600">אזור</Label>
+                                </div>
+
+                                <p className="text-[11px] text-gray-400">שינוי צורה או אזור נשמר בלחיצה על "שמור" בפס המפה.</p>
+
+                                {/* Remove this table from the WHOLE system — map, every priority list, auto-assign */}
+                                <Button
+                                    variant="outline"
+                                    className="w-full text-red-700 border-red-300 hover:bg-red-50"
+                                    onClick={() => {
+                                        const num = String(table.table_number);
+                                        if (session || seatedRes) {
+                                            alert('לא ניתן להסיר שולחן שיושבים עליו כרגע. שחרר אותו קודם.');
+                                            return;
+                                        }
+                                        if (!window.confirm(`להסיר את שולחן ${num} מהמערכת לגמרי?\n\nהוא ייעלם מהמפה, מכל רשימות העדיפות ומהשיבוץ האוטומטי.\n(יש ללחוץ "שמור" אחר כך כדי לשמור.)`)) return;
+                                        // Drop the table, scrub it from every other table's combinable_with,
+                                        // and remove any priority entry (combo) that referenced it.
+                                        setTables(prev => prev
+                                            .filter(t => String(t.table_number) !== num)
+                                            .map(t => ({ ...t, combinable_with: (Array.isArray(t.combinable_with) ? t.combinable_with : []).filter(x => String(x) !== num) })));
+                                        setCombos(prev => prev.filter(c => !((Array.isArray(c.tables) ? c.tables : []).map(String).includes(num))));
+                                        setTableDetailsOpen(false);
+                                    }}
+                                >
+                                    <Trash2 className="w-4 h-4 ml-2" />
+                                    הסר שולחן מהמערכת
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Incidents, collapsed — opening one is rare and reading the log rarer. */}
+                    <div className="border rounded-lg overflow-hidden">
+                        <button
+                            onClick={() => setTableIncidentsOpen(v => !v)}
+                            className="w-full flex items-center justify-between px-3 py-2.5 bg-red-50 text-[13px] font-semibold text-red-700"
+                        >
+                            <span className="text-red-300 text-[11px]">{tableIncidentsOpen ? '▲' : '▼'}</span>
+                            <span>🚨 תקריות</span>
+                        </button>
+                        {tableIncidentsOpen && (
+                            <div className="p-3 space-y-3">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
+                                    onClick={() => { setTableDetailsOpen(false); setIncidentTableNumber(table.table_number); }}
+                                >
+                                    🚨 פתח תקרית חדשה
+                                </Button>
+                                <TableIncidentHistory tableNumber={table.table_number} />
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </DialogContent>
+        );
+    };
 
     if (isLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="w-8 h-8 animate-spin" /> טוען הגדרות...</div>;
     
@@ -3392,24 +3375,6 @@ export default function SeatingSetup() {
         return { occupiedTables, guestsInside, arriving1h, guestsArriving1h, arriving4h, totalReservationsToday };
     })();
 
-    // One shared context handed to the three module-scope components (ReservationCard,
-    // ReservationsDashboard, TableDetailsDialog). Rebuilt each render — fine: that's a
-    // normal re-render, NOT a remount, so their internal state (the hostess's
-    // search/filter) survives. Declared after every dep above is defined, and after the
-    // isLoading early return, so it's a plain const (not a hook) — no hook-order risk.
-    const __seatingCtx = {
-        getReservationStatusConfig, visitsFor, FLAG_CONFIGS, setEditingReservation,
-        setIsEditReservationOpen, reservations, setAiPrefillQuestion, setAiOpen,
-        STATUS_OPTIONS, STATUS_CONFIGS, setStatus, setHostessFlag,
-        selectedStatus, setSelectedStatus, selectedFlag, setSelectedFlag,
-        selectedDate, setSelectedDate,
-        getStepInfo, tables, getTableSession, setTableDetailsOpen,
-        startMultiTableSelection, moveOccupantToTable, handleReleaseTable,
-        handleTableStatusChange, getActiveTime, setTables, setCombos, showToast,
-        tableSettingsOpen, setTableSettingsOpen, tableIncidentsOpen,
-        setTableIncidentsOpen, setIncidentTableNumber, setQuickSeatTable, setQuickSeatOpen,
-    };
-
     return (
         <div
             dir="rtl"
@@ -3707,7 +3672,7 @@ export default function SeatingSetup() {
                                         ? 'block'
                                         : 'hidden lg:block'
                                 }`}>
-                                    <ReservationsDashboard __ctx={__seatingCtx} />
+                                    <ReservationsDashboard />
                                     <ReservationTool onReservationCreated={loadLayout} />
                                 </div>
                                 )}
@@ -3893,7 +3858,7 @@ export default function SeatingSetup() {
                                         </div>
                                     )}
 
-                                    {railTab === 'full' && <ReservationsDashboard hideDatePicker __ctx={__seatingCtx} />}
+                                    {railTab === 'full' && <ReservationsDashboard hideDatePicker />}
                                     {railTab === 'tonight' && (
                                         <CompactTonightStrip
                                             reservations={reservations}
@@ -4947,10 +4912,9 @@ export default function SeatingSetup() {
                     )}
 
                     <Dialog open={tableDetailsOpen} onOpenChange={setTableDetailsOpen}>
-                        <TableDetailsDialog
-                            table={selectedTable}
-                            session={selectedTable ? getTableSession(selectedTable.table_number) : null}
-                            __ctx={__seatingCtx}
+                        <TableDetailsDialog 
+                            table={selectedTable} 
+                            session={selectedTable ? getTableSession(selectedTable.table_number) : null} 
                         />
                     </Dialog>
                      <TableIncidentDialog
@@ -5290,7 +5254,7 @@ export default function SeatingSetup() {
                             </button>
                         </div>
                         <div className="space-y-4">
-                            <ReservationsDashboard __ctx={__seatingCtx} />
+                            <ReservationsDashboard />
                             <ReservationTool onReservationCreated={loadLayout} />
                         </div>
                     </div>
