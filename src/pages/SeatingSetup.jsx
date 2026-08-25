@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { SeatingLayout } from '@/entities/SeatingLayout';
 import { TableSession } from '@/entities/TableSession';
 import { ServiceStep } from '@/entities/ServiceStep';
@@ -50,6 +50,25 @@ function clockToDate(hhmm, ref = new Date()) {
     d.setHours(h, Number.isNaN(m) ? 0 : m, 0, 0);
     if (h < 6 && ref.getHours() >= 18) d.setDate(d.getDate() + 1);
     return d;
+}
+// Isolated wall-clock chip. The 30s tick lives HERE, so it re-renders only this
+// tiny component — not the whole seating board. Before, the tick sat in the page
+// component and forced a full re-render every 30s, which remounted the inline
+// dashboard/cards (wiping the hostess's search box) and re-ran the heavy
+// per-table occupancy pass for nothing. The map's real liveness — the 60s poll
+// and the realtime push that pull in online reservations — is untouched by this.
+function LiveClock() {
+    const [now, setNow] = useState(() => new Date());
+    useEffect(() => {
+        const id = setInterval(() => setNow(new Date()), 30000);
+        return () => clearInterval(id);
+    }, []);
+    return (
+        <>
+            <span className="text-sm font-bold tabular-nums leading-none">{format(now, 'HH:mm')}</span>
+            <span className="text-[9px] opacity-70 leading-none">{format(now, 'EEE dd/MM', { locale: he })}</span>
+        </>
+    );
 }
 // True when clock time `a` is at or before clock time `b`, both anchored tonight
 // (after-midnight aware). Used for "occupant frees before the next booking".
@@ -652,7 +671,10 @@ export default function SeatingSetup() {
     // unsaved — otherwise it's a button that does nothing 99% of the time, in a
     // strip where every slot has to be worth its space. Snapshot on load + save.
     const savedLayoutRef = useRef('');
-    const layoutFingerprint = JSON.stringify({ tables, facilities, combos });
+    // Serializing the whole 57-table layout on every render (incl. every clock
+    // tick) just to decide if "שמור" is dirty was pure waste — memoize it so it
+    // only re-runs when the layout actually changes.
+    const layoutFingerprint = useMemo(() => JSON.stringify({ tables, facilities, combos }), [tables, facilities, combos]);
     const layoutDirty = savedLayoutRef.current !== '' && savedLayoutRef.current !== layoutFingerprint;
     const [activeSessions, setActiveSessions] = useState([]);
     const [serviceSteps, setServiceSteps] = useState([]);
@@ -747,7 +769,6 @@ export default function SeatingSetup() {
     const [showZoneColors, setShowZoneColors] = useState(() => localStorage.getItem('map_zone_colors') !== 'false');
     useEffect(() => { localStorage.setItem('map_zone_colors', String(showZoneColors)); }, [showZoneColors]);
     const [smartReserveOpen, setSmartReserveOpen] = useState(false); // smart-recommended reservation dialog
-    const [clockTick, setClockTick] = useState(() => new Date());
     const [aiOpen, setAiOpen] = useState(false); // floating AI assistant widget
     const [aiPrefillQuestion, setAiPrefillQuestion] = useState(''); // when a per-reservation ✨ button is clicked
     const [mobileSheetOpen, setMobileSheetOpen] = useState(false);  // slide-up reservations dashboard on mobile
@@ -933,13 +954,8 @@ export default function SeatingSetup() {
     // The 'voice:data-changed' useEffect moved further down — AFTER loadQueue
     // is declared (otherwise TDZ error 'Cannot access loadQueue before init').
 
-    // Digital clock — tick every second for the top action bar display
-    useEffect(() => {
-        // 30s tick — second-precision was forcing a full page re-render every
-        // second, which caused the reservation rail to flicker / scroll-reset.
-        const id = setInterval(() => setClockTick(new Date()), 30000);
-        return () => clearInterval(id);
-    }, []);
+    // (The wall-clock tick now lives inside <LiveClock/> so it re-renders only
+    // that chip — not the whole board. See the component near the top of the file.)
 
     // --- Poll queue entries every 15s. Pops a banner when a NEW entry arrives.
     const [abandonedEntries, setAbandonedEntries] = useState([]);
@@ -3338,7 +3354,7 @@ export default function SeatingSetup() {
     // ─── LIVE STATUS computed from current state ────────────────────────────
     // Tables actively seated, guests inside now, and reservations arriving in
     // the next 60 / 240 minutes. The hostess sees this AT A GLANCE.
-    const liveStats = (() => {
+    const liveStats = useMemo(() => {
         const now = new Date();
         const occupiedTables = occupiedTableSet(activeSessions, reservations).size;
         const guestsInside = activeSessions.reduce((s, sess) => s + (sess.party_size || 0), 0);
@@ -3354,7 +3370,7 @@ export default function SeatingSetup() {
         }
         const totalReservationsToday = (reservations || []).filter(r => r.status !== 'cancelled').length;
         return { occupiedTables, guestsInside, arriving1h, guestsArriving1h, arriving4h, totalReservationsToday };
-    })();
+    }, [activeSessions, reservations]);
 
     return (
         <div
@@ -4121,8 +4137,7 @@ export default function SeatingSetup() {
                                                 : 'מסתנכרן ברקע — מתחבר מחדש'}
                                         >
                                             <span className={`w-2 h-2 rounded-full ${realtimeConnected ? 'bg-emerald-400 animate-pulse' : 'bg-gray-400'}`}></span>
-                                            <span className="text-sm font-bold tabular-nums leading-none">{format(clockTick, 'HH:mm')}</span>
-                                            <span className="text-[9px] opacity-70 leading-none">{format(clockTick, 'EEE dd/MM', { locale: he })}</span>
+                                            <LiveClock />
                                         </div>
                                     </div>
 
@@ -5013,7 +5028,10 @@ export default function SeatingSetup() {
                 dialog: this answers "what's going on there?" at a glance and closes. */}
             {peekTable && (() => {
                 const t = peekTable;
-                const nowHHmm = format(clockTick, 'HH:mm');
+                // Peek is a glance-and-close modal — a snapshot at open is right
+                // (no page-level tick to depend on now that the clock is isolated).
+                const peekNow = new Date();
+                const nowHHmm = format(peekNow, 'HH:mm');
                 const sess = getTableSession(t.table_number);
                 const dayRes = reservations
                     .filter(r => Array.isArray(r.assigned_table) && r.assigned_table.map(String).includes(String(t.table_number))
@@ -5026,7 +5044,7 @@ export default function SeatingSetup() {
                 const nextRes = upcoming.find(r => r.time && r.time.slice(0, 5) >= nowHHmm);
                 const focusRes = seated || nextRes || upcoming[0] || null;
                 const endTime = seated?.reservation_end_time || null;
-                const minsLeft = endTime ? Math.round((clockToDate(endTime, clockTick) - clockTick) / 60000) : null;
+                const minsLeft = endTime ? Math.round((clockToDate(endTime, peekNow) - peekNow) / 60000) : null;
 
                 return (
                     <div
