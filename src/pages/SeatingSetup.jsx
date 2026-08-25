@@ -2356,9 +2356,13 @@ export default function SeatingSetup() {
                 || (selectedFlag === 'none' && !r.hostess_flag)
                 || (r.hostess_flag === selectedFlag);
             const q = searchTerm.trim().toLowerCase();
+            const qDigits = q.replace(/\D/g, '');
             const searchMatch = !q || (
                 (r.customer_name || '').toLowerCase().includes(q) ||
-                (r.customer_phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
+                // Phone match ONLY when the query actually contains digits.
+                // Otherwise q.replace(/\D/g,'') === '' and ''.includes('') is
+                // always true, so a NAME search matched every row (= no filtering).
+                (qDigits !== '' && (r.customer_phone || '').replace(/\D/g, '').includes(qDigits))
             );
             const assignedMatch = !onlyUnassigned
                 || !(Array.isArray(r.assigned_table) && r.assigned_table.length > 0);
@@ -5282,8 +5286,10 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
             // Search must still apply to timeless rows, so it runs before the
             // time cutoff, not after.
             if (q) {
+                const qDigits = q.replace(/\D/g, '');
                 const nameMatch = (r.customer_name || '').toLowerCase().includes(q);
-                const phoneMatch = (r.customer_phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''));
+                // digits-only guard — see note in ReservationsDashboard: ''.includes('') is always true
+                const phoneMatch = qDigits !== '' && (r.customer_phone || '').replace(/\D/g, '').includes(qDigits);
                 if (!nameMatch && !phoneMatch) return false;
             }
             if (!r.time) return true;
@@ -6163,8 +6169,10 @@ function AiAssistantPanel({ tables, reservations, activeSessions, queueEntries, 
         if (!isPending) return false;
         if (!existingSearch.trim()) return true;
         const q = existingSearch.trim().toLowerCase();
+        const qDigits = q.replace(/\D/g, '');
         return (r.customer_name || '').toLowerCase().includes(q) ||
-               (r.customer_phone || '').includes(q.replace(/\D/g, ''));
+               // digits-only guard — ''.includes('') is always true, see ReservationsDashboard note
+               (qDigits !== '' && (r.customer_phone || '').replace(/\D/g, '').includes(qDigits));
     }).slice(0, 20);
     const [collapsed, setCollapsed] = useState(false);
     const [chatQuestion, setChatQuestion] = useState(prefillQuestion || '');
