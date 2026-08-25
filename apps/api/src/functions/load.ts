@@ -13615,6 +13615,10 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   }
   // A day event can cap the evening below the room's normal capacity. Checked
   // here rather than in the page, because a direct POST bypasses the page.
+  // isDayEvent also drives "way B": a special evening accepts bookings up to its
+  // capacity regardless of whether a specific table is free right now (the host
+  // seats them), instead of dropping large parties onto the waitlist.
+  let isDayEvent = false;
   {
     await ensureDayEvents();
     const d = ymd(date);
@@ -13622,6 +13626,7 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
       const evRows: any[] = await (prisma as any).$queryRawUnsafe(
         `SELECT capacity FROM "DayEvent" WHERE "event_date"=$1::date AND active=true LIMIT 1`, d,
       ).catch(() => []);
+      isDayEvent = evRows.length > 0;
       const cap = Number(evRows[0]?.capacity || 0);
       if (cap > 0) {
         const booked = await seatsBookedOn(d);
@@ -13739,8 +13744,15 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
     }
   }
 
-  // Mark this as standby if we got here from the slot-full + accept_standby branch.
-  const isStandby = !(avail.canAccommodate && avail.table);
+  // No free table right now. On a normal date that means the waitlist. On a
+  // special evening (way B) we ACCEPT it instead — table-less, to be seated by
+  // the host — so a party isn't dropped onto a waitlist and, crucially, its
+  // deposit IS collected inline (willCollectDeposit needs !isStandby). Way A
+  // (the safety net) then covers anything that genuinely does land on standby
+  // with a deposit due.
+  const wouldStandby = !(avail.canAccommodate && avail.table);
+  const eventAcceptNoTable = wouldStandby && isDayEvent;
+  const isStandby = wouldStandby && !isDayEvent;
 
   // Already waitlisted, and this attempt is another waitlist entry — that's the
   // duplicate, not an upgrade. Only a real table earns the pass-through.
@@ -13832,7 +13844,8 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
     for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
     return h; // 32-bit signed — fits pg_advisory_xact_lock(int)
   })();
-  let wantedTables: string[] = isStandby
+  // No table to claim for a waitlist entry OR a table-less event accept.
+  let wantedTables: string[] = (isStandby || eventAcceptNoTable)
     ? []
     : (Array.isArray(avail.table?.table_numbers) ? avail.table.table_numbers.map(String) : [String(avail.table.table_number)]);
 
@@ -13844,15 +13857,17 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
   const policyNow = await getReservationPolicy();
   const { start: lockDayStart, next: lockDayNext } = dayRange(date);
   // Pre-loaded so the locked section can re-pick a table without extra queries.
-  const lockLayout = isStandby ? null : await db.seatingLayout.findFirst().catch(() => null);
-  const lockSessions = isStandby ? [] : await db.tableSession.findMany({ where: { status: 'active' } }).catch(() => []);
+  const lockLayout = (isStandby || eventAcceptNoTable) ? null : await db.seatingLayout.findFirst().catch(() => null);
+  const lockSessions = (isStandby || eventAcceptNoTable) ? [] : await db.tableSession.findMany({ where: { status: 'active' } }).catch(() => []);
 
   let reservation: any;
   try {
     reservation = await (prisma as any).$transaction(async (tx: any) => {
       await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1::int)', slotLockKey);
-      // Standby rows don't consume capacity or a table — skip the re-check.
-      if (!isStandby) {
+      // Standby rows and table-less event accepts don't claim a table, and an
+      // event is capped by its own capacity (checked above), not the per-slot
+      // limit — so skip the table/slot re-check for both.
+      if (!isStandby && !eventAcceptNoTable) {
         const sameDayRows: any[] = await tx.reservation.findMany({ where: { date: { gte: lockDayStart, lt: lockDayNext } } });
         const liveRow = (x: any) => x.status !== 'cancelled' && x.status !== 'no_show' && !isStaleUnpaidHold(x);
         const startMin = toMin(time);
@@ -14278,11 +14293,48 @@ registerFn('createPublicReservation', async ({ body, req }: any) => {
     }
   }
 
+  // Way A (safety net): a genuine WAITLIST booking that still owes a deposit gets
+  // the payment link SENT to it — not an inline redirect (there's no table yet),
+  // just a message so the guest can secure their spot with a card hold now (a J5
+  // hold, released if they never get seated). Non-fatal: a standby booking always
+  // succeeds even if the link can't be made. Skipped when the inline path already
+  // ran (willCollectDeposit) or PayPlus isn't configured.
+  if (!willCollectDeposit && isStandby && depositInfo.required && (depositInfo as any).amount_ils > 0
+      && (depSettings?.enabled || eventChargeMethod !== null) && depCred?.api_key && depCred?.payment_page_uid) {
+    try {
+      const host = req?.headers?.host || baseUrl.replace(/^https?:\/\//, '');
+      const hostBase = `https://${host}`;
+      const link = await payplusGenerateLink(depCred, {
+        amount: (depositInfo as any).amount_ils,
+        charge_method: eventChargeMethod ?? depositChargeMethod(depCred),
+        customer: { customer_name: String(customer_name).trim(), email: customer_email || '', phone: String(customer_phone).trim() },
+        more_info: reservation.id,
+        callback_url: `${hostBase}/api/public/fn/payplusCallback`,
+        success_url: `${hostBase}/ReservationView?token=${tracking_token}`,
+        failure_url: `${hostBase}/PublicReservation`,
+      });
+      if (link.payment_page_link) {
+        await db.reservation.update({ where: { id: reservation.id }, data: { deposit_required: true, deposit_amount: (depositInfo as any).amount_ils, deposit_provider: 'payplus', deposit_status: 'pending', deposit_provider_ref: link.page_request_uid || null, deposit_sent_at: new Date() } as any }).catch(() => {});
+        const payMsg = `שמרת מקום ברשימת ההמתנה ב${brand}. כדי לאבטח את מקומך אפשר להשלים כבר עכשיו אבטחת כרטיס אשראי בקישור (הכרטיס נתפס בלבד — לא מחויב).`;
+        const paySms = `${brand}: ${payMsg} ${link.payment_page_link}`;
+        sendTemplated({
+          kind: 'guest_table_ready', to: String(customer_phone).trim(),
+          vars: [customer_name, brand, payMsg, link.payment_page_link],
+          freeformText: paySms, smsText: paySms, smsFallback: true, statusCallback: resvStatusCallback(),
+        })
+          .then((r) => logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: 'deposit_request', to: customer_phone, body: payMsg, result: r }))
+          .catch((e) => logResvMsg({ reservation_id: reservation.id, channel: 'whatsapp', kind: 'deposit_request', to: customer_phone, body: payMsg, error: e }));
+      }
+    } catch (e: any) { console.warn('[reservation] standby deposit link (way A) failed', e?.message); }
+  }
+
   return {
     success: true,
     reservation_id: reservation.id,
-    table_number: isStandby ? null : avail.table.table_number,
+    table_number: (isStandby || eventAcceptNoTable) ? null : avail.table.table_number,
     is_standby: isStandby,
+    // A special-evening booking accepted without a table yet (host will seat it).
+    event_pending_seat: eventAcceptNoTable,
     // Set when this booking replaced the guest's own waitlist entry, so the
     // success screen can say the old one was dropped rather than leaving them
     // wondering whether they're now on the list twice.
