@@ -58,6 +58,7 @@ export default function DeliveryOrders() {
   const [soundOn, setSoundOn] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [flash, setFlash] = useState({});          // id → highlight new
+  const [etaFor, setEtaFor] = useState(null);      // order id whose ETA picker is open
 
   // Filters (server-side)
   const [statusF, setStatusF] = useState('active');   // active|processing|completed|cancelled|all
@@ -127,17 +128,24 @@ export default function DeliveryOrders() {
     return () => clearInterval(t);
   }, [load]);
 
-  const setStatus = async (o, status) => {
+  const updateOrder = async (o, payload) => {
     setBusyId(o.id); setError('');
     try {
-      const d = (await base44.functions.setDeliverySiteOrderStatus({ id: o.id, status }))?.data || {};
-      if (d.ok) setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: d.status, status_label: d.status_label } : x)));
-      else setError(d.error || 'שינוי סטטוס נכשל');
+      const d = (await base44.functions.setDeliverySiteOrderStatus({ id: o.id, ...payload }))?.data || {};
+      if (d.ok) setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: d.status, status_label: d.status_label, prep_minutes: d.prep_minutes, ready_at: d.ready_at } : x)));
+      else setError(d.error || 'הפעולה נכשלה');
     } catch (e) {
-      setError(e?.message || 'שינוי סטטוס נכשל');
+      setError(e?.message || 'הפעולה נכשלה');
     } finally {
-      setBusyId(null);
+      setBusyId(null); setEtaFor(null);
     }
+  };
+  const ETA_OPTIONS = [15, 20, 30, 45, 60, 90];
+  const readyText = (o) => {
+    if (!o.ready_at) return '';
+    const left = Math.ceil((o.ready_at - Date.now() / 1000) / 60);
+    const hhmm = new Date(o.ready_at * 1000).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    return left > 0 ? `מוכן ~${hhmm} · עוד ${left} דק׳` : `אמור להיות מוכן (${hhmm})`;
   };
 
   const enableSound = (v) => {
@@ -289,25 +297,49 @@ export default function DeliveryOrders() {
                         ))}
                       </div>
 
-                      {/* Status actions */}
-                      <div className="flex gap-2 pt-1">
-                        {(o.status === 'pending' || o.status === 'on-hold') && (
-                          <Button size="sm" className="flex-1 bg-amber-500 hover:bg-amber-600" onClick={() => setStatus(o, 'processing')} disabled={busyId === o.id}>
-                            {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'קבל להכנה 👨‍🍳'}
-                          </Button>
-                        )}
-                        {o.status === 'processing' && (
-                          <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => setStatus(o, 'completed')} disabled={busyId === o.id}>
-                            {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (isDelivery ? 'יצא למשלוח ✓' : 'נמסר ✓')}
-                          </Button>
-                        )}
-                        {ACTIVE.includes(o.status) && (
-                          <Button size="sm" variant="outline" className="text-rose-600 border-rose-200" onClick={() => setStatus(o, 'cancelled')} disabled={busyId === o.id}>
-                            ביטול
-                          </Button>
-                        )}
-                        {o.status === 'completed' && <span className="text-sm text-emerald-600 font-semibold py-1.5">✓ הושלמה</span>}
-                      </div>
+                      {/* Ready-time line (once a prep time is set) */}
+                      {o.status === 'processing' && o.ready_at > 0 && etaFor !== o.id && (
+                        <div className="flex items-center justify-between bg-emerald-50 text-emerald-800 rounded-lg px-3 py-2 text-sm font-semibold">
+                          <span>⏱ {readyText(o)}</span>
+                          <button className="text-xs text-emerald-700 underline" onClick={() => setEtaFor(o.id)}>שנה זמן</button>
+                        </div>
+                      )}
+
+                      {/* ETA picker — shown when accepting or changing the time */}
+                      {etaFor === o.id ? (
+                        <div className="border border-amber-200 bg-amber-50 rounded-xl p-3 space-y-2">
+                          <div className="text-sm font-semibold text-amber-800">כמה זמן הכנה? {isDelivery ? '(כולל משלוח)' : '(לאיסוף)'}</div>
+                          <div className="grid grid-cols-3 gap-2">
+                            {ETA_OPTIONS.map((m) => (
+                              <button key={m} onClick={() => updateOrder(o, { prep_minutes: m, status: o.status === 'processing' ? undefined : 'processing' })}
+                                disabled={busyId === o.id}
+                                className="py-2 rounded-lg border border-amber-300 bg-white font-bold text-amber-800 hover:bg-amber-100">
+                                {m} דק׳
+                              </button>
+                            ))}
+                          </div>
+                          <button className="text-xs text-slate-500 underline" onClick={() => setEtaFor(null)}>ביטול</button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2 pt-1">
+                          {(o.status === 'pending' || o.status === 'on-hold') && (
+                            <Button size="sm" className="flex-1 bg-amber-500 hover:bg-amber-600" onClick={() => setEtaFor(o.id)} disabled={busyId === o.id}>
+                              {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'קבל להכנה 👨‍🍳'}
+                            </Button>
+                          )}
+                          {o.status === 'processing' && (
+                            <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => updateOrder(o, { status: 'completed' })} disabled={busyId === o.id}>
+                              {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (isDelivery ? 'יצא למשלוח ✓' : 'נמסר ✓')}
+                            </Button>
+                          )}
+                          {ACTIVE.includes(o.status) && (
+                            <Button size="sm" variant="outline" className="text-rose-600 border-rose-200" onClick={() => updateOrder(o, { status: 'cancelled' })} disabled={busyId === o.id}>
+                              ביטול
+                            </Button>
+                          )}
+                          {o.status === 'completed' && <span className="text-sm text-emerald-600 font-semibold py-1.5">✓ הושלמה</span>}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
