@@ -327,6 +327,11 @@ export default function DeliveryOrders() {
                               {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'קבל להכנה 👨‍🍳'}
                             </Button>
                           )}
+                          {o.status === 'processing' && !o.ready_at && (
+                            <Button size="sm" className="flex-1 bg-amber-500 hover:bg-amber-600" onClick={() => setEtaFor(o.id)} disabled={busyId === o.id}>
+                              ⏱ הזן זמן הכנה
+                            </Button>
+                          )}
                           {o.status === 'processing' && (
                             <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => updateOrder(o, { status: 'completed' })} disabled={busyId === o.id}>
                               {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (isDelivery ? 'יצא למשלוח ✓' : 'נמסר ✓')}
