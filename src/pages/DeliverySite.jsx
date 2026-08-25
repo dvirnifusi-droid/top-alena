@@ -381,6 +381,19 @@ export default function DeliverySite() {
   };
 
   // --- Auth / OTP ---
+  const [otpTplBusy, setOtpTplBusy] = useState(false);
+  const [otpTplMsg, setOtpTplMsg] = useState('');
+  const submitOtpTemplate = async () => {
+    setOtpTplBusy(true); setOtpTplMsg('');
+    try {
+      const d = (await base44.functions.ensureWaTemplate({ kind: 'delivery_otp' }))?.data || {};
+      setOtpTplMsg(d.message || d.status || 'נשלח');
+    } catch (e) {
+      setOtpTplMsg(e?.message || 'שליחת התבנית נכשלה');
+    } finally {
+      setOtpTplBusy(false);
+    }
+  };
   const setAuth = (k, v) => setSettings((s) => ({ ...s, auth: { ...(s.auth || {}), [k]: v } }));
   const saveAuth = async (extra = {}) => {
     setQuickBusy('auth'); setError('');
@@ -1103,7 +1116,16 @@ export default function DeliverySite() {
                       <option value="twilio_sms">SMS ישיר (Twilio)</option>
                     </select>
                     {settings.auth?.provider === 'topalena' && (
-                      <p className="text-xs text-emerald-700 mt-1">הקוד יישלח דרך מערכת ההודעות של TOP ALENA (אותו Twilio ששולח כבר למשמרות). בוואטסאפ אם יש תבנית מאושרת, אחרת ב-SMS — ולמשתמש יש כפתור "שלח ב-SMS" אם לא קיבל.</p>
+                      <>
+                        <p className="text-xs text-emerald-700 mt-1">הקוד יישלח דרך מערכת ההודעות של TOP ALENA (אותו Twilio ששולח כבר למשמרות). בוואטסאפ אם יש תבנית מאושרת, אחרת ב-SMS — ולמשתמש יש כפתור "שלח ב-SMS" אם לא קיבל.</p>
+                        <div className="mt-2 bg-slate-50 rounded-lg p-2">
+                          <div className="text-xs text-slate-600 mb-1">כדי לשלוח את הקוד ב<b>וואטסאפ</b> (זול יותר) צריך תבנית מאושרת ממטא. אפשר להגיש אותה לאישור בלחיצה — עד שתאושר, הקוד ממשיך להישלח ב-SMS.</div>
+                          <Button size="sm" variant="outline" onClick={submitOtpTemplate} disabled={otpTplBusy}>
+                            {otpTplBusy ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : null} הגש תבנית OTP לאישור וואטסאפ
+                          </Button>
+                          {otpTplMsg && <p className="text-xs text-slate-600 mt-1">{otpTplMsg}</p>}
+                        </div>
+                      </>
                     )}
                   </div>
 

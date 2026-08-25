@@ -5548,7 +5548,7 @@ registerFn('sendStaffBotIntro', async ({ user }) => {
 registerFn('ensureWaTemplate', async ({ user, body }: any) => {
   await requireBackOffice(user, 'ensureWaTemplate');
   const kind = String((body || {}).kind || 'staff_notice');
-  const allowed = ['staff_notice', 'owner_notification'];
+  const allowed = ['staff_notice', 'owner_notification', 'delivery_otp'];
   if (!allowed.includes(kind)) throw new Error('unsupported template kind');
   const { ensureTemplateApproved } = await import('../lib/waTemplates.js');
   const r = await ensureTemplateApproved(kind as any);

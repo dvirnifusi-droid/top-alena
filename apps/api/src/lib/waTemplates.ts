@@ -24,7 +24,8 @@ const dbx = () => prisma as any;
 export type TemplateKind =
   | 'club_welcome' | 'club_birthday' | 'staff_report'
   | 'owner_notification' | 'staff_notice' | 'employee_invite'
-  | 'guest_reservation' | 'guest_table_ready' | 'club_message';
+  | 'guest_reservation' | 'guest_table_ready' | 'club_message'
+  | 'delivery_otp';
 
 /**
  * What each template says, and what its variables mean.
@@ -185,6 +186,19 @@ export const TEMPLATES: Record<TemplateKind, {
       'להתראות אצלנו.',
     vars: ['שם פרטי', 'שם העסק', 'תוכן ההודעה', 'קישור לכרטיס'],
   },
+
+  // Login one-time code for the delivery-site (alenabepita.co.il) customer login.
+  // A cold recipient by definition (they are signing in), so only a template can
+  // reach them over WhatsApp. Category UTILITY with the code mid-body; if Meta
+  // insists on AUTHENTICATION and rejects it, OTP simply keeps going by SMS.
+  delivery_otp: {
+    secretKey: 'WA_TEMPLATE_ALENA_OTP',
+    label: 'קוד התחברות (אתר משלוחים)',
+    category: 'utility',
+    body:
+      'קוד ההתחברות שלך לאתר עלינא הוא {{1}} — הזינו אותו בעמוד ההתחברות כדי להיכנס. הקוד תקף ל-5 דקות.',
+    vars: ['קוד'],
+  },
 };
 
 /**
@@ -243,6 +257,7 @@ const FRIENDLY_PREFIX: Record<TemplateKind, string> = {
   guest_reservation: 'guest_reservation',
   guest_table_ready: 'guest_table_ready',
   club_message: 'club_message',
+  delivery_otp: 'delivery_otp',
 };
 
 function tplBody(c: any): string {
@@ -391,6 +406,7 @@ async function isApproved(sid: string): Promise<boolean> {
 const SAMPLE_VARS: Partial<Record<TemplateKind, string[]>> = {
   staff_notice: ['דנה', 'עלינא', 'הסידור לשבוע הבא פורסם — היכנס/י לאשר', 'https://topalena.com'],
   owner_notification: ['עלינא', 'סיכום יומי', 'המחזור היום ₪12,400, 84 שולחנות', 'https://topalena.com'],
+  delivery_otp: ['123456'],
 };
 
 async function storeTemplateSid(kind: TemplateKind, sid: string): Promise<void> {
