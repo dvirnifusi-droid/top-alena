@@ -1098,9 +1098,13 @@ export default function DeliverySite() {
                     <select className="w-full h-10 rounded-md border border-slate-200 text-sm px-2" value={settings.auth?.provider || 'console'}
                       onChange={(e) => { setAuth('provider', e.target.value); }}>
                       <option value="console">מסך בלבד (בדיקה)</option>
-                      <option value="whatsapp_cloud">WhatsApp (Meta Cloud)</option>
-                      <option value="twilio_sms">SMS (Twilio)</option>
+                      <option value="topalena">TOP ALENA — וואטסאפ + נפילה ל-SMS (מומלץ)</option>
+                      <option value="whatsapp_cloud">WhatsApp ישיר (Meta Cloud)</option>
+                      <option value="twilio_sms">SMS ישיר (Twilio)</option>
                     </select>
+                    {settings.auth?.provider === 'topalena' && (
+                      <p className="text-xs text-emerald-700 mt-1">הקוד יישלח דרך מערכת ההודעות של TOP ALENA (אותו Twilio ששולח כבר למשמרות). בוואטסאפ אם יש תבנית מאושרת, אחרת ב-SMS — ולמשתמש יש כפתור "שלח ב-SMS" אם לא קיבל.</p>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between mt-2">

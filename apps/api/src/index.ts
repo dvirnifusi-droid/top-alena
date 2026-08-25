@@ -21,6 +21,7 @@ import { walletRoutes } from './routes/wallet.js';
 import { googleSyncRoutes } from './routes/googleSync.js';
 import { emailAccountsRoutes } from './routes/emailAccounts.js';
 import { eventsRoutes } from './routes/events.js';
+import { deliveryOtpRoutes } from './routes/deliveryOtp.js';
 import { rewriteFileUrlsDeep } from './lib/urlRewrite.js';
 
 const app = Fastify({ logger: true, bodyLimit: 50 * 1024 * 1024 });
@@ -67,6 +68,7 @@ await app.register(clubRoutes, { prefix: '/api/club' });
 await app.register(googleSyncRoutes, { prefix: '/api/google' });
 await app.register(emailAccountsRoutes, { prefix: '/api/email-accounts' });
 await app.register(eventsRoutes, { prefix: '/api/events' });
+await app.register(deliveryOtpRoutes, { prefix: '/api/delivery' });
 
 // Auto-load all ported function handlers
 await import('./functions/load.js');
