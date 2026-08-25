@@ -4,6 +4,7 @@ import { pageMetadata } from "@/lib/seo";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { ReservationCTA } from "@/components/shared/ReservationCTA";
 import { getMenu, drinks, softDrinks, type MenuItem } from "@/lib/content-source";
+import { sanity } from "../../../sanity/lib/client";
 
 export const revalidate = 300;
 
@@ -23,7 +24,7 @@ const TAG_COLORS: Record<string, string> = {
   "טבעוני": "bg-olive text-cream",
 };
 
-function MenuCard({ item }: { item: MenuItem }) {
+function MenuCard({ item, hidePrice }: { item: MenuItem; hidePrice?: boolean }) {
   return (
     <article className="flex gap-4 rounded-2xl bg-cream-soft p-4 shadow-sm ring-1 ring-brass/10 sm:p-5">
       {item.image ? (
@@ -34,9 +35,11 @@ function MenuCard({ item }: { item: MenuItem }) {
       <div className="flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <h3 className="font-display text-xl text-charcoal sm:text-2xl">{item.name}</h3>
-          <span className="font-numeric whitespace-nowrap text-base font-semibold text-terracotta">
-            ₪{item.price}
-          </span>
+          {!hidePrice && item.price ? (
+            <span className="font-numeric whitespace-nowrap text-base font-semibold text-terracotta">
+              ₪{item.price}
+            </span>
+          ) : null}
         </div>
         <p className="mt-1.5 text-sm leading-relaxed text-charcoal/75">{item.description}</p>
         {item.tags?.length ? (
@@ -66,6 +69,11 @@ function formatDrinkPrice(p: number | { glass?: number; bottle?: number }): stri
 
 export default async function MenuPage() {
   const menu = await getMenu();
+  // Owner toggle: siteSettings.hidePrices → hide every ₪ across the menu page.
+  const settings = await sanity
+    .fetch<{ hidePrices?: boolean } | null>(`*[_type == "siteSettings"][0]{hidePrices}`)
+    .catch(() => null);
+  const hidePrice = Boolean(settings?.hidePrices);
   const menuLd = {
     "@context": "https://schema.org",
     "@type": "Menu",
@@ -126,7 +134,7 @@ export default async function MenuPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {section.items.map((it) => (
-                <MenuCard key={it.name} item={it} />
+                <MenuCard key={it.name} item={it} hidePrice={hidePrice} />
               ))}
             </div>
           </section>
@@ -152,9 +160,11 @@ export default async function MenuPage() {
                     <p className="font-display text-lg text-charcoal">{d.name}</p>
                     {d.description ? <p className="text-sm text-charcoal/70">{d.description}</p> : null}
                   </div>
-                  <span className="font-numeric whitespace-nowrap text-sm font-semibold text-terracotta">
-                    {formatDrinkPrice(d.price as number | { glass?: number; bottle?: number })}
-                  </span>
+                  {!hidePrice ? (
+                    <span className="font-numeric whitespace-nowrap text-sm font-semibold text-terracotta">
+                      {formatDrinkPrice(d.price as number | { glass?: number; bottle?: number })}
+                    </span>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -170,7 +180,9 @@ export default async function MenuPage() {
                 className="flex justify-between rounded-lg bg-cream-soft px-3 py-2 text-sm ring-1 ring-brass/10"
               >
                 <span>{d.name}</span>
-                <span className="font-numeric font-semibold text-terracotta">₪{d.price}</span>
+                {!hidePrice ? (
+                  <span className="font-numeric font-semibold text-terracotta">₪{d.price}</span>
+                ) : null}
               </div>
             ))}
           </div>

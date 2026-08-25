@@ -40,6 +40,13 @@ export default defineType({
         "הדבק את הקישור המלא מהפלייליסט בספוטיפי (Share → Copy link to playlist). מערכת תחלץ את ה-ID לבד.",
       type: "url",
     }),
+    defineField({
+      name: "hidePrices",
+      title: "להסתיר מחירים בכל האתר",
+      description: "כשמסומן — הסכום ₪ לא מוצג בעמוד התפריט ובכרטיסי מנות בעמוד הבית",
+      type: "boolean",
+      initialValue: false,
+    }),
     defineField({ name: "kashrutBody", title: "גוף הכשרות", type: "string" }),
     defineField({ name: "kashrutImage", title: "תעודת כשרות", type: "image" }),
     defineField({

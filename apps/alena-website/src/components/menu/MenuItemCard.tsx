@@ -10,7 +10,7 @@ export type MenuItemData = {
   tags?: string[];
 };
 
-export function MenuItemCard({ item }: { item: MenuItemData }) {
+export function MenuItemCard({ item, hidePrice = false }: { item: MenuItemData; hidePrice?: boolean }) {
   return (
     <article className="overflow-hidden rounded-2xl bg-white shadow-sm">
       {item.image ? (
@@ -30,7 +30,7 @@ export function MenuItemCard({ item }: { item: MenuItemData }) {
       <div className="p-4">
         <div className="flex items-baseline justify-between gap-2">
           <h3 className="font-display text-xl">{item.name}</h3>
-          {item.price ? (
+          {item.price && !hidePrice ? (
             <span className="font-numeric font-semibold text-terracotta">₪{item.price}</span>
           ) : null}
         </div>
