@@ -138,16 +138,23 @@ function DepositSection({ reservation, onDone }) {
         const id = setInterval(() => setNowTick(Date.now()), 1000);
         return () => clearInterval(id);
     }, [st]);
-    // The PayPlus link the guest receives is valid for a full 24h server-side.
-    // The UI used to count down 5 MINUTES and then shout "פג תוקף", so a guest who
-    // didn't pay within five minutes looked expired while the link still worked.
-    // The window is now the manager's choice (default 24h, the real validity),
-    // persisted so it sticks. "Re-send" resets it and re-notifies the guest.
-    const [linkValidMin, setLinkValidMin] = useState(() => {
-        try { const v = parseInt(localStorage.getItem('deposit_link_valid_min') || '', 10); if (Number.isFinite(v) && v > 0) return v; } catch {}
-        return 24 * 60;
-    });
-    const chooseWindow = (min) => { setLinkValidMin(min); try { localStorage.setItem('deposit_link_valid_min', String(min)); } catch {} };
+    // How long the guest has to complete the deposit. The window is a per-tenant
+    // policy (deposit settings → link_valid_hours, default 24h), so it's the same
+    // for every manager and matches the link's real server-side validity — not
+    // the old fixed 5-minute countdown that shouted "פג תוקף" while the link still
+    // worked. The chips here write the same setting; "Re-send" resets the clock.
+    const [linkValidMin, setLinkValidMin] = useState(24 * 60);
+    useEffect(() => {
+        let alive = true;
+        base44.functions.getDepositSettings()
+            .then(res => { const d = res?.data || res || {}; const h = Number(d.link_valid_hours) || 24; if (alive) setLinkValidMin(h * 60); })
+            .catch(() => {});
+        return () => { alive = false; };
+    }, []);
+    const chooseWindow = (min) => {
+        setLinkValidMin(min);
+        base44.functions.updateDepositSettings({ link_valid_hours: Math.round(min / 60) }).catch(() => {});
+    };
     const WINDOW_OPTIONS = [{ m: 60, l: 'שעה' }, { m: 360, l: '6 שע׳' }, { m: 720, l: '12 שע׳' }, { m: 1440, l: '24 שע׳' }];
     const sentAt = reservation?.deposit_sent_at ? new Date(reservation.deposit_sent_at).getTime() : null;
     const remainMs = sentAt != null ? Math.max(0, sentAt + linkValidMin * 60 * 1000 - nowTick) : null;

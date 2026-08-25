@@ -63,6 +63,7 @@ function DepositSettingsInner() {
                 free_cancel_hours_large: Number(settings.free_cancel_hours_large) || 6,
                 free_cancel_hours_event: Number(settings.free_cancel_hours_event) || 24,
                 small_party_threshold: Number(settings.small_party_threshold) || 6,
+                link_valid_hours: Number(settings.link_valid_hours) || 24,
                 provider: settings.provider || null,
                 enabled: !!settings.enabled,
                 provider_credentials: cred,
@@ -203,6 +204,31 @@ function DepositSettingsInner() {
                             <input type="number" min="0" max="168" value={settings.free_cancel_hours_event ?? 24} onChange={e => update({ free_cancel_hours_event: e.target.value })} className="w-16 text-center border rounded px-2 py-1" />
                             <span className="text-sm">שעות לפני</span>
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* How long a guest has to complete the deposit — the payment link's
+                validity. Applies to the countdown in the reservation card AND to
+                how long the link actually works (server-side). Default 24h. */}
+            <section className="bg-white border border-gray-200 rounded-2xl p-4">
+                <h2 className="font-black text-base mb-1">זמן להשלמת הפיקדון</h2>
+                <p className="text-[12px] text-gray-500 mb-2">כמה זמן יש ללקוח להזין אשראי אחרי שנשלחה בקשת פיקדון. חל גם על הספירה בכרטיס וגם על תוקף הקישור בפועל.</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                    {[1, 3, 6, 12, 24, 48].map(h => (
+                        <button
+                            key={h}
+                            type="button"
+                            onClick={() => update({ link_valid_hours: h })}
+                            className={`text-sm font-bold px-3 py-1 rounded-full border transition-colors
+                                ${Number(settings.link_valid_hours || 24) === h ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200 hover:border-slate-400'}`}
+                        >{h} שע׳</button>
+                    ))}
+                    <div className="flex items-center gap-1 mr-2">
+                        <input type="number" min="1" max="72" value={settings.link_valid_hours ?? 24}
+                            onChange={e => update({ link_valid_hours: e.target.value })}
+                            className="w-16 text-center border rounded px-2 py-1" />
+                        <span className="text-sm">שעות</span>
                     </div>
                 </div>
             </section>

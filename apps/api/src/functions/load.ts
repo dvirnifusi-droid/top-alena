@@ -12240,6 +12240,7 @@ registerFn('getDepositSettings', async () => {
   const cred: any = settings?.provider_credentials || {};
   return {
     ...settings,
+    link_valid_hours: cred.link_valid_hours ?? 24,
     provider_credentials: {
       payment_page_uid: cred.payment_page_uid || '',
       terminal: cred.terminal || '',
@@ -12275,6 +12276,14 @@ registerFn('updateDepositSettings', async ({ body, user }) => {
     if (incoming.j5 !== undefined) merged.j5 = !!incoming.j5;
     data.provider_credentials = merged;
   }
+  // Deposit-link validity window (hours) — how long the guest has to complete the
+  // payment. Kept in the credentials JSON to avoid a schema change; it's policy,
+  // not a secret, so it's returned unmasked. Clamped to a sane 1–72h.
+  const linkHours = Number((body as any)?.link_valid_hours);
+  if (Number.isFinite(linkHours) && linkHours > 0) {
+    const base: any = data.provider_credentials || settings?.provider_credentials || {};
+    data.provider_credentials = { ...base, link_valid_hours: Math.min(72, Math.max(1, Math.round(linkHours))) };
+  }
   if (!settings) {
     settings = await (prisma as any).depositSettings.create({ data: { singleton: true, ...data } });
   } else {
@@ -12283,6 +12292,7 @@ registerFn('updateDepositSettings', async ({ body, user }) => {
   const cred: any = settings?.provider_credentials || {};
   return {
     ...settings,
+    link_valid_hours: cred.link_valid_hours ?? 24,
     provider_credentials: {
       payment_page_uid: cred.payment_page_uid || '', terminal: cred.terminal || '', j5: !!cred.j5,
       has_api_key: !!cred.api_key, has_secret: !!cred.secret_key,
@@ -12597,9 +12607,14 @@ registerFn('payplusCallback', async ({ body, req }: any) => {
       console.warn('[payplusCallback] REJECTED — page uid mismatch', { id: r.id, got: pageUid, want: r.deposit_provider_ref });
       return { ok: false, note: 'page uid mismatch' };
     }
-    // 3. The hold must not be stale — a link we sent days ago is not a live payment.
+    // 3. The hold must not be stale — a link we sent long ago is not a live
+    // payment. The window is the owner-chosen link_valid_hours (default 24h,
+    // clamped 1–72), so extending it in settings actually extends how long a
+    // guest can pay — not just the display.
     const sentAt = r.deposit_sent_at ? new Date(r.deposit_sent_at).getTime() : 0;
-    if (sentAt && Date.now() - sentAt > 24 * 60 * 60 * 1000) {
+    const _ds: any = await (prisma as any).depositSettings.findFirst({ where: { singleton: true } }).catch(() => null);
+    const _validH = Math.min(72, Math.max(1, Number(_ds?.provider_credentials?.link_valid_hours) || 24));
+    if (sentAt && Date.now() - sentAt > _validH * 60 * 60 * 1000) {
       console.warn('[payplusCallback] REJECTED — stale deposit link', { id: r.id });
       return { ok: false, note: 'stale deposit' };
     }
