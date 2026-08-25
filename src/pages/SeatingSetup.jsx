@@ -3354,7 +3354,10 @@ export default function SeatingSetup() {
     // ─── LIVE STATUS computed from current state ────────────────────────────
     // Tables actively seated, guests inside now, and reservations arriving in
     // the next 60 / 240 minutes. The hostess sees this AT A GLANCE.
-    const liveStats = useMemo(() => {
+    // NB: computed AFTER the `if (isLoading) return …` early return above, so this
+    // MUST stay a plain IIFE, not useMemo — a hook here changes the hook count
+    // between the loading and loaded renders (React error #310).
+    const liveStats = (() => {
         const now = new Date();
         const occupiedTables = occupiedTableSet(activeSessions, reservations).size;
         const guestsInside = activeSessions.reduce((s, sess) => s + (sess.party_size || 0), 0);
@@ -3370,7 +3373,7 @@ export default function SeatingSetup() {
         }
         const totalReservationsToday = (reservations || []).filter(r => r.status !== 'cancelled').length;
         return { occupiedTables, guestsInside, arriving1h, guestsArriving1h, arriving4h, totalReservationsToday };
-    }, [activeSessions, reservations]);
+    })();
 
     return (
         <div
