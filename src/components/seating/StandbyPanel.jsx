@@ -33,9 +33,15 @@ export default function StandbyPanel({ reservations, onRefresh, onEditReservatio
     const [retimeId, setRetimeId] = useState(null);
     const [newTime, setNewTime] = useState('');
 
-    // is_standby is the ONLY reliable marker — status is 'pending' on a real one.
+    // A reservation is still "waiting" only if it's flagged standby AND has no
+    // table yet. is_standby is never cleared when a table is assigned from the
+    // map, so without the table check a seated guest (e.g. on tables 30,31) shows
+    // in BOTH the waitlist and the floor — and "remove from waitlist" would cancel
+    // the whole (now-seated) booking. Having a table means it's no longer waiting.
     const list = (reservations || [])
-        .filter(r => r.is_standby && !['cancelled', 'deleted', 'no_show', 'completed'].includes(r.status))
+        .filter(r => r.is_standby
+            && !(Array.isArray(r.assigned_table) && r.assigned_table.length > 0)
+            && !['cancelled', 'deleted', 'no_show', 'completed'].includes(r.status))
         .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
 
     const promote = async (r, timeOverride) => {

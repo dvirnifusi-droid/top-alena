@@ -138,9 +138,23 @@ function DepositSection({ reservation, onDone }) {
         const id = setInterval(() => setNowTick(Date.now()), 1000);
         return () => clearInterval(id);
     }, [st]);
+    // The PayPlus link the guest receives is valid for a full 24h server-side.
+    // The UI used to count down 5 MINUTES and then shout "פג תוקף", so a guest who
+    // didn't pay within five minutes looked expired while the link still worked —
+    // and managers thought they had to re-send. The window now matches the real
+    // validity (default 24h) and is adjustable via deposit_link_valid_min.
+    const LINK_VALID_MIN = (() => {
+        try { const v = parseInt(localStorage.getItem('deposit_link_valid_min') || '', 10); if (Number.isFinite(v) && v > 0) return v; } catch {}
+        return 24 * 60;
+    })();
     const sentAt = reservation?.deposit_sent_at ? new Date(reservation.deposit_sent_at).getTime() : null;
-    const remainMs = sentAt != null ? Math.max(0, sentAt + 5 * 60 * 1000 - nowTick) : null;
-    const remainTxt = remainMs != null ? `${Math.floor(remainMs / 60000)}:${String(Math.floor((remainMs % 60000) / 1000)).padStart(2, '0')}` : null;
+    const remainMs = sentAt != null ? Math.max(0, sentAt + LINK_VALID_MIN * 60 * 1000 - nowTick) : null;
+    const remainTxt = (() => {
+        if (remainMs == null) return null;
+        const totalMin = Math.floor(remainMs / 60000);
+        if (totalMin >= 90) return `${Math.round(totalMin / 60)} שע׳`;
+        return `${Math.floor(remainMs / 60000)}:${String(Math.floor((remainMs % 60000) / 1000)).padStart(2, '0')}`;
+    })();
     const sendDeposit = () => {
         const input = window.prompt('סכום פיקדון לבקש מהלקוח (₪). השאר ריק לסכום לפי ההגדרות:', reservation.deposit_amount ? String(reservation.deposit_amount) : '');
         if (input === null) return; // cancelled
@@ -3277,8 +3291,12 @@ export default function SeatingSetup() {
     // Waitlist size for the rail badge. is_standby is the ONLY reliable marker —
     // a real standby booking carries status 'pending', so filtering on status
     // 'standby' finds nothing (or, worse, finds seeded rows that aren't standby).
+    // A reservation that already has a table is seated, not waiting — exclude it
+    // even if the standby flag was never cleared (matches StandbyPanel's filter).
     const standbyCount = (reservations || []).filter(r =>
-        r.is_standby && !['cancelled', 'deleted', 'no_show', 'completed'].includes(r.status)
+        r.is_standby
+        && !(Array.isArray(r.assigned_table) && r.assigned_table.length > 0)
+        && !['cancelled', 'deleted', 'no_show', 'completed'].includes(r.status)
     ).length;
     // Asked to confirm and still open — undelivered counts too, because that one
     // is ours to chase, not the guest's to answer.
