@@ -10,7 +10,7 @@ import PermissionTierEditor, { buildCatalog } from "@/components/shared/Permissi
 import { useMyPermissions } from "@/hooks/useMyPermissions";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
-  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield, Lock, ShoppingCart, ScanLine, Gift
+  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield, Lock, ShoppingCart, ScanLine, Gift, ClipboardList
 } from "lucide-react";
 import {
   Sidebar, SidebarContent,
@@ -72,6 +72,7 @@ export const adminLinks = [
   { title: "ניהול תדריכים", url: createPageUrl("BriefingManagement"), icon: Megaphone, isSubItem: true, color: "cinnamon" },
   { title: "🍽 ניהול תפריט", url: createPageUrl("MenuManagement"), icon: Utensils, isSubItem: true, color: "cinnamon" },
   { title: "🛵 אתר משלוחים", url: createPageUrl("DeliverySite"), icon: Gift, isSubItem: true, color: "cinnamon" },
+  { title: "🧾 הזמנות משלוחים", url: createPageUrl("DeliveryOrders"), icon: ClipboardList, isSubItem: true, color: "cinnamon" },
   { title: "👨‍🍳 דף הכנות", url: createPageUrl("PrepSheet"), icon: ChefHat, isSubItem: true, color: "cinnamon" },
   { title: "📖 מדריך מנות", url: createPageUrl("DishGuide"), icon: Utensils, isSubItem: true, color: "cinnamon" },
   { title: "ניהול שולחנות", url: createPageUrl("TablesManagement"), icon: Utensils, isSubItem: true, color: "cinnamon" },

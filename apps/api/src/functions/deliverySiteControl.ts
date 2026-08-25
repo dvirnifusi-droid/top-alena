@@ -185,6 +185,31 @@ registerFn('getDeliverySiteOrdersToday', async ({ user }) => {
   return { connected: true, ...data };
 });
 
+// ---- Live orders feed + status control ----
+registerFn('getDeliverySiteOrders', async ({ user, body }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const limit = (body as any)?.limit || 40;
+  const res = await fetch(bust(c.base + '/orders?limit=' + encodeURIComponent(limit)), { headers: { 'X-Alena-Control-Key': c.key } });
+  if (!res.ok) throw new Error('שגיאת טעינת הזמנות (HTTP ' + res.status + ')');
+  const data: any = await res.json();
+  return { connected: true, orders: data.orders || [], server_ts: data.server_ts };
+});
+
+registerFn('setDeliverySiteOrderStatus', async ({ user, body }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/order-status'), {
+    method: 'POST',
+    headers: { 'X-Alena-Control-Key': c.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new Error('שינוי סטטוס נכשל (HTTP ' + res.status + ')');
+  return await res.json();
+});
+
 // ---- Create a new product ----
 registerFn('createDeliverySiteProduct', async ({ user, body }) => {
   await requireOwner(user);
