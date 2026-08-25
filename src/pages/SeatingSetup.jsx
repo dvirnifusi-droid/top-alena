@@ -101,6 +101,30 @@ function occupiedTableSet(activeSessions = [], reservations = [], ref = new Date
     return set;
 }
 
+// Live table sessions that are relevant to what's on screen. A session is a
+// "right now" fact, so:
+//  - on any date other than today it's noise — you're planning a future night,
+//    not watching the current floor — and it must not paint that night's tables
+//    occupied (the "שולחן 9 תפוס — מאור גלאם on the 28th" bug);
+//  - even on today, an "active" session that started many hours ago was never
+//    closed (auto-close is off) — a zombie that would mark a table occupied
+//    forever. A real seating is a few hours.
+// Filtering here means every downstream consumer (map, occupancy set, the
+// "occupied tables" count) is clean at once.
+function liveSessionsForView(sessions, viewDate = new Date(), now = new Date()) {
+    const sameDay = viewDate.getFullYear() === now.getFullYear()
+        && viewDate.getMonth() === now.getMonth()
+        && viewDate.getDate() === now.getDate();
+    if (!sameDay) return [];
+    const STALE_MS = 10 * 60 * 60 * 1000;
+    return (sessions || []).filter(s => {
+        if (s?.status && s.status !== 'active') return false;
+        const startMs = s?.session_start ? new Date(s.session_start).getTime()
+            : (s?.createdAt ? new Date(s.createdAt).getTime() : null);
+        return startMs == null || (now.getTime() - startMs) <= STALE_MS;
+    });
+}
+
 // Dialog לעריכת הזמנה - עם כל הפרטים
 // Deposit actions for a reservation — send request (J5 hold), manual no-show charge, release.
 function DepositSection({ reservation, onDone }) {
@@ -746,7 +770,7 @@ export default function SeatingSetup() {
                 savedLayoutRef.current = JSON.stringify({ tables: [], facilities: [], combos: [] });
             }
             
-            setActiveSessions(sessions);
+            setActiveSessions(liveSessionsForView(sessions, selectedDate));
             setServiceSteps(steps);
             setReservations((dateReservations || []).map(r => ({ ...r, date: typeof r.date === 'string' ? r.date.slice(0, 10) : r.date })));
         } catch (error) {
@@ -762,7 +786,7 @@ export default function SeatingSetup() {
     // re-create the array (which would force every ReservationCard to re-render
     // and reset scroll/selection in the rail).
     const fingerprintReservations = (arr) =>
-        (arr || []).map(r => `${r.id}|${r.status}|${r.assigned_table}|${r.hostess_flag}|${r.time}|${r.party_size}|${r.customer_name}`).join('§');
+        (arr || []).map(r => `${r.id}|${r.status}|${r.assigned_table}|${r.hostess_flag}|${r.time}|${r.party_size}|${r.customer_name}|${r.deposit_status}`).join('§');
     const fingerprintSessions = (arr) =>
         (arr || []).map(s => `${s.id}|${s.current_step}|${s.table_number}`).join('§');
 
@@ -793,7 +817,7 @@ export default function SeatingSetup() {
                 TableSession.filter({ status: 'active' }),
                 Reservation.filter({ date: dateString }, 'time'),
             ]);
-            const newSessions = sessions || [];
+            const newSessions = liveSessionsForView(sessions || [], selectedDate);
             const newRes = (dateReservations || []).map(r => ({ ...r, date: typeof r.date === 'string' ? r.date.slice(0, 10) : r.date }));
             // Only setState when something actually changed — preserves scroll position,
             // popovers, and prevents unnecessary card re-renders during 60s polls.
@@ -1913,17 +1937,27 @@ export default function SeatingSetup() {
         };
         const sourceLabel = reservation.source ? (SOURCE_LABEL[reservation.source] || reservation.source) : null;
 
-        // Next reservation after this one on same date (any status, just chronologically next)
+        // The next booking ON THIS TABLE — the only "next" a hostess cares about,
+        // because it's when they have to turn this table. This used to be the next
+        // reservation of the WHOLE DAY regardless of table, so a party at 12:00 on
+        // tables 20/30/31 showed "הבא: 12:15" for someone on tables 100/150 — a
+        // turnover that never happens. Now it only fires when a later booking
+        // actually shares one of this reservation's tables.
         const nextReservation = (() => {
             if (!reservation.time || !reservation.date) return null;
-            const sameDay = reservations.filter(o =>
+            const myTables = Array.isArray(reservation.assigned_table)
+                ? reservation.assigned_table.map(String) : [];
+            if (!myTables.length) return null; // no table assigned → no turnover
+            const sameTableLater = reservations.filter(o =>
                 o.id !== reservation.id &&
                 o.date === reservation.date &&
                 o.time && o.time > reservation.time &&
-                (o.status || 'pending') !== 'cancelled'
+                (o.status || 'pending') !== 'cancelled' &&
+                Array.isArray(o.assigned_table) &&
+                o.assigned_table.map(String).some(t => myTables.includes(t))
             );
-            sameDay.sort((a, b) => a.time.localeCompare(b.time));
-            return sameDay[0] || null;
+            sameTableLater.sort((a, b) => a.time.localeCompare(b.time));
+            return sameTableLater[0] || null;
         })();
 
         const askAiForThis = (e) => {
@@ -1957,6 +1991,11 @@ export default function SeatingSetup() {
                         {/* LEFT in RTL: party + table + status + flag */}
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                             <span className="text-base font-black opacity-90">👥{reservation.party_size || '?'}</span>
+                            {(reservation.deposit_status === 'authorized' || reservation.deposit_status === 'captured') && (
+                                <span className="text-[11px] font-bold rounded px-1 bg-emerald-100 text-emerald-800" title={reservation.deposit_status === 'captured' ? 'פיקדון חויב' : 'אשראי/פיקדון נתפס'}>
+                                    {reservation.deposit_status === 'captured' ? '💰' : '💳'}
+                                </span>
+                            )}
                             {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
                                 <span className="text-[11px] font-bold bg-white/40 rounded px-1">🪑{reservation.assigned_table.join(',')}</span>
                             )}
@@ -2103,12 +2142,21 @@ export default function SeatingSetup() {
                             {reservation.customer_phone}
                         </a>
                     ) : <span></span>}
-                    {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
-                        <span className="flex items-center gap-1 font-bold">
-                            <span className="text-base">🪑</span>
-                            <span className="text-lg">{reservation.assigned_table.join(',')}</span>
-                        </span>
-                    )}
+                    <span className="flex items-center gap-2">
+                        {(reservation.deposit_status === 'authorized' || reservation.deposit_status === 'captured') && (
+                            <span className="flex items-center gap-1 text-[12px] font-bold rounded-full px-2 py-0.5 bg-emerald-100 text-emerald-800">
+                                {reservation.deposit_status === 'captured'
+                                    ? `💰 פיקדון חויב${reservation.deposit_charge_amount ? ` ₪${reservation.deposit_charge_amount}` : ''}`
+                                    : `💳 אשראי נתפס${reservation.deposit_amount ? ` ₪${reservation.deposit_amount}` : ''}`}
+                            </span>
+                        )}
+                        {Array.isArray(reservation.assigned_table) && reservation.assigned_table.length > 0 && (
+                            <span className="flex items-center gap-1 font-bold">
+                                <span className="text-base">🪑</span>
+                                <span className="text-lg">{reservation.assigned_table.join(',')}</span>
+                            </span>
+                        )}
+                    </span>
                 </div>
 
                 {/* SOURCE + EXTRAS row */}
@@ -2133,7 +2181,7 @@ export default function SeatingSetup() {
                 {nextReservation && (
                     <div className="mt-2 flex items-center gap-1.5 text-[10px] font-bold bg-white/40 backdrop-blur-sm rounded-full px-2 py-1 w-fit">
                         <span>⏭️</span>
-                        <span>הבא: {nextReservation.time?.slice(0,5)} · {nextReservation.customer_name || 'לקוח'} ({nextReservation.party_size || '?'})</span>
+                        <span>הבא בשולחן: {nextReservation.time?.slice(0,5)} · {nextReservation.customer_name || 'לקוח'} ({nextReservation.party_size || '?'})</span>
                     </div>
                 )}
             </div>
@@ -2224,6 +2272,9 @@ export default function SeatingSetup() {
             night:   { label: 'לילה',     test: (t) => t >= '22:00' || t < '06:00' },
         };
         const [searchTerm, setSearchTerm] = useState('');
+        // Show only reservations with NO table assigned yet — the ones the hostess
+        // still has to seat.
+        const [onlyUnassigned, setOnlyUnassigned] = useState(false);
         // Compact list density — 6-8 cards per viewport. Persisted across renders.
         const [compactMode, setCompactMode] = useState(() => {
             try { return localStorage.getItem('seating_compact_mode') !== 'off'; } catch { return true; }
@@ -2248,8 +2299,16 @@ export default function SeatingSetup() {
                 (r.customer_name || '').toLowerCase().includes(q) ||
                 (r.customer_phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
             );
-            return statusMatch && timeMatch && bucketMatch && flagMatch && searchMatch;
+            const assignedMatch = !onlyUnassigned
+                || !(Array.isArray(r.assigned_table) && r.assigned_table.length > 0);
+            return statusMatch && timeMatch && bucketMatch && flagMatch && searchMatch && assignedMatch;
         });
+
+        // How many reservations still have no table — drives the filter chip's badge.
+        const unassignedCount = reservations.filter(r =>
+            !(Array.isArray(r.assigned_table) && r.assigned_table.length > 0)
+            && !['cancelled', 'no_show', 'completed'].includes(r.status)
+        ).length;
 
         const flagCounts = reservations.reduce((c, r) => {
             const f = r.hostess_flag || 'none';
@@ -2326,6 +2385,13 @@ export default function SeatingSetup() {
                             >{emoji} {TIME_BUCKETS[k].label}</button>
                         );
                     })}
+                    {/* Only reservations still WITHOUT a table — what the hostess has left to seat. */}
+                    <button
+                        onClick={() => setOnlyUnassigned(v => !v)}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors
+                            ${onlyUnassigned ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300 hover:border-amber-500'}`}
+                        title="הזמנות ללא שולחן משובץ"
+                    >🪑 בלי שולחן{unassignedCount ? ` (${unassignedCount})` : ''}</button>
                 </div>
 
                 <div className="flex gap-2 mb-4">
