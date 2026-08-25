@@ -36,6 +36,8 @@ function fileToDataUrl(file, maxPx = 1200, quality = 0.82) {
 // Owner remote for the alenabepita.co.il delivery site. Talks to the WordPress
 // control bridge through the app backend (which holds the secret key). See
 // apps/api/src/functions/deliverySiteControl.ts.
+// build-marker: live-ops-controls v1
+
 export default function DeliverySite() {
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(false);
