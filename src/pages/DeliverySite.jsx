@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Store, Link2, Save, Check, RefreshCw, Search, Utensils } from 'lucide-react';
+import { Loader2, Store, Link2, Save, Check, RefreshCw, Search, Utensils, Power, Megaphone, Ticket, TrendingUp, CalendarOff, Plus, Trash2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
@@ -58,6 +58,14 @@ export default function DeliverySite() {
   const [savedId, setSavedId] = useState(null);
   const [uploadingImgId, setUploadingImgId] = useState(null);
 
+  // live operational controls
+  const [quickBusy, setQuickBusy] = useState('');       // label of the action mid-save
+  const [orders, setOrders] = useState(null);           // today's orders summary
+  const [coupons, setCoupons] = useState(null);         // lazy
+  const [couponsLoading, setCouponsLoading] = useState(false);
+  const [couponBusy, setCouponBusy] = useState(null);
+  const [newDate, setNewDate] = useState('');           // holiday date to add
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -66,12 +74,20 @@ export default function DeliverySite() {
       setConnected(!!d.connected);
       setSettings(d.settings || null);
       setError(d.error || '');
+      if (d.connected) loadOrders();
     } catch (e) {
       setError(e?.message || 'טעינה נכשלה');
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const loadOrders = async () => {
+    try {
+      const d = (await base44.functions.getDeliverySiteOrdersToday({}))?.data || {};
+      if (d.ok) setOrders(d);
+    } catch { /* non-critical */ }
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -110,6 +126,7 @@ export default function DeliverySite() {
           name: z.name,
           delivery_fee: Number(z.delivery_fee) || 0,
           min_order: Number(z.min_order) || 0,
+          enabled: z.enabled !== false,
         })),
         brand_images: settings.brand_images || {},
         cart_eta: {
@@ -121,6 +138,17 @@ export default function DeliverySite() {
         note_chips: settings.note_chips || {},
         hours: settings.hours || {},
         specials: settings.specials || {},
+        store_status: {
+          mode: settings.store_status?.mode || 'open',
+          busy_extra_min: Number(settings.store_status?.busy_extra_min) || 0,
+          message: settings.store_status?.message || '',
+        },
+        announcement: {
+          enabled: !!settings.announcement?.enabled,
+          text: settings.announcement?.text || '',
+        },
+        free_delivery_over: Number(settings.free_delivery_over) || 0,
+        date_overrides: settings.date_overrides || {},
       };
       const d = (await base44.functions.setDeliverySiteControl({ settings: payload }))?.data || {};
       if (d.settings) setSettings(d.settings);
@@ -131,6 +159,89 @@ export default function DeliverySite() {
       setSaving(false);
     }
   };
+
+  // Instant partial save — for one-tap actions (open/close, busy, zone toggle)
+  // that should hit the live site immediately without the big Save button.
+  const quickSave = async (partial, label) => {
+    setQuickBusy(label || 'save'); setError('');
+    try {
+      const d = (await base44.functions.setDeliverySiteControl({ settings: partial }))?.data || {};
+      if (d.settings) setSettings(d.settings);
+    } catch (e) {
+      setError(e?.message || 'השמירה נכשלה');
+    } finally {
+      setQuickBusy('');
+    }
+  };
+  const setStoreMode = (mode) => {
+    setSettings((s) => ({ ...s, store_status: { ...(s.store_status || {}), mode } }));
+    quickSave({ store_status: { ...(settings.store_status || {}), mode } }, 'mode:' + mode);
+  };
+  const setBusy = (min) => {
+    const busy_extra_min = Number(min) || 0;
+    setSettings((s) => ({ ...s, store_status: { ...(s.store_status || {}), busy_extra_min } }));
+  };
+  const applyBusy = (min) => quickSave({ store_status: { ...(settings.store_status || {}), busy_extra_min: Number(min) || 0 } }, 'busy');
+  const setStatusMsg = (message) => setSettings((s) => ({ ...s, store_status: { ...(s.store_status || {}), message } }));
+  const setAnnounce = (k, v) => setSettings((s) => ({ ...s, announcement: { ...(s.announcement || {}), [k]: v } }));
+  const setFree = (v) => setSettings((s) => ({ ...s, free_delivery_over: v }));
+  const toggleZoneEnabled = (id, enabled) => {
+    setSettings((s) => ({ ...s, zones: (s.zones || []).map((z) => (z.id === id ? { ...z, enabled } : z)) }));
+    quickSave({ zones: [{ id, enabled }] }, 'zone:' + id);
+  };
+  const addDateOverride = () => {
+    if (!newDate) return;
+    setSettings((s) => ({ ...s, date_overrides: { ...(s.date_overrides || {}), [newDate]: { mode: 'closed' } } }));
+    setNewDate('');
+  };
+  const removeDateOverride = (date) =>
+    setSettings((s) => {
+      const d = { ...(s.date_overrides || {}) }; delete d[date]; return { ...s, date_overrides: d };
+    });
+
+  const loadCoupons = async () => {
+    setCouponsLoading(true);
+    try {
+      const d = (await base44.functions.getDeliverySiteCoupons({}))?.data || {};
+      setCoupons(Array.isArray(d.coupons) ? d.coupons : []);
+    } catch (e) {
+      setError(e?.message || 'טעינת קופונים נכשלה');
+    } finally {
+      setCouponsLoading(false);
+    }
+  };
+  const setCouponField = (id, k, v) =>
+    setCoupons((cs) => cs.map((c) => (c.id === id ? { ...c, [k]: v } : c)));
+  const saveCoupon = async (c) => {
+    setCouponBusy(c.id ?? 'new'); setError('');
+    try {
+      const d = (await base44.functions.setDeliverySiteCoupon({
+        id: c.id, code: c.code, discount_type: c.discount_type, amount: c.amount,
+        minimum_amount: c.minimum_amount, free_shipping: c.free_shipping,
+        description: c.description, expiry_date: c.expiry_date, enabled: c.enabled,
+      }))?.data || {};
+      if (d.ok) await loadCoupons();
+      else setError(d.error || 'שמירת קופון נכשלה');
+    } catch (e) {
+      setError(e?.message || 'שמירת קופון נכשלה');
+    } finally {
+      setCouponBusy(null);
+    }
+  };
+  const deleteCoupon = async (c) => {
+    if (!window.confirm('למחוק את הקופון "' + (c.code || '') + '"?')) return;
+    setCouponBusy(c.id); setError('');
+    try {
+      await base44.functions.setDeliverySiteCoupon({ id: c.id, delete: true });
+      await loadCoupons();
+    } catch (e) {
+      setError(e?.message || 'מחיקה נכשלה');
+    } finally {
+      setCouponBusy(null);
+    }
+  };
+  const addCoupon = () =>
+    setCoupons((cs) => [{ id: 0, code: '', discount_type: 'percent', amount: '10', minimum_amount: '', free_shipping: false, description: '', expiry_date: '', enabled: true, _new: true }, ...(cs || [])]);
 
   const setClub = (k, v) => setSettings((s) => ({ ...s, club: { ...s.club, [k]: v } }));
   const setFeature = (slug, v) =>
@@ -253,6 +364,72 @@ export default function DeliverySite() {
         ) : (
           /* ---------- Settings ---------- */
           <div className="space-y-5 max-w-2xl mx-auto" dir="rtl">
+
+            {/* ---- Store status: the one-tap open/closed control ---- */}
+            <Card className="border-2 border-slate-200">
+              <CardContent className="p-6 space-y-4">
+                <div className="text-lg font-bold flex items-center gap-2"><Power className="w-5 h-5" /> מצב החנות</div>
+                {(() => {
+                  const mode = settings.store_status?.mode || 'open';
+                  const opts = [
+                    { v: 'open', label: 'פתוח', emoji: '🟢', cls: 'bg-emerald-600 border-emerald-600' },
+                    { v: 'delivery_only', label: 'משלוחים בלבד', emoji: '🚚', cls: 'bg-amber-600 border-amber-600' },
+                    { v: 'pickup_only', label: 'איסוף בלבד', emoji: '🛍️', cls: 'bg-amber-600 border-amber-600' },
+                    { v: 'closed', label: 'סגור עכשיו', emoji: '🔴', cls: 'bg-rose-600 border-rose-600' },
+                  ];
+                  return (
+                    <div className="grid grid-cols-2 gap-2">
+                      {opts.map((o) => (
+                        <button key={o.v} type="button" onClick={() => setStoreMode(o.v)} disabled={quickBusy === 'mode:' + o.v}
+                          className={`rounded-xl border-2 py-3 text-sm font-bold transition ${mode === o.v ? o.cls + ' text-white' : 'bg-white border-slate-200 text-slate-600'}`}>
+                          {quickBusy === 'mode:' + o.v ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : <>{o.emoji} {o.label}</>}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                <div>
+                  <Label className="text-xs">הודעה ללקוח כשסגור (לא חובה)</Label>
+                  <Input value={settings.store_status?.message || ''} placeholder="נחזור בעוד כשעה 🙏"
+                    onChange={(e) => setStatusMsg(e.target.value)}
+                    onBlur={() => quickSave({ store_status: settings.store_status || {} }, 'msg')} />
+                </div>
+
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Label className="text-xs">🔥 מצב עומס — להוסיף דקות לזמן ההכנה</Label>
+                    <div className="flex gap-1 mt-1">
+                      {[0, 15, 30, 45].map((m) => (
+                        <button key={m} type="button" onClick={() => { setBusy(m); applyBusy(m); }}
+                          className={`flex-1 rounded-lg border py-2 text-sm font-semibold ${(Number(settings.store_status?.busy_extra_min) || 0) === m ? 'bg-orange-500 border-orange-500 text-white' : 'border-slate-200 text-slate-500'}`}>
+                          {m === 0 ? 'רגיל' : '+' + m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {quickBusy && quickBusy.startsWith('mode') === false && <p className="text-xs text-slate-400">שומר…</p>}
+              </CardContent>
+            </Card>
+
+            {/* ---- Today's orders (read-only) ---- */}
+            <Card className="bg-slate-50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-bold flex items-center gap-2 text-slate-700"><TrendingUp className="w-4 h-4" /> היום עד עכשיו</div>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-slate-400" onClick={loadOrders}><RefreshCw className="w-3.5 h-3.5" /></Button>
+                </div>
+                {orders ? (
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div><div className="text-2xl font-extrabold text-slate-800">{orders.count}</div><div className="text-xs text-slate-500">הזמנות</div></div>
+                    <div><div className="text-2xl font-extrabold text-emerald-700">₪{Number(orders.revenue).toLocaleString()}</div><div className="text-xs text-slate-500">מחזור</div></div>
+                    <div><div className="text-2xl font-extrabold text-slate-800">₪{Number(orders.avg).toLocaleString()}</div><div className="text-xs text-slate-500">ממוצע</div></div>
+                  </div>
+                ) : <p className="text-xs text-slate-400 text-center py-2">טוען…</p>}
+              </CardContent>
+            </Card>
+
             <Card>
               <CardContent className="p-6 space-y-4">
                 <div className="text-lg font-bold">🎁 מועדון והטבות</div>
@@ -302,18 +479,25 @@ export default function DeliverySite() {
                 <div className="text-lg font-bold">🛵 אזורי חלוקה ודמי משלוח</div>
                 <p className="text-xs text-slate-500 mb-1">שם, דמי משלוח ומינימום הזמנה לכל אזור. צורת האזור על המפה נערכת בוורדפרס.</p>
                 {(settings.zones || []).map((z) => (
-                  <div key={z.id} className="grid grid-cols-12 gap-2 items-end border-b last:border-0 border-slate-100 py-2">
-                    <div className="col-span-6">
-                      <Label className="text-xs">אזור</Label>
-                      <Input value={z.name || ''} onChange={(e) => setZone(z.id, 'name', e.target.value)} />
+                  <div key={z.id} className={`border-b last:border-0 border-slate-100 py-2 ${z.enabled === false ? 'opacity-60' : ''}`}>
+                    <div className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-6">
+                        <Label className="text-xs">אזור</Label>
+                        <Input value={z.name || ''} onChange={(e) => setZone(z.id, 'name', e.target.value)} />
+                      </div>
+                      <div className="col-span-3">
+                        <Label className="text-xs">משלוח ₪</Label>
+                        <Input type="number" min="0" value={z.delivery_fee} onChange={(e) => setZone(z.id, 'delivery_fee', e.target.value)} />
+                      </div>
+                      <div className="col-span-3">
+                        <Label className="text-xs">מינ׳ ₪</Label>
+                        <Input type="number" min="0" value={z.min_order} onChange={(e) => setZone(z.id, 'min_order', e.target.value)} />
+                      </div>
                     </div>
-                    <div className="col-span-3">
-                      <Label className="text-xs">משלוח ₪</Label>
-                      <Input type="number" min="0" value={z.delivery_fee} onChange={(e) => setZone(z.id, 'delivery_fee', e.target.value)} />
-                    </div>
-                    <div className="col-span-3">
-                      <Label className="text-xs">מינ׳ ₪</Label>
-                      <Input type="number" min="0" value={z.min_order} onChange={(e) => setZone(z.id, 'min_order', e.target.value)} />
+                    <div className="flex items-center gap-2 mt-1">
+                      <Switch checked={z.enabled !== false} onCheckedChange={(v) => toggleZoneEnabled(z.id, v)} disabled={quickBusy === 'zone:' + z.id} />
+                      <span className="text-xs text-slate-500">{z.enabled === false ? 'כבוי — לא מקבל משלוחים כרגע' : 'פעיל'}</span>
+                      {quickBusy === 'zone:' + z.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
                     </div>
                   </div>
                 ))}
@@ -350,6 +534,133 @@ export default function DeliverySite() {
                     <div><Label className="text-xs">משלוח</Label><Textarea rows={2} value={(settings.note_chips?.delivery || []).join('\n')} onChange={(e) => setChips('delivery', e.target.value)} /></div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* ---- Announcement bar + free delivery ---- */}
+            <Card>
+              <CardContent className="p-6 space-y-4">
+                <div className="text-lg font-bold flex items-center gap-2"><Megaphone className="w-5 h-5" /> באנר הודעה ומשלוח חינם</div>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-sm">באנר עליון באתר</div>
+                    <div className="text-xs text-slate-500">רצועת הודעה שמופיעה מעל כל עמוד</div>
+                  </div>
+                  <Switch checked={!!settings.announcement?.enabled} onCheckedChange={(v) => setAnnounce('enabled', v)} />
+                </div>
+                <Input value={settings.announcement?.text || ''} placeholder="לדוגמה: היום משלוחים עד 22:00 בלבד"
+                  onChange={(e) => setAnnounce('text', e.target.value)} />
+                <div>
+                  <Label className="text-sm font-semibold">🎉 משלוח חינם מעל ₪</Label>
+                  <Input type="number" min="0" value={settings.free_delivery_over ?? 0}
+                    onChange={(e) => setFree(e.target.value)} />
+                  <p className="text-xs text-slate-500 mt-1">0 = כבוי. מעל הסכום הזה דמי המשלוח יתאפסו אוטומטית.</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ---- Holiday / special-date closures ---- */}
+            <Card>
+              <CardContent className="p-6 space-y-3">
+                <div className="text-lg font-bold flex items-center gap-2"><CalendarOff className="w-5 h-5" /> ימים מיוחדים / חגים (סגור)</div>
+                <p className="text-xs text-slate-500">תאריכים שבהם האתר סגור לגמרי (ערב חג, יום כיפור וכו׳). גובר על שעות הפעילות הרגילות.</p>
+                {Object.keys(settings.date_overrides || {}).sort().map((date) => (
+                  <div key={date} className="flex items-center justify-between border-b last:border-0 border-slate-100 py-2">
+                    <span className="text-sm font-semibold">{date}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2 py-1 rounded-full bg-rose-100 text-rose-700">סגור</span>
+                      <Button variant="ghost" size="sm" className="h-7 text-rose-500" onClick={() => removeDateOverride(date)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Label className="text-xs">הוסף תאריך</Label>
+                    <Input type="date" dir="ltr" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+                  </div>
+                  <Button variant="outline" size="sm" onClick={addDateOverride} disabled={!newDate}>
+                    <Plus className="w-4 h-4 ml-1" /> הוסף
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-400">לא לשכוח ללחוץ "שמירה" למטה כדי להחיל.</p>
+              </CardContent>
+            </Card>
+
+            {/* ---- Coupons ---- */}
+            <Card>
+              <CardContent className="p-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-lg font-bold flex items-center gap-2"><Ticket className="w-5 h-5" /> קופונים</div>
+                  {coupons && (
+                    <Button variant="outline" size="sm" onClick={addCoupon}><Plus className="w-4 h-4 ml-1" /> קופון חדש</Button>
+                  )}
+                </div>
+                {coupons === null ? (
+                  <Button variant="outline" onClick={loadCoupons} disabled={couponsLoading}>
+                    {couponsLoading ? <><Loader2 className="w-4 h-4 animate-spin ml-2" /> טוען…</> : 'טען קופונים'}
+                  </Button>
+                ) : coupons.length === 0 ? (
+                  <p className="text-sm text-slate-500">אין קופונים. אפשר להוסיף אחד למעלה.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {coupons.map((c) => (
+                      <div key={c.id || 'new'} className={`border rounded-xl p-3 space-y-2 ${c.enabled ? 'border-slate-200' : 'border-slate-200 opacity-60'}`}>
+                        <div className="grid grid-cols-12 gap-2 items-end">
+                          <div className="col-span-5">
+                            <Label className="text-xs">קוד</Label>
+                            <Input dir="ltr" value={c.code || ''} onChange={(e) => setCouponField(c.id, 'code', e.target.value)} placeholder="BAG25" />
+                          </div>
+                          <div className="col-span-4">
+                            <Label className="text-xs">סוג</Label>
+                            <select className="w-full h-10 rounded-md border border-slate-200 text-sm px-2" value={c.discount_type}
+                              onChange={(e) => setCouponField(c.id, 'discount_type', e.target.value)}>
+                              <option value="percent">אחוז %</option>
+                              <option value="fixed_cart">₪ מהסל</option>
+                              <option value="fixed_product">₪ למוצר</option>
+                            </select>
+                          </div>
+                          <div className="col-span-3">
+                            <Label className="text-xs">{c.discount_type === 'percent' ? '%' : '₪'}</Label>
+                            <Input type="number" min="0" value={c.amount ?? ''} onChange={(e) => setCouponField(c.id, 'amount', e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-12 gap-2 items-end">
+                          <div className="col-span-5">
+                            <Label className="text-xs">מינ׳ הזמנה ₪</Label>
+                            <Input type="number" min="0" value={c.minimum_amount ?? ''} onChange={(e) => setCouponField(c.id, 'minimum_amount', e.target.value)} />
+                          </div>
+                          <div className="col-span-5">
+                            <Label className="text-xs">תוקף עד</Label>
+                            <Input type="date" dir="ltr" value={c.expiry_date || ''} onChange={(e) => setCouponField(c.id, 'expiry_date', e.target.value)} />
+                          </div>
+                          <div className="col-span-2 flex flex-col items-center">
+                            <Switch checked={!!c.enabled} onCheckedChange={(v) => setCouponField(c.id, 'enabled', v)} />
+                            <span className="text-[10px] text-slate-400">{c.enabled ? 'פעיל' : 'כבוי'}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch checked={!!c.free_shipping} onCheckedChange={(v) => setCouponField(c.id, 'free_shipping', v)} />
+                          <span className="text-xs text-slate-500">כולל משלוח חינם</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          {c.id ? <span className="text-xs text-slate-400">נוצל {c.usage_count || 0} פעמים</span> : <span className="text-xs text-emerald-600">קופון חדש</span>}
+                          <div className="flex items-center gap-2">
+                            {c.id ? (
+                              <Button variant="ghost" size="sm" className="h-8 text-rose-500" onClick={() => deleteCoupon(c)} disabled={couponBusy === c.id}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            ) : null}
+                            <Button size="sm" onClick={() => saveCoupon(c)} disabled={couponBusy === (c.id ?? 'new') || !c.code}>
+                              {couponBusy === (c.id ?? 'new') ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'שמור'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -464,7 +775,7 @@ export default function DeliverySite() {
                         </div>
                       ))}
                     </div>
-                    <p className="text-xs text-slate-500">כאן עורכים שם, מחיר, תיאור וזמינות. עריכת תמונות — בסלייס הבא.</p>
+                    <p className="text-xs text-slate-500">כאן עורכים שם, מחיר, תיאור, זמינות ותמונה (לחיצה על התמונה).</p>
                   </>
                 )}
               </CardContent>

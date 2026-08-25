@@ -150,6 +150,40 @@ registerFn('setDeliverySiteProductImage', async ({ user, body }) => {
   return await res.json();
 });
 
+// ---- Coupons ----
+registerFn('getDeliverySiteCoupons', async ({ user }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/coupons'), { headers: { 'X-Alena-Control-Key': c.key } });
+  if (!res.ok) throw new Error('שגיאת טעינת קופונים (HTTP ' + res.status + ')');
+  const data: any = await res.json();
+  return { connected: true, coupons: data.coupons || [] };
+});
+
+registerFn('setDeliverySiteCoupon', async ({ user, body }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/coupon'), {
+    method: 'POST',
+    headers: { 'X-Alena-Control-Key': c.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new Error('שמירת קופון נכשלה (HTTP ' + res.status + ')');
+  return await res.json();
+});
+
+// ---- Today's orders (read-only) ----
+registerFn('getDeliverySiteOrdersToday', async ({ user }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/orders-today'), { headers: { 'X-Alena-Control-Key': c.key } });
+  if (!res.ok) throw new Error('שגיאת טעינת הזמנות (HTTP ' + res.status + ')');
+  return { connected: true, ...(await res.json()) };
+});
+
 // Let the owner disconnect (clears the stored key).
 registerFn('disconnectDeliverySite', async ({ user }) => {
   await requireOwner(user);
