@@ -181,7 +181,8 @@ registerFn('getDeliverySiteOrdersToday', async ({ user }) => {
   if (!c) return { connected: false };
   const res = await fetch(bust(c.base + '/orders-today'), { headers: { 'X-Alena-Control-Key': c.key } });
   if (!res.ok) throw new Error('שגיאת טעינת הזמנות (HTTP ' + res.status + ')');
-  return { connected: true, ...(await res.json()) };
+  const data: any = await res.json();
+  return { connected: true, ...data };
 });
 
 // Let the owner disconnect (clears the stored key).
