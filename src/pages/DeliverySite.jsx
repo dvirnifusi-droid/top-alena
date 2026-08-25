@@ -94,7 +94,7 @@ export default function DeliverySite() {
       setConnected(!!d.connected);
       setSettings(d.settings || null);
       setError(d.error || '');
-      if (d.connected) loadOrders();
+      if (d.connected) { loadOrders(); loadOtpTplStatus(); }
     } catch (e) {
       setError(e?.message || 'טעינה נכשלה');
     } finally {
@@ -383,11 +383,20 @@ export default function DeliverySite() {
   // --- Auth / OTP ---
   const [otpTplBusy, setOtpTplBusy] = useState(false);
   const [otpTplMsg, setOtpTplMsg] = useState('');
+  const [otpTpl, setOtpTpl] = useState(null); // live {configured, approved}
+  const loadOtpTplStatus = async () => {
+    try {
+      const d = (await base44.functions.getWhatsAppTemplates({}))?.data || {};
+      const t = (d.templates || []).find((x) => x.kind === 'delivery_otp');
+      if (t) setOtpTpl({ configured: !!t.configured, approved: !!t.approved });
+    } catch { /* non-critical */ }
+  };
   const submitOtpTemplate = async () => {
     setOtpTplBusy(true); setOtpTplMsg('');
     try {
       const d = (await base44.functions.ensureWaTemplate({ kind: 'delivery_otp' }))?.data || {};
       setOtpTplMsg(d.message || d.status || 'נשלח');
+      loadOtpTplStatus();
     } catch (e) {
       setOtpTplMsg(e?.message || 'שליחת התבנית נכשלה');
     } finally {
@@ -1120,8 +1129,17 @@ export default function DeliverySite() {
                         <p className="text-xs text-emerald-700 mt-1">הקוד יישלח דרך מערכת ההודעות של TOP ALENA (אותו Twilio ששולח כבר למשמרות). בוואטסאפ אם יש תבנית מאושרת, אחרת ב-SMS — ולמשתמש יש כפתור "שלח ב-SMS" אם לא קיבל.</p>
                         <div className="mt-2 bg-slate-50 rounded-lg p-2">
                           <div className="text-xs text-slate-600 mb-1">כדי לשלוח את הקוד ב<b>וואטסאפ</b> (זול יותר) צריך תבנית מאושרת ממטא. אפשר להגיש אותה לאישור בלחיצה — עד שתאושר, הקוד ממשיך להישלח ב-SMS.</div>
-                          <Button size="sm" variant="outline" onClick={submitOtpTemplate} disabled={otpTplBusy}>
-                            {otpTplBusy ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : null} הגש תבנית OTP לאישור וואטסאפ
+                          {/* Persistent live status (survives refresh) */}
+                          {otpTpl && (
+                            otpTpl.approved
+                              ? <div className="text-xs font-semibold text-emerald-700 mb-1">✅ התבנית מאושרת — הקוד נשלח בוואטסאפ</div>
+                              : otpTpl.configured
+                                ? <div className="text-xs font-semibold text-amber-700 mb-1">⏳ התבנית בבדיקה של מטא — בינתיים הקוד נשלח ב-SMS</div>
+                                : <div className="text-xs text-slate-500 mb-1">התבנית עדיין לא הוגשה</div>
+                          )}
+                          <Button size="sm" variant="outline" onClick={submitOtpTemplate} disabled={otpTplBusy || (otpTpl && otpTpl.approved)}>
+                            {otpTplBusy ? <Loader2 className="w-4 h-4 animate-spin ml-1" /> : null}
+                            {otpTpl && otpTpl.approved ? 'התבנית מאושרת ✓' : otpTpl && otpTpl.configured ? 'בדוק סטטוס / הגש שוב' : 'הגש תבנית OTP לאישור וואטסאפ'}
                           </Button>
                           {otpTplMsg && <p className="text-xs text-slate-600 mt-1">{otpTplMsg}</p>}
                         </div>
