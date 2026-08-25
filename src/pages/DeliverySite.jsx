@@ -146,6 +146,7 @@ export default function DeliverySite() {
           name: z.name,
           delivery_fee: Number(z.delivery_fee) || 0,
           min_order: Number(z.min_order) || 0,
+          eta_max: Number(z.eta_max) || 0,
           enabled: z.enabled !== false,
         })),
         brand_images: settings.brand_images || {},
@@ -672,10 +673,16 @@ export default function DeliverySite() {
                         <Input type="number" min="0" value={z.min_order} onChange={(e) => setZone(z.id, 'min_order', e.target.value)} />
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Switch checked={z.enabled !== false} onCheckedChange={(v) => toggleZoneEnabled(z.id, v)} disabled={quickBusy === 'zone:' + z.id} />
-                      <span className="text-xs text-slate-500">{z.enabled === false ? 'כבוי — לא מקבל משלוחים כרגע' : 'פעיל'}</span>
-                      {quickBusy === 'zone:' + z.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+                    <div className="flex items-end gap-3 mt-2">
+                      <div className="w-40">
+                        <Label className="text-xs">זמן הגעה מקס׳ (דק׳)</Label>
+                        <Input type="number" min="0" placeholder="למשל 60" value={z.eta_max ?? ''} onChange={(e) => setZone(z.id, 'eta_max', e.target.value)} />
+                      </div>
+                      <div className="flex items-center gap-2 pb-2">
+                        <Switch checked={z.enabled !== false} onCheckedChange={(v) => toggleZoneEnabled(z.id, v)} disabled={quickBusy === 'zone:' + z.id} />
+                        <span className="text-xs text-slate-500">{z.enabled === false ? 'כבוי' : 'פעיל'}</span>
+                        {quickBusy === 'zone:' + z.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+                      </div>
                     </div>
                   </div>
                 ))}
