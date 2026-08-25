@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Store, Link2, Save, Check, RefreshCw, Search, Utensils, Power, Megaphone, Ticket, TrendingUp, CalendarOff, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Store, Link2, Save, Check, RefreshCw, Search, Utensils, Power, Megaphone, Ticket, TrendingUp, CalendarOff, Plus, Trash2, SlidersHorizontal, CreditCard, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
@@ -67,6 +67,24 @@ export default function DeliverySite() {
   const [couponsLoading, setCouponsLoading] = useState(false);
   const [couponBusy, setCouponBusy] = useState(null);
   const [newDate, setNewDate] = useState('');           // holiday date to add
+
+  // add-new-product + categories
+  const [categories, setCategories] = useState([]);
+  const [newProdOpen, setNewProdOpen] = useState(false);
+  const [newProd, setNewProd] = useState({ name: '', price: '', category_id: '' });
+  const [creatingProd, setCreatingProd] = useState(false);
+
+  // option groups (modifiers)
+  const [ogGroups, setOgGroups] = useState(null);       // lazy
+  const [ogLoading, setOgLoading] = useState(false);
+  const [ogBusy, setOgBusy] = useState(null);
+  const [prodOpts, setProdOpts] = useState({});         // {productId: [refs]}
+  const [prodOptsBusy, setProdOptsBusy] = useState(null);
+
+  // payments / OTP
+  const [gateways, setGateways] = useState(null);       // lazy
+  const [gwLoading, setGwLoading] = useState(false);
+  const [gwBusy, setGwBusy] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -245,6 +263,141 @@ export default function DeliverySite() {
   const addCoupon = () =>
     setCoupons((cs) => [{ id: 0, code: '', discount_type: 'percent', amount: '10', minimum_amount: '', free_shipping: false, description: '', expiry_date: '', enabled: true, _new: true }, ...(cs || [])]);
 
+  // --- Add new product ---
+  const createProduct = async () => {
+    if (!newProd.name) return;
+    setCreatingProd(true); setError('');
+    try {
+      const d = (await base44.functions.createDeliverySiteProduct({
+        name: newProd.name, price: newProd.price, category_id: newProd.category_id, in_stock: true,
+      }))?.data || {};
+      if (d.ok) {
+        setNewProd({ name: '', price: '', category_id: '' }); setNewProdOpen(false);
+        await loadMenu();
+      } else setError(d.error || 'יצירת המנה נכשלה');
+    } catch (e) {
+      setError(e?.message || 'יצירת המנה נכשלה');
+    } finally {
+      setCreatingProd(false);
+    }
+  };
+
+  // --- Option groups (modifiers) ---
+  const loadOptionGroups = async () => {
+    setOgLoading(true);
+    try {
+      const d = (await base44.functions.getDeliverySiteOptionGroups({}))?.data || {};
+      setOgGroups(Array.isArray(d.groups) ? d.groups : []);
+    } catch (e) {
+      setError(e?.message || 'טעינת אופציות נכשלה');
+    } finally {
+      setOgLoading(false);
+    }
+  };
+  const setOgField = (id, patch) => setOgGroups((gs) => gs.map((g) => (g.id === id ? { ...g, ...patch } : g)));
+  const setOgValue = (gid, vidx, patch) =>
+    setOgGroups((gs) => gs.map((g) => (g.id === gid ? { ...g, values: g.values.map((v, i) => (i === vidx ? { ...v, ...patch } : v)) } : g)));
+  const addOgValue = (gid) => setOgGroups((gs) => gs.map((g) => (g.id === gid ? { ...g, values: [...(g.values || []), { id: '', name: '', price: 0 }] } : g)));
+  const removeOgValue = (gid, vidx) => setOgGroups((gs) => gs.map((g) => (g.id === gid ? { ...g, values: g.values.filter((_, i) => i !== vidx) } : g)));
+  const addOgGroup = () => setOgGroups((gs) => [{ id: '', name: '', type: 'single', values: [{ id: '', name: '', price: 0 }], used_by: 0, _new: true }, ...(gs || [])]);
+  const saveOgGroup = async (g) => {
+    setOgBusy(g.id || 'new'); setError('');
+    try {
+      const d = (await base44.functions.setDeliverySiteOptionGroup({ id: g.id || undefined, name: g.name, type: g.type, values: g.values }))?.data || {};
+      if (d.ok) await loadOptionGroups();
+      else setError(d.error || 'שמירה נכשלה');
+    } catch (e) {
+      setError(e?.message || 'שמירה נכשלה');
+    } finally {
+      setOgBusy(null);
+    }
+  };
+  const deleteOgGroup = async (g) => {
+    if (g.used_by > 0) { setError('הקבוצה משויכת ל־' + g.used_by + ' מנות — הסירו אותה מהן קודם'); return; }
+    if (g.id && !window.confirm('למחוק את "' + (g.name || '') + '"?')) return;
+    if (!g.id) { setOgGroups((gs) => gs.filter((x) => x !== g)); return; }
+    setOgBusy(g.id); setError('');
+    try {
+      await base44.functions.setDeliverySiteOptionGroup({ id: g.id, delete: true });
+      await loadOptionGroups();
+    } catch (e) {
+      setError(e?.message || 'מחיקה נכשלה');
+    } finally {
+      setOgBusy(null);
+    }
+  };
+  // Per-dish attach/detach of library groups
+  const loadProdOpts = async (pid) => {
+    if (ogGroups === null) await loadOptionGroups();
+    try {
+      const d = (await base44.functions.getDeliverySiteProductOptions({ id: pid }))?.data || {};
+      setProdOpts((x) => ({ ...x, [pid]: Array.isArray(d.refs) ? d.refs : [] }));
+    } catch (e) {
+      setError(e?.message || 'טעינת אופציות מנה נכשלה');
+    }
+  };
+  const toggleProdGroup = (pid, group) =>
+    setProdOpts((x) => {
+      const cur = x[pid] || [];
+      const has = cur.some((r) => r.group_id === group.id);
+      const next = has ? cur.filter((r) => r.group_id !== group.id)
+                       : [...cur, { group_id: group.id, label: group.name, min: 0, max: group.type === 'multi' ? 0 : 1, max_single: 1, free: 0 }];
+      return { ...x, [pid]: next };
+    });
+  const saveProdOpts = async (pid) => {
+    setProdOptsBusy(pid); setError('');
+    try {
+      const d = (await base44.functions.setDeliverySiteProductOptions({ id: pid, refs: prodOpts[pid] || [] }))?.data || {};
+      if (!d.ok) setError(d.error || 'שמירה נכשלה');
+    } catch (e) {
+      setError(e?.message || 'שמירה נכשלה');
+    } finally {
+      setProdOptsBusy(null);
+    }
+  };
+
+  // --- Payment gateways ---
+  const loadGateways = async () => {
+    setGwLoading(true);
+    try {
+      const d = (await base44.functions.getDeliverySitePaymentGateways({}))?.data || {};
+      setGateways(Array.isArray(d.gateways) ? d.gateways : []);
+    } catch (e) {
+      setError(e?.message || 'טעינת אמצעי תשלום נכשלה');
+    } finally {
+      setGwLoading(false);
+    }
+  };
+  const toggleGateway = async (gw, enabled) => {
+    setGateways((gs) => gs.map((g) => (g.id === gw.id ? { ...g, enabled } : g)));
+    setGwBusy(gw.id);
+    try {
+      await base44.functions.setDeliverySitePaymentGateway({ id: gw.id, enabled });
+    } catch (e) {
+      setError(e?.message || 'שמירה נכשלה'); loadGateways();
+    } finally {
+      setGwBusy(null);
+    }
+  };
+
+  // --- Auth / OTP ---
+  const setAuth = (k, v) => setSettings((s) => ({ ...s, auth: { ...(s.auth || {}), [k]: v } }));
+  const saveAuth = async (extra = {}) => {
+    setQuickBusy('auth'); setError('');
+    try {
+      const a = { ...(settings.auth || {}), ...extra };
+      // Don't send the masked booleans back as if they were secrets.
+      const payload = { provider: a.provider, test_mode: a.test_mode, wa_template: a.wa_template, twilio_from: a.twilio_from };
+      ['wa_token', 'wa_phone_id', 'twilio_sid', 'twilio_token'].forEach((k) => { if (a[k]) payload[k] = a[k]; });
+      const d = (await base44.functions.setDeliverySiteControl({ settings: { auth: payload } }))?.data || {};
+      if (d.settings) setSettings((s) => ({ ...s, auth: d.settings.auth }));
+    } catch (e) {
+      setError(e?.message || 'שמירה נכשלה');
+    } finally {
+      setQuickBusy('');
+    }
+  };
+
   const setClub = (k, v) => setSettings((s) => ({ ...s, club: { ...s.club, [k]: v } }));
   const setFeature = (slug, v) =>
     setSettings((s) => ({ ...s, features: { ...s.features, [slug]: { ...s.features[slug], enabled: v } } }));
@@ -256,6 +409,7 @@ export default function DeliverySite() {
     try {
       const d = (await base44.functions.getDeliverySiteProducts({}))?.data || {};
       setProducts(Array.isArray(d.products) ? d.products : []);
+      if (Array.isArray(d.categories)) setCategories(d.categories);
     } catch (e) {
       setError(e?.message || 'טעינת התפריט נכשלה');
     } finally {
@@ -728,7 +882,14 @@ export default function DeliverySite() {
               <CardContent className="p-6 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="text-lg font-bold flex items-center gap-2"><Utensils className="w-5 h-5" /> עריכת תפריט</div>
-                  {products && <span className="text-xs text-slate-500">{products.length} מנות</span>}
+                  <div className="flex items-center gap-2">
+                    {products && <span className="text-xs text-slate-500">{products.length} מנות</span>}
+                    {products && (
+                      <Button variant="outline" size="sm" onClick={() => setNewProdOpen((o) => !o)}>
+                        <Plus className="w-4 h-4 ml-1" /> מנה חדשה
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {products === null ? (
                   <Button variant="outline" onClick={loadMenu} disabled={menuLoading}>
@@ -736,6 +897,26 @@ export default function DeliverySite() {
                   </Button>
                 ) : (
                   <>
+                    {newProdOpen && (
+                      <div className="border-2 border-emerald-200 bg-emerald-50/50 rounded-xl p-3 space-y-2">
+                        <div className="font-semibold text-sm text-emerald-800">מנה חדשה</div>
+                        <Input placeholder="שם המנה" value={newProd.name} onChange={(e) => setNewProd((p) => ({ ...p, name: e.target.value }))} />
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input type="number" placeholder="מחיר ₪" value={newProd.price} onChange={(e) => setNewProd((p) => ({ ...p, price: e.target.value }))} />
+                          <select className="h-10 rounded-md border border-slate-200 text-sm px-2" value={newProd.category_id}
+                            onChange={(e) => setNewProd((p) => ({ ...p, category_id: e.target.value }))}>
+                            <option value="">קטגוריה…</option>
+                            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => setNewProdOpen(false)}>ביטול</Button>
+                          <Button size="sm" onClick={createProduct} disabled={creatingProd || !newProd.name}>
+                            {creatingProd ? <Loader2 className="w-4 h-4 animate-spin" /> : 'צור מנה'}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     <div className="relative">
                       <Search className="w-4 h-4 absolute top-3 right-3 text-slate-400" />
                       <Input className="pr-9" placeholder="חיפוש מנה…" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -764,9 +945,18 @@ export default function DeliverySite() {
                             </div>
                           </div>
                           <div className="flex items-center justify-between mt-2">
-                            <button className="text-xs text-slate-500 underline" onClick={() => setExpanded((x) => ({ ...x, [p.id]: !x[p.id] }))}>
-                              {expanded[p.id] ? 'הסתר תיאור' : 'תיאור'}
-                            </button>
+                            <div className="flex items-center gap-3">
+                              <button className="text-xs text-slate-500 underline" onClick={() => setExpanded((x) => ({ ...x, [p.id]: !x[p.id] }))}>
+                                {expanded[p.id] ? 'הסתר תיאור' : 'תיאור'}
+                              </button>
+                              <button className="text-xs text-slate-500 underline" onClick={() => {
+                                const key = 'opts_' + p.id;
+                                setExpanded((x) => ({ ...x, [key]: !x[key] }));
+                                if (!prodOpts[p.id]) loadProdOpts(p.id);
+                              }}>
+                                {expanded['opts_' + p.id] ? 'הסתר תוספות' : 'תוספות'}
+                              </button>
+                            </div>
                             <Button size="sm" onClick={() => saveProduct(p)} disabled={savingId === p.id}>
                               {savingId === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : savedId === p.id ? 'נשמר ✓' : 'שמור'}
                             </Button>
@@ -774,12 +964,177 @@ export default function DeliverySite() {
                           {expanded[p.id] && (
                             <Textarea className="mt-2" rows={3} value={p.description || ''} onChange={(e) => setProduct(p.id, 'description', e.target.value)} />
                           )}
+                          {expanded['opts_' + p.id] && (
+                            <div className="mt-2 border-t border-slate-100 pt-2">
+                              {ogGroups === null ? (
+                                <p className="text-xs text-slate-400">טוען קבוצות…</p>
+                              ) : ogGroups.length === 0 ? (
+                                <p className="text-xs text-slate-400">אין קבוצות תוספות. צור אותן בכרטיס "תוספות ואופציות" למטה.</p>
+                              ) : (
+                                <>
+                                  <div className="text-xs text-slate-500 mb-1">אילו קבוצות תוספות משויכות למנה:</div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {ogGroups.map((g) => {
+                                      const on = (prodOpts[p.id] || []).some((r) => r.group_id === g.id);
+                                      return (
+                                        <button key={g.id} type="button" onClick={() => toggleProdGroup(p.id, g)}
+                                          className={`text-xs px-2 py-1 rounded-full border ${on ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-300 text-slate-500'}`}>
+                                          {g.name}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  <div className="flex justify-end mt-2">
+                                    <Button size="sm" variant="outline" onClick={() => saveProdOpts(p.id)} disabled={prodOptsBusy === p.id}>
+                                      {prodOptsBusy === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'שמור תוספות'}
+                                    </Button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
                     <p className="text-xs text-slate-500">כאן עורכים שם, מחיר, תיאור, זמינות ותמונה (לחיצה על התמונה).</p>
                   </>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* ---- Option groups (modifiers / add-ons) ---- */}
+            <Card>
+              <CardContent className="p-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-lg font-bold flex items-center gap-2"><SlidersHorizontal className="w-5 h-5" /> תוספות ואופציות</div>
+                  {ogGroups && <Button variant="outline" size="sm" onClick={addOgGroup}><Plus className="w-4 h-4 ml-1" /> קבוצה חדשה</Button>}
+                </div>
+                <p className="text-xs text-slate-500">קבוצות משותפות (גדלים, רטבים, תוספות). שינוי מחיר כאן מתעדכן בכל המנות שמשתמשות בקבוצה.</p>
+                {ogGroups === null ? (
+                  <Button variant="outline" onClick={loadOptionGroups} disabled={ogLoading}>
+                    {ogLoading ? <><Loader2 className="w-4 h-4 animate-spin ml-2" /> טוען…</> : 'טען תוספות ואופציות'}
+                  </Button>
+                ) : ogGroups.length === 0 ? (
+                  <p className="text-sm text-slate-500">אין קבוצות. אפשר להוסיף אחת למעלה.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {ogGroups.map((g, gi) => (
+                      <div key={g.id || 'new' + gi} className="border border-slate-200 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Input className="flex-1" placeholder="שם הקבוצה (למשל: גודל)" value={g.name || ''} onChange={(e) => setOgField(g.id, { name: e.target.value })} />
+                          <select className="h-10 rounded-md border border-slate-200 text-sm px-2" value={g.type} onChange={(e) => setOgField(g.id, { type: e.target.value })}>
+                            <option value="single">בחירה אחת</option>
+                            <option value="multi">מרובה</option>
+                          </select>
+                        </div>
+                        {g.used_by > 0 && <div className="text-[11px] text-slate-400">בשימוש ב־{g.used_by} מנות</div>}
+                        <div className="space-y-1">
+                          {(g.values || []).map((v, vi) => (
+                            <div key={vi} className="flex items-center gap-2">
+                              <Input className="flex-1 h-8 text-sm" placeholder="שם האפשרות" value={v.name || ''} onChange={(e) => setOgValue(g.id, vi, { name: e.target.value })} />
+                              <Input type="number" className="w-20 h-8 text-sm" placeholder="₪" value={v.price ?? 0} onChange={(e) => setOgValue(g.id, vi, { price: e.target.value })} />
+                              <button className="text-rose-400" onClick={() => removeOgValue(g.id, vi)}><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                          ))}
+                          <button className="text-xs text-indigo-600 underline" onClick={() => addOgValue(g.id)}>+ אפשרות</button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Button variant="ghost" size="sm" className="h-8 text-rose-500" onClick={() => deleteOgGroup(g)} disabled={ogBusy === g.id}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" onClick={() => saveOgGroup(g)} disabled={ogBusy === (g.id || 'new') || !g.name}>
+                            {ogBusy === (g.id || 'new') ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'שמור'}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ---- Payments + login (OTP) ---- */}
+            <Card>
+              <CardContent className="p-6 space-y-4">
+                <div className="text-lg font-bold flex items-center gap-2"><CreditCard className="w-5 h-5" /> תשלומים והתחברות</div>
+
+                {/* Payment gateways */}
+                <div>
+                  <Label className="text-sm font-semibold">אמצעי תשלום פעילים</Label>
+                  {gateways === null ? (
+                    <div className="mt-1"><Button variant="outline" size="sm" onClick={loadGateways} disabled={gwLoading}>
+                      {gwLoading ? <><Loader2 className="w-4 h-4 animate-spin ml-2" /> טוען…</> : 'טען אמצעי תשלום'}
+                    </Button></div>
+                  ) : gateways.length === 0 ? (
+                    <p className="text-sm text-slate-500 mt-1">לא נמצאו אמצעי תשלום.</p>
+                  ) : (
+                    <div className="mt-1 space-y-1">
+                      {gateways.map((gw) => (
+                        <div key={gw.id} className="flex items-center justify-between py-1.5 border-b last:border-0 border-slate-100">
+                          <span className="text-sm">{gw.title}</span>
+                          <div className="flex items-center gap-2">
+                            {gwBusy === gw.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />}
+                            <Switch checked={!!gw.enabled} onCheckedChange={(v) => toggleGateway(gw, v)} disabled={gwBusy === gw.id} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* OTP / login */}
+                <div className="border-t border-slate-100 pt-3">
+                  <Label className="text-sm font-semibold flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> התחברות לקוחות (OTP)</Label>
+
+                  {settings.auth?.test_mode && (
+                    <div className="mt-2 flex items-start gap-2 text-xs bg-rose-50 text-rose-700 rounded-lg p-2">
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span>מצב בדיקה פעיל — קוד ההתחברות מוצג על המסך לכל מי שמקליד טלפון. לכבות לפני שהאתר פתוח ללקוחות.</span>
+                    </div>
+                  )}
+
+                  <div className="mt-2">
+                    <Label className="text-xs">ספק שליחת קוד</Label>
+                    <select className="w-full h-10 rounded-md border border-slate-200 text-sm px-2" value={settings.auth?.provider || 'console'}
+                      onChange={(e) => { setAuth('provider', e.target.value); }}>
+                      <option value="console">מסך בלבד (בדיקה)</option>
+                      <option value="whatsapp_cloud">WhatsApp (Meta Cloud)</option>
+                      <option value="twilio_sms">SMS (Twilio)</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-sm">מצב בדיקה (הצגת קוד על המסך)</span>
+                    <Switch checked={!!settings.auth?.test_mode} onCheckedChange={(v) => setAuth('test_mode', v)} />
+                  </div>
+
+                  {settings.auth?.provider === 'whatsapp_cloud' && (
+                    <div className="mt-2 space-y-2">
+                      <div><Label className="text-xs">Access Token {settings.auth?.wa_configured ? '(מוגדר ✓ — השאירו ריק לשמירה)' : ''}</Label>
+                        <Input dir="ltr" placeholder={settings.auth?.wa_configured ? '••••••••' : ''} onChange={(e) => setAuth('wa_token', e.target.value)} /></div>
+                      <div><Label className="text-xs">Phone Number ID {settings.auth?.wa_configured ? '(מוגדר ✓)' : ''}</Label>
+                        <Input dir="ltr" placeholder={settings.auth?.wa_configured ? '••••••••' : ''} onChange={(e) => setAuth('wa_phone_id', e.target.value)} /></div>
+                      <div><Label className="text-xs">שם תבנית מאושרת</Label>
+                        <Input dir="ltr" value={settings.auth?.wa_template || ''} onChange={(e) => setAuth('wa_template', e.target.value)} placeholder="alena_otp_he" /></div>
+                    </div>
+                  )}
+                  {settings.auth?.provider === 'twilio_sms' && (
+                    <div className="mt-2 space-y-2">
+                      <div><Label className="text-xs">Account SID {settings.auth?.twilio_configured ? '(מוגדר ✓ — השאירו ריק לשמירה)' : ''}</Label>
+                        <Input dir="ltr" placeholder={settings.auth?.twilio_configured ? '••••••••' : ''} onChange={(e) => setAuth('twilio_sid', e.target.value)} /></div>
+                      <div><Label className="text-xs">Auth Token {settings.auth?.twilio_configured ? '(מוגדר ✓)' : ''}</Label>
+                        <Input dir="ltr" placeholder={settings.auth?.twilio_configured ? '••••••••' : ''} onChange={(e) => setAuth('twilio_token', e.target.value)} /></div>
+                      <div><Label className="text-xs">שולח (מספר / Sender ID)</Label>
+                        <Input dir="ltr" value={settings.auth?.twilio_from || ''} onChange={(e) => setAuth('twilio_from', e.target.value)} placeholder="+1... או Alena" /></div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end mt-3">
+                    <Button size="sm" onClick={() => saveAuth()} disabled={quickBusy === 'auth'}>
+                      {quickBusy === 'auth' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור הגדרות התחברות'}
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 

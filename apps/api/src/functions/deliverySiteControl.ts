@@ -185,6 +185,92 @@ registerFn('getDeliverySiteOrdersToday', async ({ user }) => {
   return { connected: true, ...data };
 });
 
+// ---- Create a new product ----
+registerFn('createDeliverySiteProduct', async ({ user, body }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/product-create'), {
+    method: 'POST',
+    headers: { 'X-Alena-Control-Key': c.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new Error('יצירת מנה נכשלה (HTTP ' + res.status + ')');
+  return await res.json();
+});
+
+// ---- Option groups (modifiers) ----
+registerFn('getDeliverySiteOptionGroups', async ({ user }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/option-groups'), { headers: { 'X-Alena-Control-Key': c.key } });
+  if (!res.ok) throw new Error('שגיאת טעינת אופציות (HTTP ' + res.status + ')');
+  const data: any = await res.json();
+  return { connected: true, groups: data.groups || [] };
+});
+
+registerFn('setDeliverySiteOptionGroup', async ({ user, body }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/option-group'), {
+    method: 'POST',
+    headers: { 'X-Alena-Control-Key': c.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new Error('שמירת קבוצת אופציות נכשלה (HTTP ' + res.status + ')');
+  return await res.json();
+});
+
+registerFn('getDeliverySiteProductOptions', async ({ user, body }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const id = (body as any)?.id;
+  const res = await fetch(bust(c.base + '/product-options?id=' + encodeURIComponent(id)), { headers: { 'X-Alena-Control-Key': c.key } });
+  if (!res.ok) throw new Error('שגיאת טעינת אופציות מנה (HTTP ' + res.status + ')');
+  const data: any = await res.json();
+  return { connected: true, refs: data.refs || [] };
+});
+
+registerFn('setDeliverySiteProductOptions', async ({ user, body }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/product-options'), {
+    method: 'POST',
+    headers: { 'X-Alena-Control-Key': c.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new Error('שמירת אופציות מנה נכשלה (HTTP ' + res.status + ')');
+  return await res.json();
+});
+
+// ---- Payment gateways ----
+registerFn('getDeliverySitePaymentGateways', async ({ user }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/payment-gateways'), { headers: { 'X-Alena-Control-Key': c.key } });
+  if (!res.ok) throw new Error('שגיאת טעינת אמצעי תשלום (HTTP ' + res.status + ')');
+  const data: any = await res.json();
+  return { connected: true, gateways: data.gateways || [] };
+});
+
+registerFn('setDeliverySitePaymentGateway', async ({ user, body }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/payment-gateway'), {
+    method: 'POST',
+    headers: { 'X-Alena-Control-Key': c.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new Error('שמירת אמצעי תשלום נכשלה (HTTP ' + res.status + ')');
+  return await res.json();
+});
+
 // Let the owner disconnect (clears the stored key).
 registerFn('disconnectDeliverySite', async ({ user }) => {
   await requireOwner(user);
