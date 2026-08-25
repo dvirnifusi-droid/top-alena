@@ -190,8 +190,11 @@ registerFn('getDeliverySiteOrders', async ({ user, body }) => {
   await requireOwner(user);
   const c = await productsBase();
   if (!c) return { connected: false };
-  const limit = (body as any)?.limit || 40;
-  const res = await fetch(bust(c.base + '/orders?limit=' + encodeURIComponent(limit)), { headers: { 'X-Alena-Control-Key': c.key } });
+  const b: any = body || {};
+  const qs = new URLSearchParams();
+  qs.set('limit', String(b.limit || 60));
+  ['status', 'from', 'to', 'rating', 'search'].forEach((k) => { if (b[k]) qs.set(k, String(b[k])); });
+  const res = await fetch(bust(c.base + '/orders?' + qs.toString()), { headers: { 'X-Alena-Control-Key': c.key } });
   if (!res.ok) throw new Error('שגיאת טעינת הזמנות (HTTP ' + res.status + ')');
   const data: any = await res.json();
   return { connected: true, orders: data.orders || [], server_ts: data.server_ts };

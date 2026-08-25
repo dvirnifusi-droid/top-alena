@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, ClipboardList, RefreshCw, Bell, BellOff, Phone, MapPin } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Loader2, ClipboardList, RefreshCw, Bell, BellOff, Phone, MapPin, Search } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
@@ -26,6 +27,17 @@ const TONE = {
 // Orders in these statuses are "live" — they should alert and sit at the top.
 const ACTIVE = ['pending', 'processing', 'on-hold'];
 
+function dateRange(key) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt = (x) => x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate());
+  const d = new Date();
+  if (key === 'today') return { from: fmt(d), to: fmt(d) };
+  if (key === 'yesterday') { const y = new Date(d); y.setDate(d.getDate() - 1); return { from: fmt(y), to: fmt(y) }; }
+  if (key === 'week') { const w = new Date(d); w.setDate(d.getDate() - 6); return { from: fmt(w), to: fmt(d) }; }
+  if (key === 'month') { const m = new Date(d.getFullYear(), d.getMonth(), 1); return { from: fmt(m), to: fmt(d) }; }
+  return {};
+}
+
 function timeAgo(ts) {
   if (!ts) return '';
   const s = Math.max(0, Math.floor(Date.now() / 1000 - ts));
@@ -46,7 +58,12 @@ export default function DeliveryOrders() {
   const [soundOn, setSoundOn] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [flash, setFlash] = useState({});          // id → highlight new
-  const [filter, setFilter] = useState('active');   // active | all
+
+  // Filters (server-side)
+  const [statusF, setStatusF] = useState('active');   // active|processing|completed|cancelled|all
+  const [dateF, setDateF] = useState('all');          // today|yesterday|week|month|all
+  const [ratingF, setRatingF] = useState('');         // ''|rated|low
+  const [search, setSearch] = useState('');
 
   const seenRef = useRef(null);   // Set of ids seen on a prior poll (null = first load)
   const audioRef = useRef(null);
@@ -72,13 +89,18 @@ export default function DeliveryOrders() {
   const load = useCallback(async (isPoll) => {
     if (!isPoll) setLoading(true);
     try {
-      const d = (await base44.functions.getDeliverySiteOrders({ limit: 40 }))?.data || {};
+      const dr = dateRange(dateF);
+      const params = { limit: 80, status: statusF, rating: ratingF, search };
+      if (dr.from) params.from = dr.from;
+      if (dr.to) params.to = dr.to;
+      const d = (await base44.functions.getDeliverySiteOrders(params))?.data || {};
       if (d.connected === false) { setConnected(false); return; }
       setConnected(true);
       const list = Array.isArray(d.orders) ? d.orders : [];
-      // New-order detection: an active order whose id we haven't seen before.
+      // New-order detection: only while POLLING (never on a manual/filter reload,
+      // where a changed result set would otherwise look like a flood of "new").
       const ids = new Set(list.map((o) => o.id));
-      if (seenRef.current) {
+      if (isPoll && seenRef.current) {
         const fresh = list.filter((o) => ACTIVE.includes(o.status) && !seenRef.current.has(o.id));
         if (fresh.length) {
           if (soundOn) beep();
@@ -96,7 +118,7 @@ export default function DeliveryOrders() {
     } finally {
       setLoading(false);
     }
-  }, [soundOn, beep]);
+  }, [soundOn, beep, statusF, dateF, ratingF, search]);
 
   useEffect(() => { load(false); }, [load]);
   // Poll every 20s while the page is open.
@@ -123,8 +145,29 @@ export default function DeliveryOrders() {
     if (v) beep(); // unlock audio + confirm it works, on the enabling gesture
   };
 
-  const shown = orders.filter((o) => (filter === 'active' ? ACTIVE.includes(o.status) : true));
+  const shown = orders;
   const activeCount = orders.filter((o) => ACTIVE.includes(o.status)).length;
+
+  const STATUS_TABS = [
+    { k: 'active', label: 'פעילות' },
+    { k: 'processing', label: 'בהכנה' },
+    { k: 'completed', label: 'הושלמו' },
+    { k: 'cancelled', label: 'בוטלו' },
+    { k: 'all', label: 'הכל' },
+  ];
+  const DATE_TABS = [
+    { k: 'today', label: 'היום' },
+    { k: 'yesterday', label: 'אתמול' },
+    { k: 'week', label: '7 ימים' },
+    { k: 'month', label: 'החודש' },
+    { k: 'all', label: 'הכל' },
+  ];
+  const RATING_TABS = [
+    { k: '', label: 'הכל' },
+    { k: 'rated', label: '⭐ מדורגות' },
+    { k: 'low', label: 'דירוג נמוך' },
+  ];
+  const chip = (active) => `text-sm font-semibold px-3 py-1.5 rounded-full whitespace-nowrap ${active ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`;
 
   return (
     <PageGuard pageName="DeliveryOrders" pageTitle="הזמנות משלוחים">
@@ -152,17 +195,37 @@ export default function DeliveryOrders() {
 
             {/* Controls */}
             <Card>
-              <CardContent className="p-3 flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1">
-                  <button onClick={() => setFilter('active')} className={`text-sm font-semibold px-3 py-1.5 rounded-full ${filter === 'active' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>
-                    פעילות {activeCount > 0 && <span className="mr-1 inline-flex items-center justify-center bg-amber-500 text-white text-[11px] rounded-full w-5 h-5">{activeCount}</span>}
-                  </button>
-                  <button onClick={() => setFilter('all')} className={`text-sm font-semibold px-3 py-1.5 rounded-full ${filter === 'all' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>הכל</button>
-                </div>
+              <CardContent className="p-3 space-y-2.5">
+                {/* Search + sound */}
                 <div className="flex items-center gap-2">
-                  {soundOn ? <Bell className="w-4 h-4 text-emerald-600" /> : <BellOff className="w-4 h-4 text-slate-400" />}
-                  <span className="text-sm text-slate-600">התראת קול</span>
-                  <Switch checked={soundOn} onCheckedChange={enableSound} />
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 absolute top-2.5 right-3 text-slate-400" />
+                    <Input className="pr-9 h-9" placeholder="חיפוש: מס׳ הזמנה / שם / טלפון" value={search} onChange={(e) => setSearch(e.target.value)} />
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {soundOn ? <Bell className="w-4 h-4 text-emerald-600" /> : <BellOff className="w-4 h-4 text-slate-400" />}
+                    <Switch checked={soundOn} onCheckedChange={enableSound} />
+                  </div>
+                </div>
+                {/* Status */}
+                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 overflow-x-auto">
+                  {STATUS_TABS.map((t) => (
+                    <button key={t.k} onClick={() => setStatusF(t.k)} className={chip(statusF === t.k)}>
+                      {t.label}
+                      {t.k === 'active' && activeCount > 0 && <span className="mr-1 inline-flex items-center justify-center bg-amber-500 text-white text-[11px] rounded-full w-5 h-5">{activeCount}</span>}
+                    </button>
+                  ))}
+                </div>
+                {/* Date + rating */}
+                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 overflow-x-auto">
+                  {DATE_TABS.map((t) => (
+                    <button key={t.k} onClick={() => setDateF(t.k)} className={chip(dateF === t.k)}>{t.label}</button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 w-fit">
+                  {RATING_TABS.map((t) => (
+                    <button key={t.k} onClick={() => setRatingF(t.k)} className={chip(ratingF === t.k)}>{t.label}</button>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -174,7 +237,7 @@ export default function DeliveryOrders() {
             ) : shown.length === 0 ? (
               <Card><CardContent className="p-10 text-center text-slate-500" dir="rtl">
                 <div className="text-4xl mb-2">🎉</div>
-                <p className="font-semibold">{filter === 'active' ? 'אין הזמנות פעילות כרגע' : 'אין הזמנות'}</p>
+                <p className="font-semibold">{statusF === 'active' ? 'אין הזמנות פעילות כרגע' : 'אין הזמנות שתואמות לסינון'}</p>
                 <p className="text-sm text-slate-400 mt-1">הזמנות חדשות יופיעו כאן אוטומטית.</p>
               </CardContent></Card>
             ) : (
@@ -205,6 +268,12 @@ export default function DeliveryOrders() {
                         <div className="flex items-start gap-1 text-sm text-slate-600"><MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /><span>{o.address}</span></div>
                       )}
                       {o.note && <div className="text-xs bg-amber-50 text-amber-800 rounded-lg p-2">📝 {o.note}</div>}
+                      {o.rating > 0 && (
+                        <div className="text-sm flex items-center gap-2 flex-wrap">
+                          <span className="text-amber-500 tracking-tight">{'★'.repeat(o.rating)}<span className="text-slate-300">{'★'.repeat(5 - o.rating)}</span></span>
+                          {o.rating_comment && <span className="text-slate-500 text-xs">"{o.rating_comment}"</span>}
+                        </div>
+                      )}
 
                       {/* Items */}
                       <div className="border-t border-slate-100 pt-2 space-y-1.5">
