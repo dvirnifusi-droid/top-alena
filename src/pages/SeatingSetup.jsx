@@ -825,7 +825,7 @@ export default function SeatingSetup() {
     // re-create the array (which would force every ReservationCard to re-render
     // and reset scroll/selection in the rail).
     const fingerprintReservations = (arr) =>
-        (arr || []).map(r => `${r.id}|${r.status}|${r.assigned_table}|${r.hostess_flag}|${r.time}|${r.party_size}|${r.customer_name}|${r.deposit_status}`).join('§');
+        (arr || []).map(r => `${r.id}|${r.status}|${r.assigned_table}|${r.hostess_flag}|${r.time}|${r.party_size}|${r.customer_name}|${r.deposit_status}|${r.reservation_end_time}|${r.is_standby}|${r.guest_confirmed_at}|${r.guest_declined_at}|${r.confirm_request_sent_at}`).join('§');
     const fingerprintSessions = (arr) =>
         (arr || []).map(s => `${s.id}|${s.current_step}|${s.table_number}`).join('§');
 
@@ -1745,7 +1745,13 @@ export default function SeatingSetup() {
     // triggering the global loading overlay. Avoids the 'טוען הגדרות' flash
     // every time the hostess flips a status or flag.
     const patchReservationLocal = (id, patch) => {
-        setReservations(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+        // A reservation that just got a table is no longer waiting — clear the
+        // stale standby flag here so every assignment path (map drag, quick-seat,
+        // auto-assign, edit dialog) stays consistent without touching all ~12 call
+        // sites. The DB is also cleared, below, in the map/quick paths.
+        const p = (Array.isArray(patch.assigned_table) && patch.assigned_table.length > 0 && !('is_standby' in patch))
+            ? { ...patch, is_standby: false } : patch;
+        setReservations(prev => prev.map(r => r.id === id ? { ...r, ...p } : r));
     };
     const setStatus = async (reservation, status) => {
         patchReservationLocal(reservation.id, { status });
@@ -1890,7 +1896,7 @@ export default function SeatingSetup() {
                         !['cancelled', 'completed', 'no_show', 'seated'].includes(r.status || 'pending')
                     );
                     if (!r) return { ok: false, message: `${cmd.name} לא נמצא בהזמנות` };
-                    await Reservation.update(r.id, { assigned_table: tableIds, status: 'seated' });
+                    await Reservation.update(r.id, { assigned_table: tableIds, status: 'seated', is_standby: false });
                     try {
                         await TableSession.create({
                             table_number: tableIds.join(','),
@@ -2564,7 +2570,7 @@ export default function SeatingSetup() {
             );
             if (movedRes) {
                 const next = [...new Set(movedRes.assigned_table.map(String).map(t => t === String(fromTable) ? String(toTable) : t))];
-                await Reservation.update(movedRes.id, { assigned_table: next });
+                await Reservation.update(movedRes.id, { assigned_table: next, is_standby: false });
             }
             setTableDetailsOpen(false);
             loadLiveData();
@@ -3042,7 +3048,7 @@ export default function SeatingSetup() {
                 }
                 
                 if (changed) {
-                    updates.push(Reservation.update(res.id, { assigned_table: Array.from(tempAssigned) }));
+                    updates.push(Reservation.update(res.id, { assigned_table: Array.from(tempAssigned), is_standby: false }));
                 }
             }
 
@@ -3098,7 +3104,7 @@ export default function SeatingSetup() {
         patchReservationLocal(id, { assigned_table: chosen });  // instant map update
         cancelMultiTableAssignment();
         try {
-            await Reservation.update(id, { assigned_table: chosen });
+            await Reservation.update(id, { assigned_table: chosen, is_standby: false });
             loadLiveData();  // silent resync, no spinner
         } catch (error) {
             console.error('Error saving multi-table assignment:', error);
@@ -3142,7 +3148,7 @@ export default function SeatingSetup() {
             if (reservation) {
                 const next = [...new Set((reservation.assigned_table || []).map(String).map(t => (t === from ? to : t)))];
                 patchReservationLocal(reservation.id, { assigned_table: next });  // instant list/map update
-                await Reservation.update(reservation.id, { assigned_table: next });
+                await Reservation.update(reservation.id, { assigned_table: next, is_standby: false });
             }
             showToast(`הועבר משולחן ${from} לשולחן ${to}`);
             loadLiveData();
@@ -3256,7 +3262,7 @@ export default function SeatingSetup() {
             patchReservationLocal(rid, { assigned_table: [table.table_number] });  // instant, no alert
             setAssigningTable(null);
             try {
-                await Reservation.update(rid, { assigned_table: [table.table_number] });
+                await Reservation.update(rid, { assigned_table: [table.table_number], is_standby: false });
                 loadLiveData();  // silent resync, no spinner
             } catch (e) {
                 console.error('assign failed', e);

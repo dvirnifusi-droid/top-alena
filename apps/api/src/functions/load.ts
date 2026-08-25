@@ -13442,6 +13442,30 @@ const ymd = (v: any) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
 };
 
+// Close TableSessions that have been 'active' far longer than any real seating.
+// Auto-close is off, so without this they linger forever and mark their table
+// occupied on EVERY date (the "table 9 taken by מאור גלאם from last month" bug).
+// Runs on the reservation-reminder cron; the seating map also hides stale sessions
+// client-side, but this actually clears them so counts stay honest.
+export async function closeStaleTableSessions(maxHours = 12): Promise<{ ok: boolean; closed?: number }> {
+  const cutoff = new Date(Date.now() - maxHours * 60 * 60 * 1000);
+  const cutoffIso = cutoff.toISOString();
+  try {
+    const r: any = await (prisma as any).tableSession.updateMany({
+      where: {
+        status: 'active',
+        OR: [
+          { session_start: { lt: cutoffIso } },
+          { AND: [{ session_start: null }, { createdAt: { lt: cutoff } }] },
+        ],
+      },
+      data: { status: 'completed', session_end: cutoffIso },
+    });
+    if (r?.count) console.log(`[stale-sessions] closed ${r.count} zombie session(s) (>${maxHours}h)`);
+    return { ok: true, closed: r?.count || 0 };
+  } catch (e: any) { console.warn('[stale-sessions]', e?.message); return { ok: false }; }
+}
+
 /** Seats already taken for a date — the sum of party sizes, not a row count. */
 async function seatsBookedOn(date: string): Promise<number> {
   const rows: any[] = await (prisma as any).$queryRawUnsafe(

@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runWeeklyScheduleOpen, runWeeklyScheduleReminder, runWeeklyScheduleFinalReminder, runWeeklyScheduleBuild, runNoShowWatcher, runInvoiceClassifier, runCrisisAgent, runContentGenerator, runCashFlowAgent, sendReservationReminders, runSupplierOrderAlerts, autoApplyInvoiceIngredientPrices } from '../functions/load.js';
+import { sendRestroomReminder, sendAbandonedReminder, sendT24SurveyReminders, runAutoTrackerAnalysis, runSalesAutoClose, runWeeklyPersonalGoals, captureBeecommSnapshot, backfillBeecommHistory, reopenAutoClosedShifts, runWeeklyScheduleOpen, runWeeklyScheduleReminder, runWeeklyScheduleFinalReminder, runWeeklyScheduleBuild, runNoShowWatcher, runInvoiceClassifier, runCrisisAgent, runContentGenerator, runCashFlowAgent, sendReservationReminders, runSupplierOrderAlerts, autoApplyInvoiceIngredientPrices, closeStaleTableSessions } from '../functions/load.js';
 import { sendMorningBrief, buildMorningBrief, sendEndOfDayBrief, buildEndOfDayBrief } from '../lib/morningBrief.js';
 import { sendDailyHoursReport, checkDailyHoursReportSchedule } from '../lib/dailyHoursReport.js';
 import { dispatchDueReminders } from '../lib/reminders.js';
@@ -35,6 +35,9 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
   // Every ~15 min — day-of reminder to today's confirmed guests whose seating is
   // 90 min – 6 h away (idempotent via reminder_sent_at). Includes confirm/cancel link.
   app.post('/reservation-reminder', async () => {
+    // Piggyback: close zombie table sessions (active but hours old, never checked
+    // out) so a stale seating can't mark a table occupied on every date.
+    await closeStaleTableSessions().catch(() => {});
     return sendReservationReminders();
   });
 
