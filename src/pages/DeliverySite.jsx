@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Store, Link2, Save, Check, RefreshCw, Search, Utensils, Power, Megaphone, Ticket, TrendingUp, CalendarOff, Plus, Trash2, SlidersHorizontal, CreditCard, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Loader2, Store, Link2, Save, Check, RefreshCw, Search, Utensils, Power, Megaphone, Ticket, TrendingUp, CalendarOff, Plus, Trash2, SlidersHorizontal, CreditCard, ShieldCheck, AlertTriangle, Building2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
@@ -170,6 +170,13 @@ export default function DeliverySite() {
         },
         free_delivery_over: Number(settings.free_delivery_over) || 0,
         date_overrides: settings.date_overrides || {},
+        business: {
+          phone: settings.business?.phone || '',
+          address: settings.business?.address || '',
+          city: settings.business?.city || '',
+          rating: settings.business?.rating || '',
+          tip_presets: settings.business?.tip_presets || '',
+        },
       };
       const d = (await base44.functions.setDeliverySiteControl({ settings: payload }))?.data || {};
       if (d.settings) setSettings(d.settings);
@@ -421,6 +428,7 @@ export default function DeliverySite() {
     }
   };
 
+  const setBiz = (k, v) => setSettings((s) => ({ ...s, business: { ...(s.business || {}), [k]: v } }));
   const setClub = (k, v) => setSettings((s) => ({ ...s, club: { ...s.club, [k]: v } }));
   const setFeature = (slug, v) =>
     setSettings((s) => ({ ...s, features: { ...s.features, [slug]: { ...s.features[slug], enabled: v } } }));
@@ -606,6 +614,40 @@ export default function DeliverySite() {
                     <div><div className="text-2xl font-extrabold text-slate-800">₪{Number(orders.avg).toLocaleString()}</div><div className="text-xs text-slate-500">ממוצע</div></div>
                   </div>
                 ) : <p className="text-xs text-slate-400 text-center py-2">טוען…</p>}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6 space-y-4">
+                <div className="text-lg font-bold flex items-center gap-2"><Building2 className="w-5 h-5" /> פרטי העסק</div>
+                <p className="text-xs text-slate-500">מופיעים בכל האתר: כותרת, תשלום, עמוד תודה, נתוני Google. שינוי כאן מתעדכן בכל המקומות.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>טלפון</Label>
+                    <Input dir="ltr" value={settings.business?.phone ?? ''} placeholder="03-6228055" onChange={(e) => setBiz('phone', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>עיר</Label>
+                    <Input value={settings.business?.city ?? ''} placeholder="ראשון לציון" onChange={(e) => setBiz('city', e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <Label>כתובת (רחוב ומספר)</Label>
+                  <Input value={settings.business?.address ?? ''} placeholder="רוטשילד 104" onChange={(e) => setBiz('address', e.target.value)} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>דירוג מוצג (⭐)</Label>
+                    <Input dir="ltr" value={settings.business?.rating ?? ''} placeholder="4.9" onChange={(e) => setBiz('rating', e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>סכומי טיפ (₪, מופרד בפסיק)</Label>
+                    <Input dir="ltr" value={settings.business?.tip_presets ?? ''} placeholder="0,5,10,15" onChange={(e) => setBiz('tip_presets', e.target.value)} />
+                  </div>
+                </div>
+                {settings.business?.served_cities && (
+                  <p className="text-xs text-slate-500">ערי משלוח (אוטומטי מהאזורים): <b>{settings.business.served_cities}</b></p>
+                )}
               </CardContent>
             </Card>
 
