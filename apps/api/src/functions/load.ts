@@ -12443,17 +12443,27 @@ registerFn('sendDepositRequest', async ({ body, user, req }: any) => {
     data: { deposit_required: true, deposit_provider: 'payplus', deposit_amount: amount, deposit_provider_ref: link.page_request_uid || null, deposit_status: 'pending', deposit_sent_at: new Date() } as any,
   });
   const brand = await getBrandName().catch(() => 'המסעדה');
-  const smsBody = [
-    `שלום ${r.customer_name || ''} 👋`,
-    ``,
-    `עוד כמה שניות לאישור ההזמנה שלך ב${brand} ✨`,
-    depositChargeMethod(cred) === 2
-      ? `רק מאבטחים את הכרטיס (לא מחייבים אותו) — פורמליות קטנה ששומרת לך את השולחן.`
-      : `להשלמת ההזמנה (הכרטיס יחויב עכשיו):`,
-    ``,
-    `🔗 ${link.payment_page_link}`,
-  ].join('\n');
-  sendSms(String(r.customer_phone || '').trim(), smsBody).catch((e: any) => console.warn('[deposit] sms failed', e?.message));
+  const isHold = depositChargeMethod(cred) === 2;
+  const payMsg = isHold
+    ? `שמרנו לך שולחן ב${brand}! כדי לאשר סופית יש להשלים אבטחת כרטיס אשראי בקישור (הכרטיס נתפס בלבד — לא מחויב).`
+    : `להשלמת ההזמנה ב${brand} יש להשלים את התשלום (₪${amount}) בקישור.`;
+  const paySms = `${brand}: ${payMsg} ${link.payment_page_link}`;
+  const phone = String(r.customer_phone || '').trim();
+  // WhatsApp (Utility) primary + SMS fallback, and LOGGED — a manual deposit
+  // request used to send a bare SMS that never appeared in the message history,
+  // so the manager couldn't tell it went out or arrived. Same path the automatic
+  // booking-deposit message uses.
+  sendTemplated({
+    kind: 'guest_table_ready',
+    to: phone,
+    vars: [r.customer_name || '', brand, payMsg, link.payment_page_link],
+    freeformText: paySms,
+    smsText: paySms,
+    smsFallback: true,
+    statusCallback: resvStatusCallback(),
+  })
+    .then((res: any) => logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'deposit_request', to: phone, body: payMsg, result: res }))
+    .catch((e: any) => { console.warn('[deposit] send failed', e?.message); logResvMsg({ reservation_id: r.id, channel: 'whatsapp', kind: 'deposit_request', to: phone, body: payMsg, error: e }); });
   return { success: true, link: link.payment_page_link, amount };
 });
 
