@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
-import { Loader2, ClipboardList, RefreshCw, Bell, BellOff, Phone, MapPin, Search } from 'lucide-react';
+import { Loader2, ClipboardList, RefreshCw, Bell, BellOff, Phone, MapPin, Search, ChevronDown } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
@@ -59,6 +59,7 @@ export default function DeliveryOrders() {
   const [busyId, setBusyId] = useState(null);
   const [flash, setFlash] = useState({});          // id → highlight new
   const [etaFor, setEtaFor] = useState(null);      // order id whose ETA picker is open
+  const [openOverride, setOpenOverride] = useState({}); // id → explicit expand/collapse
 
   // Filters (server-side)
   const [statusF, setStatusF] = useState('active');   // active|processing|completed|cancelled|all
@@ -176,6 +177,11 @@ export default function DeliveryOrders() {
     { k: 'low', label: 'דירוג נמוך' },
   ];
   const chip = (active) => `text-sm font-semibold px-3 py-1.5 rounded-full whitespace-nowrap ${active ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`;
+  // Accordion: active orders open by default, completed/cancelled collapsed; the
+  // owner can override per card.
+  const isOpen = (o) => (openOverride[o.id] !== undefined ? openOverride[o.id] : ACTIVE.includes(o.status));
+  const toggleOpen = (o) => setOpenOverride((x) => ({ ...x, [o.id]: !isOpen(o) }));
+  const itemCount = (o) => (o.items || []).reduce((n, it) => n + (Number(it.qty) || 1), 0);
 
   return (
     <PageGuard pageName="DeliveryOrders" pageTitle="הזמנות משלוחים">
@@ -252,21 +258,31 @@ export default function DeliveryOrders() {
               shown.map((o) => {
                 const st = STATUS[o.status] || { label: o.status_label || o.status, tone: 'muted' };
                 const isDelivery = o.fulfillment !== 'pickup';
+                const open = isOpen(o);
                 return (
                   <Card key={o.id} className={`transition ${flash[o.id] ? 'ring-2 ring-amber-400 shadow-lg' : ''}`}>
                     <CardContent className="p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-slate-800" dir="ltr">#{o.number}</span>
-                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${TONE[st.tone]}`}>{st.label}</span>
-                            {flash[o.id] && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white animate-pulse">חדש!</span>}
+                      {/* Header — tap to expand/collapse */}
+                      <div className="flex items-start justify-between gap-2 cursor-pointer select-none" onClick={() => toggleOpen(o)}>
+                        <div className="flex items-start gap-2">
+                          <ChevronDown className={`w-4 h-4 mt-1 text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`} />
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-extrabold text-slate-800" dir="ltr">#{o.number}</span>
+                              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${TONE[st.tone]}`}>{st.label}</span>
+                              {flash[o.id] && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-white animate-pulse">חדש!</span>}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-0.5">
+                              {timeAgo(o.created)} · {isDelivery ? '🛵 משלוח' : '🥡 איסוף'} · {itemCount(o)} פריטים
+                              {!open && o.customer ? ' · ' + o.customer : ''}
+                              {!open && o.status === 'processing' && o.ready_at > 0 ? ' · ⏱ ' + readyText(o) : ''}
+                            </div>
                           </div>
-                          <div className="text-xs text-slate-500 mt-0.5">{timeAgo(o.created)} · {isDelivery ? '🛵 משלוח' : '🥡 איסוף'} · {o.payment || ''}</div>
                         </div>
                         <div className="text-lg font-extrabold text-emerald-700 whitespace-nowrap">₪{Number(o.total).toLocaleString()}</div>
                       </div>
 
+                      {open && (<>
                       {/* Customer */}
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                         {o.customer && <span className="font-semibold text-slate-700">{o.customer}</span>}
@@ -345,6 +361,7 @@ export default function DeliveryOrders() {
                           {o.status === 'completed' && <span className="text-sm text-emerald-600 font-semibold py-1.5">✓ הושלמה</span>}
                         </div>
                       )}
+                      </>)}
                     </CardContent>
                   </Card>
                 );
