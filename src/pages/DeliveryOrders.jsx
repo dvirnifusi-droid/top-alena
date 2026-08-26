@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
-import { Loader2, ClipboardList, RefreshCw, Bell, BellOff, Phone, MapPin, Search, ChevronDown } from 'lucide-react';
+import { Loader2, ClipboardList, RefreshCw, Bell, BellOff, Phone, MapPin, Search, ChevronDown, List, LayoutGrid, Monitor } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
@@ -168,23 +167,44 @@ export default function DeliveryOrders() {
   }, [orders]);
 
   const updateOrder = async (o, payload) => {
-    const prevStatus = o.status;
-    setBusyId(o.id); setError('');
+    // Optimistic: the card reacts INSTANTLY; the server round-trip (app → WP → WC)
+    // happens in the background and we reconcile with its authoritative values,
+    // or roll back if it fails. No more waiting a full round-trip per click.
+    const prev = { status: o.status, status_label: o.status_label, prep_minutes: o.prep_minutes, ready_at: o.ready_at, notified: o.notified };
+    const opt = {};
+    if (payload.prep_minutes != null) {
+      opt.prep_minutes = payload.prep_minutes;
+      opt.ready_at = payload.prep_minutes > 0 ? Math.floor(Date.now() / 1000) + payload.prep_minutes * 60 : 0;
+      if (!payload.status && o.status !== 'processing') opt.status = 'processing';
+    }
+    if (payload.status) { opt.status = payload.status; opt.status_label = (STATUS[payload.status] || {}).label || payload.status; }
+    if (payload.status === 'completed') opt.notified = true;
+    setError('');
+    setEtaFor(null);
+    setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, ...opt } : x)));
+    // Undo affordance appears immediately for the destructive-ish transitions.
+    if (payload.status === 'completed' || payload.status === 'cancelled') {
+      const label = payload.status === 'completed' ? 'סומנה ✓' : 'בוטלה';
+      setUndo({ id: o.id, order: { ...o }, prevStatus: prev.status, label });
+      setTimeout(() => setUndo((u) => (u && u.id === o.id ? null : u)), 6000);
+    }
+    setBusyId(o.id);
     try {
       const d = (await base44.functions.setDeliverySiteOrderStatus({ id: o.id, ...payload }))?.data || {};
       if (d.ok) {
-        setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: d.status, status_label: d.status_label, prep_minutes: d.prep_minutes, ready_at: d.ready_at, notified: payload.status === 'completed' ? true : x.notified } : x)));
-        // Undo affordance for the destructive-ish transitions.
-        if (payload.status === 'completed' || payload.status === 'cancelled') {
-          const label = payload.status === 'completed' ? 'סומנה ✓' : 'בוטלה';
-          setUndo({ id: o.id, order: { ...o }, prevStatus, label });
-          setTimeout(() => setUndo((u) => (u && u.id === o.id ? null : u)), 6000);
-        }
-      } else setError(d.error || 'הפעולה נכשלה');
+        // Reconcile with the server's authoritative values.
+        setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: d.status, status_label: d.status_label, prep_minutes: d.prep_minutes, ready_at: d.ready_at } : x)));
+      } else {
+        setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, ...prev } : x)));
+        setUndo((u) => (u && u.id === o.id ? null : u));
+        setError(d.error || 'הפעולה נכשלה');
+      }
     } catch (e) {
+      setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, ...prev } : x)));
+      setUndo((u) => (u && u.id === o.id ? null : u));
       setError(e?.message || 'הפעולה נכשלה');
     } finally {
-      setBusyId(null); setEtaFor(null);
+      setBusyId(null);
     }
   };
   const doUndo = () => { if (undo) { const u = undo; setUndo(null); updateOrder(u.order, { status: u.prevStatus }); } };
@@ -253,9 +273,9 @@ export default function DeliveryOrders() {
   };
 
   const VIEW_TABS = [
-    { k: 'list', label: '☰ רשימה' },
-    { k: 'board', label: '🗂️ לוח' },
-    { k: 'wall', label: '🖥️ קיר מטבח' },
+    { k: 'list', label: 'רשימה', Icon: List },
+    { k: 'board', label: 'לוח', Icon: LayoutGrid },
+    { k: 'wall', label: 'קיר מטבח', Icon: Monitor },
   ];
   const boardCols = [
     { key: 'new', title: '🆕 חדשות', match: (o) => o.status === 'pending' || o.status === 'on-hold', accent: '#b8442e' },
@@ -282,7 +302,6 @@ export default function DeliveryOrders() {
     { k: 'rated', label: '⭐ מדורגות' },
     { k: 'low', label: 'דירוג נמוך' },
   ];
-  const chip = (active) => `text-sm font-semibold px-3 py-1.5 rounded-full whitespace-nowrap ${active ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`;
   // Accordion: active orders open by default, completed/cancelled collapsed; the
   // owner can override per card.
   const isOpen = (o) => (openOverride[o.id] !== undefined ? openOverride[o.id] : ACTIVE.includes(o.status));
@@ -458,14 +477,26 @@ export default function DeliveryOrders() {
           title="הזמנות אתר משלוחים"
           subtitle="הזמנות נכנסות בזמן אמת — קבלה, הכנה וסגירה, ישירות מכאן"
           icon={ClipboardList}
-          action={(
+          action={connected ? (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 hidden sm:inline">{updatedAt ? 'עודכן ' + updatedAt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+              {/* View switcher — icon segmented, sits with the page chrome not the filters */}
+              <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+                {VIEW_TABS.map((t) => {
+                  const on = viewMode === t.k;
+                  return (
+                    <button key={t.k} onClick={() => setViewMode(t.k)} title={t.label} aria-label={t.label}
+                      className={`p-1.5 rounded-md transition ${on ? 'bg-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                      style={on ? { color: '#b8442e' } : undefined}>
+                      <t.Icon className="w-4 h-4" />
+                    </button>
+                  );
+                })}
+              </div>
               <Button variant="outline" size="sm" onClick={() => load(false)} disabled={loading}>
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
             </div>
-          )}
+          ) : null}
         />
 
         {!connected ? (
@@ -503,45 +534,56 @@ export default function DeliveryOrders() {
 
             {/* Controls */}
             <Card>
-              <CardContent className="p-3 space-y-2.5">
+              <CardContent className="p-3 space-y-3">
                 {/* Search + sound */}
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
-                    <Search className="w-4 h-4 absolute top-2.5 right-3 text-slate-400" />
-                    <Input className="pr-9 h-9" placeholder="חיפוש: מס׳ הזמנה / שם / טלפון" value={search} onChange={(e) => setSearch(e.target.value)} />
+                    <Search className="w-4 h-4 absolute top-1/2 -translate-y-1/2 right-3 text-slate-400" />
+                    <Input className="pr-9 h-10 rounded-xl bg-slate-50 border-slate-200 focus-visible:bg-white" placeholder="חיפוש: מס׳ הזמנה / שם / טלפון" value={search} onChange={(e) => setSearch(e.target.value)} />
                   </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {soundOn ? <Bell className="w-4 h-4 text-emerald-600" /> : <BellOff className="w-4 h-4 text-slate-400" />}
-                    <Switch checked={soundOn} onCheckedChange={enableSound} />
-                  </div>
+                  <button
+                    onClick={() => enableSound(!soundOn)}
+                    title={soundOn ? 'התראות קוליות פעילות' : 'התראות קוליות כבויות'}
+                    aria-label={soundOn ? 'כבה התראות קוליות' : 'הפעל התראות קוליות'}
+                    className={`flex-shrink-0 h-10 w-10 rounded-xl flex items-center justify-center transition ${soundOn ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-slate-50 text-slate-400 border border-slate-200'}`}>
+                    {soundOn ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                  </button>
                 </div>
-                {/* Status */}
-                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 overflow-x-auto">
-                  {STATUS_TABS.map((t) => (
-                    <button key={t.k} onClick={() => setStatusF(t.k)} className={chip(statusF === t.k)}>
-                      {t.label}
-                      {t.k === 'active' && activeCount > 0 && <span className="mr-1 inline-flex items-center justify-center bg-amber-500 text-white text-[11px] rounded-full w-5 h-5">{activeCount}</span>}
-                    </button>
-                  ))}
+
+                {/* Status — the primary filter, prominent hummus segmented control */}
+                <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 overflow-x-auto">
+                  {STATUS_TABS.map((t) => {
+                    const on = statusF === t.k;
+                    return (
+                      <button key={t.k} onClick={() => setStatusF(t.k)}
+                        className={`flex-1 min-w-fit text-sm font-bold px-3 py-2 rounded-lg whitespace-nowrap transition flex items-center justify-center gap-1.5 ${on ? 'text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        style={on ? { background: '#b8442e' } : undefined}>
+                        {t.label}
+                        {t.k === 'active' && activeCount > 0 && <span className={`inline-flex items-center justify-center text-[11px] font-extrabold rounded-full min-w-5 h-5 px-1 ${on ? 'bg-white/25 text-white' : 'bg-amber-500 text-white'}`}>{activeCount}</span>}
+                      </button>
+                    );
+                  })}
                 </div>
-                {/* Date + rating */}
-                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 overflow-x-auto">
-                  {DATE_TABS.map((t) => (
-                    <button key={t.k} onClick={() => setDateF(t.k)} className={chip(dateF === t.k)}>{t.label}</button>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 w-fit">
-                    {RATING_TABS.map((t) => (
-                      <button key={t.k} onClick={() => setRatingF(t.k)} className={chip(ratingF === t.k)}>{t.label}</button>
-                    ))}
-                  </div>
-                  {/* View mode: list / kanban board / kitchen wall */}
-                  <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 w-fit">
-                    {VIEW_TABS.map((t) => (
-                      <button key={t.k} onClick={() => setViewMode(t.k)} className={chip(viewMode === t.k)}>{t.label}</button>
-                    ))}
-                  </div>
+
+                {/* Secondary filters — date + rating, one light row (no heavy pill chrome) */}
+                <div className="flex items-center gap-1.5 overflow-x-auto text-sm -mx-0.5 px-0.5">
+                  {DATE_TABS.map((t) => {
+                    const on = dateF === t.k;
+                    return (
+                      <button key={t.k} onClick={() => setDateF(t.k)}
+                        className="px-2.5 py-1 rounded-lg whitespace-nowrap font-semibold transition flex-shrink-0"
+                        style={on ? { background: 'rgba(184,68,46,0.10)', color: '#b8442e' } : { color: '#94a3b8' }}>{t.label}</button>
+                    );
+                  })}
+                  <span className="w-px h-4 bg-slate-200 flex-shrink-0 mx-0.5" />
+                  {RATING_TABS.map((t) => {
+                    const on = ratingF === t.k;
+                    return (
+                      <button key={t.k} onClick={() => setRatingF(t.k)}
+                        className="px-2.5 py-1 rounded-lg whitespace-nowrap font-semibold transition flex-shrink-0"
+                        style={on ? { background: 'rgba(184,68,46,0.10)', color: '#b8442e' } : { color: '#94a3b8' }}>{t.label}</button>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
