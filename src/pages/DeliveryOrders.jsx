@@ -65,6 +65,8 @@ export default function DeliveryOrders() {
   const [flash, setFlash] = useState({});          // id → highlight new
   const [etaFor, setEtaFor] = useState(null);      // order id whose ETA picker is open
   const [openOverride, setOpenOverride] = useState({}); // id → explicit expand/collapse
+  const [viewMode, setViewMode] = useState(() => lsGet('view', 'list')); // list | board | wall
+  useEffect(() => { lsSet('view', viewMode); }, [viewMode]);
 
   // Filters (server-side)
   const [statusF, setStatusF] = useState(() => lsGet('statusF', 'active'));
@@ -235,6 +237,31 @@ export default function DeliveryOrders() {
   const prepCount = orders.filter((o) => o.status === 'processing').length;
   const _prepVals = orders.filter((o) => o.prep_minutes > 0).map((o) => o.prep_minutes);
   const avgPrep = _prepVals.length ? Math.round(_prepVals.reduce((a, b) => a + b, 0) / _prepVals.length) : 0;
+  // Prep-time accuracy: of completed orders that carried a promised "ready at",
+  // how many were actually completed by then (2-min grace).
+  const _acc = orders.filter((o) => o.status === 'completed' && o.ready_at > 0 && o.completed_at > 0);
+  const _onTime = _acc.filter((o) => o.completed_at <= o.ready_at + 120).length;
+  const onTimePct = _acc.length ? Math.round((_onTime / _acc.length) * 100) : null;
+
+  // Returning-customer badge from the WP feed's customer_orders count.
+  const vip = (o) => {
+    const n = o.customer_orders || 0;
+    if (n >= 10) return { label: `👑 VIP · ${n} הזמנות`, cls: 'text-white border-transparent', style: { background: 'linear-gradient(90deg,#f59e0b,#ea580c)' } };
+    if (n >= 5) return { label: `⭐ לקוח קבוע · ${n}`, cls: 'bg-amber-100 text-amber-700 border-amber-200' };
+    if (n >= 2) return { label: `↩ לקוח חוזר · ${n}`, cls: 'bg-sky-100 text-sky-700 border-sky-200' };
+    return null;
+  };
+
+  const VIEW_TABS = [
+    { k: 'list', label: '☰ רשימה' },
+    { k: 'board', label: '🗂️ לוח' },
+    { k: 'wall', label: '🖥️ קיר מטבח' },
+  ];
+  const boardCols = [
+    { key: 'new', title: '🆕 חדשות', match: (o) => o.status === 'pending' || o.status === 'on-hold', accent: '#b8442e' },
+    { key: 'prep', title: '👨‍🍳 בהכנה', match: (o) => o.status === 'processing', accent: '#d97706' },
+    { key: 'done', title: '✅ מוכנות', match: (o) => o.status === 'completed', accent: '#059669' },
+  ];
 
   const STATUS_TABS = [
     { k: 'active', label: 'פעילות' },
@@ -272,6 +299,158 @@ export default function DeliveryOrders() {
     return { label: `⏱ עוד ${m} דק׳ · מוכן ${hhmm}`, cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
   };
 
+  const renderCard = (o) => {
+    const st = STATUS[o.status] || { label: o.status_label || o.status, tone: 'muted' };
+    const isDelivery = o.fulfillment !== 'pickup';
+    const open = isOpen(o);
+    const urg = urgency(o);
+    const active = ACTIVE.includes(o.status);
+    const v = vip(o);
+    return (
+      <Card key={o.id} className={`overflow-hidden transition ${flash[o.id] ? 'ring-2 ring-amber-400 shadow-lg' : urg?.pulse ? 'ring-2 ring-rose-300' : ''}`}>
+        <CardContent className="p-0">
+          {/* Header — tap to expand/collapse */}
+          <div className="flex items-start justify-between gap-2 p-3.5 cursor-pointer select-none" onClick={() => toggleOpen(o)}>
+            <div className="flex items-start gap-2 min-w-0">
+              <ChevronDown className={`w-4 h-4 mt-1 text-slate-400 flex-shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-extrabold text-slate-800" dir="ltr">#{o.number}</span>
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${TONE[st.tone]}`}>{st.label}</span>
+                  {v && <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${v.cls}`} style={v.style}>{v.label}</span>}
+                  {flash[o.id] && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white animate-pulse" style={{ background: '#b8442e' }}>חדש!</span>}
+                </div>
+                <div className="text-xs text-slate-500 mt-0.5 truncate">
+                  {timeAgo(o.created)} · {isDelivery ? '🛵 משלוח' : '🥡 איסוף'} · {itemCount(o)} מנות{o.customer ? ' · ' + o.customer : ''}
+                </div>
+              </div>
+            </div>
+            <div className="text-lg font-extrabold whitespace-nowrap" style={{ color: '#b8442e' }}>₪{Number(o.total).toLocaleString()}</div>
+          </div>
+
+          {/* Urgency clock — always visible for in-prep orders */}
+          {urg && (
+            <div className={`mx-3.5 mb-2 flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm font-bold ${urg.cls} ${urg.pulse ? 'animate-pulse' : ''}`}>
+              <span>{urg.label}</span>
+              {o.status === 'processing' && o.ready_at > 0 && etaFor !== o.id && (
+                <button className="text-xs underline opacity-80" onClick={(e) => { e.stopPropagation(); setEtaFor(o.id); }}>שנה</button>
+              )}
+            </div>
+          )}
+
+          {/* Phone — always accessible */}
+          {o.phone && (
+            <div className="px-3.5 pb-1">
+              <a href={`tel:${o.phone}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 text-sky-600 font-semibold text-sm" dir="ltr"><Phone className="w-3.5 h-3.5" />{o.phone}</a>
+            </div>
+          )}
+
+          {/* Quick actions — always visible for active orders, no need to expand */}
+          {active && (
+            etaFor === o.id ? (
+              <div className="m-3.5 border border-amber-200 bg-amber-50 rounded-xl p-3 space-y-2">
+                <div className="text-sm font-semibold text-amber-800">כמה זמן הכנה? {isDelivery ? '(כולל משלוח)' : '(לאיסוף)'}</div>
+                <div className="grid grid-cols-3 gap-2">
+                  {ETA_OPTIONS.map((m) => (
+                    <button key={m} onClick={() => updateOrder(o, { prep_minutes: m, status: o.status === 'processing' ? undefined : 'processing' })}
+                      disabled={busyId === o.id}
+                      className="py-2 rounded-lg border border-amber-300 bg-white font-bold text-amber-800 hover:bg-amber-100">{m} דק׳</button>
+                  ))}
+                </div>
+                <button className="text-xs text-slate-500 underline" onClick={() => setEtaFor(null)}>ביטול</button>
+              </div>
+            ) : (
+              <div className="flex gap-2 px-3.5 pb-3 pt-1">
+                {(o.status === 'pending' || o.status === 'on-hold') && (
+                  <Button size="sm" className="flex-1 text-white hover:opacity-90" style={{ background: '#b8442e' }} onClick={() => setEtaFor(o.id)} disabled={busyId === o.id}>
+                    {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'קבל להכנה 👨‍🍳'}
+                  </Button>
+                )}
+                {o.status === 'processing' && !o.ready_at && (
+                  <Button size="sm" className="flex-1 bg-amber-500 hover:bg-amber-600" onClick={() => setEtaFor(o.id)} disabled={busyId === o.id}>⏱ הזן זמן הכנה</Button>
+                )}
+                {o.status === 'processing' && (
+                  <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => updateOrder(o, { status: 'completed' })} disabled={busyId === o.id}>
+                    {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (isDelivery ? 'יצא למשלוח 📲' : 'מוכן לאיסוף 📲')}
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" className="text-rose-500 border-rose-200 px-3" onClick={() => updateOrder(o, { status: 'cancelled' })} disabled={busyId === o.id}>ביטול</Button>
+              </div>
+            )
+          )}
+
+          {/* Expanded details — items, address, note, rating */}
+          {open && (
+            <div className="px-3.5 pb-3.5 pt-2 space-y-2 border-t border-slate-100">
+              {isDelivery && o.address && (
+                <div className="flex items-start gap-1 text-sm text-slate-600"><MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /><span>{o.address}</span></div>
+              )}
+              {o.note && <div className="text-xs bg-amber-50 text-amber-800 rounded-lg p-2">📝 {o.note}</div>}
+              {o.rating > 0 && (
+                <div className="text-sm flex items-center gap-2 flex-wrap">
+                  <span className="text-amber-500">{'★'.repeat(o.rating)}<span className="text-slate-300">{'★'.repeat(5 - o.rating)}</span></span>
+                  {o.rating_comment && <span className="text-slate-500 text-xs">"{o.rating_comment}"</span>}
+                </div>
+              )}
+              <div className="space-y-1.5">
+                {(o.items || []).map((it, i) => (
+                  <div key={i} className="text-sm">
+                    <div className="font-semibold text-slate-800">{it.qty}× {it.name}</div>
+                    {(it.meta || []).length > 0 && <div className="text-xs text-slate-500 pr-4">{it.meta.join(' · ')}</div>}
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <button onClick={() => printBon(o)} className="text-xs text-slate-500 underline">🖨 הדפס בון</button>
+                {o.status === 'completed' && <span className="text-sm text-emerald-600 font-semibold">✓ הושלמה{o.notified ? ' · 📲 הלקוח עודכן' : ''}</span>}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Compact high-contrast card for the kitchen-wall board (big, glanceable).
+  const renderWallCard = (o) => {
+    const isDelivery = o.fulfillment !== 'pickup';
+    const urg = urgency(o);
+    return (
+      <div key={o.id} className={`rounded-2xl border-2 p-4 ${urg?.pulse ? 'border-rose-500 animate-pulse' : 'border-slate-700'}`} style={{ background: '#111827' }}>
+        <div className="flex items-center justify-between">
+          <span className="text-3xl font-black text-white" dir="ltr">#{o.number}</span>
+          <span className="text-xl">{isDelivery ? '🛵' : '🥡'}</span>
+        </div>
+        <div className="text-slate-300 text-lg mt-1">{itemCount(o)} מנות · {timeAgo(o.created)}</div>
+        {urg && (
+          <div className={`mt-3 rounded-xl px-3 py-2 text-xl font-black text-center ${urg.pulse ? 'text-white' : ''}`}
+            style={{ background: urg.pulse ? '#e11d48' : (o.status === 'processing' && o.ready_at ? (Math.ceil((o.ready_at - Date.now() / 1000) / 60) <= 5 ? '#c2410c' : '#047857') : '#334155'), color: '#fff' }}>
+            {urg.label}
+          </div>
+        )}
+        <div className="mt-3 flex gap-2">
+          {(o.status === 'pending' || o.status === 'on-hold') && (
+            <button onClick={() => setEtaFor(o.id)} disabled={busyId === o.id} className="flex-1 py-3 rounded-xl text-white text-lg font-black" style={{ background: '#b8442e' }}>קבל 👨‍🍳</button>
+          )}
+          {o.status === 'processing' && !o.ready_at && (
+            <button onClick={() => setEtaFor(o.id)} disabled={busyId === o.id} className="flex-1 py-3 rounded-xl text-white text-lg font-black" style={{ background: '#d97706' }}>⏱ זמן</button>
+          )}
+          {o.status === 'processing' && (
+            <button onClick={() => updateOrder(o, { status: 'completed' })} disabled={busyId === o.id} className="flex-1 py-3 rounded-xl text-white text-lg font-black" style={{ background: '#059669' }}>{isDelivery ? 'יצא 📲' : 'מוכן 📲'}</button>
+          )}
+        </div>
+        {etaFor === o.id && (
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {ETA_OPTIONS.map((m) => (
+              <button key={m} onClick={() => updateOrder(o, { prep_minutes: m, status: o.status === 'processing' ? undefined : 'processing' })} disabled={busyId === o.id}
+                className="py-2 rounded-lg bg-slate-700 text-white font-bold">{m}׳</button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <PageGuard pageName="DeliveryOrders" pageTitle="הזמנות משלוחים">
       <PageShell>
@@ -294,10 +473,10 @@ export default function DeliveryOrders() {
             <p className="text-slate-600">אתר המשלוחים לא מחובר. חברו אותו קודם בעמוד "אתר משלוחים".</p>
           </CardContent></Card>
         ) : (
-          <div className="space-y-4 max-w-2xl mx-auto" dir="rtl">
+          <div className={`space-y-4 mx-auto ${viewMode === 'board' ? 'max-w-6xl' : 'max-w-2xl'}`} dir="rtl">
 
             {/* KPI strip */}
-            <div className="grid grid-cols-4 gap-2">
+            <div className={`grid gap-2 ${onTimePct !== null ? 'grid-cols-5' : 'grid-cols-4'}`}>
               <div className="rounded-xl border border-slate-200 bg-white p-2.5 text-center">
                 <div className="text-2xl font-extrabold text-slate-800 leading-none">{activeCount}</div>
                 <div className="text-[11px] text-slate-500 mt-1">פעילות</div>
@@ -314,6 +493,12 @@ export default function DeliveryOrders() {
                 <div className="text-2xl font-extrabold text-slate-800 leading-none">{avgPrep || '–'}<span className="text-sm">׳</span></div>
                 <div className="text-[11px] text-slate-500 mt-1">זמן הכנה ממ׳</div>
               </div>
+              {onTimePct !== null && (
+                <div className={`rounded-xl border p-2.5 text-center ${onTimePct >= 80 ? 'border-emerald-200 bg-emerald-50' : onTimePct >= 50 ? 'border-amber-200 bg-amber-50' : 'border-rose-200 bg-rose-50'}`} title={`${_onTime} מתוך ${_acc.length} הזמנות עמדו בזמן שהובטח`}>
+                  <div className={`text-2xl font-extrabold leading-none ${onTimePct >= 80 ? 'text-emerald-600' : onTimePct >= 50 ? 'text-amber-600' : 'text-rose-600'}`}>{onTimePct}<span className="text-sm">%</span></div>
+                  <div className="text-[11px] text-slate-500 mt-1">בזמן שהובטח</div>
+                </div>
+              )}
             </div>
 
             {/* Controls */}
@@ -345,10 +530,18 @@ export default function DeliveryOrders() {
                     <button key={t.k} onClick={() => setDateF(t.k)} className={chip(dateF === t.k)}>{t.label}</button>
                   ))}
                 </div>
-                <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 w-fit">
-                  {RATING_TABS.map((t) => (
-                    <button key={t.k} onClick={() => setRatingF(t.k)} className={chip(ratingF === t.k)}>{t.label}</button>
-                  ))}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 w-fit">
+                    {RATING_TABS.map((t) => (
+                      <button key={t.k} onClick={() => setRatingF(t.k)} className={chip(ratingF === t.k)}>{t.label}</button>
+                    ))}
+                  </div>
+                  {/* View mode: list / kanban board / kitchen wall */}
+                  <div className="flex items-center gap-1 bg-slate-100 rounded-full p-1 w-fit">
+                    {VIEW_TABS.map((t) => (
+                      <button key={t.k} onClick={() => setViewMode(t.k)} className={chip(viewMode === t.k)}>{t.label}</button>
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -364,115 +557,57 @@ export default function DeliveryOrders() {
                 <p className="text-sm text-slate-400 mt-1">הזמנות חדשות יופיעו כאן אוטומטית.</p>
               </CardContent></Card>
             ) : (
-              shown.map((o) => {
-                const st = STATUS[o.status] || { label: o.status_label || o.status, tone: 'muted' };
-                const isDelivery = o.fulfillment !== 'pickup';
-                const open = isOpen(o);
-                const urg = urgency(o);
-                const active = ACTIVE.includes(o.status);
-                return (
-                  <Card key={o.id} className={`overflow-hidden transition ${flash[o.id] ? 'ring-2 ring-amber-400 shadow-lg' : urg?.pulse ? 'ring-2 ring-rose-300' : ''}`}>
-                    <CardContent className="p-0">
-                      {/* Header — tap to expand/collapse */}
-                      <div className="flex items-start justify-between gap-2 p-3.5 cursor-pointer select-none" onClick={() => toggleOpen(o)}>
-                        <div className="flex items-start gap-2 min-w-0">
-                          <ChevronDown className={`w-4 h-4 mt-1 text-slate-400 flex-shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-extrabold text-slate-800" dir="ltr">#{o.number}</span>
-                              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${TONE[st.tone]}`}>{st.label}</span>
-                              {flash[o.id] && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white animate-pulse" style={{ background: '#b8442e' }}>חדש!</span>}
-                            </div>
-                            <div className="text-xs text-slate-500 mt-0.5 truncate">
-                              {timeAgo(o.created)} · {isDelivery ? '🛵 משלוח' : '🥡 איסוף'} · {itemCount(o)} מנות{o.customer ? ' · ' + o.customer : ''}
-                            </div>
-                          </div>
+              viewMode === 'board' ? (
+                <div className="flex gap-3 overflow-x-auto pb-2">
+                  {boardCols.map((col) => {
+                    const cards = shown.filter(col.match);
+                    return (
+                      <div key={col.key} className="flex-1 min-w-[300px] space-y-3">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="font-extrabold" style={{ color: col.accent }}>{col.title}</span>
+                          <span className="text-xs font-bold text-white rounded-full px-2 py-0.5" style={{ background: col.accent }}>{cards.length}</span>
                         </div>
-                        <div className="text-lg font-extrabold whitespace-nowrap" style={{ color: '#b8442e' }}>₪{Number(o.total).toLocaleString()}</div>
+                        {cards.length === 0
+                          ? <div className="text-center text-slate-300 text-sm py-10 border-2 border-dashed border-slate-200 rounded-xl">אין</div>
+                          : cards.map(renderCard)}
                       </div>
+                    );
+                  })}
+                </div>
+              ) : viewMode === 'wall' ? null : (
+                shown.map(renderCard)
+              )
+            )}
 
-                      {/* Urgency clock — always visible for in-prep orders */}
-                      {urg && (
-                        <div className={`mx-3.5 mb-2 flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm font-bold ${urg.cls} ${urg.pulse ? 'animate-pulse' : ''}`}>
-                          <span>{urg.label}</span>
-                          {o.status === 'processing' && o.ready_at > 0 && etaFor !== o.id && (
-                            <button className="text-xs underline opacity-80" onClick={(e) => { e.stopPropagation(); setEtaFor(o.id); }}>שנה</button>
-                          )}
+            {viewMode === 'wall' && (
+              <div className="fixed inset-0 z-40 overflow-auto p-4" style={{ background: '#030712' }} dir="rtl">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-white text-2xl font-black">🖥️ קיר מטבח</span>
+                    <span className="text-slate-400 text-sm">{updatedAt ? 'עודכן ' + updatedAt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                    {overdueCount > 0 && <span className="px-3 py-1 rounded-full bg-rose-600 text-white font-black animate-pulse">🔴 {overdueCount} מאחרות</span>}
+                  </div>
+                  <button onClick={() => setViewMode('list')} className="px-4 py-2 rounded-xl bg-slate-700 text-white font-bold">✕ יציאה</button>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  {boardCols.map((col) => {
+                    const cards = shown.filter(col.match);
+                    return (
+                      <div key={col.key}>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xl font-black text-white">{col.title}</span>
+                          <span className="text-lg font-black text-white rounded-full px-3 py-0.5" style={{ background: col.accent }}>{cards.length}</span>
                         </div>
-                      )}
-
-                      {/* Phone — always accessible */}
-                      {o.phone && (
-                        <div className="px-3.5 pb-1">
-                          <a href={`tel:${o.phone}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 text-sky-600 font-semibold text-sm" dir="ltr"><Phone className="w-3.5 h-3.5" />{o.phone}</a>
+                        <div className="space-y-3">
+                          {cards.length === 0
+                            ? <div className="text-center text-slate-600 py-12 border-2 border-dashed border-slate-700 rounded-2xl text-lg">—</div>
+                            : cards.map(renderWallCard)}
                         </div>
-                      )}
-
-                      {/* Quick actions — always visible for active orders, no need to expand */}
-                      {active && (
-                        etaFor === o.id ? (
-                          <div className="m-3.5 border border-amber-200 bg-amber-50 rounded-xl p-3 space-y-2">
-                            <div className="text-sm font-semibold text-amber-800">כמה זמן הכנה? {isDelivery ? '(כולל משלוח)' : '(לאיסוף)'}</div>
-                            <div className="grid grid-cols-3 gap-2">
-                              {ETA_OPTIONS.map((m) => (
-                                <button key={m} onClick={() => updateOrder(o, { prep_minutes: m, status: o.status === 'processing' ? undefined : 'processing' })}
-                                  disabled={busyId === o.id}
-                                  className="py-2 rounded-lg border border-amber-300 bg-white font-bold text-amber-800 hover:bg-amber-100">{m} דק׳</button>
-                              ))}
-                            </div>
-                            <button className="text-xs text-slate-500 underline" onClick={() => setEtaFor(null)}>ביטול</button>
-                          </div>
-                        ) : (
-                          <div className="flex gap-2 px-3.5 pb-3 pt-1">
-                            {(o.status === 'pending' || o.status === 'on-hold') && (
-                              <Button size="sm" className="flex-1 text-white hover:opacity-90" style={{ background: '#b8442e' }} onClick={() => setEtaFor(o.id)} disabled={busyId === o.id}>
-                                {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'קבל להכנה 👨‍🍳'}
-                              </Button>
-                            )}
-                            {o.status === 'processing' && !o.ready_at && (
-                              <Button size="sm" className="flex-1 bg-amber-500 hover:bg-amber-600" onClick={() => setEtaFor(o.id)} disabled={busyId === o.id}>⏱ הזן זמן הכנה</Button>
-                            )}
-                            {o.status === 'processing' && (
-                              <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => updateOrder(o, { status: 'completed' })} disabled={busyId === o.id}>
-                                {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (isDelivery ? 'יצא למשלוח 📲' : 'מוכן לאיסוף 📲')}
-                              </Button>
-                            )}
-                            <Button size="sm" variant="outline" className="text-rose-500 border-rose-200 px-3" onClick={() => updateOrder(o, { status: 'cancelled' })} disabled={busyId === o.id}>ביטול</Button>
-                          </div>
-                        )
-                      )}
-
-                      {/* Expanded details — items, address, note, rating */}
-                      {open && (
-                        <div className="px-3.5 pb-3.5 pt-2 space-y-2 border-t border-slate-100">
-                          {isDelivery && o.address && (
-                            <div className="flex items-start gap-1 text-sm text-slate-600"><MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /><span>{o.address}</span></div>
-                          )}
-                          {o.note && <div className="text-xs bg-amber-50 text-amber-800 rounded-lg p-2">📝 {o.note}</div>}
-                          {o.rating > 0 && (
-                            <div className="text-sm flex items-center gap-2 flex-wrap">
-                              <span className="text-amber-500">{'★'.repeat(o.rating)}<span className="text-slate-300">{'★'.repeat(5 - o.rating)}</span></span>
-                              {o.rating_comment && <span className="text-slate-500 text-xs">"{o.rating_comment}"</span>}
-                            </div>
-                          )}
-                          <div className="space-y-1.5">
-                            {(o.items || []).map((it, i) => (
-                              <div key={i} className="text-sm">
-                                <div className="font-semibold text-slate-800">{it.qty}× {it.name}</div>
-                                {(it.meta || []).length > 0 && <div className="text-xs text-slate-500 pr-4">{it.meta.join(' · ')}</div>}
-                              </div>
-                            ))}
-                          </div>
-                          <div className="flex items-center justify-between pt-1">
-                            <button onClick={() => printBon(o)} className="text-xs text-slate-500 underline">🖨 הדפס בון</button>
-                            {o.status === 'completed' && <span className="text-sm text-emerald-600 font-semibold">✓ הושלמה{o.notified ? ' · 📲 הלקוח עודכן' : ''}</span>}
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
 
             {undo && (
