@@ -27,6 +27,9 @@ const TONE = {
 // Orders in these statuses are "live" — they should alert and sit at the top.
 const ACTIVE = ['pending', 'processing', 'on-hold'];
 
+const lsGet = (k, d) => { try { const v = localStorage.getItem('do_' + k); return v === null ? d : v; } catch { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem('do_' + k, v); } catch { /* ignore */ } };
+
 function dateRange(key) {
   const pad = (n) => String(n).padStart(2, '0');
   const fmt = (x) => x.getFullYear() + '-' + pad(x.getMonth() + 1) + '-' + pad(x.getDate());
@@ -55,17 +58,23 @@ export default function DeliveryOrders() {
   const [orders, setOrders] = useState([]);
   const [error, setError] = useState('');
   const [updatedAt, setUpdatedAt] = useState(null);
-  const [soundOn, setSoundOn] = useState(false);
+  const [soundOn, setSoundOn] = useState(() => lsGet('sound', '0') === '1');
+  const [undo, setUndo] = useState(null); // {order, prevStatus, label}
+  const [today, setToday] = useState(null); // {count, revenue, avg}
   const [busyId, setBusyId] = useState(null);
   const [flash, setFlash] = useState({});          // id → highlight new
   const [etaFor, setEtaFor] = useState(null);      // order id whose ETA picker is open
   const [openOverride, setOpenOverride] = useState({}); // id → explicit expand/collapse
 
   // Filters (server-side)
-  const [statusF, setStatusF] = useState('active');   // active|processing|completed|cancelled|all
-  const [dateF, setDateF] = useState('all');          // today|yesterday|week|month|all
-  const [ratingF, setRatingF] = useState('');         // ''|rated|low
+  const [statusF, setStatusF] = useState(() => lsGet('statusF', 'active'));
+  const [dateF, setDateF] = useState(() => lsGet('dateF', 'all'));
+  const [ratingF, setRatingF] = useState(() => lsGet('ratingF', ''));
   const [search, setSearch] = useState('');
+  useEffect(() => { lsSet('statusF', statusF); }, [statusF]);
+  useEffect(() => { lsSet('dateF', dateF); }, [dateF]);
+  useEffect(() => { lsSet('ratingF', ratingF); }, [ratingF]);
+  useEffect(() => { lsSet('sound', soundOn ? '1' : '0'); }, [soundOn]);
 
   const seenRef = useRef(null);   // Set of ids seen on a prior poll (null = first load)
   const audioRef = useRef(null);
@@ -106,6 +115,14 @@ export default function DeliveryOrders() {
         const fresh = list.filter((o) => ACTIVE.includes(o.status) && !seenRef.current.has(o.id));
         if (fresh.length) {
           if (soundOn) beep();
+          try {
+            if ('Notification' in window && Notification.permission === 'granted') {
+              const f0 = fresh[0];
+              const extra = fresh.length > 1 ? ' (+' + (fresh.length - 1) + ')' : '';
+              // eslint-disable-next-line no-new
+              new Notification('🛵 הזמנה חדשה #' + f0.number + extra, { body: (f0.customer || '') + ' · ₪' + Number(f0.total).toLocaleString(), tag: 'do-new' });
+            }
+          } catch { /* notifications unavailable */ }
           const fl = {}; fresh.forEach((o) => { fl[o.id] = true; });
           setFlash((x) => ({ ...x, ...fl }));
           setTimeout(() => setFlash((x) => { const n = { ...x }; fresh.forEach((o) => delete n[o.id]); return n; }), 8000);
@@ -115,6 +132,8 @@ export default function DeliveryOrders() {
       setOrders(list);
       setUpdatedAt(new Date());
       setError('');
+      // Today's totals for the KPI strip (fire-and-forget).
+      base44.functions.getDeliverySiteOrdersToday({}).then((r) => { const dd = r?.data; if (dd?.ok) setToday(dd); }).catch(() => {});
     } catch (e) {
       setError(e?.message || 'טעינת ההזמנות נכשלה');
     } finally {
@@ -134,18 +153,57 @@ export default function DeliveryOrders() {
     const t = setInterval(() => setTick((x) => x + 1), 15000);
     return () => clearInterval(t);
   }, []);
+  // Tab-title badge — active/overdue count is visible even when the tab is backgrounded.
+  useEffect(() => {
+    const orig = document.title;
+    return () => { document.title = orig; };
+  }, []);
+  useEffect(() => {
+    const now = Date.now() / 1000;
+    const active = orders.filter((o) => ACTIVE.includes(o.status)).length;
+    const over = orders.filter((o) => o.status === 'processing' && o.ready_at > 0 && o.ready_at < now).length;
+    document.title = active > 0 ? `${over > 0 ? '🔴' : '⚡'} (${active}) הזמנות` : 'הזמנות משלוחים';
+  }, [orders]);
 
   const updateOrder = async (o, payload) => {
+    const prevStatus = o.status;
     setBusyId(o.id); setError('');
     try {
       const d = (await base44.functions.setDeliverySiteOrderStatus({ id: o.id, ...payload }))?.data || {};
-      if (d.ok) setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: d.status, status_label: d.status_label, prep_minutes: d.prep_minutes, ready_at: d.ready_at } : x)));
-      else setError(d.error || 'הפעולה נכשלה');
+      if (d.ok) {
+        setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: d.status, status_label: d.status_label, prep_minutes: d.prep_minutes, ready_at: d.ready_at } : x)));
+        // Undo affordance for the destructive-ish transitions.
+        if (payload.status === 'completed' || payload.status === 'cancelled') {
+          const label = payload.status === 'completed' ? 'סומנה ✓' : 'בוטלה';
+          setUndo({ id: o.id, order: { ...o }, prevStatus, label });
+          setTimeout(() => setUndo((u) => (u && u.id === o.id ? null : u)), 6000);
+        }
+      } else setError(d.error || 'הפעולה נכשלה');
     } catch (e) {
       setError(e?.message || 'הפעולה נכשלה');
     } finally {
       setBusyId(null); setEtaFor(null);
     }
+  };
+  const doUndo = () => { if (undo) { const u = undo; setUndo(null); updateOrder(u.order, { status: u.prevStatus }); } };
+  // Print-friendly kitchen bon.
+  const printBon = (o) => {
+    try {
+      const w = window.open('', '_blank', 'width=380,height=640');
+      if (!w) return;
+      const items = (o.items || []).map((it) => `<div style="margin:7px 0"><b>${it.qty}× ${it.name}</b>${(it.meta || []).length ? `<div style="font-size:12px;color:#555">${it.meta.join(' · ')}</div>` : ''}</div>`).join('');
+      w.document.write(`<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>בון #${o.number}</title></head>
+      <body style="font-family:Arial,sans-serif;padding:14px;max-width:320px">
+        <div style="font-size:20px;font-weight:800">#${o.number} · ${o.fulfillment === 'pickup' ? '🥡 איסוף עצמי' : '🛵 משלוח'}</div>
+        <div style="color:#555;margin:4px 0">${o.customer || ''} ${o.phone || ''}</div>
+        ${o.address ? `<div>📍 ${o.address}</div>` : ''}
+        ${o.note ? `<div style="background:#fff7e6;padding:6px;border-radius:6px;margin:6px 0">📝 ${o.note}</div>` : ''}
+        <hr>${items}<hr>
+        <div style="font-size:18px;font-weight:800">סה"כ ₪${Number(o.total).toLocaleString()}</div>
+        <scr` + `ipt>window.onload=function(){window.print();}</scr` + `ipt>
+      </body></html>`);
+      w.document.close();
+    } catch { /* popup blocked */ }
   };
   const ETA_OPTIONS = [15, 20, 30, 45, 60, 90];
   const readyText = (o) => {
@@ -157,11 +215,26 @@ export default function DeliveryOrders() {
 
   const enableSound = (v) => {
     setSoundOn(v);
-    if (v) beep(); // unlock audio + confirm it works, on the enabling gesture
+    if (v) {
+      beep(); // unlock audio + confirm it works, on the enabling gesture
+      try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch { /* ignore */ }
+    }
   };
 
-  const shown = orders;
+  // Smart sort: new orders that need accepting first, then overdue (most first),
+  // then soonest-ready, then processing-without-a-time, then everything else.
+  const _now = Date.now() / 1000;
+  const rank = (o) => {
+    if (o.status === 'pending' || o.status === 'on-hold') return 0;
+    if (o.status === 'processing') return o.ready_at > 0 ? 1 + (o.ready_at - _now) / 1e9 : 2;
+    return 3;
+  };
+  const shown = [...orders].sort((a, b) => rank(a) - rank(b) || (b.created - a.created));
   const activeCount = orders.filter((o) => ACTIVE.includes(o.status)).length;
+  const overdueCount = orders.filter((o) => o.status === 'processing' && o.ready_at > 0 && o.ready_at < _now).length;
+  const prepCount = orders.filter((o) => o.status === 'processing').length;
+  const _prepVals = orders.filter((o) => o.prep_minutes > 0).map((o) => o.prep_minutes);
+  const avgPrep = _prepVals.length ? Math.round(_prepVals.reduce((a, b) => a + b, 0) / _prepVals.length) : 0;
 
   const STATUS_TABS = [
     { k: 'active', label: 'פעילות' },
@@ -222,6 +295,26 @@ export default function DeliveryOrders() {
           </CardContent></Card>
         ) : (
           <div className="space-y-4 max-w-2xl mx-auto" dir="rtl">
+
+            {/* KPI strip */}
+            <div className="grid grid-cols-4 gap-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-2.5 text-center">
+                <div className="text-2xl font-extrabold text-slate-800 leading-none">{activeCount}</div>
+                <div className="text-[11px] text-slate-500 mt-1">פעילות</div>
+              </div>
+              <div className={`rounded-xl border p-2.5 text-center ${overdueCount > 0 ? 'border-rose-300 bg-rose-50' : 'border-slate-200 bg-white'}`}>
+                <div className={`text-2xl font-extrabold leading-none ${overdueCount > 0 ? 'text-rose-600' : 'text-slate-800'}`}>{overdueCount}</div>
+                <div className="text-[11px] text-slate-500 mt-1">מאחרות</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-2.5 text-center">
+                <div className="text-2xl font-extrabold leading-none" style={{ color: '#b8442e' }}>₪{today ? Number(today.revenue).toLocaleString() : '–'}</div>
+                <div className="text-[11px] text-slate-500 mt-1">מחזור היום</div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-2.5 text-center">
+                <div className="text-2xl font-extrabold text-slate-800 leading-none">{avgPrep || '–'}<span className="text-sm">׳</span></div>
+                <div className="text-[11px] text-slate-500 mt-1">זמן הכנה ממ׳</div>
+              </div>
+            </div>
 
             {/* Controls */}
             <Card>
@@ -370,13 +463,23 @@ export default function DeliveryOrders() {
                               </div>
                             ))}
                           </div>
-                          {o.status === 'completed' && <span className="text-sm text-emerald-600 font-semibold">✓ הושלמה</span>}
+                          <div className="flex items-center justify-between pt-1">
+                            <button onClick={() => printBon(o)} className="text-xs text-slate-500 underline">🖨 הדפס בון</button>
+                            {o.status === 'completed' && <span className="text-sm text-emerald-600 font-semibold">✓ הושלמה</span>}
+                          </div>
                         </div>
                       )}
                     </CardContent>
                   </Card>
                 );
               })
+            )}
+
+            {undo && (
+              <div className="fixed bottom-4 inset-x-4 max-w-md mx-auto bg-slate-800 text-white rounded-xl px-4 py-3 flex items-center justify-between shadow-2xl z-50" dir="rtl">
+                <span className="text-sm font-semibold">#{undo.order.number} {undo.label}</span>
+                <button onClick={doUndo} className="text-sm font-extrabold underline" style={{ color: '#f0a58c' }}>בטל ↩</button>
+              </div>
             )}
           </div>
         )}
