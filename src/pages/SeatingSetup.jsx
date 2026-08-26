@@ -2321,10 +2321,24 @@ export default function SeatingSetup() {
         return fullName.split(' ')[0];
     };
 
+    // Reservations-dashboard filter/search state lives HERE in the parent, not inside
+    // the inline ReservationsDashboard below. The ~60s data refresh re-renders the
+    // parent, which remounts the inline dashboard — local state there would reset and
+    // wipe the hostess's active search/filter mid-use. Held here, it survives. The
+    // inline component reads/writes these through closure (no props needed).
+    const [timeFilter, setTimeFilter] = useState('');
+    const [timeBucket, setTimeBucket] = useState('all'); // all|morning|noon|evening|night
+    const [searchTerm, setSearchTerm] = useState('');
+    // Show only reservations with NO table assigned yet — the ones still to seat.
+    const [onlyUnassigned, setOnlyUnassigned] = useState(false);
+    // Compact list density — 6-8 cards per viewport. Persisted in localStorage.
+    const [compactMode, setCompactMode] = useState(() => {
+        try { return localStorage.getItem('seating_compact_mode') !== 'off'; } catch { return true; }
+    });
+
     const ReservationsDashboard = ({ hideDatePicker = false } = {}) => {
-        const [timeFilter, setTimeFilter] = useState('');
-        const [timeBucket, setTimeBucket] = useState('all'); // all|morning|noon|evening|night
-        // Apply time bucket → set time filter to first hour digit of range
+        // timeFilter/timeBucket/searchTerm/onlyUnassigned/compactMode are lifted to the
+        // parent (see note above) so they survive the 60s refresh remount.
         const TIME_BUCKETS = {
             all:     { label: 'הכל',      test: () => true },
             morning: { label: 'בוקר',     test: (t) => t >= '06:00' && t < '12:00' },
@@ -2332,14 +2346,6 @@ export default function SeatingSetup() {
             evening: { label: 'ערב',      test: (t) => t >= '17:00' && t < '22:00' },
             night:   { label: 'לילה',     test: (t) => t >= '22:00' || t < '06:00' },
         };
-        const [searchTerm, setSearchTerm] = useState('');
-        // Show only reservations with NO table assigned yet — the ones the hostess
-        // still has to seat.
-        const [onlyUnassigned, setOnlyUnassigned] = useState(false);
-        // Compact list density — 6-8 cards per viewport. Persisted across renders.
-        const [compactMode, setCompactMode] = useState(() => {
-            try { return localStorage.getItem('seating_compact_mode') !== 'off'; } catch { return true; }
-        });
         const toggleCompact = () => {
             setCompactMode(v => {
                 const next = !v;
