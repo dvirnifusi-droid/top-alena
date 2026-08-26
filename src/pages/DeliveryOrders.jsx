@@ -171,7 +171,7 @@ export default function DeliveryOrders() {
     try {
       const d = (await base44.functions.setDeliverySiteOrderStatus({ id: o.id, ...payload }))?.data || {};
       if (d.ok) {
-        setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: d.status, status_label: d.status_label, prep_minutes: d.prep_minutes, ready_at: d.ready_at } : x)));
+        setOrders((os) => os.map((x) => (x.id === o.id ? { ...x, status: d.status, status_label: d.status_label, prep_minutes: d.prep_minutes, ready_at: d.ready_at, notified: payload.status === 'completed' ? true : x.notified } : x)));
         // Undo affordance for the destructive-ish transitions.
         if (payload.status === 'completed' || payload.status === 'cancelled') {
           const label = payload.status === 'completed' ? 'סומנה ✓' : 'בוטלה';
@@ -434,7 +434,7 @@ export default function DeliveryOrders() {
                             )}
                             {o.status === 'processing' && (
                               <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => updateOrder(o, { status: 'completed' })} disabled={busyId === o.id}>
-                                {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (isDelivery ? 'יצא ✓' : 'נמסר ✓')}
+                                {busyId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : (isDelivery ? 'יצא למשלוח 📲' : 'מוכן לאיסוף 📲')}
                               </Button>
                             )}
                             <Button size="sm" variant="outline" className="text-rose-500 border-rose-200 px-3" onClick={() => updateOrder(o, { status: 'cancelled' })} disabled={busyId === o.id}>ביטול</Button>
@@ -465,7 +465,7 @@ export default function DeliveryOrders() {
                           </div>
                           <div className="flex items-center justify-between pt-1">
                             <button onClick={() => printBon(o)} className="text-xs text-slate-500 underline">🖨 הדפס בון</button>
-                            {o.status === 'completed' && <span className="text-sm text-emerald-600 font-semibold">✓ הושלמה</span>}
+                            {o.status === 'completed' && <span className="text-sm text-emerald-600 font-semibold">✓ הושלמה{o.notified ? ' · 📲 הלקוח עודכן' : ''}</span>}
                           </div>
                         </div>
                       )}

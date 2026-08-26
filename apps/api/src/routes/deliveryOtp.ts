@@ -69,4 +69,29 @@ export const deliveryOtpRoutes: FastifyPluginAsync = async (app) => {
     try { return await trySms(); }
     catch (e: any) { return { ok: false, error: e?.message || 'send_failed' }; }
   });
+
+  // Free-text customer notification (e.g. "your order is ready"). WhatsApp via an
+  // approved order-update template when configured (WA_TEMPLATE_ALENA_ORDER),
+  // otherwise SMS — a fresh customer is outside the 24h WhatsApp window, so a
+  // free-form WhatsApp would fail silently; SMS always reaches them.
+  app.post('/notify', async (req) => {
+    const b: any = req.body || {};
+    const phone = normalizeIsraeliPhone(String(b.phone || ''));
+    const text = String(b.text || '').trim();
+    if (!phone || phone.length < 8 || !text) return { ok: false, error: 'missing phone/text' };
+
+    const sid = await secret('WA_TEMPLATE_ALENA_ORDER');
+    if (sid) {
+      try {
+        const r: any = await sendWhatsAppTemplate(phone, sid, { 1: text });
+        if (r?.success) return { ok: true, via: 'whatsapp', sid: r.sid };
+      } catch { /* fall through to SMS */ }
+    }
+    try {
+      const r: any = await sendSms(phone, text);
+      if (r?.success) return { ok: true, via: 'sms', sid: r.sid };
+      if (r?.skipped) return { ok: false, via: 'sms', error: r.reason || 'sms_skipped' };
+      return { ok: false, via: 'sms', error: 'sms_failed' };
+    } catch (e: any) { return { ok: false, error: e?.message || 'send_failed' }; }
+  });
 };
