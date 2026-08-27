@@ -166,7 +166,7 @@ export default function DeliveryOrders() {
   useEffect(() => {
     const now = Date.now() / 1000;
     const active = orders.filter((o) => ACTIVE.includes(o.status)).length;
-    const over = orders.filter((o) => o.status === 'processing' && o.ready_at > 0 && o.ready_at < now).length;
+    const over = orders.filter((o) => o.status === 'processing' && o.ready_at > 0 && o.ready_at < now && (!o.created || now - o.created <= 14400)).length;
     document.title = active > 0 ? `${over > 0 ? '🔴' : '⚡'} (${active}) הזמנות` : 'הזמנות משלוחים';
   }, [orders]);
 
@@ -298,7 +298,10 @@ export default function DeliveryOrders() {
   };
   const shown = [...orders].sort((a, b) => rank(a) - rank(b) || (b.created - a.created));
   const activeCount = orders.filter((o) => ACTIVE.includes(o.status)).length;
-  const overdueCount = orders.filter((o) => o.status === 'processing' && o.ready_at > 0 && o.ready_at < _now).length;
+  // "Late" = actually behind on a fresh order; a days-old stuck order is "stale",
+  // counted separately below, not screaming red in the KPI.
+  const overdueCount = orders.filter((o) => o.status === 'processing' && o.ready_at > 0 && o.ready_at < _now && (!o.created || _now - o.created <= 14400)).length;
+  const staleCount = orders.filter((o) => o.status === 'processing' && o.created && _now - o.created > 14400).length;
   const prepCount = orders.filter((o) => o.status === 'processing').length;
   const _prepVals = orders.filter((o) => o.prep_minutes > 0).map((o) => o.prep_minutes);
   const avgPrep = _prepVals.length ? Math.round(_prepVals.reduce((a, b) => a + b, 0) / _prepVals.length) : 0;
@@ -353,14 +356,29 @@ export default function DeliveryOrders() {
   const toggleOpen = (o) => setOpenOverride((x) => ({ ...x, [o.id]: !isOpen(o) }));
   const itemCount = (o) => (o.items || []).reduce((n, it) => n + (Number(it.qty) || 1), 0);
   // Wolt-style urgency clock: green in time → orange within 5 min → red overdue.
+  // Human duration: minutes under an hour, else "Xש׳ Yד׳" (so a stuck order
+  // reads "24ש׳ 51ד׳", not a meaningless "1491 דק׳").
+  const fmtDur = (mins) => {
+    const t = Math.abs(Math.round(mins));
+    if (t < 60) return `${t} דק׳`;
+    const h = Math.floor(t / 60), r = t % 60;
+    if (h >= 24) { const d = Math.floor(h / 24); return `${d} ימים`; }
+    return r ? `${h}ש׳ ${r}ד׳` : `${h}ש׳`;
+  };
   const urgency = (o) => {
     if (o.status !== 'processing') return null;
-    if (!o.ready_at) return { label: 'טרם נקבע זמן הכנה', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
+    // An order still "in prep" hours later is forgotten/abandoned, not "late by
+    // 1491 min". Give it a calm gray "close it?" state instead of a red alarm.
+    const ageMin = o.created ? Math.round(Date.now() / 1000 / 60 - o.created / 60) : 0;
+    if (o.created && ageMin > 240) {
+      return { tone: 'stale', label: `🕰 ישנה · לפני ${fmtDur(ageMin)} · לסגור?`, cls: 'bg-slate-100 text-slate-500 border-slate-200' };
+    }
+    if (!o.ready_at) return { tone: 'none', label: 'טרם נקבע זמן הכנה', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
     const m = Math.ceil((o.ready_at - Date.now() / 1000) / 60);
     const hhmm = new Date(o.ready_at * 1000).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-    if (m < 0) return { label: `⏰ באיחור ${Math.abs(m)} דק׳ · יעד ${hhmm}`, cls: 'bg-rose-100 text-rose-700 border-rose-300', pulse: true };
-    if (m <= 5) return { label: `⏱ עוד ${m} דק׳ · מוכן ${hhmm}`, cls: 'bg-orange-100 text-orange-700 border-orange-300' };
-    return { label: `⏱ עוד ${m} דק׳ · מוכן ${hhmm}`, cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
+    if (m < 0) return { tone: 'late', label: `⏰ באיחור ${fmtDur(m)} · יעד ${hhmm}`, cls: 'bg-rose-100 text-rose-700 border-rose-300', pulse: true };
+    if (m <= 5) return { tone: 'soon', label: `⏱ עוד ${fmtDur(m)} · מוכן ${hhmm}`, cls: 'bg-orange-100 text-orange-700 border-orange-300' };
+    return { tone: 'ok', label: `⏱ עוד ${fmtDur(m)} · מוכן ${hhmm}`, cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
   };
 
   const renderCard = (o) => {
@@ -476,9 +494,11 @@ export default function DeliveryOrders() {
   };
 
   // Compact high-contrast card for the kitchen-wall board (big, glanceable).
+  const WALL_TONE = { late: '#e11d48', soon: '#c2410c', ok: '#047857', stale: '#334155', none: '#334155' };
   const renderWallCard = (o) => {
     const isDelivery = o.fulfillment !== 'pickup';
     const urg = urgency(o);
+    const items = o.items || [];
     return (
       <div key={o.id} className={`rounded-2xl border-2 p-4 ${urg?.pulse ? 'border-rose-500 animate-pulse' : 'border-slate-700'}`} style={{ background: '#111827' }}>
         <div className="flex items-center justify-between">
@@ -486,9 +506,21 @@ export default function DeliveryOrders() {
           <span className="text-xl">{isDelivery ? '🛵' : '🥡'}</span>
         </div>
         <div className="text-slate-300 text-lg mt-1">{itemCount(o)} מנות · {timeAgo(o.created)}</div>
+        {/* What to make — the whole point of a kitchen wall */}
+        {items.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {items.slice(0, 5).map((it, i) => (
+              <div key={i} className="text-white text-lg leading-tight">
+                <span className="font-black">{it.qty}×</span> {it.name}
+                {(it.meta || []).length > 0 && <span className="text-slate-400 text-sm"> · {it.meta.join(' · ')}</span>}
+              </div>
+            ))}
+            {items.length > 5 && <div className="text-slate-400 text-sm">ועוד {items.length - 5}…</div>}
+          </div>
+        )}
         {urg && (
           <div className={`mt-3 rounded-xl px-3 py-2 text-xl font-black text-center ${urg.pulse ? 'text-white' : ''}`}
-            style={{ background: urg.pulse ? '#e11d48' : (o.status === 'processing' && o.ready_at ? (Math.ceil((o.ready_at - Date.now() / 1000) / 60) <= 5 ? '#c2410c' : '#047857') : '#334155'), color: '#fff' }}>
+            style={{ background: WALL_TONE[urg.tone] || '#334155', color: '#fff' }}>
             {urg.label}
           </div>
         )}
@@ -579,6 +611,14 @@ export default function DeliveryOrders() {
                 </div>
               )}
             </div>
+
+            {/* Stale cleanup nudge — old orders stuck "in prep" (usually forgotten/test) */}
+            {staleCount > 0 && viewMode !== 'wall' && (
+              <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                <span>🕰</span>
+                <span className="flex-1">{staleCount} הזמנות ישנות עדיין ב״בהכנה״ — שווה לסגור או לבטל כדי לנקות את הלוח.</span>
+              </div>
+            )}
 
             {/* Controls */}
             <Card>
