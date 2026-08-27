@@ -191,6 +191,7 @@ import CashFlow from './pages/CashFlow';
 import KitchenOrders from './pages/KitchenOrders';
 import DeliverySite from './pages/DeliverySite';
 import DeliveryOrders from './pages/DeliveryOrders';
+import DeliveryAnalytics from './pages/DeliveryAnalytics';
 import MenuManagement from './pages/MenuManagement';
 import PrepSheet from './pages/PrepSheet';
 import DishGuide from './pages/DishGuide';
@@ -355,6 +356,7 @@ export const PAGES = {
     "KitchenOrders": KitchenOrders,
     "DeliverySite": DeliverySite,
     "DeliveryOrders": DeliveryOrders,
+    "DeliveryAnalytics": DeliveryAnalytics,
     "MenuManagement": MenuManagement,
     "PrepSheet": PrepSheet,
     "DishGuide": DishGuide,

@@ -11,6 +11,7 @@ import { registerFn } from './index.js';
 import { prisma } from '../db.js';
 import { resolveUserTier } from '../lib/pagePermissions.js';
 import { buildDeliveryStats, formatDeliveryReport, sendDeliveryDailyReport } from '../lib/deliveryDailyReport.js';
+import { buildDeliveryAnalytics } from '../lib/deliveryAnalytics.js';
 
 const URL_KEY = 'ALENA_WP_CONTROL_URL';   // stores the full settings endpoint
 const KEY_KEY = 'ALENA_WP_CONTROL_KEY';
@@ -240,6 +241,17 @@ registerFn('sendDeliveryDailyReportNow', async ({ user, body }) => {
   await requireOwner(user);
   const ymd = (body as any)?.ymd || undefined;
   return await sendDeliveryDailyReport(ymd);
+});
+
+registerFn('getDeliverySiteAnalytics', async ({ user, body }) => {
+  await requireOwner(user);
+  const b: any = body || {};
+  const to = String(b.to || '').match(/^\d{4}-\d{2}-\d{2}$/) ? b.to : new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+  let from = String(b.from || '').match(/^\d{4}-\d{2}-\d{2}$/) ? b.from : '';
+  if (!from) { const d = new Date(to + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - (Number(b.days) > 0 ? Number(b.days) - 1 : 6)); from = d.toISOString().slice(0, 10); }
+  const data = await buildDeliveryAnalytics(from, to);
+  if (!data) return { connected: false };
+  return { connected: true, ...data };
 });
 
 // ---- Create a new product ----
