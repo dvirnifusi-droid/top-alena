@@ -10,6 +10,7 @@
 import { registerFn } from './index.js';
 import { prisma } from '../db.js';
 import { resolveUserTier } from '../lib/pagePermissions.js';
+import { buildDeliveryStats, formatDeliveryReport, sendDeliveryDailyReport } from '../lib/deliveryDailyReport.js';
 
 const URL_KEY = 'ALENA_WP_CONTROL_URL';   // stores the full settings endpoint
 const KEY_KEY = 'ALENA_WP_CONTROL_KEY';
@@ -224,6 +225,21 @@ registerFn('bulkSetDeliverySiteOrderStatus', async ({ user, body }) => {
   });
   if (!res.ok) throw new Error('שינוי סטטוס בכמות נכשל (HTTP ' + res.status + ')');
   return await res.json();
+});
+
+// ---- End-of-day report (preview in-app + send to WhatsApp) ----
+registerFn('previewDeliveryDailyReport', async ({ user, body }) => {
+  await requireOwner(user);
+  const ymd = (body as any)?.ymd || undefined;
+  const stats = await buildDeliveryStats(ymd);
+  if (!stats) return { connected: false };
+  return { connected: true, stats, text: formatDeliveryReport(stats) };
+});
+
+registerFn('sendDeliveryDailyReportNow', async ({ user, body }) => {
+  await requireOwner(user);
+  const ymd = (body as any)?.ymd || undefined;
+  return await sendDeliveryDailyReport(ymd);
 });
 
 // ---- Create a new product ----

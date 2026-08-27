@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, ClipboardList, RefreshCw, Bell, BellOff, Phone, MapPin, Search, ChevronDown, List, LayoutGrid, Monitor } from 'lucide-react';
+import { Loader2, ClipboardList, RefreshCw, Bell, BellOff, Phone, MapPin, Search, ChevronDown, List, LayoutGrid, Monitor, BarChart3 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import PageGuard from '../components/shared/PageGuard';
 import PageHeader, { PageShell } from '@/components/shared/PageHeader';
@@ -68,6 +68,8 @@ export default function DeliveryOrders() {
   useEffect(() => { lsSet('view', viewMode); }, [viewMode]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkPick, setBulkPick] = useState(false); // rush-hour "accept all" ETA picker open
+  const [report, setReport] = useState(null); // null | 'loading' | { text, stats }
+  const [reportSent, setReportSent] = useState('');
 
   // Filters (server-side)
   const [statusF, setStatusF] = useState(() => lsGet('statusF', 'active'));
@@ -210,6 +212,23 @@ export default function DeliveryOrders() {
     }
   };
   const doUndo = () => { if (undo) { const u = undo; setUndo(null); updateOrder(u.order, { status: u.prevStatus }); } };
+
+  // End-of-day report — preview in-app, then send to the owner's WhatsApp.
+  const openReport = async () => {
+    setReport('loading'); setReportSent('');
+    try {
+      const d = (await base44.functions.previewDeliveryDailyReport({}))?.data || {};
+      if (d.connected === false) { setReport({ text: 'אתר המשלוחים לא מחובר.', stats: null }); return; }
+      setReport({ text: d.text || '', stats: d.stats || null });
+    } catch { setReport({ text: 'טעינת הסיכום נכשלה', stats: null }); }
+  };
+  const sendReport = async () => {
+    setReportSent('sending');
+    try {
+      const d = (await base44.functions.sendDeliveryDailyReportNow({}))?.data || {};
+      setReportSent(d.ok ? `נשלח ל-${d.sent} מספרים ✓` : (d.error === 'no_recipient' ? 'לא מוגדר נמען לדוחות' : d.error === 'not_connected' ? 'האתר לא מחובר' : 'השליחה נכשלה'));
+    } catch { setReportSent('השליחה נכשלה'); }
+  };
 
   // Rush hour: accept every pending order at once with one prep time (one HTTP call).
   const bulkAccept = async (minutes) => {
@@ -518,6 +537,9 @@ export default function DeliveryOrders() {
                   );
                 })}
               </div>
+              <Button variant="outline" size="sm" onClick={openReport} title="סיכום יום ל-WhatsApp" aria-label="סיכום יום">
+                <BarChart3 className="w-4 h-4" />
+              </Button>
               <Button variant="outline" size="sm" onClick={() => load(false)} disabled={loading}>
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
@@ -695,6 +717,30 @@ export default function DeliveryOrders() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {report && (
+              <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3" onClick={() => setReport(null)}>
+                <div className="bg-white rounded-2xl max-w-md w-full p-4 shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-extrabold text-slate-800 flex items-center gap-2"><BarChart3 className="w-5 h-5" style={{ color: '#b8442e' }} /> סיכום היום</span>
+                    <button onClick={() => setReport(null)} className="text-slate-400 text-xl leading-none px-1" aria-label="סגור">✕</button>
+                  </div>
+                  {report === 'loading' ? (
+                    <div className="py-10 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline ml-2" /> טוען…</div>
+                  ) : (
+                    <>
+                      <pre className="whitespace-pre-wrap text-sm text-slate-700 bg-slate-50 rounded-xl p-3 leading-relaxed" style={{ fontFamily: 'inherit' }}>{report.text}</pre>
+                      <div className="flex items-center justify-between mt-3 gap-2">
+                        <span className={`text-sm font-semibold ${/נכשל|לא מוגדר|לא מחובר/.test(reportSent) ? 'text-rose-600' : 'text-emerald-600'}`}>{reportSent && reportSent !== 'sending' ? reportSent : ''}</span>
+                        <Button onClick={sendReport} disabled={reportSent === 'sending' || !report.stats} className="text-white hover:opacity-90" style={{ background: '#25D366' }}>
+                          {reportSent === 'sending' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שלח ל-WhatsApp 📲'}
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}

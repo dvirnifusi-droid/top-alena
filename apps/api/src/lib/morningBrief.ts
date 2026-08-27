@@ -378,6 +378,13 @@ export async function buildEndOfDayBrief(forPhone?: string): Promise<string> {
   lines.push(`📅 *סידור מחר (${tomorrowName})*`, tomorrowPrev, '');
   if (myEventsTomorrow) { lines.push(`🗓 *הפגישות שלך מחר*`, myEventsTomorrow, ''); }
   if (myOpenTasks) { lines.push(`✅ *משימות פתוחות שנותרו*`, myOpenTasks, ''); }
+  // Delivery-site summary — only when a delivery site is connected (alena), so
+  // it never shows for tenants without one.
+  try {
+    const { deliveryEodSection } = await import('./deliveryDailyReport.js');
+    const delivery = await deliveryEodSection(today);
+    if (delivery) { lines.push(`🛵 *משלוחים היום*`, delivery, ''); }
+  } catch { /* delivery report unavailable — skip section */ }
   lines.push('_לילה טוב 🌿_');
   return lines.join('\n');
 }
