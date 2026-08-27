@@ -169,6 +169,14 @@ function buildDeltas(cur: any, prev: any) {
   };
 }
 
+/** The single most important insight over the last 7 days (for the daily report). */
+export async function topDeliveryInsight(toYmd: string): Promise<{ icon: string; text: string } | null> {
+  const from = addDaysYMD(toYmd, -6);
+  const a = await buildDeliveryAnalytics(from, toYmd);
+  if (!a || !Array.isArray(a.insights) || !a.insights.length) return null;
+  return { icon: a.insights[0].icon, text: a.insights[0].text };
+}
+
 export async function buildDeliveryAnalytics(fromYmd: string, toYmd: string): Promise<any | null> {
   const url = await secret(URL_KEY);
   const key = await secret(KEY_KEY);

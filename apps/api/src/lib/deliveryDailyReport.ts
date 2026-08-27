@@ -10,6 +10,7 @@
 import { prisma } from '../db.js';
 import { notifyOwner } from './waTemplates.js';
 import { reportRecipientPhones } from './whatsappPermissions.js';
+import { topDeliveryInsight } from './deliveryAnalytics.js';
 
 const URL_KEY = 'ALENA_WP_CONTROL_URL';
 const KEY_KEY = 'ALENA_WP_CONTROL_KEY';
@@ -110,8 +111,8 @@ export async function buildDeliveryStats(ymd?: string): Promise<DeliveryStats | 
   return { ymd: day, total: live.length, cancelled, revenue, pickup, delivery, avgPrep, onTimePct, ratingCount, ratingAvg, ratingLow, returning, peakHour, peakCount, topItem, topItemQty };
 }
 
-/** Full dedicated WhatsApp message. */
-export function formatDeliveryReport(s: DeliveryStats): string {
+/** Full dedicated WhatsApp message. Optional `tip` (from the 7-day insight). */
+export function formatDeliveryReport(s: DeliveryStats, tip?: string | null): string {
   const nis = (n: number) => '₪' + Math.round(n).toLocaleString('en-US');
   const lines: string[] = [
     `🛵 *דוח משלוחים — יום ${israelDayName(s.ymd)} ${s.ymd}*`,
@@ -119,6 +120,7 @@ export function formatDeliveryReport(s: DeliveryStats): string {
   ];
   if (s.total === 0 && s.cancelled === 0) {
     lines.push('אין הזמנות היום עדיין.');
+    if (tip) lines.push('', `💡 *טיפ:* ${tip}`);
     return lines.join('\n');
   }
   lines.push(`📦 הזמנות: ${s.total}${s.cancelled ? ` (❌ ${s.cancelled} ביטולים)` : ''}`);
@@ -129,8 +131,18 @@ export function formatDeliveryReport(s: DeliveryStats): string {
   if (s.returning) lines.push(`👑 לקוחות חוזרים: ${s.returning} מתוך ${s.total}`);
   if (s.peakHour) lines.push(`🔝 שעת שיא: ${s.peakHour} (${s.peakCount})`);
   if (s.topItem) lines.push(`🍽 מנה מובילה: ${s.topItem} ×${s.topItemQty}`);
+  if (tip) lines.push('', `💡 *טיפ:* ${tip}`);
   lines.push('', '_עבודה יפה 🌿_');
   return lines.join('\n');
+}
+
+/** Full dedicated report text WITH the 7-day top insight appended. */
+export async function buildDeliveryReportText(ymd?: string): Promise<{ text: string; stats: DeliveryStats } | null> {
+  const s = await buildDeliveryStats(ymd);
+  if (!s) return null;
+  let tip: string | null = null;
+  try { const t = await topDeliveryInsight(s.ymd); tip = t?.text || null; } catch { /* insight optional */ }
+  return { text: formatDeliveryReport(s, tip), stats: s };
 }
 
 /** Compact 3-line section for the nightly end-of-day brief. null when quiet / not connected. */
@@ -141,14 +153,15 @@ export async function deliveryEodSection(ymd?: string): Promise<string | null> {
   const parts = [`📦 ${s.total} הזמנות · ${nis(s.revenue)}`, `🥡 ${s.pickup} · 🛵 ${s.delivery}`];
   if (s.avgPrep) parts.push(`⏱ ${s.avgPrep}׳${s.onTimePct !== null ? ` · ${s.onTimePct}% בזמן` : ''}`);
   if (s.ratingCount) parts.push(`⭐ ${s.ratingAvg} (${s.ratingCount})`);
+  try { const tip = await topDeliveryInsight(s.ymd); if (tip) parts.push(`💡 ${tip.text}`); } catch { /* insight optional */ }
   return parts.join('\n');
 }
 
 /** Build + send the dedicated report to the owner(s). */
 export async function sendDeliveryDailyReport(ymd?: string): Promise<{ ok: boolean; sent: number; failed: number; text?: string; error?: string }> {
-  const s = await buildDeliveryStats(ymd);
-  if (!s) return { ok: false, sent: 0, failed: 0, error: 'not_connected' };
-  const text = formatDeliveryReport(s);
+  const built = await buildDeliveryReportText(ymd);
+  if (!built) return { ok: false, sent: 0, failed: 0, error: 'not_connected' };
+  const text = built.text;
   const phones = await reportRecipientPhones();
   if (!phones.length) return { ok: false, sent: 0, failed: 0, text, error: 'no_recipient' };
   let sent = 0; let failed = 0;

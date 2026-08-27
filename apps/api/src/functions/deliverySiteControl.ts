@@ -10,7 +10,7 @@
 import { registerFn } from './index.js';
 import { prisma } from '../db.js';
 import { resolveUserTier } from '../lib/pagePermissions.js';
-import { buildDeliveryStats, formatDeliveryReport, sendDeliveryDailyReport } from '../lib/deliveryDailyReport.js';
+import { buildDeliveryReportText, sendDeliveryDailyReport } from '../lib/deliveryDailyReport.js';
 import { buildDeliveryAnalytics } from '../lib/deliveryAnalytics.js';
 
 const URL_KEY = 'ALENA_WP_CONTROL_URL';   // stores the full settings endpoint
@@ -232,9 +232,9 @@ registerFn('bulkSetDeliverySiteOrderStatus', async ({ user, body }) => {
 registerFn('previewDeliveryDailyReport', async ({ user, body }) => {
   await requireOwner(user);
   const ymd = (body as any)?.ymd || undefined;
-  const stats = await buildDeliveryStats(ymd);
-  if (!stats) return { connected: false };
-  return { connected: true, stats, text: formatDeliveryReport(stats) };
+  const built = await buildDeliveryReportText(ymd);
+  if (!built) return { connected: false };
+  return { connected: true, stats: built.stats, text: built.text };
 });
 
 registerFn('sendDeliveryDailyReportNow', async ({ user, body }) => {
