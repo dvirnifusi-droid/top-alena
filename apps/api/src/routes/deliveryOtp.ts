@@ -18,6 +18,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../db.js';
 import { sendSms, sendWhatsAppTemplate, normalizeIsraeliPhone } from '../lib/twilio.js';
+import { notifyAdmins } from '../lib/notifications.js';
 
 async function secret(key: string): Promise<string> {
   try {
@@ -93,5 +94,25 @@ export const deliveryOtpRoutes: FastifyPluginAsync = async (app) => {
       if (r?.skipped) return { ok: false, via: 'sms', error: r.reason || 'sms_skipped' };
       return { ok: false, via: 'sms', error: 'sms_failed' };
     } catch (e: any) { return { ok: false, error: e?.message || 'send_failed' }; }
+  });
+
+  // New paid order landed on the delivery site → web-push the owner/admins so
+  // they know even when the app is closed (WP dedupes; no WhatsApp-per-order spam).
+  app.post('/new-order', async (req) => {
+    const b: any = req.body || {};
+    const number = String(b.number || b.id || '').trim();
+    if (!number) return { ok: false, error: 'missing number' };
+    const total = Number(b.total) || 0;
+    const isPickup = String(b.fulfillment || '') === 'pickup';
+    const items = Number(b.items) || 0;
+    const customer = String(b.customer || '').trim();
+    const title = `🛵 הזמנה חדשה #${number}`;
+    const parts = [`₪${Math.round(total).toLocaleString('en-US')}`, isPickup ? '🥡 איסוף' : '🛵 משלוח'];
+    if (items) parts.push(`${items} מנות`);
+    if (customer) parts.push(customer);
+    try {
+      const r = await notifyAdmins(title, parts.join(' · '), '/DeliveryOrders');
+      return { ok: true, delivered: r.delivered, total: r.total };
+    } catch (e: any) { return { ok: false, error: e?.message || 'push_failed' }; }
   });
 };
