@@ -213,6 +213,19 @@ registerFn('setDeliverySiteOrderStatus', async ({ user, body }) => {
   return await res.json();
 });
 
+registerFn('bulkSetDeliverySiteOrderStatus', async ({ user, body }) => {
+  await requireOwner(user);
+  const c = await productsBase();
+  if (!c) return { connected: false };
+  const res = await fetch(bust(c.base + '/orders-status'), {
+    method: 'POST',
+    headers: { 'X-Alena-Control-Key': c.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new Error('שינוי סטטוס בכמות נכשל (HTTP ' + res.status + ')');
+  return await res.json();
+});
+
 // ---- Create a new product ----
 registerFn('createDeliverySiteProduct', async ({ user, body }) => {
   await requireOwner(user);

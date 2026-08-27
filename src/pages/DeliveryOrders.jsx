@@ -66,6 +66,8 @@ export default function DeliveryOrders() {
   const [openOverride, setOpenOverride] = useState({}); // id → explicit expand/collapse
   const [viewMode, setViewMode] = useState(() => lsGet('view', 'list')); // list | board | wall
   useEffect(() => { lsSet('view', viewMode); }, [viewMode]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkPick, setBulkPick] = useState(false); // rush-hour "accept all" ETA picker open
 
   // Filters (server-side)
   const [statusF, setStatusF] = useState(() => lsGet('statusF', 'active'));
@@ -208,6 +210,30 @@ export default function DeliveryOrders() {
     }
   };
   const doUndo = () => { if (undo) { const u = undo; setUndo(null); updateOrder(u.order, { status: u.prevStatus }); } };
+
+  // Rush hour: accept every pending order at once with one prep time (one HTTP call).
+  const bulkAccept = async (minutes) => {
+    const ids = orders.filter((o) => o.status === 'pending' || o.status === 'on-hold').map((o) => o.id);
+    setBulkPick(false);
+    if (!ids.length) return;
+    const readyAt = minutes > 0 ? Math.floor(Date.now() / 1000) + minutes * 60 : 0;
+    setBulkBusy(true); setError('');
+    const revert = new Map(orders.filter((o) => ids.includes(o.id)).map((o) => [o.id, { status: o.status, status_label: o.status_label, prep_minutes: o.prep_minutes, ready_at: o.ready_at }]));
+    setOrders((os) => os.map((x) => (ids.includes(x.id) ? { ...x, status: 'processing', status_label: (STATUS.processing || {}).label, prep_minutes: minutes, ready_at: readyAt } : x)));
+    try {
+      const d = (await base44.functions.bulkSetDeliverySiteOrderStatus({ ids, status: 'processing', prep_minutes: minutes }))?.data || {};
+      if (d.ok && Array.isArray(d.updated)) {
+        const map = Object.fromEntries(d.updated.map((u) => [u.id, u]));
+        setOrders((os) => os.map((x) => (map[x.id] ? { ...x, status: map[x.id].status, status_label: map[x.id].status_label, prep_minutes: map[x.id].prep_minutes, ready_at: map[x.id].ready_at } : x)));
+      } else {
+        setOrders((os) => os.map((x) => (revert.has(x.id) ? { ...x, ...revert.get(x.id) } : x)));
+        setError(d.error || 'קבלה בכמות נכשלה');
+      }
+    } catch (e) {
+      setOrders((os) => os.map((x) => (revert.has(x.id) ? { ...x, ...revert.get(x.id) } : x)));
+      setError(e?.message || 'קבלה בכמות נכשלה');
+    } finally { setBulkBusy(false); }
+  };
   // Print-friendly kitchen bon.
   const printBon = (o) => {
     try {
@@ -587,6 +613,27 @@ export default function DeliveryOrders() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Rush hour — accept every pending order at once */}
+            {viewMode !== 'wall' && orders.filter((o) => o.status === 'pending' || o.status === 'on-hold').length >= 2 && (
+              bulkPick ? (
+                <Card><CardContent className="p-3">
+                  <div className="text-sm font-bold mb-2" style={{ color: '#b8442e' }}>קבל {orders.filter((o) => o.status === 'pending' || o.status === 'on-hold').length} הזמנות להכנה — כמה זמן?</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {ETA_OPTIONS.map((m) => (
+                      <button key={m} onClick={() => bulkAccept(m)} disabled={bulkBusy}
+                        className="py-2.5 rounded-lg border font-bold" style={{ borderColor: '#e6b8ab', color: '#b8442e' }}>{m} דק׳</button>
+                    ))}
+                  </div>
+                  <button className="text-xs text-slate-500 underline mt-2" onClick={() => setBulkPick(false)}>ביטול</button>
+                </CardContent></Card>
+              ) : (
+                <button onClick={() => setBulkPick(true)} disabled={bulkBusy}
+                  className="w-full py-3 rounded-xl text-white font-bold shadow-sm flex items-center justify-center gap-2 hover:opacity-90" style={{ background: '#b8442e' }}>
+                  {bulkBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : `⚡ קבל הכל (${orders.filter((o) => o.status === 'pending' || o.status === 'on-hold').length}) להכנה`}
+                </button>
+              )
+            )}
 
             {error && <p className="text-sm font-semibold text-rose-600 text-center">{error}</p>}
 
