@@ -70,6 +70,10 @@ export default function DeliveryOrders() {
   const [bulkPick, setBulkPick] = useState(false); // rush-hour "accept all" ETA picker open
   const [report, setReport] = useState(null); // null | 'loading' | { text, stats }
   const [reportSent, setReportSent] = useState('');
+  const [confirmClean, setConfirmClean] = useState(false);
+  const [wallScale, setWallScale] = useState(() => Number(lsGet('wallscale', '1')) || 1);
+  useEffect(() => { lsSet('wallscale', String(wallScale)); }, [wallScale]);
+  const overdueSeenRef = useRef(new Set()); // ids already alarmed as overdue
 
   // Filters (server-side)
   const [statusF, setStatusF] = useState(() => lsGet('statusF', 'active'));
@@ -102,11 +106,32 @@ export default function DeliveryOrders() {
     } catch { /* audio not available */ }
   }, []);
 
+  // A distinct, more urgent tone for an order that just crossed into "late".
+  const lateBeep = useCallback(() => {
+    try {
+      let ctx = audioRef.current;
+      if (!ctx) { ctx = new (window.AudioContext || window.webkitAudioContext)(); audioRef.current = ctx; }
+      if (ctx.state === 'suspended') ctx.resume();
+      const now = ctx.currentTime;
+      [0, 0.22, 0.44].forEach((t) => {
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.type = 'sawtooth'; o.frequency.value = 330; // low + buzzy = "problem"
+        o.connect(g); g.connect(ctx.destination);
+        g.gain.setValueAtTime(0.0001, now + t);
+        g.gain.exponentialRampToValueAtTime(0.3, now + t + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.18);
+        o.start(now + t); o.stop(now + t + 0.19);
+      });
+    } catch { /* audio not available */ }
+  }, []);
+
   const load = useCallback(async (isPoll) => {
     if (!isPoll) setLoading(true);
     try {
       const dr = dateRange(dateF);
-      const params = { limit: 80, status: statusF, rating: ratingF, search };
+      // Board/wall show all three columns (incl. מוכנות), so they need completed
+      // orders too — the status tabs only scope the list view.
+      const params = { limit: 80, status: viewMode === 'list' ? statusF : 'all', rating: ratingF, search };
       if (dr.from) params.from = dr.from;
       if (dr.to) params.to = dr.to;
       const d = (await base44.functions.getDeliverySiteOrders(params))?.data || {};
@@ -132,6 +157,12 @@ export default function DeliveryOrders() {
           setFlash((x) => ({ ...x, ...fl }));
           setTimeout(() => setFlash((x) => { const n = { ...x }; fresh.forEach((o) => delete n[o.id]); return n; }), 8000);
         }
+        // Distinct alert when a FRESH order slips into "late" (not stale/abandoned).
+        const nowS = Date.now() / 1000;
+        const nowLate = list.filter((o) => o.status === 'processing' && o.ready_at > 0 && o.ready_at < nowS && (!o.created || nowS - o.created <= 14400));
+        const newlyLate = nowLate.filter((o) => !overdueSeenRef.current.has(o.id));
+        if (newlyLate.length && soundOn) lateBeep();
+        overdueSeenRef.current = new Set(nowLate.map((o) => o.id));
       }
       seenRef.current = ids;
       setOrders(list);
@@ -144,7 +175,7 @@ export default function DeliveryOrders() {
     } finally {
       setLoading(false);
     }
-  }, [soundOn, beep, statusF, dateF, ratingF, search]);
+  }, [soundOn, beep, lateBeep, statusF, dateF, ratingF, search, viewMode]);
 
   useEffect(() => { load(false); }, [load]);
   // Poll every 20s while the page is open.
@@ -253,6 +284,25 @@ export default function DeliveryOrders() {
       setError(e?.message || 'קבלה בכמות נכשלה');
     } finally { setBulkBusy(false); }
   };
+
+  // Clean up stale orders (stuck in prep > 4h) → mark completed SILENTLY (no
+  // customer SMS — a days-old order must never text "your order is ready").
+  const cleanStale = async () => {
+    const nowS = Date.now() / 1000;
+    const ids = orders.filter((o) => o.status === 'processing' && o.created && nowS - o.created > 14400).map((o) => o.id);
+    setConfirmClean(false);
+    if (!ids.length) return;
+    setBulkBusy(true); setError('');
+    const revert = new Map(orders.filter((o) => ids.includes(o.id)).map((o) => [o.id, { status: o.status, status_label: o.status_label }]));
+    setOrders((os) => os.map((x) => (ids.includes(x.id) ? { ...x, status: 'completed', status_label: (STATUS.completed || {}).label, notified: false } : x)));
+    try {
+      const d = (await base44.functions.bulkSetDeliverySiteOrderStatus({ ids, status: 'completed', silent: true }))?.data || {};
+      if (!d.ok) { setOrders((os) => os.map((x) => (revert.has(x.id) ? { ...x, ...revert.get(x.id) } : x))); setError(d.error || 'הניקוי נכשל'); }
+    } catch (e) {
+      setOrders((os) => os.map((x) => (revert.has(x.id) ? { ...x, ...revert.get(x.id) } : x)));
+      setError(e?.message || 'הניקוי נכשל');
+    } finally { setBulkBusy(false); }
+  };
   // Print-friendly kitchen bon.
   const printBon = (o) => {
     try {
@@ -325,10 +375,15 @@ export default function DeliveryOrders() {
     { k: 'board', label: 'לוח', Icon: LayoutGrid },
     { k: 'wall', label: 'קיר מטבח', Icon: Monitor },
   ];
+  // The "done" column keeps only recently-finished orders (last 15 min) so a
+  // busy board/wall doesn't fill up with the day's history — older completed
+  // orders still live under the "הושלמו" list filter.
+  const DONE_WINDOW = 900;
+  const recentlyDone = (o) => o.status === 'completed' && (!o.completed_at || _now - o.completed_at <= DONE_WINDOW);
   const boardCols = [
     { key: 'new', title: '🆕 חדשות', match: (o) => o.status === 'pending' || o.status === 'on-hold', accent: '#b8442e' },
     { key: 'prep', title: '👨‍🍳 בהכנה', match: (o) => o.status === 'processing', accent: '#d97706' },
-    { key: 'done', title: '✅ מוכנות', match: (o) => o.status === 'completed', accent: '#059669' },
+    { key: 'done', title: '✅ מוכנות', match: recentlyDone, accent: '#059669' },
   ];
 
   const STATUS_TABS = [
@@ -427,6 +482,17 @@ export default function DeliveryOrders() {
             </div>
           )}
 
+          {/* Customer note — ALWAYS visible for active orders (allergies/requests
+              must never hide behind an accordion). Red when it looks allergy-ish. */}
+          {active && o.note && (() => {
+            const allergy = /אלרג|רגיש|גלוטן|אגוז|בוטן|לקטוז|צליאק|ללא |בלי /.test(o.note);
+            return (
+              <div className={`mx-3.5 mb-2 rounded-lg px-3 py-1.5 text-sm font-semibold border ${allergy ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-amber-50 text-amber-800 border-amber-200'}`}>
+                {allergy ? '⚠️' : '📝'} {o.note}
+              </div>
+            );
+          })()}
+
           {/* Quick actions — always visible for active orders, no need to expand */}
           {active && (
             etaFor === o.id ? (
@@ -484,7 +550,12 @@ export default function DeliveryOrders() {
               </div>
               <div className="flex items-center justify-between pt-1">
                 <button onClick={() => printBon(o)} className="text-xs text-slate-500 underline">🖨 הדפס בון</button>
-                {o.status === 'completed' && <span className="text-sm text-emerald-600 font-semibold">✓ הושלמה{o.notified ? ' · 📲 הלקוח עודכן' : ''}</span>}
+                {o.status === 'completed' && (
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => updateOrder(o, { status: 'processing' })} disabled={busyId === o.id} className="text-xs text-slate-500 underline">↩ החזר להכנה</button>
+                    <span className="text-sm text-emerald-600 font-semibold">✓ הושלמה{o.notified ? ' · 📲 הלקוח עודכן' : ''}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -500,7 +571,7 @@ export default function DeliveryOrders() {
     const urg = urgency(o);
     const items = o.items || [];
     return (
-      <div key={o.id} className={`rounded-2xl border-2 p-4 ${urg?.pulse ? 'border-rose-500 animate-pulse' : 'border-slate-700'}`} style={{ background: '#111827' }}>
+      <div key={o.id} className={`rounded-2xl border-2 p-4 ${flash[o.id] ? 'border-amber-400 animate-pulse' : urg?.pulse ? 'border-rose-500 animate-pulse' : 'border-slate-700'}`} style={{ background: flash[o.id] ? '#1c1917' : '#111827' }}>
         <div className="flex items-center justify-between">
           <span className="text-3xl font-black text-white" dir="ltr">#{o.number}</span>
           <span className="text-xl">{isDelivery ? '🛵' : '🥡'}</span>
@@ -614,10 +685,23 @@ export default function DeliveryOrders() {
 
             {/* Stale cleanup nudge — old orders stuck "in prep" (usually forgotten/test) */}
             {staleCount > 0 && viewMode !== 'wall' && (
-              <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                <span>🕰</span>
-                <span className="flex-1">{staleCount} הזמנות ישנות עדיין ב״בהכנה״ — שווה לסגור או לבטל כדי לנקות את הלוח.</span>
-              </div>
+              confirmClean ? (
+                <div className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5" dir="rtl">
+                  <div className="text-slate-600 mb-2">לסמן {staleCount} הזמנות ישנות כ״הושלמו״ ולנקות את הלוח? <b>לא תישלח הודעה ללקוח.</b></div>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="bg-slate-700 hover:bg-slate-800 text-white" onClick={cleanStale} disabled={bulkBusy}>
+                      {bulkBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : `כן, נקה ${staleCount}`}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setConfirmClean(false)}>ביטול</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                  <span>🕰</span>
+                  <span className="flex-1">{staleCount} הזמנות ישנות עדיין ב״בהכנה״ — שווה לנקות את הלוח.</span>
+                  <button onClick={() => setConfirmClean(true)} className="font-semibold text-slate-700 underline whitespace-nowrap">🧹 נקה ({staleCount})</button>
+                </div>
+              )
             )}
 
             {/* Controls */}
@@ -638,7 +722,9 @@ export default function DeliveryOrders() {
                   </button>
                 </div>
 
-                {/* Status — the primary filter, prominent hummus segmented control */}
+                {/* Status — the primary filter (list view only; the board's columns
+                    ARE the statuses, so the tabs would be dead clicks there). */}
+                {viewMode === 'list' && (
                 <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 overflow-x-auto">
                   {STATUS_TABS.map((t) => {
                     const on = statusF === t.k;
@@ -652,6 +738,7 @@ export default function DeliveryOrders() {
                     );
                   })}
                 </div>
+                )}
 
                 {/* Secondary filters — date + rating, one light row (no heavy pill chrome) */}
                 <div className="flex items-center gap-1.5 overflow-x-auto text-sm -mx-0.5 px-0.5">
@@ -738,9 +825,16 @@ export default function DeliveryOrders() {
                     <span className="text-slate-400 text-sm">{updatedAt ? 'עודכן ' + updatedAt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
                     {overdueCount > 0 && <span className="px-3 py-1 rounded-full bg-rose-600 text-white font-black animate-pulse">🔴 {overdueCount} מאחרות</span>}
                   </div>
-                  <button onClick={() => setViewMode('list')} className="px-4 py-2 rounded-xl bg-slate-700 text-white font-bold">✕ יציאה</button>
+                  <div className="flex items-center gap-2">
+                    {/* Text-size control for viewing from across the kitchen */}
+                    <div className="flex items-center gap-1 bg-slate-800 rounded-xl p-1">
+                      <button onClick={() => setWallScale((s) => Math.max(0.8, Math.round((s - 0.1) * 10) / 10))} className="w-9 h-9 rounded-lg text-white text-lg font-black" aria-label="הקטן טקסט">A−</button>
+                      <button onClick={() => setWallScale((s) => Math.min(1.6, Math.round((s + 0.1) * 10) / 10))} className="w-9 h-9 rounded-lg text-white text-xl font-black" aria-label="הגדל טקסט">A+</button>
+                    </div>
+                    <button onClick={() => setViewMode('list')} className="px-4 py-2 rounded-xl bg-slate-700 text-white font-bold">✕ יציאה</button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-4" style={{ zoom: wallScale }}>
                   {boardCols.map((col) => {
                     const cards = shown.filter(col.match);
                     return (
