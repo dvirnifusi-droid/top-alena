@@ -122,6 +122,24 @@ export default function DeliveryAnalytics() {
               <div className="flex items-center justify-center py-16 text-slate-400"><Loader2 className="w-6 h-6 animate-spin ml-2" /> טוען…</div>
             ) : (
               <>
+                {/* Automatic insights — what the numbers suggest doing */}
+                {(data?.insights || []).length > 0 && (
+                  <Card><CardContent className="p-3.5">
+                    <div className="text-sm font-bold text-slate-800 mb-2">💬 תובנות והמלצות</div>
+                    <div className="space-y-2">
+                      {data.insights.map((ins, i) => {
+                        const tone = ins.tone === 'warn' ? 'bg-rose-50 border-rose-200 text-rose-800' : ins.tone === 'good' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800';
+                        return (
+                          <div key={i} className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${tone}`}>
+                            <span className="flex-shrink-0">{ins.icon}</span>
+                            <span>{ins.text}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent></Card>
+                )}
+
                 {/* KPI grid */}
                 <div className="grid grid-cols-4 gap-2">
                   {kpis.map((k) => (

@@ -15,6 +15,8 @@ async function secret(key: string): Promise<string> {
   return process.env[key] || '';
 }
 
+const HE_DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
 function israelYMD(epochSec: number): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: ISRAEL_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(epochSec * 1000));
 }
@@ -90,6 +92,7 @@ export async function buildDeliveryAnalytics(fromYmd: string, toYmd: string): Pr
   // Top items.
   const itemQty: Record<string, number> = {};
   live.forEach((o) => (o.items || []).forEach((it: any) => { const n = String(it.name || '').trim(); if (n) itemQty[n] = (itemQty[n] || 0) + (Number(it.qty) || 1); }));
+  const totalItemQty = Object.values(itemQty).reduce((a, b) => a + b, 0);
   const topItems = Object.entries(itemQty).map(([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty).slice(0, 10);
 
   // Top customers (by phone; name from the order).
@@ -101,20 +104,63 @@ export async function buildDeliveryAnalytics(fromYmd: string, toYmd: string): Pr
   });
   const topCustomers = Object.values(custMap).map((c) => ({ ...c, spend: Math.round(c.spend) })).sort((a, b) => b.spend - a.spend).slice(0, 6);
 
+  const totals = {
+    orders: live.length,
+    revenue: Math.round(revenue),
+    avgOrder: live.length ? Math.round(revenue / live.length) : 0,
+    avgPrep,
+    onTimePct,
+    returningPct: live.length ? Math.round((returning / live.length) * 100) : 0,
+    cancelPct: orders.length ? Math.round((cancelled / orders.length) * 100) : 0,
+    pickup, delivery,
+    ratingAvg, ratingCount: rated.length,
+  };
+
+  // ---- Automatic insights: turn the aggregates into actionable advice ----
+  const insights: Array<{ icon: string; tone: 'good' | 'warn' | 'tip'; text: string }> = [];
+  const pad = (n: number) => String(n).padStart(2, '0');
+  if (live.length >= 5) {
+    // Peak hour.
+    const peak = byHour.reduce((a, b) => (b.orders > a.orders ? b : a), { hour: -1, orders: 0 } as any);
+    if (peak.orders >= 3) insights.push({ icon: '🔝', tone: 'tip', text: `שעת השיא היא ${pad(peak.hour)}:00–${pad((peak.hour + 1) % 24)}:00 (${peak.orders} הזמנות) — ודאו כיסוי מטבח ושליחים סביבה` });
+
+    // Best / worst weekday (averaged across the range).
+    const wd: Record<number, { o: number; days: number }> = {};
+    byDay.forEach((d) => { const w = new Date(d.ymd + 'T12:00:00Z').getUTCDay(); (wd[w] = wd[w] || { o: 0, days: 0 }); wd[w].o += d.orders; wd[w].days++; });
+    const wdArr = Object.entries(wd).filter(([, v]) => v.days > 0).map(([w, v]) => ({ w: Number(w), avg: v.o / v.days }));
+    if (wdArr.length >= 3) {
+      const best = wdArr.reduce((a, b) => (b.avg > a.avg ? b : a));
+      const worst = wdArr.reduce((a, b) => (b.avg < a.avg ? b : a));
+      if (best.avg > 0) insights.push({ icon: '📈', tone: 'good', text: `יום ${HE_DAYS[best.w]} הכי חזק (≈${Math.round(best.avg)} הזמנות ליום)` });
+      if (worst.avg < best.avg * 0.6) insights.push({ icon: '💡', tone: 'tip', text: `יום ${HE_DAYS[worst.w]} הכי חלש (≈${Math.round(worst.avg)}) — שקלו מבצע ייעודי ליום ${HE_DAYS[worst.w]}` });
+    }
+  }
+  if (onTimePct != null && acc.length >= 4) {
+    if (onTimePct < 60) insights.push({ icon: '⏱️', tone: 'warn', text: `רק ${onTimePct}% מההזמנות הגיעו בזמן שהובטח — זמני ההכנה אולי אופטימיים מדי, שקלו להאריך` });
+    else if (onTimePct >= 90) insights.push({ icon: '✅', tone: 'good', text: `${onTimePct}% מההזמנות בזמן — עמידה מצוינת בהבטחה ללקוח` });
+  }
+  if (totals.cancelPct > 8 && orders.length >= 8) insights.push({ icon: '⚠️', tone: 'warn', text: `${totals.cancelPct}% ביטולים — בדקו זמינות מנות, שעות פעילות ואזורי משלוח` });
+  if (live.length >= 10) {
+    if (totals.returningPct >= 40) insights.push({ icon: '👑', tone: 'good', text: `${totals.returningPct}% מההזמנות מלקוחות חוזרים — נאמנות גבוהה` });
+    else if (totals.returningPct < 20) insights.push({ icon: '💡', tone: 'tip', text: `רק ${totals.returningPct}% לקוחות חוזרים — שקלו הטבת-חזרה או מועדון` });
+    const pk = Math.round((pickup / live.length) * 100);
+    if (pk >= 60) insights.push({ icon: '🛵', tone: 'tip', text: `${pk}% מההזמנות איסוף עצמי — קידום משלוח יכול להגדיל את הסל` });
+  }
+  if (totalItemQty > 0 && topItems[0]) {
+    const share = Math.round((topItems[0].qty / totalItemQty) * 100);
+    if (share >= 30) insights.push({ icon: '🍽️', tone: 'tip', text: `"${topItems[0].name}" לבד ${share}% מהמנות — תלות גבוהה, שקלו לקדם מנות נוספות` });
+  }
+  if (ratingAvg != null && rated.length >= 3 && ratingAvg < 4) insights.push({ icon: '⭐', tone: 'warn', text: `דירוג ממוצע ${ratingAvg} — עברו על התלונות האחרונות בעמוד ההזמנות` });
+  // Order: warnings first (act now), then tips, then positives; cap at 5.
+  const order = { warn: 0, tip: 1, good: 2 };
+  insights.sort((a, b) => order[a.tone] - order[b.tone]);
+  const insightsTop = insights.slice(0, 5);
+
   return {
     range: { from: fromYmd, to: toYmd },
     capped,
-    totals: {
-      orders: live.length,
-      revenue: Math.round(revenue),
-      avgOrder: live.length ? Math.round(revenue / live.length) : 0,
-      avgPrep,
-      onTimePct,
-      returningPct: live.length ? Math.round((returning / live.length) * 100) : 0,
-      cancelPct: orders.length ? Math.round((cancelled / orders.length) * 100) : 0,
-      pickup, delivery,
-      ratingAvg, ratingCount: rated.length,
-    },
+    totals,
+    insights: insightsTop,
     byDay, byHour, topItems, topCustomers, ratingDist,
   };
 }
