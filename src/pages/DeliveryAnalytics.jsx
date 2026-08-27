@@ -50,17 +50,28 @@ export default function DeliveryAnalytics() {
   useEffect(() => { load(); }, [load]);
 
   const t = data?.totals || {};
+  const dl = data?.deltas || null;
   const kpis = [
-    { label: 'הזמנות', value: t.orders ?? '–' },
-    { label: 'מחזור', value: t.revenue != null ? nis(t.revenue) : '–', color: HUMMUS },
-    { label: 'ערך ממוצע', value: t.avgOrder != null ? nis(t.avgOrder) : '–' },
+    { label: 'הזמנות', value: t.orders ?? '–', dk: 'orders', kind: 'pct' },
+    { label: 'מחזור', value: t.revenue != null ? nis(t.revenue) : '–', color: HUMMUS, dk: 'revenue', kind: 'pct' },
+    { label: 'ערך ממוצע', value: t.avgOrder != null ? nis(t.avgOrder) : '–', dk: 'avgOrder', kind: 'pct' },
     { label: 'זמן הכנה ממ׳', value: t.avgPrep ? t.avgPrep + '׳' : '–' },
-    { label: 'בזמן', value: t.onTimePct != null ? t.onTimePct + '%' : '–', tone: t.onTimePct >= 80 ? 'ok' : t.onTimePct >= 50 ? 'warn' : t.onTimePct != null ? 'bad' : '' },
-    { label: 'לקוחות חוזרים', value: t.returningPct != null ? t.returningPct + '%' : '–' },
-    { label: 'ביטולים', value: t.cancelPct != null ? t.cancelPct + '%' : '–', tone: t.cancelPct > 10 ? 'bad' : '' },
+    { label: 'בזמן', value: t.onTimePct != null ? t.onTimePct + '%' : '–', tone: t.onTimePct >= 80 ? 'ok' : t.onTimePct >= 50 ? 'warn' : t.onTimePct != null ? 'bad' : '', dk: 'onTimePct', kind: 'pt' },
+    { label: 'לקוחות חוזרים', value: t.returningPct != null ? t.returningPct + '%' : '–', dk: 'returningPct', kind: 'pt' },
+    { label: 'ביטולים', value: t.cancelPct != null ? t.cancelPct + '%' : '–', tone: t.cancelPct > 10 ? 'bad' : '', dk: 'cancelPct', kind: 'pt', invert: true },
     { label: 'דירוג ממוצע', value: t.ratingAvg != null ? '⭐ ' + t.ratingAvg : '–' },
   ];
   const toneCls = { ok: 'text-emerald-600', warn: 'text-amber-600', bad: 'text-rose-600' };
+  // Small "vs previous period" chip: pct for counts/money, points for rate KPIs;
+  // for ביטולים an increase is bad (invert the color).
+  const deltaChip = (k) => {
+    if (!dl || !k.dk || dl[k.dk] == null || dl[k.dk] === 0) return null;
+    const v = dl[k.dk];
+    const good = k.invert ? v < 0 : v > 0;
+    const arrow = v > 0 ? '↑' : '↓';
+    const txt = k.kind === 'pt' ? `${arrow}${Math.abs(v)} נק׳` : `${arrow}${Math.abs(v)}%`;
+    return <div className={`text-[10px] font-bold mt-0.5 ${good ? 'text-emerald-600' : 'text-rose-500'}`}>{txt}</div>;
+  };
 
   const pieData = [
     { name: 'משלוח', value: t.delivery || 0, color: HUMMUS },
@@ -140,12 +151,14 @@ export default function DeliveryAnalytics() {
                   </CardContent></Card>
                 )}
 
+                {dl && <div className="text-[11px] text-slate-400 -mb-1">החיצים = שינוי לעומת התקופה הקודמת ({data.prevRange?.from?.slice(5)}–{data.prevRange?.to?.slice(5)})</div>}
                 {/* KPI grid */}
                 <div className="grid grid-cols-4 gap-2">
                   {kpis.map((k) => (
                     <div key={k.label} className="rounded-xl border border-slate-200 bg-white p-2.5 text-center">
                       <div className={`text-lg font-extrabold leading-none ${k.tone ? toneCls[k.tone] : 'text-slate-800'}`} style={!k.tone && k.color ? { color: k.color } : undefined}>{k.value}</div>
                       <div className="text-[11px] text-slate-500 mt-1">{k.label}</div>
+                      {deltaChip(k)}
                     </div>
                   ))}
                 </div>
