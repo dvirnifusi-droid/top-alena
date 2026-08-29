@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Plus, CalendarDays, Check, X, Clock, Loader2, Pencil } from 'lucide-react';
+import { Plus, CalendarDays, Check, X, Clock, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { format, parseISO, eachDayOfInterval } from 'date-fns';
 import { he } from 'date-fns/locale';
 import PageGuard from '../components/shared/PageGuard';
@@ -73,7 +73,7 @@ function EditDatesDialog({ open, onClose, req, onSaved }) {
     );
 }
 
-function LeaveRequestCard({ req, isManager, onApprove, onReject, onEdit, actionLoading }) {
+function LeaveRequestCard({ req, isManager, onApprove, onReject, onEdit, onDelete, actionLoading }) {
      const leaveType = LEAVE_TYPES[req.leave_type] || LEAVE_TYPES.other;
      const statusCfg = STATUS_CONFIG[req.status] || STATUS_CONFIG.pending;
      const StatusIcon = statusCfg.icon;
@@ -116,8 +116,11 @@ function LeaveRequestCard({ req, isManager, onApprove, onReject, onEdit, actionL
                                      </Button>
                                  </>
                              )}
-                             <Button size="sm" variant="outline" className="h-8" onClick={() => onEdit(req)}>
+                             <Button size="sm" variant="outline" className="h-8" onClick={() => onEdit(req)} title="ערוך תאריכים">
                                  <Pencil className="w-3 h-3" />
+                             </Button>
+                             <Button size="sm" variant="outline" className="h-8 border-red-300 text-red-600 hover:bg-red-50" onClick={() => onDelete(req)} disabled={!!actionLoading} title="מחק חופשה">
+                                 {actionLoading === req.id + '_d' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                              </Button>
                          </div>
                      )}
@@ -345,6 +348,23 @@ function LeaveRequestsInner() {
         loadData();
     };
 
+    // Managers can remove a leave entirely — e.g. one submitted by mistake / for the
+    // wrong dates. Deleting it frees those dates so the employee can be scheduled again.
+    const handleDelete = async (req) => {
+        const range = req.start_date === req.end_date
+            ? req.start_date
+            : `${req.start_date} – ${req.end_date}`;
+        if (!window.confirm(`למחוק את החופשה של ${req.employee_name || 'העובד/ת'}?\n${range}\n\nהרשומה תימחק והתאריכים ישוחררו לשיבוץ. אי אפשר לבטל.`)) return;
+        setActionLoading(req.id + '_d');
+        try {
+            await base44.entities.LeaveRequest.delete(req.id);
+        } catch (e) {
+            alert('שגיאה במחיקת החופשה: ' + (e?.message || 'נסה שוב'));
+        }
+        setActionLoading(null);
+        loadData();
+    };
+
     const pendingReqs = requests.filter(r => r.status === 'pending');
     const pastReqs = requests.filter(r => r.status !== 'pending');
 
@@ -375,7 +395,7 @@ function LeaveRequestsInner() {
                         </h2>
                         <div className="space-y-3">
                             {pendingReqs.map(r => (
-                                <LeaveRequestCard key={r.id} req={r} isManager={isAdmin} onApprove={handleApprove} onReject={setRejectTarget} onEdit={setEditTarget} actionLoading={actionLoading} />
+                                <LeaveRequestCard key={r.id} req={r} isManager={isAdmin} onApprove={handleApprove} onReject={setRejectTarget} onEdit={setEditTarget} onDelete={handleDelete} actionLoading={actionLoading} />
                             ))}
                         </div>
                     </div>
@@ -386,7 +406,7 @@ function LeaveRequestsInner() {
                         <h2 className="font-bold text-gray-800 mb-3">היסטוריה</h2>
                         <div className="space-y-3">
                             {pastReqs.map(r => (
-                                <LeaveRequestCard key={r.id} req={r} isManager={isAdmin} onApprove={handleApprove} onReject={setRejectTarget} onEdit={setEditTarget} actionLoading={actionLoading} />
+                                <LeaveRequestCard key={r.id} req={r} isManager={isAdmin} onApprove={handleApprove} onReject={setRejectTarget} onEdit={setEditTarget} onDelete={handleDelete} actionLoading={actionLoading} />
                             ))}
                         </div>
                     </div>
