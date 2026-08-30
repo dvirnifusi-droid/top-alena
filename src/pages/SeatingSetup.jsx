@@ -1174,7 +1174,7 @@ function TableDetailsDialog({ table, session, __ctx }) {
         const currentStepInfo = getStepInfo(session?.current_step);
         
         const futureReservations = reservations.filter(r => 
-            Array.isArray(r.assigned_table) && r.assigned_table.includes(table.table_number) && 
+            Array.isArray(r.assigned_table) && r.assigned_table.map(String).includes(String(table.table_number)) && 
             (r.status === 'confirmed' || r.status === 'pending') &&
             new Date(`${r.date}T${r.time}`) > new Date()
         ).sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
@@ -1184,7 +1184,7 @@ function TableDetailsDialog({ table, session, __ctx }) {
         // A guest seated via a RESERVATION (not a live session) — so we can offer
         // edit / move for them too (the session path is handled separately below).
         const seatedRes = reservations.find(r =>
-            Array.isArray(r.assigned_table) && r.assigned_table.includes(table.table_number) &&
+            Array.isArray(r.assigned_table) && r.assigned_table.map(String).includes(String(table.table_number)) &&
             r.date === format(new Date(), 'yyyy-MM-dd') && r.status === 'seated'
         );
 
@@ -2743,6 +2743,16 @@ export default function SeatingSetup() {
                 }
                 setTableDetailsOpen(false);
             } else if (newStatus === 'cleaning') {
+                // Same guard as closing a table: the toolbar sits on every card on a
+                // tablet, so a stray tap here would end a seated party's meal silently.
+                const occupied = sessions.length > 0 || heldReservation?.status === 'seated';
+                if (occupied) {
+                    const who = heldReservation?.customer_name ? ` (${heldReservation.customer_name})` : '';
+                    const spanLabel = spanTables.length > 1 ? spanTables.join(' + ') : spanTables[0];
+                    if (!window.confirm(`להעביר את שולחן ${spanLabel}${who} לניקוי?\n\nהמשמרת בשולחן תיסגר.`)) {
+                        return;
+                    }
+                }
                 await Promise.all(sessions.map(s => TableSession.update(s.id, {
                     status: 'to_be_cleaned', session_end: new Date().toISOString(),
                 })));
@@ -2834,6 +2844,23 @@ export default function SeatingSetup() {
         patchReservationLocal(reservation.id, { status });
         try {
             await Reservation.update(reservation.id, { status });
+            // Keep the FLOOR in sync with the booking. Closing out a booking
+            // (completed / no_show / cancelled / deleted) must also close its live
+            // TableSession — otherwise the table stays "occupied" with a running
+            // timer forever and can't be re-seated. This is what made a "סיים"/
+            // "הבריז" tap leave a zombie occupied table.
+            const terminal = ['completed', 'no_show', 'cancelled', 'deleted'].includes(status);
+            if (terminal && Array.isArray(reservation.assigned_table) && reservation.assigned_table.length) {
+                const seen = new Set();
+                for (const t of reservation.assigned_table.map(String)) {
+                    const s = getTableSession(t);
+                    if (s && !seen.has(s.id)) {
+                        seen.add(s.id);
+                        await TableSession.update(s.id, { status: 'completed', session_end: new Date().toISOString() }).catch(() => {});
+                    }
+                }
+            }
+            loadLiveData();
         } catch (err) {
             patchReservationLocal(reservation.id, { status: reservation.status });
             console.warn('status save failed', err);
@@ -3318,12 +3345,21 @@ export default function SeatingSetup() {
         // session and a seated-off-reservation guest). No multi-select, no "save".
         if (movingGuest) {
             if (String(tableNumber) === String(movingGuest.fromTable)) { setMovingGuest(null); return; }
-            // Don't silently drop a guest onto an occupied table — confirm first.
             const today = format(new Date(), 'yyyy-MM-dd');
-            const targetBusy = getTableSession(tableNumber) || reservations.find(r =>
+            const targetSession = getTableSession(tableNumber);
+            const targetSeated = reservations.find(r =>
                 Array.isArray(r.assigned_table) && r.assigned_table.map(String).includes(String(tableNumber))
                 && r.date === today && r.status === 'seated');
-            if (targetBusy && !window.confirm(`שולחן ${tableNumber} תפוס. להעביר לשם בכל זאת?`)) { setMovingGuest(null); return; }
+            if (targetSession || targetSeated) {
+                const who = targetSeated?.customer_name || targetSession?.customer_name || 'האורח הנוכחי';
+                // Confirm — and DISPLACE the current occupant, otherwise both parties
+                // end up assigned to the same table (silent double-book).
+                if (!window.confirm(`שולחן ${tableNumber} תפוס (${who}). להעביר לשם ולפנות את מי שיושב שם?`)) { setMovingGuest(null); return; }
+                try {
+                    if (targetSession) await TableSession.update(targetSession.id, { status: 'completed', session_end: new Date().toISOString() });
+                    if (targetSeated) { patchReservationLocal(targetSeated.id, { assigned_table: [], status: 'confirmed' }); await Reservation.update(targetSeated.id, { assigned_table: [], status: 'confirmed' }); }
+                } catch (e) { console.warn('displace occupant failed', e); }
+            }
             const mv = movingGuest;
             setMovingGuest(null);
             await moveOccupantToTable(mv.fromTable, tableNumber, mv.reservation || null);
@@ -3341,7 +3377,7 @@ export default function SeatingSetup() {
             const currentDate = format(now, 'yyyy-MM-dd');
             
             const seatedReservation = reservations.find(r => 
-                Array.isArray(r.assigned_table) && r.assigned_table.includes(tableNumber) &&
+                Array.isArray(r.assigned_table) && r.assigned_table.map(String).includes(String(tableNumber)) &&
                 r.date === currentDate &&
                 r.status === 'seated'
             );
@@ -3386,7 +3422,7 @@ export default function SeatingSetup() {
             const currentDate = format(now, 'yyyy-MM-dd');
             
             const seatedReservation = reservations.find(r => 
-                Array.isArray(r.assigned_table) && r.assigned_table.includes(table.table_number) &&
+                Array.isArray(r.assigned_table) && r.assigned_table.map(String).includes(String(table.table_number)) &&
                 r.date === currentDate &&
                 r.status === 'seated'
             );
@@ -3408,7 +3444,7 @@ export default function SeatingSetup() {
 
             const conflictingReservation = reservations.find(r =>
                 r.id !== resToAssign.id &&
-                Array.isArray(r.assigned_table) && r.assigned_table.includes(table.table_number) &&
+                Array.isArray(r.assigned_table) && r.assigned_table.map(String).includes(String(table.table_number)) &&
                 r.date === resToAssign.date &&
                 // Any TIME-OVERLAP, not just an identical start time — a 20:30
                 // booking conflicts with a 20:00 party that sits ~2h.
@@ -4612,10 +4648,12 @@ export default function SeatingSetup() {
                                                 ? r.assigned_table 
                                                 : r.assigned_table ? [r.assigned_table] : [];
                                             
-                                            const isAssignedToTable = assignedTables.includes(table.table_number);
+                                            const isAssignedToTable = assignedTables.map(String).includes(String(table.table_number));
                                             if (!isAssignedToTable) return false;
-                                            
-                                            const validStatuses = ['confirmed', 'pending', 'seated'];
+
+                                            // 'standby' included: a table being HELD for a standby guest must
+                                            // show as taken, or the hostess seats a walk-in over it.
+                                            const validStatuses = ['confirmed', 'pending', 'seated', 'standby'];
                                             const hasValidStatus = validStatuses.includes(r.status);
                                             if (!hasValidStatus) return false;
                                             
@@ -4627,11 +4665,14 @@ export default function SeatingSetup() {
                                             // TODAY: drop bookings whose time already passed, or a lunch booking
                                             // still renders as "the next one" late at night (seen live on table 81:
                                             // a guest seated until 03:59 showed 12:00 as their next booking).
-                                            // 30-min grace so a guest running late doesn't vanish off the map.
+                                            // 120-min grace so a guest running late (Friday traffic) stays on
+                                            // their held table instead of vanishing and getting a walk-in seated
+                                            // over them. A truly stale lunch booking at night is hours past, so
+                                            // it's still hidden. (Was 30 min — too short for a real rush.)
                                             if (reservationDate.getTime() === today.getTime() && r.status !== 'seated' && r.time) {
                                                 const [rh, rm] = String(r.time).split(':').map(Number);
                                                 const n = new Date();
-                                                if (Number.isFinite(rh) && (rh * 60 + (rm || 0)) < (n.getHours() * 60 + n.getMinutes() - 30)) return false;
+                                                if (Number.isFinite(rh) && (rh * 60 + (rm || 0)) < (n.getHours() * 60 + n.getMinutes() - 120)) return false;
                                             }
                                             return true;
                                         }).sort((a, b) => {
@@ -4643,8 +4684,8 @@ export default function SeatingSetup() {
                                         const now = new Date();
                                         const currentDate = format(now, 'yyyy-MM-dd');
                                         
-                                        const seatedReservation = reservations.find(r => 
-                                            Array.isArray(r.assigned_table) && r.assigned_table.includes(table.table_number) &&
+                                        const seatedReservation = reservations.find(r =>
+                                            Array.isArray(r.assigned_table) && r.assigned_table.map(String).includes(String(table.table_number)) &&
                                             r.date === currentDate &&
                                             r.status === 'seated'
                                         );
@@ -5126,7 +5167,30 @@ export default function SeatingSetup() {
                             onClose={() => setViewReservation(null)}
                             onEditFull={() => { setEditingReservation(viewReservation); setIsEditReservationOpen(true); setViewReservation(null); }}
                             onStatusChange={(st) => { setViewReservation({ ...viewReservation, status: st }); setStatus(viewReservation, st); }}
-                            onSaveFields={async (id, fields) => { patchReservationLocal(id, fields); await Reservation.update(id, fields); loadLiveData(); }}
+                            onSaveFields={async (id, fields) => {
+                                const before = reservations.find(r => r.id === id);
+                                const beforeTables = Array.isArray(before?.assigned_table) ? before.assigned_table.map(String) : [];
+                                const afterTables = Array.isArray(fields.assigned_table) ? fields.assigned_table.map(String) : [];
+                                const tableChanged = beforeTables.join(',') !== afterTables.join(',');
+                                // Warn before assigning a table already held by another seated party (double-book).
+                                if (tableChanged && afterTables.length) {
+                                    const today = format(new Date(), 'yyyy-MM-dd');
+                                    const clash = reservations.find(r => r.id !== id && r.date === today && r.status === 'seated'
+                                        && Array.isArray(r.assigned_table) && r.assigned_table.map(String).some(t => afterTables.includes(t)));
+                                    if (clash && !window.confirm(`שולחן ${afterTables.join(', ')} כבר תפוס (${clash.customer_name || ''}). לשמור בכל זאת?`)) return;
+                                }
+                                patchReservationLocal(id, fields);
+                                await Reservation.update(id, fields);
+                                // Keep the live TableSession on the same physical table as its booking
+                                // (else the guest lights up on both the old and new table).
+                                if (tableChanged && afterTables.length) {
+                                    for (const ot of beforeTables) {
+                                        const s = getTableSession(ot);
+                                        if (s) { await TableSession.update(s.id, { table_number: afterTables.join(',') }).catch(() => {}); break; }
+                                    }
+                                }
+                                loadLiveData();
+                            }}
                         />
                     )}
                 </CardContent>
@@ -5486,8 +5550,8 @@ function CompactTonightStrip({ reservations, selectedDate, onEdit, onOpenFullDas
                 const phoneMatch = qDigits !== '' && (r.customer_phone || '').replace(/\D/g, '').includes(qDigits);
                 if (!nameMatch && !phoneMatch) return false;
             }
-            if (!r.time) return true;
-            if (String(r.time) < '17:00') return false;
+            // Show ALL of today's bookings, not just evening — hiding pre-17:00 made
+            // the whole lunch / daytime shift invisible on this strip.
             return true;
         })
         .sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
@@ -6873,8 +6937,12 @@ function QuickSeatDialog({ open, onClose, tables, reservations, activeSessions, 
         .map(t => {
             const occ = occupied.has(t.table_number);
             const conflict = tableHasUpcomingSoon(t.table_number);
-            const fits = (t.min_capacity || 1) <= size && size <= (t.max_capacity || 99);
-            return { t, occ, conflict, fits };
+            // FITS = the table can HOLD the party (max >= size). We no longer hide
+            // over-sized tables — on a busy night seating a couple at a free 4-top is
+            // routine; right-sized tables are just ranked first below.
+            const fits = size > 0 && size <= (t.max_capacity || 99);
+            const rightSized = (t.min_capacity || 1) <= size;   // not oversized
+            return { t, occ, conflict, fits, rightSized };
         })
         .filter(x => x.fits)
         .sort((a, b) => {
@@ -6882,6 +6950,8 @@ function QuickSeatDialog({ open, onClose, tables, reservations, activeSessions, 
             const aScore = (a.occ ? 2 : 0) + (a.conflict ? 1 : 0);
             const bScore = (b.occ ? 2 : 0) + (b.conflict ? 1 : 0);
             if (aScore !== bScore) return aScore - bScore;
+            // right-sized before oversized (don't waste a big table if a fitting one is free)
+            if (a.rightSized !== b.rightSized) return a.rightSized ? -1 : 1;
             // prefer indoor
             if (a.t.location !== b.t.location) return a.t.location === 'indoor' ? -1 : 1;
             // smallest still-fitting capacity first
