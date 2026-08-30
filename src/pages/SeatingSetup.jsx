@@ -669,7 +669,7 @@ const FACILITY_TYPES = {
 // empty statement after the function declaration.
 // ────────────────────────────────────────────────────────────────────────
 function ReservationCard({ reservation, compact = false, __ctx }) {
-    const { getReservationStatusConfig, visitsFor, FLAG_CONFIGS, setEditingReservation, setIsEditReservationOpen, reservations, setAiPrefillQuestion, setAiOpen, STATUS_OPTIONS, STATUS_CONFIGS, setStatus, setHostessFlag } = __ctx;
+    const { getReservationStatusConfig, visitsFor, FLAG_CONFIGS, setEditingReservation, setIsEditReservationOpen, reservations, setAiPrefillQuestion, setAiOpen, STATUS_OPTIONS, STATUS_CONFIGS, setStatus, setHostessFlag, setViewReservation } = __ctx;
         const statusConfig = getReservationStatusConfig(reservation.status, reservation.assigned_table, reservation);
         const customerInfo = reservation.customer_name || `לקוח ${reservation.id?.slice(-4)}`;
 
@@ -678,10 +678,11 @@ function ReservationCard({ reservation, compact = false, __ctx }) {
         const flagMeta = FLAG_CONFIGS[flag];
 
         const openEdit = (e) => {
-            // open edit only when clicking outside any inline control
+            // open the quick VIEW when tapping outside any inline control — a light
+            // read-first card. Full edit is one tap from there. (Tapping a reservation
+            // used to dump you straight into the heavy edit form.)
             if (e.target.closest('button, [role="menuitem"], [data-popover-trigger]')) return;
-            setEditingReservation(reservation);
-            setIsEditReservationOpen(true);
+            setViewReservation(reservation);
         };
 
         const phoneTel = (reservation.customer_phone || '').replace(/[^\d+]/g, '');
@@ -975,6 +976,9 @@ function ReservationsDashboard({ hideDatePicker = false, __ctx } = {}) {
                 return next;
             });
         };
+        // Extra filters (hour buckets / time / flags / density) collapse behind a
+        // toggle so the list itself has room — the rail had ~4 rows of controls.
+        const [showFilters, setShowFilters] = useState(false);
 
         const filteredReservations = reservations.filter(r => {
             const statusMatch = selectedStatus === 'all' || (r.status || 'pending') === selectedStatus;
@@ -1063,53 +1067,18 @@ function ReservationsDashboard({ hideDatePicker = false, __ctx } = {}) {
                     />
                 </div>
 
-                {/* Hour bucket filter — quick chips, no typing */}
-                <div className="mb-2 flex flex-wrap gap-1">
-                    {['all','morning','noon','evening','night'].map(k => {
-                        const active = timeBucket === k;
-                        const emoji = { all: '🕐', morning: '🌅', noon: '☀️', evening: '🌙', night: '🌃' }[k];
-                        return (
-                            <button
-                                key={k}
-                                onClick={() => setTimeBucket(k)}
-                                className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors
-                                    ${active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200 hover:border-slate-400'}`}
-                            >{emoji} {TIME_BUCKETS[k].label}</button>
-                        );
-                    })}
-                    {/* Only reservations still WITHOUT a table — what the hostess has left to seat. */}
+                {/* PRIMARY filters — always visible: what's left to seat + status + a
+                    toggle for the rest. Keeps the list high on the screen (the rail used
+                    to stack ~4 rows of filter controls above it). */}
+                <div className="mb-2 flex items-center gap-2">
                     <button
                         onClick={() => setOnlyUnassigned(v => !v)}
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors
+                        className={`text-[12px] font-bold px-3 py-1.5 rounded-full border whitespace-nowrap transition-colors
                             ${onlyUnassigned ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-300 hover:border-amber-500'}`}
                         title="הזמנות ללא שולחן משובץ"
                     >🪑 בלי שולחן{unassignedCount ? ` (${unassignedCount})` : ''}</button>
-                </div>
-
-                <div className="flex gap-2 mb-4">
-                    {/* A native time input renders in the BROWSER's locale — on an iPhone
-                        set to English that's a 12-hour AM/PM field ("--:-- --"), while
-                        reservations store 24-hour "HH:mm". The filter then matched nothing.
-                        Plain text + 24h pattern keeps both sides in the same format. */}
-                    <Input
-                        type="text"
-                        inputMode="numeric"
-                        dir="ltr"
-                        maxLength={5}
-                        value={timeFilter}
-                        onChange={e => {
-                            let v = e.target.value.replace(/[^\d:]/g, '');
-                            if (v.length === 2 && !v.includes(':') && timeFilter.length < 2) v += ':';
-                            setTimeFilter(v.slice(0, 5));
-                        }}
-                        className="w-24 text-center tabular-nums"
-                        placeholder="20:00"
-                        title="סינון לפי שעה — פורמט 24 שעות, למשל 20:00"
-                    />
                     <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                        <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="בחר סטטוס" />
-                        </SelectTrigger>
+                        <SelectTrigger className="flex-1 h-9"><SelectValue placeholder="סטטוס" /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">הכל ({statusCounts.total || 0})</SelectItem>
                             <SelectItem value="request">בקשה ({statusCounts.request || 0})</SelectItem>
@@ -1124,46 +1093,60 @@ function ReservationsDashboard({ hideDatePicker = false, __ctx } = {}) {
                             <SelectItem value="deleted">מחוק ({statusCounts.deleted || 0})</SelectItem>
                         </SelectContent>
                     </Select>
-                </div>
-
-                {/* Flag filter — colored pill row */}
-                <div className="mb-4 flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] font-bold text-gray-500 uppercase">דגל:</span>
-                    {[
-                        { k: 'all',    label: 'הכל',  cls: 'bg-gray-100 text-gray-700 border-gray-200' },
-                        { k: 'none',   label: '○',    cls: 'bg-white text-gray-500 border-gray-300', title: 'בלי דגל' },
-                        { k: 'green',  label: '●',    cls: 'bg-emerald-500 text-white border-emerald-700', title: 'התקשרנו, מגיע' },
-                        { k: 'orange', label: '●',    cls: 'bg-orange-500 text-white border-orange-700', title: 'התקשרנו, מאחר' },
-                        { k: 'red',    label: '●',    cls: 'bg-red-500 text-white border-red-700', title: 'התקשרנו, לא ענה' },
-                        { k: 'black',  label: '●',    cls: 'bg-zinc-900 text-white border-zinc-700', title: 'בעייתי' },
-                    ].map(f => {
-                        const count = f.k === 'all'
-                            ? reservations.length
-                            : (flagCounts[f.k] || 0);
-                        const active = selectedFlag === f.k;
-                        return (
-                            <button
-                                key={f.k}
-                                onClick={() => setSelectedFlag(f.k)}
-                                title={f.title || f.label}
-                                className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-all
-                                    ${f.cls} ${active ? 'ring-2 ring-indigo-500 ring-offset-1 scale-105' : 'opacity-70 hover:opacity-100'}`}
-                            >
-                                {f.label} <span className="opacity-80">({count})</span>
-                            </button>
-                        );
-                    })}
-                </div>
-
-                {/* Density toggle */}
-                <div className="flex items-center justify-end mb-1.5 gap-1">
                     <button
-                        onClick={toggleCompact}
-                        title={compactMode ? 'הצג קלפים גדולים' : 'הצג קלפים קומפקטיים'}
-                        className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-colors
-                            ${compactMode ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200'}`}
-                    >{compactMode ? '☰ קומפקטי' : '▦ מורחב'}</button>
+                        onClick={() => setShowFilters(v => !v)}
+                        className={`text-[12px] font-bold px-3 py-1.5 rounded-full border whitespace-nowrap transition-colors
+                            ${(showFilters || timeBucket !== 'all' || timeFilter || selectedFlag !== 'all') ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200'}`}
+                        title="עוד אפשרויות סינון"
+                    >{showFilters ? '▴' : '▾'} סינון</button>
                 </div>
+
+                {showFilters && (
+                <div className="mb-3 pb-3 border-b border-gray-100 space-y-2">
+                    {/* Hour bucket */}
+                    <div className="flex flex-wrap gap-1">
+                        {['all','morning','noon','evening','night'].map(k => {
+                            const active = timeBucket === k;
+                            const emoji = { all: '🕐', morning: '🌅', noon: '☀️', evening: '🌙', night: '🌃' }[k];
+                            return (
+                                <button key={k} onClick={() => setTimeBucket(k)}
+                                    className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors
+                                        ${active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200 hover:border-slate-400'}`}
+                                >{emoji} {TIME_BUCKETS[k].label}</button>
+                            );
+                        })}
+                    </div>
+                    {/* Time input + flag pills + density — 24h text field (native time input
+                        follows device locale and matched nothing on an English iPhone). */}
+                    <div className="flex gap-2 items-center flex-wrap">
+                        <Input type="text" inputMode="numeric" dir="ltr" maxLength={5}
+                            value={timeFilter}
+                            onChange={e => { let v = e.target.value.replace(/[^\d:]/g, ''); if (v.length === 2 && !v.includes(':') && timeFilter.length < 2) v += ':'; setTimeFilter(v.slice(0, 5)); }}
+                            className="w-20 text-center tabular-nums" placeholder="20:00" title="סינון לפי שעה — 24 שעות" />
+                        <span className="text-[10px] font-bold text-gray-500">דגל:</span>
+                        {[
+                            { k: 'all',    label: 'הכל',  cls: 'bg-gray-100 text-gray-700 border-gray-200' },
+                            { k: 'none',   label: '○',    cls: 'bg-white text-gray-500 border-gray-300', title: 'בלי דגל' },
+                            { k: 'green',  label: '●',    cls: 'bg-emerald-500 text-white border-emerald-700', title: 'התקשרנו, מגיע' },
+                            { k: 'orange', label: '●',    cls: 'bg-orange-500 text-white border-orange-700', title: 'התקשרנו, מאחר' },
+                            { k: 'red',    label: '●',    cls: 'bg-red-500 text-white border-red-700', title: 'התקשרנו, לא ענה' },
+                            { k: 'black',  label: '●',    cls: 'bg-zinc-900 text-white border-zinc-700', title: 'בעייתי' },
+                        ].map(f => {
+                            const count = f.k === 'all' ? reservations.length : (flagCounts[f.k] || 0);
+                            const active = selectedFlag === f.k;
+                            return (
+                                <button key={f.k} onClick={() => setSelectedFlag(f.k)} title={f.title || f.label}
+                                    className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-all
+                                        ${f.cls} ${active ? 'ring-2 ring-indigo-500 ring-offset-1 scale-105' : 'opacity-70 hover:opacity-100'}`}
+                                >{f.label} <span className="opacity-80">({count})</span></button>
+                            );
+                        })}
+                        <button onClick={toggleCompact} title={compactMode ? 'קלפים גדולים' : 'קלפים קומפקטיים'}
+                            className={`text-[10px] font-bold px-2 py-1 rounded-full border mr-auto ${compactMode ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-gray-600 border-gray-200'}`}
+                        >{compactMode ? '☰ קומפקטי' : '▦ מורחב'}</button>
+                    </div>
+                </div>
+                )}
                 <div className={`overflow-y-auto ${compactMode ? 'space-y-1 max-h-[calc(100vh-180px)]' : 'space-y-2 max-h-[calc(100vh-200px)]'}`}>
                     {filteredReservations.length > 0 ? (
                         filteredReservations.map(reservation => (
@@ -1668,6 +1651,8 @@ export default function SeatingSetup() {
     const [movingGuest, setMovingGuest] = useState(null);
     const [editingReservation, setEditingReservation] = useState(null);
     const [isEditReservationOpen, setIsEditReservationOpen] = useState(false);
+    // Lightweight read-first view of a reservation (tap a rail card). Edit is one tap away.
+    const [viewReservation, setViewReservation] = useState(null);
     const [incidentTableNumber, setIncidentTableNumber] = useState(null);
     const [selectedAreas, setSelectedAreas] = useState(['all']);
     const [selectedFlag, setSelectedFlag] = useState('all');  // flag-color filter
@@ -3449,7 +3434,7 @@ export default function SeatingSetup() {
         handleTableStatusChange, getActiveTime, setTables, setCombos, showToast,
         tableSettingsOpen, setTableSettingsOpen, tableIncidentsOpen,
         setTableIncidentsOpen, setIncidentTableNumber, setQuickSeatTable, setQuickSeatOpen,
-        setMovingGuest,
+        setMovingGuest, setViewReservation,
     };
 
     return (
@@ -5022,6 +5007,40 @@ export default function SeatingSetup() {
                         reservations={reservations}
                         visitsByPhone={visitsByPhone}
                     />
+                    {/* QUICK VIEW — tapping a reservation opens this read-first card, not the
+                        heavy edit form. Call/WhatsApp in one tap; "ערוך" opens the full form. */}
+                    {viewReservation && (() => {
+                        const r = viewReservation;
+                        const sc = getReservationStatusConfig(r.status, r.assigned_table, r) || {};
+                        const tel = (r.customer_phone || '').replace(/[^\d+]/g, '');
+                        const wa = (r.customer_phone || '').replace(/\D/g, '').replace(/^0/, '972');
+                        const tbls = Array.isArray(r.assigned_table) ? r.assigned_table.filter(Boolean) : [];
+                        return (
+                            <div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" dir="rtl" onClick={() => setViewReservation(null)}>
+                                <div className="w-full max-w-[380px] bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                                    <div className={`px-4 py-3 flex items-center justify-between ${sc.cardBg || 'bg-[#F4ECD8]'} border-b border-black/10`}>
+                                        <div>
+                                            <div className="text-xl font-black text-slate-900 leading-tight">{r.customer_name || 'לקוח'}</div>
+                                            <div className="text-xs text-slate-600 mt-0.5">{sc.label || r.status}{visitsFor(r.customer_phone) > 1 ? ' · לקוח חוזר ⭐' : ''}</div>
+                                        </div>
+                                        <button onClick={() => setViewReservation(null)} className="text-slate-500 text-2xl leading-none px-1">✕</button>
+                                    </div>
+                                    <div className="p-4 space-y-2.5 text-[15px]">
+                                        <div className="flex items-center justify-between"><span className="text-slate-500">🕐 שעה</span><span className="font-bold tabular-nums" dir="ltr">{String(r.time || '').slice(0, 5)}{r.reservation_end_time ? `–${String(r.reservation_end_time).slice(0, 5)}` : ''}</span></div>
+                                        <div className="flex items-center justify-between"><span className="text-slate-500">👥 סועדים</span><span className="font-bold">{r.party_size || '?'}</span></div>
+                                        <div className="flex items-center justify-between"><span className="text-slate-500">🪑 שולחן</span><span className="font-bold">{tbls.length ? tbls.join(', ') : 'לא שובץ'}</span></div>
+                                        {r.customer_phone && <div className="flex items-center justify-between"><span className="text-slate-500">📱 טלפון</span><span className="font-bold tabular-nums" dir="ltr">{r.customer_phone}</span></div>}
+                                        {r.special_requests && <div className="bg-amber-50 rounded-lg px-3 py-2 text-sm text-amber-800">💬 {r.special_requests}</div>}
+                                    </div>
+                                    <div className="p-3 border-t grid grid-cols-2 gap-2">
+                                        {tel && <a href={`tel:${tel}`} className="h-11 rounded-xl bg-slate-100 text-slate-800 font-bold flex items-center justify-center gap-1">📞 חייג</a>}
+                                        {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="h-11 rounded-xl bg-green-100 text-green-800 font-bold flex items-center justify-center gap-1">💬 וואטסאפ</a>}
+                                        <button onClick={() => { setEditingReservation(r); setIsEditReservationOpen(true); setViewReservation(null); }} className="h-11 rounded-xl bg-[#44512C] text-white font-bold col-span-2 flex items-center justify-center gap-1">✏️ ערוך הזמנה מלאה</button>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </CardContent>
             </Card>
 
