@@ -19,6 +19,8 @@ import type { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../db.js';
 import { sendSms, sendWhatsAppTemplate, normalizeIsraeliPhone } from '../lib/twilio.js';
 import { notifyAdmins } from '../lib/notifications.js';
+import { notifyOwner } from '../lib/waTemplates.js';
+import { reportRecipientPhones } from '../lib/whatsappPermissions.js';
 
 async function secret(key: string): Promise<string> {
   try {
@@ -96,8 +98,10 @@ export const deliveryOtpRoutes: FastifyPluginAsync = async (app) => {
     } catch (e: any) { return { ok: false, error: e?.message || 'send_failed' }; }
   });
 
-  // New paid order landed on the delivery site → web-push the owner/admins so
-  // they know even when the app is closed (WP dedupes; no WhatsApp-per-order spam).
+  // New paid order landed on the delivery site → alert the owner even when the
+  // app is closed. Web push (free, needs the PWA installed — on iOS a Safari tab
+  // can't receive it) PLUS a WhatsApp→SMS ping, which always arrives. WP dedupes,
+  // so this fires once per order.
   app.post('/new-order', async (req) => {
     const b: any = req.body || {};
     const number = String(b.number || b.id || '').trim();
@@ -107,12 +111,17 @@ export const deliveryOtpRoutes: FastifyPluginAsync = async (app) => {
     const items = Number(b.items) || 0;
     const customer = String(b.customer || '').trim();
     const title = `🛵 הזמנה חדשה #${number}`;
-    const parts = [`₪${Math.round(total).toLocaleString('en-US')}`, isPickup ? '🥡 איסוף' : '🛵 משלוח'];
-    if (items) parts.push(`${items} מנות`);
-    if (customer) parts.push(customer);
+    const line = [`₪${Math.round(total).toLocaleString('en-US')}`, isPickup ? '🥡 איסוף' : '🛵 משלוח']
+      .concat(items ? [`${items} מנות`] : [], customer ? [customer] : []).join(' · ');
+    let pushed = 0; let wa = 0;
+    try { const r = await notifyAdmins(title, line, '/DeliveryOrders'); pushed = r.delivered; } catch { /* push best-effort */ }
+    // Reliable channel: WhatsApp (→SMS fallback) to the report recipients.
     try {
-      const r = await notifyAdmins(title, parts.join(' · '), '/DeliveryOrders');
-      return { ok: true, delivered: r.delivered, total: r.total };
-    } catch (e: any) { return { ok: false, error: e?.message || 'push_failed' }; }
+      const phones = await reportRecipientPhones();
+      for (const p of phones) {
+        try { const r = await notifyOwner(p, 'הזמנה חדשה', `${title}\n${line}`, { brand: 'עלינא' }); if (r.sent) wa++; } catch { /* per-phone */ }
+      }
+    } catch { /* recipient lookup best-effort */ }
+    return { ok: pushed > 0 || wa > 0, pushed, wa };
   });
 };
