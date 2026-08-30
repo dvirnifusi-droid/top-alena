@@ -5032,6 +5032,21 @@ export default function SeatingSetup() {
                                         {r.customer_phone && <div className="flex items-center justify-between"><span className="text-slate-500">📱 טלפון</span><span className="font-bold tabular-nums" dir="ltr">{r.customer_phone}</span></div>}
                                         {r.special_requests && <div className="bg-amber-50 rounded-lg px-3 py-2 text-sm text-amber-800">💬 {r.special_requests}</div>}
                                     </div>
+                                    {/* Quick STATUS edit — the main mid-service change, right on the card. */}
+                                    <div className="px-4 pb-3">
+                                        <div className="text-slate-500 text-[13px] mb-1.5">שנה סטטוס:</div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {[['confirmed','מאושר'],['seated','יושב'],['finishing_soon','מסיים'],['completed','סיים'],['no_show','הבריז'],['cancelled','בוטל']].map(([st, label]) => {
+                                                const active = (r.status || 'pending') === st;
+                                                return (
+                                                    <button key={st}
+                                                        onClick={async () => { setViewReservation({ ...r, status: st }); await setStatus(r, st); }}
+                                                        className={`text-[12px] font-bold px-3 py-1.5 rounded-full border transition-all ${active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'}`}
+                                                    >{label}</button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
                                     <div className="p-3 border-t grid grid-cols-2 gap-2">
                                         {tel && <a href={`tel:${tel}`} className="h-11 rounded-xl bg-slate-100 text-slate-800 font-bold flex items-center justify-center gap-1">📞 חייג</a>}
                                         {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="h-11 rounded-xl bg-green-100 text-green-800 font-bold flex items-center justify-center gap-1">💬 וואטסאפ</a>}
