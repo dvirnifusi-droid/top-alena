@@ -1841,6 +1841,8 @@ export default function SeatingSetup() {
     const [queueEntries, setQueueEntries] = useState([]);        // live restaurant queue (walk-ins waiting)
     const [railTab, setRailTab] = useState('tonight');           // 'tonight' | 'full' | 'queue' | 'live' | 'standby' | 'ai'
     const [queueNewBanner, setQueueNewBanner] = useState(null);   // {id, name, party_size} popup data
+    const [newResBanner, setNewResBanner] = useState(null);       // {count, name, time} — new online reservation arrived
+    useEffect(() => { if (!newResBanner) return; const t = setTimeout(() => setNewResBanner(null), 9000); return () => clearTimeout(t); }, [newResBanner]);
     const pageLoadTimeRef = useRef(Date.now());                  // any entry registered AFTER this is "new"
     const seenQueueIdsRef = useRef(new Set());                   // ids we've already shown the banner for
     const initialLoadedRef = useRef(false);                      // full-page spinner shows ONLY on the very first load
@@ -1923,6 +1925,7 @@ export default function SeatingSetup() {
     // more afterwards so the final state reflects the last write.
     const liveInFlightRef = useRef(false);
     const livePendingRef = useRef(false);
+    const knownResIdsRef = useRef(null);   // for detecting newly-arrived online reservations
     const loadLiveData = useCallback(async () => {
         if (liveInFlightRef.current) { livePendingRef.current = true; return; }
         liveInFlightRef.current = true;
@@ -1940,6 +1943,20 @@ export default function SeatingSetup() {
             ]);
             const newSessions = liveSessionsForView(sessions || [], selectedDate);
             const newRes = (dateReservations || []).map(r => ({ ...r, date: typeof r.date === 'string' ? r.date.slice(0, 10) : r.date }));
+            // Surface NEW online reservations — they used to land silently on the poll
+            // and the hostess had no cue to look. Only genuinely just-created ones
+            // (createdAt < 3 min) so switching dates / the first load never false-fires.
+            try {
+                const ids = new Set(newRes.map(r => r.id));
+                if (knownResIdsRef.current) {
+                    const cutoff = Date.now() - 3 * 60 * 1000;
+                    const fresh = newRes.filter(r => !knownResIdsRef.current.has(r.id) && r.customer_name
+                        && new Date(r.createdAt || r.created_date || 0).getTime() > cutoff
+                        && !['cancelled', 'deleted'].includes(r.status));
+                    if (fresh.length) setNewResBanner({ count: fresh.length, name: fresh[0].customer_name, time: String(fresh[0].time || '').slice(0, 5) });
+                }
+                knownResIdsRef.current = ids;
+            } catch { /* non-fatal */ }
             // Only setState when something actually changed — preserves scroll position,
             // popovers, and prevents unnecessary card re-renders during 60s polls.
             setActiveSessions(prev => fingerprintSessions(prev) === fingerprintSessions(newSessions) ? prev : newSessions);
@@ -5488,6 +5505,18 @@ export default function SeatingSetup() {
                 />
             )}
 
+            {/* New online reservation arrived — a cue so the hostess doesn't miss it.
+                Auto-dismisses; tap to clear. */}
+            {newResBanner && (
+                <button
+                    onClick={() => setNewResBanner(null)}
+                    className="fixed top-2 left-1/2 -translate-x-1/2 z-[60] bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 animate-in fade-in slide-in-from-top-2 max-w-[92vw]"
+                >
+                    🔔 {newResBanner.count > 1 ? `${newResBanner.count} הזמנות חדשות` : `הזמנה חדשה: ${newResBanner.name || ''}`}{newResBanner.time ? ` · ${newResBanner.time}` : ''}
+                    <span className="opacity-80 font-normal">✕</span>
+                </button>
+            )}
+
             {/* Queue popup banner — fires when a NEW walk-in joins the queue.
                 Inline אשר/דחה buttons so hostess approves/rejects without leaving. */}
             {queueNewBanner && (
@@ -6958,10 +6987,14 @@ function QuickSeatDialog({ open, onClose, tables, reservations, activeSessions, 
             return (a.t.max_capacity || 99) - (b.t.max_capacity || 99);
         });
 
-    const handleConfirm = () => {
+    const [submitting, setSubmitting] = useState(false);
+    const handleConfirm = async () => {
+        if (submitting) return;   // guard the laggy-tablet double-tap → double seat
         if (!name.trim()) { alert('יש להזין שם'); return; }
         if (!selectedTable) { alert('יש לבחור שולחן'); return; }
-        onSeat({ name: name.trim(), phone: phone.trim(), party_size: size, table_number: selectedTable, source_label: sourceLabel });
+        setSubmitting(true);
+        try { await onSeat({ name: name.trim(), phone: phone.trim(), party_size: size, table_number: selectedTable, source_label: sourceLabel }); }
+        finally { setSubmitting(false); }
     };
 
     return (
@@ -7051,10 +7084,10 @@ function QuickSeatDialog({ open, onClose, tables, reservations, activeSessions, 
 
                 <Button
                     onClick={handleConfirm}
-                    disabled={!selectedTable || !name.trim()}
+                    disabled={!selectedTable || !name.trim() || submitting}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white font-black py-3"
                 >
-                    🪑 הושב בשולחן {selectedTable || '?'}
+                    {submitting ? '...מושיב' : `🪑 הושב בשולחן ${selectedTable || '?'}`}
                 </Button>
             </div>
         </div>
