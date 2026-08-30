@@ -1184,7 +1184,7 @@ function ReservationsDashboard({ hideDatePicker = false, __ctx } = {}) {
     };
 
 function TableDetailsDialog({ table, session, __ctx }) {
-    const { getStepInfo, reservations, tables, getTableSession, setEditingReservation, setIsEditReservationOpen, setTableDetailsOpen, startMultiTableSelection, moveOccupantToTable, handleReleaseTable, handleTableStatusChange, getActiveTime, setTables, setCombos, showToast, tableSettingsOpen, setTableSettingsOpen, tableIncidentsOpen, setTableIncidentsOpen, setIncidentTableNumber, setQuickSeatTable, setQuickSeatOpen } = __ctx;
+    const { getStepInfo, reservations, tables, getTableSession, setEditingReservation, setIsEditReservationOpen, setTableDetailsOpen, startMultiTableSelection, moveOccupantToTable, handleReleaseTable, handleTableStatusChange, getActiveTime, setTables, setCombos, showToast, tableSettingsOpen, setTableSettingsOpen, tableIncidentsOpen, setTableIncidentsOpen, setIncidentTableNumber, setQuickSeatTable, setQuickSeatOpen, setMovingGuest } = __ctx;
         if (!table) return null;
 
         const progress = session ? Math.round(((session.steps_completed?.length || 0) / 23) * 100) : 0;
@@ -1212,6 +1212,12 @@ function TableDetailsDialog({ table, session, __ctx }) {
         };
 
         const handleMoveReservation = (reservation) => {
+            // DIRECT two-tap move — the next tap on a table is the destination.
+            setMovingGuest({ fromTable: table.table_number, reservation, name: reservation.customer_name });
+            setTableDetailsOpen(false);
+        };
+        const handleCombineTables = (reservation) => {
+            // COMBINE — pick several tables for this booking on the map, then "שמור".
             startMultiTableSelection(reservation.id);
             setTableDetailsOpen(false);
         };
@@ -1274,8 +1280,11 @@ function TableDetailsDialog({ table, session, __ctx }) {
                                             <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => handleEditReservation(reservation)}>
                                                 <Edit className="w-4 h-4" />
                                             </Button>
-                                            <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => handleMoveReservation(reservation)}>
+                                            <Button size="icon" variant="outline" className="h-8 w-8 border-emerald-300 text-emerald-700" onClick={() => handleMoveReservation(reservation)} title="העבר לשולחן אחר (נגיעה אחת ביעד)">
                                                 <ArrowRight className="w-4 h-4" />
+                                            </Button>
+                                            <Button size="icon" variant="outline" className="h-8 w-8 border-purple-300 text-purple-700 text-sm" onClick={() => handleCombineTables(reservation)} title="חבר שולחנות">
+                                                🔗
                                             </Button>
                                         </div>
                                     </div>
@@ -1291,13 +1300,16 @@ function TableDetailsDialog({ table, session, __ctx }) {
                                 <Users className="w-5 h-5 text-green-600" />
                                 יושבים כעת: {seatedRes.customer_name} <span className="text-sm text-gray-500">({seatedRes.party_size} · {seatedRes.time?.slice(0, 5)})</span>
                             </h3>
-                            <p className="text-xs text-gray-500 mb-3">אפשר לערוך את ההזמנה או להעביר את היושבים לשולחן אחר.</p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <p className="text-xs text-gray-500 mb-3">ערוך את ההזמנה · העבר לשולחן אחר (נגיעה אחת ביעד) · או חבר עוד שולחנות למסיבה.</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <Button variant="outline" onClick={() => handleEditReservation(seatedRes)}>
                                     <Edit className="w-4 h-4 ml-2" /> ערוך הזמנה
                                 </Button>
-                                <Button variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => handleMoveReservation(seatedRes)}>
-                                    <ArrowRight className="w-4 h-4 ml-2" /> העבר לשולחן אחר
+                                <Button variant="outline" className="border-emerald-300 text-emerald-700 hover:bg-emerald-50" onClick={() => handleMoveReservation(seatedRes)}>
+                                    <ArrowRight className="w-4 h-4 ml-2" /> ↔ העבר שולחן
+                                </Button>
+                                <Button variant="outline" className="border-purple-300 text-purple-700 hover:bg-purple-50" onClick={() => handleCombineTables(seatedRes)}>
+                                    🔗 חבר שולחנות
                                 </Button>
                             </div>
                         </div>
@@ -1651,6 +1663,9 @@ export default function SeatingSetup() {
     const [isSelectingTables, setIsSelectingTables] = useState(false);
     const [selectedTablesForReservation, setSelectedTablesForReservation] = useState([]);
     const [multiAssignReservationId, setMultiAssignReservationId] = useState(null);
+    // Direct guest MOVE (two-tap): { fromTable, reservation, name }. Distinct from the
+    // multi-select "combine" mode — a move is one tap on the destination, no "save".
+    const [movingGuest, setMovingGuest] = useState(null);
     const [editingReservation, setEditingReservation] = useState(null);
     const [isEditReservationOpen, setIsEditReservationOpen] = useState(false);
     const [incidentTableNumber, setIncidentTableNumber] = useState(null);
@@ -3204,9 +3219,26 @@ export default function SeatingSetup() {
     const handleTableClick = async (table) => {
         const tableNumber = table.table_number;
 
+        // DIRECT MOVE (two-tap): a guest is being moved — this tap is the destination.
+        // One tap moves them immediately (moveOccupantToTable handles both a live
+        // session and a seated-off-reservation guest). No multi-select, no "save".
+        if (movingGuest) {
+            if (String(tableNumber) === String(movingGuest.fromTable)) { setMovingGuest(null); return; }
+            // Don't silently drop a guest onto an occupied table — confirm first.
+            const today = format(new Date(), 'yyyy-MM-dd');
+            const targetBusy = getTableSession(tableNumber) || reservations.find(r =>
+                Array.isArray(r.assigned_table) && r.assigned_table.map(String).includes(String(tableNumber))
+                && r.date === today && r.status === 'seated');
+            if (targetBusy && !window.confirm(`שולחן ${tableNumber} תפוס. להעביר לשם בכל זאת?`)) { setMovingGuest(null); return; }
+            const mv = movingGuest;
+            setMovingGuest(null);
+            await moveOccupantToTable(mv.fromTable, tableNumber, mv.reservation || null);
+            return;
+        }
+
         if (swapping && swapping.from) {
             handleSwapTables(swapping.from, tableNumber);
-        } else if (isSelectingTables && multiAssignReservationId) { 
+        } else if (isSelectingTables && multiAssignReservationId) {
             const currentSelection = [...selectedTablesForReservation];
             const index = currentSelection.indexOf(tableNumber);
             
@@ -3417,6 +3449,7 @@ export default function SeatingSetup() {
         handleTableStatusChange, getActiveTime, setTables, setCombos, showToast,
         tableSettingsOpen, setTableSettingsOpen, tableIncidentsOpen,
         setTableIncidentsOpen, setIncidentTableNumber, setQuickSeatTable, setQuickSeatOpen,
+        setMovingGuest,
     };
 
     return (
@@ -3489,6 +3522,15 @@ export default function SeatingSetup() {
                 </div>
                 );
             })()}
+            {movingGuest && (
+                <div className="fixed top-0 left-0 right-0 bg-emerald-600 text-white px-3 py-2.5 text-center z-50 font-bold flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[15px] shadow-lg">
+                    <span>↔ העברת {movingGuest.name || 'האורח'} משולחן {movingGuest.fromTable}</span>
+                    <span className="opacity-90 font-normal">לחץ על שולחן היעד →</span>
+                    <Button variant="ghost" size="sm" onClick={() => setMovingGuest(null)} className="bg-white text-emerald-700 hover:bg-gray-100 h-8">
+                        בטל
+                    </Button>
+                </div>
+            )}
             {assigningTable && (
                 <div className="fixed top-0 left-0 right-0 bg-emerald-500 text-white p-2 text-center z-50 font-bold flex items-center justify-center gap-4">
                     🔀 העברת שולחן — לחץ על שולחן היעד
