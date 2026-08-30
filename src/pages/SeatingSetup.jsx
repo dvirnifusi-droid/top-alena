@@ -1598,6 +1598,112 @@ function TableDetailsDialog({ table, session, __ctx }) {
         );
     };
 
+// Editable quick-view for a reservation (opened by tapping a rail card). Read AND
+// edit the common fields — time, party, table, phone, status — without the heavy
+// full form. Its own component so it can hold the edit state (hooks can't live in
+// the inline IIFE it replaced).
+function ReservationQuickView({ reservation, headerBg, isReturning, onClose, onEditFull, onStatusChange, onSaveFields }) {
+    const r = reservation;
+    const orig = {
+        time: String(r.time || '').slice(0, 5),
+        end: String(r.reservation_end_time || '').slice(0, 5),
+        party: String(r.party_size ?? ''),
+        tables: (Array.isArray(r.assigned_table) ? r.assigned_table.filter(Boolean) : []).join(', '),
+        phone: r.customer_phone || '',
+    };
+    const [time, setTime] = useState(orig.time);
+    const [endTime, setEndTime] = useState(orig.end);
+    const [party, setParty] = useState(orig.party);
+    const [tablesStr, setTablesStr] = useState(orig.tables);
+    const [phone, setPhone] = useState(orig.phone);
+    const [saving, setSaving] = useState(false);
+    // Re-seed when a DIFFERENT reservation is opened (or status changed upstream).
+    useEffect(() => {
+        setTime(orig.time); setEndTime(orig.end); setParty(orig.party); setTablesStr(orig.tables); setPhone(orig.phone);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [r.id]);
+
+    const STATUSES = [['confirmed', 'מאושר'], ['seated', 'יושב'], ['finishing_soon', 'מסיים'], ['completed', 'סיים'], ['no_show', 'הבריז'], ['cancelled', 'בוטל']];
+    const tel = (phone || '').replace(/[^\d+]/g, '');
+    const wa = (phone || '').replace(/\D/g, '').replace(/^0/, '972');
+    const dirty = time !== orig.time || endTime !== orig.end || String(party) !== orig.party || tablesStr !== orig.tables || phone !== orig.phone;
+
+    const save = async () => {
+        setSaving(true);
+        const fields = {
+            time: time || null,
+            reservation_end_time: endTime || null,
+            party_size: Number(party) || r.party_size,
+            assigned_table: tablesStr.split(',').map(s => s.trim()).filter(Boolean),
+            customer_phone: phone,
+        };
+        try { await onSaveFields(r.id, fields); onClose(); }
+        catch (e) { alert('שגיאה בשמירה — נסה שוב'); }
+        finally { setSaving(false); }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" dir="rtl" onClick={onClose}>
+            <div className="w-full max-w-[400px] bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className={`px-4 py-3 flex items-center justify-between ${headerBg} border-b border-black/10`}>
+                    <div>
+                        <div className="text-xl font-black text-slate-900 leading-tight">{r.customer_name || 'לקוח'}</div>
+                        <div className="text-xs text-slate-600 mt-0.5">{isReturning ? 'לקוח חוזר ⭐' : 'הזמנה'}</div>
+                    </div>
+                    <button onClick={onClose} className="text-slate-500 text-2xl leading-none px-1">✕</button>
+                </div>
+                <div className="p-4 space-y-3 text-[15px] overflow-y-auto">
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">🕐 שעה</span>
+                        <div className="flex items-center gap-1">
+                            <TimePicker value={time} onChange={setTime} size="sm" />
+                            <span className="text-slate-400">–</span>
+                            <TimePicker value={endTime} onChange={setEndTime} size="sm" />
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">👥 סועדים</span>
+                        <Input type="number" inputMode="numeric" value={party} onChange={e => setParty(e.target.value)} className="w-24 text-center" />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">🪑 שולחן</span>
+                        <Input value={tablesStr} onChange={e => setTablesStr(e.target.value)} placeholder="10 או 10, 11" className="w-40 text-center" dir="ltr" />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">📱 טלפון</span>
+                        <Input value={phone} onChange={e => setPhone(e.target.value)} className="w-40 text-center tabular-nums" dir="ltr" />
+                    </div>
+                    {r.special_requests && <div className="bg-amber-50 rounded-lg px-3 py-2 text-sm text-amber-800">💬 {r.special_requests}</div>}
+                    <div>
+                        <div className="text-slate-500 text-[13px] mb-1.5">שנה סטטוס:</div>
+                        <div className="flex flex-wrap gap-1.5">
+                            {STATUSES.map(([st, label]) => {
+                                const active = (r.status || 'pending') === st;
+                                return (
+                                    <button key={st} onClick={() => onStatusChange(st)}
+                                        className={`text-[12px] font-bold px-3 py-1.5 rounded-full border transition-all ${active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'}`}
+                                    >{label}</button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+                <div className="p-3 border-t space-y-2 bg-white">
+                    {dirty && (
+                        <button onClick={save} disabled={saving} className="w-full h-11 rounded-xl bg-[#44512C] text-white font-bold flex items-center justify-center gap-1 disabled:opacity-50">
+                            {saving ? '...שומר' : '💾 שמור שינויים'}
+                        </button>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                        {tel && <a href={`tel:${tel}`} className="h-11 rounded-xl bg-slate-100 text-slate-800 font-bold flex items-center justify-center gap-1">📞 חייג</a>}
+                        {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="h-11 rounded-xl bg-green-100 text-green-800 font-bold flex items-center justify-center gap-1">💬 וואטסאפ</a>}
+                        <button onClick={onEditFull} className="h-11 rounded-xl bg-slate-200 text-slate-800 font-bold col-span-2 flex items-center justify-center gap-1">✏️ טופס מלא</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export default function SeatingSetup() {
     const brandName = useTenantBranding()?.name || 'המסעדה';
@@ -5007,55 +5113,19 @@ export default function SeatingSetup() {
                         reservations={reservations}
                         visitsByPhone={visitsByPhone}
                     />
-                    {/* QUICK VIEW — tapping a reservation opens this read-first card, not the
-                        heavy edit form. Call/WhatsApp in one tap; "ערוך" opens the full form. */}
-                    {viewReservation && (() => {
-                        const r = viewReservation;
-                        const sc = getReservationStatusConfig(r.status, r.assigned_table, r) || {};
-                        const tel = (r.customer_phone || '').replace(/[^\d+]/g, '');
-                        const wa = (r.customer_phone || '').replace(/\D/g, '').replace(/^0/, '972');
-                        const tbls = Array.isArray(r.assigned_table) ? r.assigned_table.filter(Boolean) : [];
-                        return (
-                            <div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" dir="rtl" onClick={() => setViewReservation(null)}>
-                                <div className="w-full max-w-[380px] bg-white rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-                                    <div className={`px-4 py-3 flex items-center justify-between ${sc.cardBg || 'bg-[#F4ECD8]'} border-b border-black/10`}>
-                                        <div>
-                                            <div className="text-xl font-black text-slate-900 leading-tight">{r.customer_name || 'לקוח'}</div>
-                                            <div className="text-xs text-slate-600 mt-0.5">{sc.label || r.status}{visitsFor(r.customer_phone) > 1 ? ' · לקוח חוזר ⭐' : ''}</div>
-                                        </div>
-                                        <button onClick={() => setViewReservation(null)} className="text-slate-500 text-2xl leading-none px-1">✕</button>
-                                    </div>
-                                    <div className="p-4 space-y-2.5 text-[15px]">
-                                        <div className="flex items-center justify-between"><span className="text-slate-500">🕐 שעה</span><span className="font-bold tabular-nums" dir="ltr">{String(r.time || '').slice(0, 5)}{r.reservation_end_time ? `–${String(r.reservation_end_time).slice(0, 5)}` : ''}</span></div>
-                                        <div className="flex items-center justify-between"><span className="text-slate-500">👥 סועדים</span><span className="font-bold">{r.party_size || '?'}</span></div>
-                                        <div className="flex items-center justify-between"><span className="text-slate-500">🪑 שולחן</span><span className="font-bold">{tbls.length ? tbls.join(', ') : 'לא שובץ'}</span></div>
-                                        {r.customer_phone && <div className="flex items-center justify-between"><span className="text-slate-500">📱 טלפון</span><span className="font-bold tabular-nums" dir="ltr">{r.customer_phone}</span></div>}
-                                        {r.special_requests && <div className="bg-amber-50 rounded-lg px-3 py-2 text-sm text-amber-800">💬 {r.special_requests}</div>}
-                                    </div>
-                                    {/* Quick STATUS edit — the main mid-service change, right on the card. */}
-                                    <div className="px-4 pb-3">
-                                        <div className="text-slate-500 text-[13px] mb-1.5">שנה סטטוס:</div>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {[['confirmed','מאושר'],['seated','יושב'],['finishing_soon','מסיים'],['completed','סיים'],['no_show','הבריז'],['cancelled','בוטל']].map(([st, label]) => {
-                                                const active = (r.status || 'pending') === st;
-                                                return (
-                                                    <button key={st}
-                                                        onClick={async () => { setViewReservation({ ...r, status: st }); await setStatus(r, st); }}
-                                                        className={`text-[12px] font-bold px-3 py-1.5 rounded-full border transition-all ${active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'}`}
-                                                    >{label}</button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                    <div className="p-3 border-t grid grid-cols-2 gap-2">
-                                        {tel && <a href={`tel:${tel}`} className="h-11 rounded-xl bg-slate-100 text-slate-800 font-bold flex items-center justify-center gap-1">📞 חייג</a>}
-                                        {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="h-11 rounded-xl bg-green-100 text-green-800 font-bold flex items-center justify-center gap-1">💬 וואטסאפ</a>}
-                                        <button onClick={() => { setEditingReservation(r); setIsEditReservationOpen(true); setViewReservation(null); }} className="h-11 rounded-xl bg-[#44512C] text-white font-bold col-span-2 flex items-center justify-center gap-1">✏️ ערוך הזמנה מלאה</button>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })()}
+                    {/* QUICK VIEW — tap a reservation → read AND edit the common fields
+                        (time/party/table/phone/status) without the heavy full form. */}
+                    {viewReservation && (
+                        <ReservationQuickView
+                            reservation={viewReservation}
+                            headerBg={(getReservationStatusConfig(viewReservation.status, viewReservation.assigned_table, viewReservation) || {}).cardBg || 'bg-[#F4ECD8]'}
+                            isReturning={visitsFor(viewReservation.customer_phone) > 1}
+                            onClose={() => setViewReservation(null)}
+                            onEditFull={() => { setEditingReservation(viewReservation); setIsEditReservationOpen(true); setViewReservation(null); }}
+                            onStatusChange={(st) => { setViewReservation({ ...viewReservation, status: st }); setStatus(viewReservation, st); }}
+                            onSaveFields={async (id, fields) => { patchReservationLocal(id, fields); await Reservation.update(id, fields); loadLiveData(); }}
+                        />
+                    )}
                 </CardContent>
             </Card>
 
