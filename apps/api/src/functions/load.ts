@@ -13119,7 +13119,11 @@ export async function sendReservationReminders() {
     candidates = await (db as any).reservation.findMany({
       where: {
         date: { gte: dayStart, lte: dayEnd },
-        status: 'confirmed',
+        // Ask BOTH confirmed and pending bookings to confirm arrival. Most WhatsApp/
+        // manual bookings sit at 'pending' (never manager-approved) and so never got
+        // the day-of confirm/cancel request — only 3 of 31 on a real Friday. A pending
+        // booking is a real guest; the whole point is to cut no-shows before service.
+        status: { in: ['confirmed', 'pending'] },
         reminder_sent_at: null,
         customer_phone: { not: null },
       },
