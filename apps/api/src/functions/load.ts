@@ -27126,6 +27126,10 @@ if (!(globalThis as any).__startupDriftRepair) {
 // and that don't have an active TableSession. Mark them as 'no_show' and stamp
 // cancelled_at. This is the hook that will later trigger deposit capture.
 const NO_SHOW_GRACE_MIN = 30;
+// Owner rule (absolute): a late/absent guest raises an ALERT — the board is NEVER
+// auto-changed. Dedup so each late guest is surfaced ONCE per day (cron every 5 min).
+const __lateAlerted = new Set<string>();
+let __lateAlertedDay = '';
 export async function autoMarkNoShows() {
   try {
     const il = new Intl.DateTimeFormat('en-CA', {
@@ -27135,6 +27139,7 @@ export async function autoMarkNoShows() {
     }).formatToParts(new Date());
     const get = (t: string) => il.find(p => p.type === t)?.value || '';
     const ilDateStr = `${get('year')}-${get('month')}-${get('day')}`;
+    if (ilDateStr !== __lateAlertedDay) { __lateAlerted.clear(); __lateAlertedDay = ilDateStr; }
     const nowMin = parseInt(get('hour'), 10) * 60 + parseInt(get('minute'), 10);
     const { start: dayStart, next: dayNext } = dayRange(ilDateStr);
     const todayRes: any[] = await db.reservation.findMany({
@@ -27169,20 +27174,16 @@ export async function autoMarkNoShows() {
       if (!assigned.length) continue;
       // If any of their assigned tables has an active session — they're seated, skip
       if (assigned.some((t) => sessionTables.has(t))) continue;
-      // Mark as no_show
-      try {
-        await db.reservation.update({
-          where: { id: r.id },
-          data: {
-            status: 'no_show',
-            cancelled_at: new Date(),
-            cancellation_reason: `auto-marked no-show (${NO_SHOW_GRACE_MIN}+ min past time)`,
-          },
-        });
-        marked++;
-        markedRows.push(r);
-        console.log(`[no-show-cron] marked ${r.customer_name} ${r.time} as no_show`);
-      } catch (e: any) { console.warn('[no-show-cron] update failed:', e?.message); }
+      // ALERT ONLY — never auto-flip to no_show (owner rule). Auto-flipping vanished
+      // real, SEATED guests from the board mid-service: "seated" is known only via an
+      // active TableSession, and staff routinely assign a table without pressing
+      // "seat", so the guest looked absent and got auto-no-showed + hidden from the
+      // map. The hostess decides no-show vs seated. Surface each late guest ONCE.
+      if (__lateAlerted.has(r.id)) continue;
+      __lateAlerted.add(r.id);
+      marked++;
+      markedRows.push(r);
+      console.log(`[no-show-cron] LATE 30+ (alert only, NOT auto-marked): ${r.customer_name} ${r.time}`);
     }
     if (marked > 0) {
       try {
@@ -27200,9 +27201,9 @@ export async function autoMarkNoShows() {
           ? `\n\n💳 ${holds.length} עם אשראי תפוס (₪${holds.reduce((s: number, r: any) => s + Number(r.deposit_amount || 0), 0)} סה"כ) — לחיוב או שחרור ידני בלוח.`
           : '';
         await pushoverEventsOwners(
-          `⚠️ ${marked} לא הגיעו להזמנה`,
-          `עברו ${NO_SHOW_GRACE_MIN} דק' מהשעה:\n${lines.join('\n')}${extra}${holdLine}`
-            + `\n\nההזמנות נשארות בלוח — ${appBaseUrl()}/SeatingSetup`,
+          `⚠️ ${marked} מאחרים 30+ דק׳ — החליטו: הבריז או ישבו`,
+          `עברו ${NO_SHOW_GRACE_MIN} דק' מהשעה ואין להם שולחן פעיל:\n${lines.join('\n')}${extra}${holdLine}`
+            + `\n\nלא סימנּו כלום אוטומטית — ההזמנות נשארות בלוח. סמנו ידנית בלוח — ${appBaseUrl()}/SeatingSetup`,
         );
       } catch { /* ignore */ }
     }
