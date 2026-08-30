@@ -1259,7 +1259,7 @@ function TableDetailsDialog({ table, session, __ctx }) {
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
                                             <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => handleEditReservation(reservation)}>
                                                 <Edit className="w-4 h-4" />
                                             </Button>
@@ -1631,12 +1631,15 @@ function ReservationQuickView({ reservation, headerBg, isReturning, onClose, onE
     const save = async () => {
         setSaving(true);
         const fields = {
-            time: time || null,
+            time: time || orig.time,   // never null out the time — it drops the booking from all time logic
             reservation_end_time: endTime || null,
             party_size: Number(party) || r.party_size,
             assigned_table: tablesStr.split(',').map(s => s.trim()).filter(Boolean),
             customer_phone: phone,
         };
+        // Once a table is set, clear the standby flag (matches every other assign path);
+        // otherwise loadLiveData resurrects is_standby=true and the guest reappears in the waitlist.
+        if (fields.assigned_table.length) fields.is_standby = false;
         try { await onSaveFields(r.id, fields); onClose(); }
         catch (e) { alert('שגיאה בשמירה — נסה שוב'); }
         finally { setSaving(false); }
