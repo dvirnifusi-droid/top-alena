@@ -3473,18 +3473,22 @@ export default function SeatingSetup() {
                     {toast}
                 </div>
             )}
-            {isSelectingTables && (
-                <div className="fixed top-0 left-0 right-0 bg-purple-400 text-white p-2 text-center z-50 font-bold flex items-center justify-center gap-4">
-                    מצב שיוך שולחנות מרובים: בחר שולחנות עבור הזמנה {multiAssignReservationId?.slice(-4)}.
-                    שולחנות נבחרים: {selectedTablesForReservation.length > 0 ? selectedTablesForReservation.join(', ') : 'אף אחד'}
-                    <Button variant="ghost" size="sm" onClick={saveMultiTableAssignment} className="bg-white text-[#7A3722] hover:bg-gray-100">
-                        שמור שיוך
+            {isSelectingTables && (() => {
+                const mRes = reservations.find(r => r.id === multiAssignReservationId);
+                return (
+                <div className="fixed top-0 left-0 right-0 bg-purple-500 text-white px-3 py-2.5 text-center z-50 font-bold flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[15px] shadow-lg">
+                    <span>🔗 חיבור שולחנות ל{mRes?.customer_name ? `־${mRes.customer_name}` : 'הזמנה'} ({mRes?.party_size || '?'} סועדים)</span>
+                    <span className="opacity-90 font-normal">לחץ על שולחנות כדי לחבר/להסיר</span>
+                    <span className="bg-white/20 rounded-full px-3 py-0.5">נבחרו: {selectedTablesForReservation.length > 0 ? selectedTablesForReservation.join(', ') : '—'}</span>
+                    <Button variant="ghost" size="sm" onClick={saveMultiTableAssignment} className="bg-white text-[#7A3722] hover:bg-gray-100 h-8">
+                        ✓ שמור שיוך
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={cancelMultiTableAssignment}>
+                    <Button variant="ghost" size="sm" onClick={cancelMultiTableAssignment} className="h-8">
                         בטל
                     </Button>
                 </div>
-            )}
+                );
+            })()}
             {assigningTable && (
                 <div className="fixed top-0 left-0 right-0 bg-emerald-500 text-white p-2 text-center z-50 font-bold flex items-center justify-center gap-4">
                     🔀 העברת שולחן — לחץ על שולחן היעד
