@@ -1659,11 +1659,17 @@ export default function SeatingSetup() {
     // Auto-fit to viewport on first load — phones default ~0.3, tablets ~0.6, desktops 1.0
     const [mapZoom, setMapZoom] = useState(() => {
         if (typeof window === 'undefined') return 1;
+        // Remember the hostess's chosen zoom — readability was the #1 complaint, and
+        // making her re-zoom on every load was part of it.
+        try { const saved = parseFloat(localStorage.getItem('map_zoom') || ''); if (saved >= 0.2 && saved <= 1.6) return saved; } catch {}
         const w = window.innerWidth;
-        if (w < 500) return 0.32;
-        if (w < 900) return 0.55;
+        // Bigger defaults so table numbers / capacity are legible at arm's length on a
+        // tablet (was 0.32 / 0.55 — tiny text at that scale).
+        if (w < 500) return 0.46;
+        if (w < 900) return 0.72;
         return 1;
     });
+    useEffect(() => { try { localStorage.setItem('map_zoom', String(mapZoom)); } catch {} }, [mapZoom]);
     const [showBlueprint, setShowBlueprint] = useState(false); // legacy background drawing toggle (default OFF)
     // Floor-plan photo behind the map. Alena keeps its legacy image; every other
     // tenant uses its OWN (layout.blueprint_url) or gets no overlay at all — it
@@ -4737,10 +4743,10 @@ export default function SeatingSetup() {
                                                         content, which made every card read as loose text on a rectangle
                                                         instead of an object with a name. */}
                                                     <div className="flex justify-between items-center leading-none -mx-1 px-1.5 py-[3px] mb-0.5 bg-black/10 border-b border-black/10">
-                                                        <span className="text-[11px] font-normal leading-none opacity-70 whitespace-nowrap tabular-nums">
+                                                        <span className="text-[13px] font-semibold leading-none opacity-90 whitespace-nowrap tabular-nums">
                                                             {table.min_capacity}-{table.max_capacity}
                                                         </span>
-                                                        <div className="font-medium text-[15px] leading-none tabular-nums">{table.table_number}</div>
+                                                        <div className="font-bold text-[18px] leading-none tabular-nums">{table.table_number}</div>
                                                     </div>
 
                                                     {/* MIDDLE: the ESSENTIAL — guests + name + time (no other lines) */}
@@ -4749,8 +4755,8 @@ export default function SeatingSetup() {
                                                             <div className="w-full flex flex-col gap-0.5">
                                                                 {/* Seated guest — LIGHT GREEN chip */}
                                                                 <div className="w-full bg-green-200 text-green-900 rounded px-1 py-0.5 leading-tight">
-                                                                    <div className="font-black text-[11px] truncate">{getFirstName(session?.customer_name || seatedReservation?.customer_name) || '—'}</div>
-                                                                    <div className="text-[10px] font-normal opacity-90 flex items-center justify-between tabular-nums">
+                                                                    <div className="font-black text-[13px] truncate">{getFirstName(session?.customer_name || seatedReservation?.customer_name) || '—'}</div>
+                                                                    <div className="text-[11px] font-medium opacity-95 flex items-center justify-between tabular-nums">
                                                                         {/* dir=ltr — a time RANGE flips visually inside an RTL card
                                                                             ("01:59–03:59" rendered as "03:59-01:59"). */}
                                                                         <span dir="ltr">{session ? getActiveTime(session) : `${seatedReservation?.time?.slice(0, 5) || ''}${computedEndTime ? `–${computedEndTime}` : ''}`}</span>
@@ -4795,8 +4801,8 @@ export default function SeatingSetup() {
                                                                     const res = futureReservationsForTable[0];
                                                                     return (
                                                                         <div className="w-full bg-[#44512C] text-white rounded px-1 py-0.5 leading-tight">
-                                                                            <div className="font-black text-[11px] truncate">{getFirstName(res.customer_name) || 'שמור'}</div>
-                                                                            <div className="text-[10px] font-normal opacity-90 flex items-center justify-between tabular-nums"><span dir="ltr">{res.time?.slice(0, 5)}</span><span>×{res.party_size}</span></div>
+                                                                            <div className="font-black text-[13px] truncate">{getFirstName(res.customer_name) || 'שמור'}</div>
+                                                                            <div className="text-[11px] font-medium opacity-95 flex items-center justify-between tabular-nums"><span dir="ltr">{res.time?.slice(0, 5)}</span><span>×{res.party_size}</span></div>
                                                                         </div>
                                                                     );
                                                                 })()}
@@ -4817,8 +4823,8 @@ export default function SeatingSetup() {
                                                             // A free table answers the door question: free until WHEN.
                                                             // "פנוי" alone doesn't tell her if she can seat a walk-in.
                                                             <div className="flex flex-col items-center gap-0.5 leading-tight">
-                                                                <div className="flex items-center gap-1 text-[11px] font-normal opacity-75">
-                                                                    <span className="w-1.5 h-1.5 rounded-full bg-current inline-block"></span>
+                                                                <div className="flex items-center gap-1 text-[13px] font-medium opacity-90">
+                                                                    <span className="w-2 h-2 rounded-full bg-current inline-block"></span>
                                                                     פנוי
                                                                 </div>
                                                                 {freeUntilMin !== null ? (
