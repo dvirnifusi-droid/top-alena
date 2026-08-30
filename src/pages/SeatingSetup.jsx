@@ -2139,7 +2139,7 @@ export default function SeatingSetup() {
             await loadQueue();
         } catch (e) {
             console.error('approve failed', e);
-            alert('שגיאה באישור התור');
+            showToast('שגיאה באישור התור');
         }
     };
 
@@ -2313,7 +2313,7 @@ export default function SeatingSetup() {
             loadLiveData();
         } catch (e) {
             console.error('seat from queue failed', e);
-            alert('שגיאה בהושבה מהתור');
+            showToast('שגיאה בהושבה מהתור');
         }
     };
 
@@ -2779,7 +2779,7 @@ export default function SeatingSetup() {
             loadLiveData();
         } catch (error) {
             console.error('Error updating table status:', error);
-            alert('שגיאה בעדכון סטטוס השולחן');
+            showToast('שגיאה בעדכון סטטוס השולחן');
         }
     };
 
@@ -3162,7 +3162,7 @@ export default function SeatingSetup() {
             loadLiveData();
         } catch (error) {
             console.error('Error releasing table:', error);
-            alert('שגיאה בשחרור השולחן');
+            showToast('שגיאה בשחרור השולחן');
         }
     };
 
@@ -3189,7 +3189,7 @@ export default function SeatingSetup() {
             loadLiveData();
         } catch (error) {
             console.error('Error moving table:', error);
-            alert('שגיאה בהעברת השולחן');
+            showToast('שגיאה בהעברת השולחן');
         }
     };
 
@@ -3303,7 +3303,7 @@ export default function SeatingSetup() {
             loadLiveData();  // silent resync, no spinner
         } catch (error) {
             console.error('Error saving multi-table assignment:', error);
-            alert('שגיאה בשמירת שיוך השולחנות המרובה.');
+            showToast('שגיאה בשמירת שיוך השולחנות המרובה.');
             loadLiveData();
         }
     };
@@ -3349,7 +3349,7 @@ export default function SeatingSetup() {
             loadLiveData();
         } catch (error) {
             console.error('Error moving occupant:', error);
-            alert('שגיאה בהעברת השולחן');
+            showToast('שגיאה בהעברת השולחן');
             loadLiveData();
         }
     };
@@ -3515,10 +3515,10 @@ export default function SeatingSetup() {
                 const names = (d.failed || []).map(f => `${f.customer_name} (${f.time}, ${f.party_size})`).join('\n');
                 msg += `\n\n⚠️ ${d.failed_count} ללא שולחן פנוי מתאים:\n${names}`;
             }
-            window.alert(msg);
+            showToast(msg);
         } catch (e) {
             console.error('auto-assign all failed', e);
-            window.alert('שגיאה בשיבוץ האוטומטי: ' + (e?.message || e));
+            showToast('שגיאה בשיבוץ האוטומטי: ' + (e?.message || e));
         } finally {
             setIsAutoAssigning(false);
         }
@@ -4030,7 +4030,7 @@ export default function SeatingSetup() {
                                                             });
                                                         }
                                                         await loadLiveData();
-                                                    } catch (e) { alert('שגיאה בהושבה: ' + (e?.message || e)); }
+                                                    } catch (e) { showToast('שגיאה בהושבה: ' + (e?.message || e)); }
                                                 }}
                                                 onSeatWalkIn={async (tableNums, name, phone, partySize) => {
                                                     if (!tableNums?.length || !name) return;
@@ -4047,7 +4047,7 @@ export default function SeatingSetup() {
                                                             table_style: 'couple',
                                                         });
                                                         await loadLiveData();
-                                                    } catch (e) { alert('שגיאה בהושבה: ' + (e?.message || e)); }
+                                                    } catch (e) { showToast('שגיאה בהושבה: ' + (e?.message || e)); }
                                                 }}
                                                 onSwitchToListMode={() => { setViewMode('list'); setBigMapMode(false); }}
                                                 inlinePanel
@@ -4816,13 +4816,16 @@ export default function SeatingSetup() {
 
                                         // A table occupied NOW is still a valid target if the reservation
                                         // being moved starts AFTER the current occupant's end time (turn re-use).
-                                        const movingResId = isSelectingTables ? multiAssignReservationId : (assigningTable ? assigningTable.reservationId : null);
+                                        const movingResId = isSelectingTables ? multiAssignReservationId : (assigningTable ? assigningTable.reservationId : (movingGuest ? movingGuest.reservation?.id : null));
                                         const movingRes = movingResId ? reservations.find(r => r.id === movingResId) : null;
                                         const freesBeforeMove = !!(movingRes?.time && computedEndTime && clockLdE(computedEndTime, movingRes.time));
-                                        // The reservation's OWN current table must always stay clickable so you can
-                                        // DESELECT it (to move off it) — it's "occupied" by the guest you're moving.
-                                        const isOwnMovingTable = !!(movingRes && Array.isArray(movingRes.assigned_table) && movingRes.assigned_table.map(String).includes(String(table.table_number)));
-                                        const isBlockedForInteraction = (isSelectingTables || assigningTable) && isReallyOccupied && !freesBeforeMove && !isOwnMovingTable;
+                                        // The guest's OWN current table must always stay clickable so you can
+                                        // DESELECT / cancel off it — it's "occupied" by the guest you're moving.
+                                        const isOwnMovingTable = (!!(movingRes && Array.isArray(movingRes.assigned_table) && movingRes.assigned_table.map(String).includes(String(table.table_number))))
+                                            || (!!movingGuest && String(movingGuest.fromTable) === String(table.table_number));
+                                        // Same target-guidance for ALL "pick a table" flows (multi-select, assign,
+                                        // and the direct two-tap move) — occupied tables gray out as invalid.
+                                        const isBlockedForInteraction = (isSelectingTables || assigningTable || movingGuest) && isReallyOccupied && !freesBeforeMove && !isOwnMovingTable;
                                         if (isBlockedForInteraction) {
                                             tableColorClass += ' opacity-50 cursor-not-allowed';
                                         }
@@ -4830,7 +4833,7 @@ export default function SeatingSetup() {
                                         return (
                                             <div
                                                 key={table.table_number}
-                                                draggable={!mapLocked && !isResizing && !swapping && !assigningTable && !isSelectingTables && !isBlockedForInteraction}
+                                                draggable={!mapLocked && !isResizing && !swapping && !assigningTable && !isSelectingTables && !movingGuest && !isBlockedForInteraction}
                                                 onDragEnd={(e) => handleTableDragEnd(table.table_number, e)}
                                                 // Long-press = 🔍 peek. Any movement cancels it so a drag
                                                 // (unlocked map) or a scroll-pan never turns into a peek.
@@ -4859,7 +4862,7 @@ export default function SeatingSetup() {
                                                     minHeight: 76,
                                                 }}
                                                 className={`${table.shape === 'round' ? 'rounded-full' : 'rounded-lg'} shadow-md border-[2.5px] transition-all hover:scale-[1.06] hover:shadow-lg hover:z-20 relative group ${
-                                                    isBlockedForInteraction ? 'cursor-not-allowed' : (swapping || assigningTable || isSelectingTables ? 'cursor-crosshair' : 'cursor-pointer')
+                                                    isBlockedForInteraction ? 'cursor-not-allowed' : (swapping || assigningTable || isSelectingTables || movingGuest ? 'cursor-crosshair' : 'cursor-pointer')
                                                 } ${tableColorClass}`}
                                             >
                                                 {isBlockedForInteraction && (
