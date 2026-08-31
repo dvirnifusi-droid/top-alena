@@ -9228,6 +9228,24 @@ registerFn('listOrderProducts', async ({ user }: any) => {
   return { products: rows };
 });
 
+// One expected-arrival date for a whole supplier's order (a delivery arrives on
+// one day, not per product). Sets expected_arrival on every item of that supplier
+// in the list at once. Empty date clears it.
+registerFn('setSupplierArrival', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'setSupplierArrival');
+  await ensurePrepItems();
+  const b = (body || {}) as any;
+  const supplier = String(b.supplier_name || '').trim();
+  if (!supplier) throw new Error('supplier_name required');
+  const arrival = (b.expected_arrival == null || b.expected_arrival === '') ? null : String(b.expected_arrival);
+  const listId = b.list_id ? String(b.list_id) : null;
+  const params: any[] = [arrival, supplier];
+  let sql = `UPDATE "PrepItem" SET expected_arrival=$1, "updatedAt"=NOW() WHERE supplier_name=$2`;
+  if (listId) { sql += ` AND list_id=$3`; params.push(listId); }
+  await (prisma as any).$executeRawUnsafe(sql, ...params).catch(() => {});
+  return { ok: true };
+});
+
 // Split the flagged (to_prep) order items by supplier + flag below-minimum.
 registerFn('getOrderSupplierSplit', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
