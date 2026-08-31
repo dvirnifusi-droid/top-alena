@@ -8386,6 +8386,17 @@ async function ensurePrepItems(): Promise<void> {
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "photo_url" TEXT`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "note" TEXT`).catch(() => {});
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "list_id" TEXT`).catch(() => {});
+  // Ordering: when the stock is expected to arrive, and an archive of placed
+  // orders (date + qty) so the owner sees "was it ordered / when / how much" —
+  // mirrors the dated columns in the owner's spreadsheet.
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "expected_arrival" TEXT`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "last_ordered_at" TIMESTAMP(3)`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "last_ordered_qty" TEXT`).catch(() => {});
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "order_history" JSONB NOT NULL DEFAULT '[]'::jsonb`).catch(() => {});
+  // TRUE once an order is placed and until the stock is received (re-counted).
+  // Keeps an already-ordered item out of the next supplier split so it isn't
+  // ordered twice while it's on its way.
+  await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepItem" ADD COLUMN IF NOT EXISTS "ordered_pending" BOOLEAN NOT NULL DEFAULT false`).catch(() => {});
   // Multiple named lists (e.g. "הכנות בוקר"/"הכנות ערב") + a per-day archive
   // captured on reset. Isolated, guarded — same safe pattern.
   await (prisma as any).$executeRawUnsafe(
@@ -9063,15 +9074,19 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
   const priceV = (b.price != null && b.price !== '' && Number.isFinite(+b.price)) ? +b.price : null;
   const toPrepProvided = b.to_prep !== undefined;
   const doneProvided = b.done !== undefined;
+  const arrivalProvided = b.expected_arrival !== undefined;
+  const arrivalV = arrivalProvided ? (b.expected_arrival ? String(b.expected_arrival).slice(0, 40) : null) : null;
   await (prisma as any).$executeRawUnsafe(
     `UPDATE "PrepItem" SET
        have = COALESCE($1, have),
+       ordered_pending = CASE WHEN $1 IS NOT NULL THEN false ELSE ordered_pending END,
        prep = COALESCE($2, prep),
        target = COALESCE($3, target),
        note = COALESCE($4, note),
        photo_url = COALESCE($5, photo_url),
        supplier_name = CASE WHEN $12 THEN $13 ELSE supplier_name END,
        price = CASE WHEN $14 THEN $15 ELSE price END,
+       expected_arrival = CASE WHEN $16 THEN $17 ELSE expected_arrival END,
        to_prep = CASE WHEN $6 THEN $7 ELSE to_prep END,
        done = CASE WHEN $8 THEN $9 ELSE done END,
        done_by = CASE WHEN $8 THEN (CASE WHEN $9 THEN COALESCE(done_by, $10) ELSE NULL END) ELSE done_by END,
@@ -9084,6 +9099,7 @@ registerFn('updatePrepItem', async ({ user, body }: any) => {
     String(b.id),
     b.supplier_name !== undefined, supplierV,
     priceProvided, priceV,
+    arrivalProvided, arrivalV,
   );
   return { ok: true };
 });
@@ -9177,12 +9193,13 @@ registerFn('getOrderSupplierSplit', async ({ user, body }: any) => {
   // it needs ordering — so a list imported with just stock levels splits without
   // any manual flagging.
   const rows: any[] = listId
-    ? await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, prep, price, supplier_name, target, have, to_prep FROM "PrepItem" WHERE list_id=$1`, listId).catch(() => [])
-    : await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, prep, price, supplier_name, target, have, to_prep FROM "PrepItem" WHERE to_prep=true`).catch(() => []);
+    ? await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, prep, price, supplier_name, target, have, to_prep, ordered_pending FROM "PrepItem" WHERE list_id=$1`, listId).catch(() => [])
+    : await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, prep, price, supplier_name, target, have, to_prep, ordered_pending FROM "PrepItem" WHERE to_prep=true`).catch(() => []);
   const sups: any[] = await (prisma as any).$queryRawUnsafe(`SELECT company_name, phone, min_order_amount, min_order_units FROM "Supplier"`).catch(() => []);
   const supByName = new Map(sups.map((s) => [norm(s.company_name), s]));
   const groups = new Map<string, any>();
   for (const r of rows) {
+    if (r.ordered_pending) continue;   // already ordered, on its way — don't re-order
     // Order qty = the auto-calc (target − have). A manual qty typed into `prep` on
     // a flagged row wins. Anything with nothing to order is skipped.
     const target = num(r.target);
@@ -9198,7 +9215,7 @@ registerFn('getOrderSupplierSplit', async ({ user, body }: any) => {
     }
     const g = groups.get(key);
     const price = Number(r.price) || 0;
-    g.items.push({ name: r.name, qty: String(qty), unit: r.unit || '', price: price || null, line_total: price && qty ? Math.round(price * qty) : null });
+    g.items.push({ id: r.id, name: r.name, qty: String(qty), unit: r.unit || '', price: price || null, line_total: price && qty ? Math.round(price * qty) : null });
     g.total_units += qty;
     g.total_amount += price * qty;
   }
@@ -9223,8 +9240,21 @@ registerFn('sendSupplierOrder', async ({ user, body }: any) => {
   try { const t: any[] = await (prisma as any).$queryRawUnsafe(`SELECT restaurant_name FROM public."Tenant" WHERE slug=$1 LIMIT 1`, currentTenantSlug()).catch(() => []); restaurantName = t[0]?.restaurant_name || ''; } catch { /* */ }
   const lines = items.map((it) => `• ${it.name}${it.qty ? ` — ${it.qty}${it.unit ? ' ' + it.unit : ''}` : ''}`).join('\n');
   const msg = `שלום ${supplier} 👋\nהזמנה${restaurantName ? ` מ-${restaurantName}` : ''}:\n${lines}\n\nתודה!`;
+  // Archive the order on each item BEFORE sending (the owner placed it regardless
+  // of WhatsApp delivery): stamp the date + qty, append to history, and mark it
+  // pending so the split won't re-order it until the stock is received.
+  const nowIso = new Date().toISOString();
+  for (const it of items) {
+    if (!it.id) continue;
+    const q = String(it.qty ?? '');
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "PrepItem" SET last_ordered_at=NOW(), last_ordered_qty=$1, ordered_pending=true,
+         order_history = COALESCE(order_history,'[]'::jsonb) || $2::jsonb, "updatedAt"=NOW() WHERE id=$3`,
+      q, JSON.stringify([{ date: nowIso.slice(0, 10), qty: q, supplier }]), String(it.id),
+    ).catch(() => {});
+  }
   try { await sendWhatsApp(phone, msg); return { ok: true, sent_to: phone, count: items.length }; }
-  catch (e: any) { return { ok: false, error: String(e?.message || e).slice(0, 160) }; }
+  catch (e: any) { return { ok: false, error: String(e?.message || e).slice(0, 160), ordered: true }; }
 });
 
 // ─────────────────────────────────────────────────────────────────────────
