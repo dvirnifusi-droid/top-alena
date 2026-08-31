@@ -4871,8 +4871,12 @@ export default function SeatingSetup() {
                                                     </div>
                                                 )}
 
+                                                {/* Toolbar is hover-only. It used to be forced visible on any no-hover
+                                                    device ([@media(hover:none)]:opacity-100), which plastered a
+                                                    פנוי/ניקוי/🔍 strip over EVERY table and buried the map. On touch,
+                                                    tap the table → the details dialog carries all these actions. */}
                                                 {!isBlockedForInteraction && (
-                                                    <div className="absolute -top-8 left-0 right-0 flex justify-center opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity z-10">
+                                                    <div className="absolute -top-8 left-0 right-0 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                                         <div className="bg-white border shadow-lg rounded-lg p-1 flex gap-1">
                                                             {/* 🔍 peek — see the table bigger without opening its card */}
                                                             <button
