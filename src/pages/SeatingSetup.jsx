@@ -1807,6 +1807,9 @@ export default function SeatingSetup() {
     const [tableIncidentsOpen, setTableIncidentsOpen] = useState(false);
     // 🔍 peek — enlarged read-only view of a table, without opening its card.
     const [peekTable, setPeekTable] = useState(null);
+    // On TOUCH (no hover), the per-table action toolbar opens via a small ⋯ button.
+    // This holds the table_number whose toolbar is currently toggled open.
+    const [openToolbarTable, setOpenToolbarTable] = useState(null);
     const longPress = useRef({ timer: null, fired: false });
     const startLongPress = (table) => {
         clearTimeout(longPress.current.timer);
@@ -4876,7 +4879,7 @@ export default function SeatingSetup() {
                                                     פנוי/ניקוי/🔍 strip over EVERY table and buried the map. On touch,
                                                     tap the table → the details dialog carries all these actions. */}
                                                 {!isBlockedForInteraction && (
-                                                    <div className="absolute -top-8 left-0 right-0 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                    <div className={`absolute -top-8 left-0 right-0 flex justify-center transition-opacity z-10 ${openToolbarTable === table.table_number ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                                                         <div className="bg-white border shadow-lg rounded-lg p-1 flex gap-1">
                                                             {/* 🔍 peek — see the table bigger without opening its card */}
                                                             <button
@@ -4929,6 +4932,16 @@ export default function SeatingSetup() {
                                                             )}
                                                         </div>
                                                     </div>
+                                                )}
+
+                                                {/* TOUCH-ONLY ⋯ — opens the action toolbar for this one table without
+                                                    plastering a strip over every card. Hidden where hover exists. */}
+                                                {!isBlockedForInteraction && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setOpenToolbarTable(prev => prev === table.table_number ? null : table.table_number); }}
+                                                        className="hidden [@media(hover:none)]:flex absolute bottom-0.5 left-0.5 w-6 h-6 items-center justify-center rounded-full bg-white/90 border border-black/10 shadow text-slate-600 text-base leading-none z-20"
+                                                        title="פעולות"
+                                                    >⋯</button>
                                                 )}
 
                                                 <div className="h-full px-1 py-0.5 flex flex-col text-center overflow-hidden relative">
