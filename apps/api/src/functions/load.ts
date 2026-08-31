@@ -9321,6 +9321,38 @@ registerFn('sendSupplierOrder', async ({ user, body }: any) => {
   catch (e: any) { return { ok: false, error: String(e?.message || e).slice(0, 160), ordered: true }; }
 });
 
+// Place a whole supplier order in ONE action (powers the "הזמן הכל" buttons):
+// mark every item ordered (pending + archived) REGARDLESS of phone — the owner
+// placed the order — and WhatsApp the supplier too when a phone exists.
+registerFn('placeSupplierOrder', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'placeSupplierOrder');
+  await ensurePrepItems();
+  const b = (body || {}) as any;
+  const supplier = String(b.supplier_name || 'ספק');
+  const phone = String(b.phone || '').replace(/[^\d+]/g, '');
+  const items: any[] = Array.isArray(b.items) ? b.items : [];
+  if (!items.length) return { ok: false, error: 'no_items', count: 0 };
+  const nowIso = new Date().toISOString();
+  for (const it of items) {
+    if (!it.id) continue;
+    const q = String(it.qty ?? '');
+    await (prisma as any).$executeRawUnsafe(
+      `UPDATE "PrepItem" SET last_ordered_at=NOW(), last_ordered_qty=$1, ordered_pending=true,
+         order_history = COALESCE(order_history,'[]'::jsonb) || $2::jsonb, "updatedAt"=NOW() WHERE id=$3`,
+      q, JSON.stringify([{ date: nowIso.slice(0, 10), qty: q, supplier }]), String(it.id),
+    ).catch(() => {});
+  }
+  let sent = false, sendError: string | null = null;
+  if (phone) {
+    let restaurantName = '';
+    try { const t: any[] = await (prisma as any).$queryRawUnsafe(`SELECT restaurant_name FROM public."Tenant" WHERE slug=$1 LIMIT 1`, currentTenantSlug()).catch(() => []); restaurantName = t[0]?.restaurant_name || ''; } catch { /* */ }
+    const lines = items.map((it) => `• ${it.name}${it.qty ? ` — ${it.qty}${it.unit ? ' ' + it.unit : ''}` : ''}`).join('\n');
+    const msg = `שלום ${supplier} 👋\nהזמנה${restaurantName ? ` מ-${restaurantName}` : ''}:\n${lines}\n\nתודה!`;
+    try { await sendWhatsApp(phone, msg); sent = true; } catch (e: any) { sendError = String(e?.message || e).slice(0, 160); }
+  }
+  return { ok: true, count: items.length, supplier, sent, no_phone: !phone, sendError };
+});
+
 // ─────────────────────────────────────────────────────────────────────────
 // Itzik roadmap #1/#2 — Employee card 360° (group-owner HR view).
 //   • EmployeeForm — signatures on required forms (טופס 101, הסכם עבודה,
