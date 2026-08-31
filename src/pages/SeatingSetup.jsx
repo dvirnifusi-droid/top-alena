@@ -4879,8 +4879,11 @@ export default function SeatingSetup() {
                                                     פנוי/ניקוי/🔍 strip over EVERY table and buried the map. On touch,
                                                     tap the table → the details dialog carries all these actions. */}
                                                 {!isBlockedForInteraction && (
-                                                    <div className={`absolute -top-8 left-0 right-0 flex justify-center transition-opacity z-10 ${openToolbarTable === table.table_number ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                                                        <div className="bg-white border shadow-lg rounded-lg p-1 flex gap-1">
+                                                    <div className={`absolute -top-8 left-0 right-0 flex justify-center transition-opacity z-20 ${openToolbarTable === table.table_number ? 'opacity-100' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'}`}>
+                                                        <div className="bg-white border shadow-lg rounded-lg p-1 flex gap-1"
+                                                            onPointerDown={(e) => e.stopPropagation()}
+                                                            onMouseDown={(e) => e.stopPropagation()}
+                                                            onTouchStart={(e) => e.stopPropagation()}>
                                                             {/* 🔍 peek — see the table bigger without opening its card */}
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); setPeekTable(table); }}
@@ -4935,11 +4938,18 @@ export default function SeatingSetup() {
                                                 )}
 
                                                 {/* TOUCH-ONLY ⋯ — opens the action toolbar for this one table without
-                                                    plastering a strip over every card. Hidden where hover exists. */}
+                                                    plastering a strip over every card. Hidden where hover exists.
+                                                    Guards pointer/touch/drag so the tap hits the button, not the card's
+                                                    drag/long-press handlers. Top-right, clear of the resize handle. */}
                                                 {!isBlockedForInteraction && (
                                                     <button
+                                                        onPointerDown={(e) => e.stopPropagation()}
+                                                        onMouseDown={(e) => e.stopPropagation()}
+                                                        onTouchStart={(e) => e.stopPropagation()}
+                                                        onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                                        draggable={false}
                                                         onClick={(e) => { e.stopPropagation(); setOpenToolbarTable(prev => prev === table.table_number ? null : table.table_number); }}
-                                                        className="hidden [@media(hover:none)]:flex absolute bottom-0.5 left-0.5 w-6 h-6 items-center justify-center rounded-full bg-white/90 border border-black/10 shadow text-slate-600 text-base leading-none z-20"
+                                                        className="hidden [@media(hover:none)]:flex absolute -top-2.5 -right-2.5 w-8 h-8 items-center justify-center rounded-full bg-white border-2 border-slate-300 shadow-md text-slate-700 text-xl leading-none z-30 active:bg-slate-100"
                                                         title="פעולות"
                                                     >⋯</button>
                                                 )}
