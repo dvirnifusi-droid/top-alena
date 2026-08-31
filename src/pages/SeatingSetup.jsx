@@ -1810,6 +1810,11 @@ export default function SeatingSetup() {
     // On TOUCH (no hover), the per-table action toolbar opens via a small ⋯ button.
     // This holds the table_number whose toolbar is currently toggled open.
     const [openToolbarTable, setOpenToolbarTable] = useState(null);
+    // Touch device? Then tables are NOT HTML5-draggable — a draggable parent
+    // suppresses onClick on its children on touch, which is exactly why tapping
+    // the ⋯ (and the toolbar buttons) did nothing. Rearranging tables by drag is
+    // a desktop action anyway. Recomputed on mount; fine for the session.
+    const isTouchDevice = typeof window !== 'undefined' && !!(window.matchMedia && window.matchMedia('(hover: none)').matches);
     const longPress = useRef({ timer: null, fired: false });
     const startLongPress = (table) => {
         clearTimeout(longPress.current.timer);
@@ -4836,9 +4841,9 @@ export default function SeatingSetup() {
                                         return (
                                             <div
                                                 key={table.table_number}
-                                                // Not draggable while THIS table's ⋯ toolbar is open, so the toolbar's
-                                                // buttons get a normal onClick on touch (a draggable parent suppresses it).
-                                                draggable={!mapLocked && !isResizing && !swapping && !assigningTable && !isSelectingTables && !movingGuest && !isBlockedForInteraction && openToolbarTable !== table.table_number}
+                                                // Never draggable on touch (a draggable parent suppresses onClick on its
+                                                // children on touch — the cause of "tap the ⋯ and nothing happens").
+                                                draggable={!isTouchDevice && !mapLocked && !isResizing && !swapping && !assigningTable && !isSelectingTables && !movingGuest && !isBlockedForInteraction}
                                                 onDragEnd={(e) => handleTableDragEnd(table.table_number, e)}
                                                 // Long-press = 🔍 peek. Any movement cancels it so a drag
                                                 // (unlocked map) or a scroll-pan never turns into a peek.
@@ -4945,14 +4950,11 @@ export default function SeatingSetup() {
                                                     drag/long-press handlers. Top-right, clear of the resize handle. */}
                                                 {!isBlockedForInteraction && (
                                                     <button
-                                                        // Toggle on onPointerUp — it fires exactly ONCE for both mouse and
-                                                        // touch and (unlike onClick) is NOT suppressed inside a draggable
-                                                        // parent, which is why tapping did nothing before. Capture-phase
-                                                        // pointerdown stops the card's drag/long-press from starting.
+                                                        // Card isn't draggable on touch (see isTouchDevice) so this onClick
+                                                        // fires on a real finger tap. Capture-phase pointerdown stops the
+                                                        // card's long-press/peek from starting under the tap.
                                                         onPointerDownCapture={(e) => e.stopPropagation()}
-                                                        onPointerUp={(e) => { e.stopPropagation(); setOpenToolbarTable(prev => prev === table.table_number ? null : table.table_number); }}
-                                                        onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                                                        draggable={false}
+                                                        onClick={(e) => { e.stopPropagation(); setOpenToolbarTable(prev => prev === table.table_number ? null : table.table_number); }}
                                                         style={{ touchAction: 'manipulation' }}
                                                         className="hidden [@media(hover:none)]:flex absolute bottom-0.5 right-0.5 w-9 h-9 items-center justify-center rounded-full bg-white border-2 border-slate-400 shadow-lg text-slate-800 text-2xl leading-none z-40 active:bg-slate-200"
                                                         title="פעולות"
