@@ -4836,7 +4836,9 @@ export default function SeatingSetup() {
                                         return (
                                             <div
                                                 key={table.table_number}
-                                                draggable={!mapLocked && !isResizing && !swapping && !assigningTable && !isSelectingTables && !movingGuest && !isBlockedForInteraction}
+                                                // Not draggable while THIS table's ⋯ toolbar is open, so the toolbar's
+                                                // buttons get a normal onClick on touch (a draggable parent suppresses it).
+                                                draggable={!mapLocked && !isResizing && !swapping && !assigningTable && !isSelectingTables && !movingGuest && !isBlockedForInteraction && openToolbarTable !== table.table_number}
                                                 onDragEnd={(e) => handleTableDragEnd(table.table_number, e)}
                                                 // Long-press = 🔍 peek. Any movement cancels it so a drag
                                                 // (unlocked map) or a scroll-pan never turns into a peek.
@@ -4943,13 +4945,18 @@ export default function SeatingSetup() {
                                                     drag/long-press handlers. Top-right, clear of the resize handle. */}
                                                 {!isBlockedForInteraction && (
                                                     <button
-                                                        onPointerDown={(e) => e.stopPropagation()}
+                                                        // Touch: onClick often does NOT fire inside a draggable parent, so
+                                                        // toggle on onTouchEnd (preventDefault kills the ghost click so it
+                                                        // doesn't double-fire). Capture-phase stops the card's drag/long-press.
+                                                        onPointerDownCapture={(e) => e.stopPropagation()}
+                                                        onTouchStartCapture={(e) => e.stopPropagation()}
                                                         onMouseDown={(e) => e.stopPropagation()}
-                                                        onTouchStart={(e) => e.stopPropagation()}
                                                         onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                                         draggable={false}
+                                                        onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setOpenToolbarTable(prev => prev === table.table_number ? null : table.table_number); }}
                                                         onClick={(e) => { e.stopPropagation(); setOpenToolbarTable(prev => prev === table.table_number ? null : table.table_number); }}
-                                                        className="hidden [@media(hover:none)]:flex absolute -top-2.5 -right-2.5 w-8 h-8 items-center justify-center rounded-full bg-white border-2 border-slate-300 shadow-md text-slate-700 text-xl leading-none z-30 active:bg-slate-100"
+                                                        style={{ touchAction: 'manipulation' }}
+                                                        className="hidden [@media(hover:none)]:flex absolute bottom-0.5 right-0.5 w-9 h-9 items-center justify-center rounded-full bg-white border-2 border-slate-400 shadow-lg text-slate-800 text-2xl leading-none z-40 active:bg-slate-200"
                                                         title="פעולות"
                                                     >⋯</button>
                                                 )}
