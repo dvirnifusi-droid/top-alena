@@ -9171,23 +9171,34 @@ registerFn('getOrderSupplierSplit', async ({ user, body }: any) => {
   if (!user?.id) throw new Error('unauthorized');
   await ensurePrepItems();
   const norm = (s: any) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const num = (x: any) => { const n = parseFloat(String(x ?? '').replace(/[^\d.-]/g, '')); return Number.isFinite(n) ? n : null; };
   const listId = (body || {}).list_id ? String((body as any).list_id) : null;
+  // Pull the WHOLE list (or all globally-flagged rows) and decide per-item whether
+  // it needs ordering — so a list imported with just stock levels splits without
+  // any manual flagging.
   const rows: any[] = listId
-    ? await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, prep, price, supplier_name FROM "PrepItem" WHERE to_prep=true AND list_id=$1`, listId).catch(() => [])
-    : await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, prep, price, supplier_name FROM "PrepItem" WHERE to_prep=true`).catch(() => []);
+    ? await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, prep, price, supplier_name, target, have, to_prep FROM "PrepItem" WHERE list_id=$1`, listId).catch(() => [])
+    : await (prisma as any).$queryRawUnsafe(`SELECT id, name, unit, prep, price, supplier_name, target, have, to_prep FROM "PrepItem" WHERE to_prep=true`).catch(() => []);
   const sups: any[] = await (prisma as any).$queryRawUnsafe(`SELECT company_name, phone, min_order_amount, min_order_units FROM "Supplier"`).catch(() => []);
   const supByName = new Map(sups.map((s) => [norm(s.company_name), s]));
   const groups = new Map<string, any>();
   for (const r of rows) {
+    // Order qty = the auto-calc (target − have). A manual qty typed into `prep` on
+    // a flagged row wins. Anything with nothing to order is skipped.
+    const target = num(r.target);
+    const have = num(r.have) ?? 0;
+    const autoQty = target != null ? Math.max(0, Math.round((target - have) * 100) / 100) : 0;
+    const prepQty = num(r.prep);
+    const qty = (r.to_prep && prepQty && prepQty > 0) ? prepQty : autoQty;
+    if (!(qty > 0)) continue;
     const key = r.supplier_name || 'לא משויך';
     if (!groups.has(key)) {
       const s: any = supByName.get(norm(key));
       groups.set(key, { supplier: key, phone: s?.phone || null, min_order_amount: s?.min_order_amount ?? null, min_order_units: s?.min_order_units ?? null, items: [], total_units: 0, total_amount: 0, unassigned: key === 'לא משויך' });
     }
     const g = groups.get(key);
-    const qty = parseFloat(String(r.prep || '').replace(/[^\d.]/g, '')) || 0;
     const price = Number(r.price) || 0;
-    g.items.push({ name: r.name, qty: r.prep || '', unit: r.unit || '', price: price || null, line_total: price && qty ? Math.round(price * qty) : null });
+    g.items.push({ name: r.name, qty: String(qty), unit: r.unit || '', price: price || null, line_total: price && qty ? Math.round(price * qty) : null });
     g.total_units += qty;
     g.total_amount += price * qty;
   }
