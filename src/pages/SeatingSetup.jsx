@@ -4945,16 +4945,14 @@ export default function SeatingSetup() {
                                                     drag/long-press handlers. Top-right, clear of the resize handle. */}
                                                 {!isBlockedForInteraction && (
                                                     <button
-                                                        // Touch: onClick often does NOT fire inside a draggable parent, so
-                                                        // toggle on onTouchEnd (preventDefault kills the ghost click so it
-                                                        // doesn't double-fire). Capture-phase stops the card's drag/long-press.
+                                                        // Toggle on onPointerUp — it fires exactly ONCE for both mouse and
+                                                        // touch and (unlike onClick) is NOT suppressed inside a draggable
+                                                        // parent, which is why tapping did nothing before. Capture-phase
+                                                        // pointerdown stops the card's drag/long-press from starting.
                                                         onPointerDownCapture={(e) => e.stopPropagation()}
-                                                        onTouchStartCapture={(e) => e.stopPropagation()}
-                                                        onMouseDown={(e) => e.stopPropagation()}
+                                                        onPointerUp={(e) => { e.stopPropagation(); setOpenToolbarTable(prev => prev === table.table_number ? null : table.table_number); }}
                                                         onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                                         draggable={false}
-                                                        onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setOpenToolbarTable(prev => prev === table.table_number ? null : table.table_number); }}
-                                                        onClick={(e) => { e.stopPropagation(); setOpenToolbarTable(prev => prev === table.table_number ? null : table.table_number); }}
                                                         style={{ touchAction: 'manipulation' }}
                                                         className="hidden [@media(hover:none)]:flex absolute bottom-0.5 right-0.5 w-9 h-9 items-center justify-center rounded-full bg-white border-2 border-slate-400 shadow-lg text-slate-800 text-2xl leading-none z-40 active:bg-slate-200"
                                                         title="פעולות"
