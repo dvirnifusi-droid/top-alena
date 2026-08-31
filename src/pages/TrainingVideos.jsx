@@ -123,7 +123,8 @@ export default function TrainingVideos() {
     toast({ title: "הסרטון הועלה בהצלחה" });
   };
 
-  const isAdmin = user?.role === "admin";
+  // Owner counts as admin here — the owner manages training content too (owner≠admin trap).
+  const isAdmin = user?.role === "admin" || user?.role === "owner";
 
   const getEmbedUrl = (url) => {
     if (!url) return null;
