@@ -9,7 +9,7 @@ import PageGuard from '../components/shared/PageGuard';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, Plus, Trash2, ListChecks, ShoppingCart, Search, Check, Copy, Upload, Pencil } from 'lucide-react';
+import { Loader2, Plus, Trash2, ListChecks, ShoppingCart, Search, Check, Copy, Upload, Pencil, Send } from 'lucide-react';
 import AiScannerButton from '@/components/scanner/AiScannerButton';
 import SupplierSplitPanel from '@/components/orders/SupplierSplitPanel';
 
@@ -162,7 +162,42 @@ function OrderListInner() {
   const toOrderOf = (it) => { const p = numOr(it.target); if (p == null) return null; const h = numOr(it.have) ?? 0; const d = p - h; return d > 0 ? Math.round(d * 100) / 100 : 0; };
   const neededOf = (it) => (toOrderOf(it) || 0) > 0 || !!it.to_prep;
   const qtyOf = (it) => (it.note && String(it.note).trim()) ? String(it.note).trim() : (toOrderOf(it) ? String(toOrderOf(it)) : '');
-  const needed = useMemo(() => items.filter(it => neededOf(it) && !it.done), [items]);
+  const needed = useMemo(() => items.filter(it => neededOf(it) && !it.done && !it.ordered_pending), [items]);
+
+  // Build the {id,name,qty,unit,price} order lines for a set of items (only ones
+  // with something to order), using exactly the qty shown on screen.
+  const orderLinesOf = (arr) => arr.map(it => ({ id: it.id, name: it.name, qty: qtyOf(it), unit: it.unit || '', price: it.price })).filter(x => x.id && x.qty && Number(x.qty) > 0);
+  const bySupplier = (arr) => { const m = new Map(); arr.forEach(it => { const k = (it.supplier_name || '').trim() || 'ללא ספק'; if (!m.has(k)) m.set(k, []); m.get(k).push(it); }); return [...m.entries()]; };
+  // Place a whole supplier's order at once: WhatsApp (if phone) + mark ordered.
+  const [placing, setPlacing] = useState('');
+  const placeOrderFor = async (supplierName, arr, silent = false) => {
+    const its = orderLinesOf(arr);
+    if (!its.length) return { count: 0 };
+    const phone = supMap.get(norm(supplierName))?.phone || '';
+    if (!silent && !window.confirm(`להזמין ${its.length} פריטים מ-${supplierName}?${phone ? '\nתישלח הודעת וואטסאפ לספק.' : '\n(אין טלפון לספק — יסומן כהוזמן בלבד)'}`)) return null;
+    setPlacing(supplierName); lastInteractionRef.current = Date.now();
+    let d = null;
+    try {
+      const r = await base44.functions.placeSupplierOrder({ supplier_name: supplierName, phone, items: its });
+      d = r?.data || r;
+      const qById = new Map(its.map(x => [x.id, x.qty]));
+      setItems(prev => prev.map(it => qById.has(it.id) ? { ...it, ordered_pending: true, last_ordered_qty: String(qById.get(it.id)) } : it));
+    } catch (e) { if (!silent) alert('שגיאה: ' + (e?.message || '')); }
+    setPlacing('');
+    if (!silent && d) alert(d.sent ? `📤 נשלח ל-${supplierName} (${d.count} פריטים)` : `✓ ${supplierName}: סומן כהוזמן (${d.count} פריטים)${d.no_phone ? ' — אין טלפון, שלח ידנית' : ''}`);
+    return d;
+  };
+  const placeAllOrders = async () => {
+    const groups = bySupplier(needed).filter(([name, arr]) => name !== 'ללא ספק' && orderLinesOf(arr).length);
+    if (!groups.length) { alert('אין פריטים משויכים לספק להזמנה.'); return; }
+    const withPhone = groups.filter(([n]) => (supMap.get(norm(n))?.phone || '')).length;
+    if (!window.confirm(`להזמין את כל ההזמנות?\n${groups.length} ספקים · ${withPhone} עם וואטסאפ.`)) return;
+    setPlacing('__all__');
+    let sent = 0, marked = 0;
+    for (const [name, arr] of groups) { const d = await placeOrderFor(name, arr, true); if (d) { if (d.sent) sent++; else marked++; } }
+    setPlacing('');
+    alert(`✓ בוצעו ${groups.length} הזמנות · ${sent} נשלחו בוואטסאפ · ${marked} סומנו כהוזמנו`);
+  };
 
   const activeListObj = useMemo(() => lists.find(l => l.id === activeList) || null, [lists, activeList]);
   const parLocked = activeListObj ? activeListObj.par_locked !== false : true;
@@ -438,9 +473,16 @@ function OrderListInner() {
             ) : (
               /* ── Live order list — only flagged items ── */
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <p className="text-sm font-semibold" style={{ color: W.muted }}>{needed.length} פריטים להזמנה</p>
-                  {needed.length > 0 && <Button size="sm" variant="outline" onClick={copyOrder}><Copy className="w-4 h-4 ml-1" />העתק לוואטסאפ</Button>}
+                  {needed.length > 0 && (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={copyOrder}><Copy className="w-4 h-4 ml-1" />העתק</Button>
+                      {isAdmin && <Button size="sm" onClick={placeAllOrders} disabled={placing === '__all__'} style={{ background: W.terracotta, color: '#fff' }}>
+                        {placing === '__all__' ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4 ml-1" />הזמן הכל</>}
+                      </Button>}
+                    </div>
+                  )}
                 </div>
                 {needed.length === 0 ? (
                   <div className="text-center py-14 rounded-2xl border-2" style={{ borderColor: W.border, background: '#FFFDF8' }}>
@@ -463,6 +505,11 @@ function OrderListInner() {
                                 onChange={e => setGroupArrival(cat, arr, e.target.value)}
                                 className="h-6 rounded border px-1 text-xs" style={{ borderColor: W.border, background: '#fff' }} />
                             </label>
+                          )}
+                          {isAdmin && cat !== 'ללא ספק' && orderLinesOf(arr).length > 0 && (
+                            <Button size="sm" onClick={() => placeOrderFor(cat, arr)} disabled={placing === cat} className="h-7" style={{ background: W.olive, color: '#fff' }}>
+                              {placing === cat ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Send className="w-3.5 h-3.5 ml-1" />הזמן הכל</>}
+                            </Button>
                           )}
                         </div>
                       )}
