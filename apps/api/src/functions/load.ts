@@ -8347,7 +8347,20 @@ registerFn('setAppSettings', async ({ user, body }: any) => {
 // safe pattern as ScheduleConfig / ReservationPageConfig.
 const DEFAULT_PREP_LIST = 'list_default';
 let _prepEnsured = false;
+let _prepEnsuring: Promise<void> | null = null;
+// Concurrency guard: right after an api restart, the first BURST of order-page
+// requests all call this at once. Two concurrent `CREATE TABLE IF NOT EXISTS`
+// against Postgres can throw a duplicate-key race (pg_type/pg_namespace), which
+// made every order fn catch the throw and return EMPTY — the whole order page
+// looked wiped until one call finally succeeded. Fix: run it ONCE (shared
+// in-flight promise) and never let a CREATE race throw out of here.
 async function ensurePrepItems(): Promise<void> {
+  if (_prepEnsured) return;
+  if (_prepEnsuring) { await _prepEnsuring; return; }
+  _prepEnsuring = _ensurePrepItemsImpl();
+  try { await _prepEnsuring; } finally { _prepEnsuring = null; }
+}
+async function _ensurePrepItemsImpl(): Promise<void> {
   if (_prepEnsured) return;
   await (prisma as any).$executeRawUnsafe(
     `CREATE TABLE IF NOT EXISTS "PrepItem" (
@@ -8368,7 +8381,7 @@ async function ensurePrepItems(): Promise<void> {
        "sort" INTEGER NOT NULL DEFAULT 0,
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
      )`,
-  );
+  ).catch(() => {});
   // Additive — the table may predate these columns (olive&fig imported earlier).
   // "have"=on hand, "prep"=how much to make (free-text amounts); "to_prep"=flag it
   // needs making; on "done" we stamp who/when + optional photo (accountability).
@@ -8406,7 +8419,7 @@ async function ensurePrepItems(): Promise<void> {
        "sort" INTEGER NOT NULL DEFAULT 0,
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
      )`,
-  );
+  ).catch(() => {});
   // list_type separates prep lists from order lists (same tables, same item
   // mechanics: to_prep="needed", done="ordered"). NULL/'prep' = a prep list.
   await (prisma as any).$executeRawUnsafe(`ALTER TABLE "PrepList" ADD COLUMN IF NOT EXISTS "list_type" TEXT`).catch(() => {});
@@ -8426,7 +8439,7 @@ async function ensurePrepItems(): Promise<void> {
        "done_count" INTEGER NOT NULL DEFAULT 0,
        "archived_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
      )`,
-  );
+  ).catch(() => {});
   // Guarantee at least one list, and adopt any pre-existing items into it.
   const anyList: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id FROM "PrepList" LIMIT 1`).catch(() => []);
   if (!anyList.length) {
