@@ -178,8 +178,14 @@ function OrderListInner() {
   const commitPrice = async (it) => { try { await base44.functions.updatePrepItem({ id: it.id, price: it.price ?? '' }); } catch { /* ignore */ } };
   const setCur = (it, v) => { lastInteractionRef.current = Date.now(); patchItem(it.id, { have: v }); };
   const commitCur = async (it) => { try { await base44.functions.updatePrepItem({ id: it.id, have: it.have ?? '' }); } catch { /* ignore */ } };
-  const setArrival = (it, v) => { lastInteractionRef.current = Date.now(); patchItem(it.id, { expected_arrival: v }); };
-  const commitArrival = async (it) => { try { await base44.functions.updatePrepItem({ id: it.id, expected_arrival: it.expected_arrival ?? '' }); } catch { /* ignore */ } };
+  // Arrival is per SUPPLIER ORDER, not per product — one delivery date for the
+  // whole supplier group. Writes expected_arrival to every item of that supplier.
+  const setGroupArrival = async (supplierName, arr, v) => {
+    lastInteractionRef.current = Date.now();
+    const ids = new Set(arr.map(x => x.id));
+    setItems(prev => prev.map(it => ids.has(it.id) ? { ...it, expected_arrival: v } : it));
+    try { await base44.functions.setSupplierArrival({ list_id: activeList !== ALL_ID ? activeList : undefined, supplier_name: supplierName, expected_arrival: v }); } catch { /* ignore */ }
+  };
 
   const groupsFor = (arr) => {
     const q = search.trim().toLowerCase();
@@ -374,6 +380,14 @@ function OrderListInner() {
                         <div className="flex items-center gap-3 flex-wrap">
                           {groupOrderTotal(arr) > 0 && <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: W.olive }}>הזמנה ≈ ₪{Math.round(groupOrderTotal(arr)).toLocaleString()}</span>}
                           {isAdmin && cat !== 'ללא ספק' && <SupplierMinCell name={cat} currentMin={supMinOf(cat)} orderTotal={groupOrderTotal(arr)} onSave={(v) => saveSupplierMin(cat, v)} />}
+                          {isAdmin && cat !== 'ללא ספק' && (
+                            <label className="flex items-center gap-1 text-[11px] font-normal" style={{ color: W.muted }} title="תאריך הגעת ההזמנה מהספק (לכל ההזמנה)">
+                              🚚 הגעה
+                              <input type="date" value={arr.find(x => x.expected_arrival)?.expected_arrival || ''} onClick={e => e.stopPropagation()}
+                                onChange={e => setGroupArrival(cat, arr, e.target.value)}
+                                className="h-6 rounded border px-1 text-xs" style={{ borderColor: W.border, background: '#fff' }} />
+                            </label>
+                          )}
                         </div>
                       )}
                     </div>
@@ -413,12 +427,6 @@ function OrderListInner() {
                                 onChange={e => setPrice(it, e.target.value)} onBlur={() => commitPrice(it)}
                                 placeholder="מחיר" className="w-16 h-7 rounded-md border px-1 text-center text-sm" style={{ borderColor: W.border, background: '#fff' }} />
                             </label>
-                            <label className="flex items-center gap-1 text-[11px]" style={{ color: W.muted }} title="תאריך הגעה צפוי">
-                              🚚
-                              <input type="date" value={it.expected_arrival || ''}
-                                onChange={e => setArrival(it, e.target.value)} onBlur={() => commitArrival(it)}
-                                className="h-7 rounded-md border px-1 text-xs" style={{ borderColor: W.border, background: '#fff' }} />
-                            </label>
                           </div>
                         </div>
                         );
@@ -448,6 +456,14 @@ function OrderListInner() {
                         <div className="flex items-center gap-3 flex-wrap">
                           {groupOrderTotal(arr) > 0 && <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: W.olive }}>≈ ₪{Math.round(groupOrderTotal(arr)).toLocaleString()}</span>}
                           {isAdmin && cat !== 'ללא ספק' && <SupplierMinCell name={cat} currentMin={supMinOf(cat)} orderTotal={groupOrderTotal(arr)} onSave={(v) => saveSupplierMin(cat, v)} />}
+                          {isAdmin && cat !== 'ללא ספק' && (
+                            <label className="flex items-center gap-1 text-[11px] font-normal" style={{ color: W.muted }} title="תאריך הגעת ההזמנה מהספק (לכל ההזמנה)">
+                              🚚 הגעה
+                              <input type="date" value={arr.find(x => x.expected_arrival)?.expected_arrival || ''} onClick={e => e.stopPropagation()}
+                                onChange={e => setGroupArrival(cat, arr, e.target.value)}
+                                className="h-6 rounded border px-1 text-xs" style={{ borderColor: W.border, background: '#fff' }} />
+                            </label>
+                          )}
                         </div>
                       )}
                     </div>
