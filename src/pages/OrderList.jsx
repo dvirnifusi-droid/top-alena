@@ -28,6 +28,8 @@ function OrderListInner() {
   const [view, setView] = useState('mark'); // 'mark' | 'live'
   const [search, setSearch] = useState('');
   const [editMode, setEditMode] = useState(false);
+  const [groupBy, setGroupBy] = useState(() => { try { return localStorage.getItem('ol_groupby') || 'category'; } catch { return 'category'; } });
+  const setGroup = (g) => { setGroupBy(g); try { localStorage.setItem('ol_groupby', g); } catch { /* noop */ } };
   const [draft, setDraft] = useState([]); // catalog editor rows
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
@@ -134,9 +136,17 @@ function OrderListInner() {
     const q = search.trim().toLowerCase();
     const f = arr.filter(it => !q || (it.name || '').toLowerCase().includes(q));
     const m = new Map();
-    f.forEach(it => { const c = (it.category || '').trim() || 'כללי'; if (!m.has(c)) m.set(c, []); m.get(c).push(it); });
-    return [...m.entries()];
+    const keyOf = groupBy === 'supplier'
+      ? (it) => (it.supplier_name || '').trim() || 'ללא ספק'
+      : (it) => (it.category || '').trim() || 'כללי';
+    f.forEach(it => { const c = keyOf(it); if (!m.has(c)) m.set(c, []); m.get(c).push(it); });
+    // When grouping by supplier, sort suppliers alphabetically and put "ללא ספק" last.
+    const entries = [...m.entries()];
+    if (groupBy === 'supplier') entries.sort((a, b) => (a[0] === 'ללא ספק') - (b[0] === 'ללא ספק') || a[0].localeCompare(b[0], 'he'));
+    return entries;
   };
+  // Sum of (to-order qty × unit price) for a group — the estimated order cost for that supplier.
+  const groupOrderTotal = (arr) => arr.reduce((s, it) => { const q = toOrderOf(it) || 0; const p = numOr(it.price) || 0; return s + q * p; }, 0);
 
   // ── Admin: catalog editor ──
   const openEdit = () => { setDraft(items.map(it => ({ ...it }))); setEditMode(true); setShowImport(false); };
@@ -278,6 +288,15 @@ function OrderListInner() {
               </button>
             </div>
 
+            {/* Group-by: קטגוריה ↔ ספק */}
+            <div className="flex items-center gap-2 text-xs" style={{ color: W.muted }}>
+              <span className="font-semibold">קיבוץ:</span>
+              <button onClick={() => setGroup('category')} className="px-2.5 py-1 rounded-full border font-semibold transition"
+                style={groupBy === 'category' ? { background: W.olive, color: '#fff', borderColor: W.olive } : { background: '#fff', borderColor: W.border, color: W.muted }}>📦 קטגוריה</button>
+              <button onClick={() => setGroup('supplier')} className="px-2.5 py-1 rounded-full border font-semibold transition"
+                style={groupBy === 'supplier' ? { background: W.olive, color: '#fff', borderColor: W.olive } : { background: '#fff', borderColor: W.border, color: W.muted }}>🏷 ספק</button>
+            </div>
+
             {loading ? (
               <div className="text-center py-12"><Loader2 className="w-7 h-7 animate-spin mx-auto" style={{ color: W.brass }} /></div>
             ) : view === 'mark' ? (
@@ -300,7 +319,10 @@ function OrderListInner() {
                   <p className="text-center text-sm py-8" style={{ color: W.muted }}>הקטלוג ריק. {isAdmin ? 'לחץ "ערוך קטלוג" כדי להוסיף מוצרים.' : 'המנהל עדיין לא הוסיף מוצרים.'}</p>
                 ) : groupsFor(items).map(([cat, arr]) => (
                   <div key={cat} className="rounded-2xl border-2 overflow-hidden" style={{ borderColor: W.border, background: '#FFFDF8' }}>
-                    <div className="px-3 py-2 font-bold text-sm" style={{ background: W.creamCard, color: W.terracotta }}>{cat}</div>
+                    <div className="px-3 py-2 font-bold text-sm flex items-center justify-between gap-2" style={{ background: W.creamCard, color: W.terracotta }}>
+                      <span>{cat} <span className="font-normal opacity-60">· {arr.length}</span></span>
+                      {groupBy === 'supplier' && groupOrderTotal(arr) > 0 && <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: W.olive }}>הזמנה ≈ ₪{Math.round(groupOrderTotal(arr)).toLocaleString()}</span>}
+                    </div>
                     <div className="divide-y" style={{ borderColor: W.border }}>
                       {arr.map(it => {
                         const to = toOrderOf(it); const need = neededOf(it);
@@ -312,7 +334,7 @@ function OrderListInner() {
                               style={it.to_prep ? { background: W.terracotta, borderColor: W.terracotta } : { borderColor: '#cbb98f' }}>
                               {it.to_prep && <Check className="w-4 h-4 text-white" />}
                             </button>
-                            <span className="flex-1 text-sm font-medium" style={{ color: need ? W.terracotta : W.charcoal }}>{it.name}</span>
+                            <span className="flex-1 text-sm font-medium" style={{ color: need ? W.terracotta : W.charcoal }}>{it.name}{groupBy === 'supplier' && it.category ? <span className="mr-1 text-[10px] font-normal" style={{ color: W.muted }}>· {it.category}</span> : (groupBy === 'category' && it.supplier_name ? <span className="mr-1 text-[10px] font-normal" style={{ color: W.muted }}>· {it.supplier_name}</span> : null)}</span>
                             {it.ordered_pending
                               ? <span className="text-[10px] font-bold rounded-full px-2 py-0.5 shrink-0" style={{ background: '#E8F0E0', color: W.olive }}>🚚 הוזמן{it.last_ordered_qty ? ` ×${it.last_ordered_qty}` : ''}{it.expected_arrival ? ` · מגיע ${it.expected_arrival}` : ''}</span>
                               : (to > 0 && <span className="text-xs font-bold rounded-full px-2 py-0.5 shrink-0" style={{ background: W.terracotta, color: '#fff' }}>להזמין {to}</span>)}
@@ -366,11 +388,14 @@ function OrderListInner() {
                   </div>
                 ) : groupsFor(needed).map(([cat, arr]) => (
                   <div key={cat} className="rounded-2xl border-2 overflow-hidden" style={{ borderColor: W.border, background: '#FFFDF8' }}>
-                    <div className="px-3 py-2 font-bold text-sm" style={{ background: W.creamCard, color: W.terracotta }}>{cat} · {arr.length}</div>
+                    <div className="px-3 py-2 font-bold text-sm flex items-center justify-between gap-2" style={{ background: W.creamCard, color: W.terracotta }}>
+                      <span>{cat} <span className="font-normal opacity-60">· {arr.length}</span></span>
+                      {groupBy === 'supplier' && groupOrderTotal(arr) > 0 && <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: W.olive }}>≈ ₪{Math.round(groupOrderTotal(arr)).toLocaleString()}</span>}
+                    </div>
                     <div className="divide-y" style={{ borderColor: W.border }}>
                       {arr.map(it => (
                         <div key={it.id} className="flex items-center gap-2 px-3 py-2.5">
-                          <span className="flex-1 text-sm font-semibold" style={{ color: W.charcoal }}>{it.name}</span>
+                          <span className="flex-1 text-sm font-semibold" style={{ color: W.charcoal }}>{it.name}{groupBy === 'supplier' && it.category ? <span className="mr-1 text-[10px] font-normal" style={{ color: W.muted }}>· {it.category}</span> : (groupBy === 'category' && it.supplier_name ? <span className="mr-1 text-[10px] font-normal" style={{ color: W.muted }}>· {it.supplier_name}</span> : null)}</span>
                           <label className="flex items-center gap-1 text-[11px]" style={{ color: W.muted }}>
                             כמות
                             <Input value={it.note || ''} onChange={e => setNote(it, e.target.value)} onBlur={() => commitNote(it)}
