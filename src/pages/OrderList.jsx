@@ -56,7 +56,7 @@ function OrderListInner() {
     setLoading(false);
   };
 
-  const fp = (arr) => (arr || []).map(x => `${x.id}|${x.to_prep}|${x.done}|${x.note}|${x.target}|${x.have}|${x.name}|${x.category}`).join('§');
+  const fp = (arr) => (arr || []).map(x => `${x.id}|${x.to_prep}|${x.done}|${x.note}|${x.target}|${x.have}|${x.name}|${x.category}|${x.expected_arrival}|${x.ordered_pending}|${x.last_ordered_at}`).join('§');
   const refreshSilent = async (listId) => {
     if (!listId) return;
     try {
@@ -127,6 +127,8 @@ function OrderListInner() {
   const commitPrice = async (it) => { try { await base44.functions.updatePrepItem({ id: it.id, price: it.price ?? '' }); } catch { /* ignore */ } };
   const setCur = (it, v) => { lastInteractionRef.current = Date.now(); patchItem(it.id, { have: v }); };
   const commitCur = async (it) => { try { await base44.functions.updatePrepItem({ id: it.id, have: it.have ?? '' }); } catch { /* ignore */ } };
+  const setArrival = (it, v) => { lastInteractionRef.current = Date.now(); patchItem(it.id, { expected_arrival: v }); };
+  const commitArrival = async (it) => { try { await base44.functions.updatePrepItem({ id: it.id, expected_arrival: it.expected_arrival ?? '' }); } catch { /* ignore */ } };
 
   const groupsFor = (arr) => {
     const q = search.trim().toLowerCase();
@@ -311,7 +313,9 @@ function OrderListInner() {
                               {it.to_prep && <Check className="w-4 h-4 text-white" />}
                             </button>
                             <span className="flex-1 text-sm font-medium" style={{ color: need ? W.terracotta : W.charcoal }}>{it.name}</span>
-                            {to > 0 && <span className="text-xs font-bold rounded-full px-2 py-0.5 shrink-0" style={{ background: W.terracotta, color: '#fff' }}>להזמין {to}</span>}
+                            {it.ordered_pending
+                              ? <span className="text-[10px] font-bold rounded-full px-2 py-0.5 shrink-0" style={{ background: '#E8F0E0', color: W.olive }}>🚚 הוזמן{it.last_ordered_qty ? ` ×${it.last_ordered_qty}` : ''}{it.expected_arrival ? ` · מגיע ${it.expected_arrival}` : ''}</span>
+                              : (to > 0 && <span className="text-xs font-bold rounded-full px-2 py-0.5 shrink-0" style={{ background: W.terracotta, color: '#fff' }}>להזמין {to}</span>)}
                           </div>
                           <div className="flex items-center gap-3 pr-8">
                             <label className="flex items-center gap-1 text-[11px]" style={{ color: W.muted }}>
@@ -332,6 +336,12 @@ function OrderListInner() {
                               <input type="number" inputMode="decimal" value={it.price ?? ''}
                                 onChange={e => setPrice(it, e.target.value)} onBlur={() => commitPrice(it)}
                                 placeholder="מחיר" className="w-16 h-7 rounded-md border px-1 text-center text-sm" style={{ borderColor: W.border, background: '#fff' }} />
+                            </label>
+                            <label className="flex items-center gap-1 text-[11px]" style={{ color: W.muted }} title="תאריך הגעה צפוי">
+                              🚚
+                              <input type="date" value={it.expected_arrival || ''}
+                                onChange={e => setArrival(it, e.target.value)} onBlur={() => commitArrival(it)}
+                                className="h-7 rounded-md border px-1 text-xs" style={{ borderColor: W.border, background: '#fff' }} />
                             </label>
                           </div>
                         </div>
