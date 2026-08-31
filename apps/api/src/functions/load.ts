@@ -9157,6 +9157,52 @@ registerFn('deleteOrderSupplier', async ({ user, body }: any) => {
   return { ok: true };
 });
 
+// Merge duplicate supplier cards into ONE canonical Supplier. Repoints every
+// reference — invoices, products, inventory, alerts, email rules, aliases (by
+// supplier_id) and order items + ingredients + order-lists (by name) — then
+// deletes the duplicates. No invoice/order data is lost; only the extra cards
+// are consolidated. dry_run returns the counts that WOULD move without changing
+// anything, so the owner can preview the merge first.
+registerFn('mergeSuppliers', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'mergeSuppliers');
+  await ensurePrepItems();
+  const b = (body || {}) as any;
+  const intoId = String(b.into_id || '').trim();
+  if (!intoId) throw new Error('into_id required');
+  const fromIds: string[] = Array.isArray(b.from_ids) ? b.from_ids.map((x: any) => String(x)).filter((x: string) => x && x !== intoId) : [];
+  const dry = !!b.dry_run;
+
+  const canonRows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT id, company_name FROM "Supplier" WHERE id=$1`, intoId).catch(() => []);
+  if (!canonRows.length) throw new Error('canonical supplier not found');
+  const canonName = canonRows[0].company_name;
+  const finalName = (b.rename_to && String(b.rename_to).trim()) ? String(b.rename_to).trim() : canonName;
+
+  const fromRows: any[] = fromIds.length
+    ? await (prisma as any).$queryRawUnsafe(`SELECT id, company_name FROM "Supplier" WHERE id = ANY($1::text[])`, fromIds).catch(() => [])
+    : [];
+  const fromNames = fromRows.map((r) => r.company_name).filter(Boolean);
+  // Name-based tables move the from-names, plus the canonical's OLD name too when
+  // we're renaming the canonical (so its own order items follow the new name).
+  const nameSet = [...new Set([...fromNames, ...(finalName !== canonName ? [canonName] : [])])];
+
+  const idTables = ['Invoice', 'Product', 'Inventory', 'InventoryAlert', 'EmailSenderRule', 'ProductAlias'].map((t) => ({ t, col: 'supplier_id' }));
+  const nameTables = [{ t: 'PrepItem', col: 'supplier_name' }, { t: 'Ingredient', col: 'supplier_name' }, { t: 'SupplierOrderList', col: 'name' }];
+  const cnt = async (sql: string, ...args: any[]) => { const r: any[] = await (prisma as any).$queryRawUnsafe(sql, ...args).catch(() => [{ c: 0 }]); return Number(r[0]?.c || 0); };
+
+  const moved: any = {};
+  for (const { t, col } of idTables) moved[t] = fromIds.length ? await cnt(`SELECT COUNT(*)::int AS c FROM "${t}" WHERE "${col}" = ANY($1::text[])`, fromIds) : 0;
+  for (const { t, col } of nameTables) moved[t] = nameSet.length ? await cnt(`SELECT COUNT(*)::int AS c FROM "${t}" WHERE "${col}" = ANY($1::text[])`, nameSet) : 0;
+  const summary = { into: finalName, into_id: intoId, from: fromNames, from_ids: fromIds, rename: finalName !== canonName ? { was: canonName, now: finalName } : null, moved };
+
+  if (dry) return { ok: true, dry_run: true, ...summary };
+
+  for (const { t, col } of idTables) if (fromIds.length) await (prisma as any).$executeRawUnsafe(`UPDATE "${t}" SET "${col}"=$1 WHERE "${col}" = ANY($2::text[])`, intoId, fromIds).catch(() => {});
+  if (nameSet.length) for (const { t, col } of nameTables) await (prisma as any).$executeRawUnsafe(`UPDATE "${t}" SET "${col}"=$1 WHERE "${col}" = ANY($2::text[])`, finalName, nameSet).catch(() => {});
+  if (finalName !== canonName) await (prisma as any).$executeRawUnsafe(`UPDATE "Supplier" SET company_name=$1, "updatedAt"=NOW() WHERE id=$2`, finalName, intoId).catch(() => {});
+  if (fromIds.length) await (prisma as any).$executeRawUnsafe(`DELETE FROM "Supplier" WHERE id = ANY($1::text[])`, fromIds).catch(() => {});
+  return { ok: true, ...summary };
+});
+
 // Set the FULL product set of a supplier: assign the given item_ids to it and
 // unassign any product currently on this supplier that's no longer in the list.
 registerFn('setSupplierProducts', async ({ user, body }: any) => {
