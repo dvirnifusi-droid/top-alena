@@ -16,7 +16,7 @@ export default function SupplierSplitPanel({ listId }) {
   const [showSuppliers, setShowSuppliers] = useState(false);
   const [supDraft, setSupDraft] = useState({});
   const [products, setProducts] = useState([]);
-  const [newSup, setNewSup] = useState({ company_name: '', phone: '', min_order_units: '' });
+  const [newSup, setNewSup] = useState({ company_name: '', phone: '', min_order_amount: '', min_order_units: '' });
   const [expandProd, setExpandProd] = useState(null);   // supplier company_name whose product picker is open
   const [prodSel, setProdSel] = useState(new Set());
 
@@ -64,7 +64,7 @@ export default function SupplierSplitPanel({ listId }) {
   const addSupplier = async () => {
     if (!newSup.company_name.trim()) return;
     setBusy('addsup');
-    try { await base44.functions.addOrderSupplier(newSup); setNewSup({ company_name: '', phone: '', min_order_units: '' }); await load(); setMsg({ ok: true, text: '✅ ספק נוסף' }); }
+    try { await base44.functions.addOrderSupplier(newSup); setNewSup({ company_name: '', phone: '', min_order_amount: '', min_order_units: '' }); await load(); setMsg({ ok: true, text: '✅ ספק נוסף' }); }
     catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
     setBusy(null);
   };
@@ -139,7 +139,8 @@ export default function SupplierSplitPanel({ listId }) {
                     <div className="flex items-center gap-1.5 text-xs bg-emerald-50/60 rounded p-1.5">
                       <input value={newSup.company_name} onChange={(e) => setNewSup((n) => ({ ...n, company_name: e.target.value }))} placeholder="שם ספק חדש" className="flex-1 h-7 rounded border border-slate-300 px-1.5" />
                       <input value={newSup.phone} onChange={(e) => setNewSup((n) => ({ ...n, phone: e.target.value }))} placeholder="טלפון" dir="ltr" className="w-24 h-7 rounded border border-slate-300 px-1 text-left" />
-                      <input value={newSup.min_order_units} onChange={(e) => setNewSup((n) => ({ ...n, min_order_units: e.target.value }))} placeholder="מינ'" type="number" dir="ltr" className="w-14 h-7 rounded border border-slate-300 px-1 text-center" />
+                      <input value={newSup.min_order_amount} onChange={(e) => setNewSup((n) => ({ ...n, min_order_amount: e.target.value }))} placeholder="מינ' ₪" type="number" dir="ltr" title="מינימום הזמנה ב-₪" className="w-16 h-7 rounded border border-slate-300 px-1 text-center" />
+                      <input value={newSup.min_order_units} onChange={(e) => setNewSup((n) => ({ ...n, min_order_units: e.target.value }))} placeholder="מינ' יח'" type="number" dir="ltr" title="מינימום הזמנה ביחידות" className="w-14 h-7 rounded border border-slate-300 px-1 text-center" />
                       <Button size="sm" className="h-7 px-2 gap-1 bg-emerald-600 hover:bg-emerald-700" disabled={busy === 'addsup' || !newSup.company_name.trim()} onClick={addSupplier}><Plus className="w-3.5 h-3.5" /> הוסף</Button>
                     </div>
                     {suppliers.map((s) => {
@@ -149,7 +150,8 @@ export default function SupplierSplitPanel({ listId }) {
                         <div className="flex items-center gap-1.5 text-xs">
                           <span className="flex-1 font-medium truncate">{s.company_name}</span>
                           <input value={supDraft[s.id]?.phone ?? ''} onChange={(e) => setSupDraft((d) => ({ ...d, [s.id]: { ...d[s.id], phone: e.target.value } }))} placeholder="טלפון" dir="ltr" className="w-24 h-7 rounded border border-slate-300 px-1 text-left" />
-                          <input value={supDraft[s.id]?.min_order_units ?? ''} onChange={(e) => setSupDraft((d) => ({ ...d, [s.id]: { ...d[s.id], min_order_units: e.target.value } }))} placeholder="מינ'" type="number" dir="ltr" className="w-14 h-7 rounded border border-slate-300 px-1 text-center" />
+                          <input value={supDraft[s.id]?.min_order_amount ?? ''} onChange={(e) => setSupDraft((d) => ({ ...d, [s.id]: { ...d[s.id], min_order_amount: e.target.value } }))} placeholder="מינ' ₪" type="number" dir="ltr" title="מינימום הזמנה ב-₪" className="w-16 h-7 rounded border border-slate-300 px-1 text-center" />
+                          <input value={supDraft[s.id]?.min_order_units ?? ''} onChange={(e) => setSupDraft((d) => ({ ...d, [s.id]: { ...d[s.id], min_order_units: e.target.value } }))} placeholder="מינ' יח'" type="number" dir="ltr" title="מינימום הזמנה ביחידות" className="w-14 h-7 rounded border border-slate-300 px-1 text-center" />
                           <Button size="sm" variant="outline" className="h-7 px-2" disabled={busy === s.id} onClick={() => saveSupplier(s)}>שמור</Button>
                           <button title="מחק ספק" className="text-slate-400 hover:text-red-600 p-1" disabled={busy === s.id} onClick={() => delSupplier(s)}><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>

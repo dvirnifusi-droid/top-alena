@@ -19,6 +19,36 @@ const W = { terracotta: '#A04A2E', olive: '#44512C', brass: '#B89556', cream: '#
 // list_id is sent, so this just aggregates them into one categorized view.
 const ALL_ID = '__all__';
 
+// Per-supplier ₪ order minimum, editable inline in the supplier group header.
+// Self-contained state so background list refreshes never steal focus mid-typing.
+function SupplierMinCell({ name, currentMin, orderTotal, onSave }) {
+  const [val, setVal] = useState(currentMin == null ? '' : String(currentMin));
+  const [saving, setSaving] = useState(false);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => { if (!focused) setVal(currentMin == null ? '' : String(currentMin)); }, [currentMin, focused]);
+  const commit = async () => {
+    setFocused(false);
+    const v = val.trim() === '' ? null : Number(val);
+    const cur = currentMin == null ? null : Number(currentMin);
+    if (v === cur) return;
+    setSaving(true); await onSave(v); setSaving(false);
+  };
+  const min = currentMin == null ? null : Number(currentMin);
+  const below = min != null && orderTotal < min;
+  const met = min != null && min > 0 && orderTotal >= min;
+  return (
+    <span className="flex items-center gap-1 text-[11px]" title="מינימום הזמנה לספק (₪)">
+      <span style={{ color: W.muted }}>מינ׳ ₪</span>
+      <input value={val} onChange={e => setVal(e.target.value)} onFocus={() => setFocused(true)} onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} type="number" inputMode="decimal" placeholder="—"
+        className="w-14 h-6 rounded border px-1 text-center text-xs" style={{ borderColor: W.border, background: '#fff' }} onClick={e => e.stopPropagation()} />
+      {saving ? <Loader2 className="w-3 h-3 animate-spin" style={{ color: W.brass }} />
+        : below ? <span className="font-semibold text-red-600 whitespace-nowrap">חסר ₪{Math.round(min - orderTotal).toLocaleString()}</span>
+        : met ? <span className="font-semibold whitespace-nowrap" style={{ color: W.olive }}>✓ עומד</span> : null}
+    </span>
+  );
+}
+
 function OrderListInner() {
   const [lists, setLists] = useState([]);
   const [activeList, setActiveList] = useState(null);
@@ -34,7 +64,25 @@ function OrderListInner() {
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
   const [saving, setSaving] = useState(false);
+  const [suppliers, setSuppliers] = useState([]); // Supplier rows (for per-supplier order minimums)
   const lastInteractionRef = useRef(0);
+
+  // Match items' free-text supplier_name to a Supplier row the same way the backend does.
+  const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const supMap = useMemo(() => { const m = new Map(); suppliers.forEach(s => m.set(norm(s.company_name), s)); return m; }, [suppliers]);
+  const supMinOf = (name) => { const s = supMap.get(norm(name)); const v = s?.min_order_amount; return v == null ? null : Number(v); };
+  const loadSuppliers = async () => { try { const su = await base44.functions.listOrderSuppliers({}); setSuppliers((su?.data || su || {}).suppliers || []); } catch { /* ignore */ } };
+  // Upsert a supplier's ₪ order minimum — create the Supplier row on the fly if it
+  // doesn't exist yet (imported lists have supplier names but no Supplier rows).
+  const saveSupplierMin = async (name, amount) => {
+    const existing = supMap.get(norm(name));
+    const amt = (amount == null || amount === '') ? '' : amount;
+    try {
+      if (existing?.id) await base44.functions.setSupplierOrderMinimum({ id: existing.id, min_order_amount: amt, min_order_units: existing.min_order_units ?? '' });
+      else if (String(name).trim()) await base44.functions.addOrderSupplier({ company_name: name, min_order_amount: amt });
+      await loadSuppliers();
+    } catch { /* ignore */ }
+  };
 
   const loadLists = async (preferId) => {
     try {
@@ -73,6 +121,7 @@ function OrderListInner() {
       try { const u = await User.me(); setIsAdmin(u?.role === 'admin' || u?.role === 'owner' || !!u?.managed_department); } catch { /* staff */ }
       const pick = await loadLists();
       await loadItems(pick);
+      loadSuppliers();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -319,9 +368,14 @@ function OrderListInner() {
                   <p className="text-center text-sm py-8" style={{ color: W.muted }}>הקטלוג ריק. {isAdmin ? 'לחץ "ערוך קטלוג" כדי להוסיף מוצרים.' : 'המנהל עדיין לא הוסיף מוצרים.'}</p>
                 ) : groupsFor(items).map(([cat, arr]) => (
                   <div key={cat} className="rounded-2xl border-2 overflow-hidden" style={{ borderColor: W.border, background: '#FFFDF8' }}>
-                    <div className="px-3 py-2 font-bold text-sm flex items-center justify-between gap-2" style={{ background: W.creamCard, color: W.terracotta }}>
-                      <span>{cat} <span className="font-normal opacity-60">· {arr.length}</span></span>
-                      {groupBy === 'supplier' && groupOrderTotal(arr) > 0 && <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: W.olive }}>הזמנה ≈ ₪{Math.round(groupOrderTotal(arr)).toLocaleString()}</span>}
+                    <div className="px-3 py-2 text-sm flex items-center justify-between gap-2 flex-wrap" style={{ background: W.creamCard, color: W.terracotta }}>
+                      <span className="font-bold">{cat} <span className="font-normal opacity-60">· {arr.length}</span></span>
+                      {groupBy === 'supplier' && (
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {groupOrderTotal(arr) > 0 && <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: W.olive }}>הזמנה ≈ ₪{Math.round(groupOrderTotal(arr)).toLocaleString()}</span>}
+                          {isAdmin && cat !== 'ללא ספק' && <SupplierMinCell name={cat} currentMin={supMinOf(cat)} orderTotal={groupOrderTotal(arr)} onSave={(v) => saveSupplierMin(cat, v)} />}
+                        </div>
+                      )}
                     </div>
                     <div className="divide-y" style={{ borderColor: W.border }}>
                       {arr.map(it => {
@@ -388,9 +442,14 @@ function OrderListInner() {
                   </div>
                 ) : groupsFor(needed).map(([cat, arr]) => (
                   <div key={cat} className="rounded-2xl border-2 overflow-hidden" style={{ borderColor: W.border, background: '#FFFDF8' }}>
-                    <div className="px-3 py-2 font-bold text-sm flex items-center justify-between gap-2" style={{ background: W.creamCard, color: W.terracotta }}>
-                      <span>{cat} <span className="font-normal opacity-60">· {arr.length}</span></span>
-                      {groupBy === 'supplier' && groupOrderTotal(arr) > 0 && <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: W.olive }}>≈ ₪{Math.round(groupOrderTotal(arr)).toLocaleString()}</span>}
+                    <div className="px-3 py-2 text-sm flex items-center justify-between gap-2 flex-wrap" style={{ background: W.creamCard, color: W.terracotta }}>
+                      <span className="font-bold">{cat} <span className="font-normal opacity-60">· {arr.length}</span></span>
+                      {groupBy === 'supplier' && (
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {groupOrderTotal(arr) > 0 && <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: W.olive }}>≈ ₪{Math.round(groupOrderTotal(arr)).toLocaleString()}</span>}
+                          {isAdmin && cat !== 'ללא ספק' && <SupplierMinCell name={cat} currentMin={supMinOf(cat)} orderTotal={groupOrderTotal(arr)} onSave={(v) => saveSupplierMin(cat, v)} />}
+                        </div>
+                      )}
                     </div>
                     <div className="divide-y" style={{ borderColor: W.border }}>
                       {arr.map(it => (
