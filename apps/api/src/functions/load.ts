@@ -7659,6 +7659,129 @@ registerFn('previewReviewAudienceByDate', async ({ body, user }: any) => {
   };
 });
 
+// --- Google Reviews: manual-paste inbox + AI-drafted replies (Phase B) ---
+// No official read API yet (public scrape is 403-gated), so the owner pastes a
+// review and the AI drafts a reply; upgrades to auto-read + 1-click reply when
+// the Google Business Profile API is approved. Table created additively (no push).
+let _gReviewEnsured = false;
+let _gReviewEnsuring: Promise<void> | null = null;
+async function ensureGoogleReview(): Promise<void> {
+  if (_gReviewEnsured) return;
+  if (_gReviewEnsuring) { await _gReviewEnsuring; return; }
+  _gReviewEnsuring = (async () => {
+    await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "GoogleReview" (
+      "id" TEXT PRIMARY KEY,
+      "author" TEXT,
+      "rating" INTEGER,
+      "text" TEXT,
+      "review_date" TIMESTAMP(3),
+      "source" TEXT DEFAULT 'manual',
+      "reply_status" TEXT DEFAULT 'pending',
+      "reply_text" TEXT,
+      "replied_at" TIMESTAMP(3),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`).catch(() => {});
+    _gReviewEnsured = true;
+  })();
+  await _gReviewEnsuring;
+}
+
+function reviewIsPositive(rating: number): boolean { return Number(rating) >= 4; }
+
+async function buildReplyDraft(review: { author?: string; rating: number; text?: string }): Promise<string> {
+  const brand = await getBrandName();
+  let ctx = '';
+  try { ctx = await businessContextBlock(); } catch { /* optional */ }
+  const positive = reviewIsPositive(review.rating);
+  const tone = positive
+    ? 'הביקורת חיובית. הודה בחום ובכנות, הזכר פרט ספציפי מדבריו אם יש, והזמן לחזור. קצר (2-3 משפטים), אנושי, בלי מליצות.'
+    : 'הביקורת ביקורתית. הגב באחריות ובכבוד: התנצל על החוויה בלי להתגונן ובלי להאשים את הלקוח, הראה שאתה לוקח ברצינות, והזמן ליצור קשר ישיר לתקן. אל תכחיש עובדות ואל תתווכח. קצר ומכובד.';
+  const prompt = `${ctx}אתה כותב תגובה רשמית של בעל מסעדת "${brand}" לביקורת בגוגל, בעברית.
+${tone}
+אל תמציא פרטים שלא נמסרו. אל תחתום בשם אדם. החזר JSON: { "reply": "<הטקסט>" }.
+
+--- הביקורת (${review.rating}/5${review.author ? `, מאת ${review.author}` : ''}) ---
+${(review.text || '').slice(0, 1500) || '(ללא טקסט — דירוג בלבד)'}`;
+  const result: any = await invokeLLM({
+    prompt,
+    responseSchema: { type: 'object', properties: { reply: { type: 'string' } }, required: ['reply'] },
+  });
+  return String(result?.reply || '').trim();
+}
+
+// Store a pasted review + immediately draft an AI reply.
+registerFn('addGoogleReview', async ({ body, user }: any) => {
+  await requireBackOffice(user, 'addGoogleReview');
+  await ensureGoogleReview();
+  const b = body || {};
+  const rating = Math.min(5, Math.max(1, parseInt(String(b.rating), 10) || 0));
+  if (!rating) throw new Error('rating 1..5 required');
+  const author = String(b.author || '').slice(0, 120).trim() || null;
+  const text = String(b.text || '').slice(0, 4000).trim() || null;
+  let reviewDate: Date | null = null;
+  if (b.review_date && /^\d{4}-\d{2}-\d{2}$/.test(String(b.review_date))) reviewDate = new Date(String(b.review_date) + 'T00:00:00');
+  const id = 'grev_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  let reply = '';
+  try { reply = await buildReplyDraft({ author: author || undefined, rating, text: text || undefined }); }
+  catch (e: any) { console.error('[addGoogleReview] draft:', e?.message); }
+  await db.$executeRawUnsafe(
+    `INSERT INTO "GoogleReview" ("id","author","rating","text","review_date","source","reply_status","reply_text") VALUES ($1,$2,$3,$4,$5,'manual','pending',$6)`,
+    id, author, rating, text, reviewDate, reply || null,
+  );
+  return { id, author, rating, text, reply_draft: reply, reply_status: 'pending' };
+});
+
+// Re-draft a reply for a stored review (owner asked for a different take).
+registerFn('draftReviewReply', async ({ body, user }: any) => {
+  await requireBackOffice(user, 'draftReviewReply');
+  await ensureGoogleReview();
+  const b = body || {};
+  let review = { author: b.author, rating: parseInt(String(b.rating), 10) || 0, text: b.text };
+  if (b.review_id) {
+    const rows: any[] = await db.$queryRawUnsafe(`SELECT * FROM "GoogleReview" WHERE "id" = $1 LIMIT 1`, String(b.review_id));
+    if (rows[0]) review = { author: rows[0].author, rating: rows[0].rating, text: rows[0].text };
+  }
+  if (!review.rating) throw new Error('rating required');
+  const reply = await buildReplyDraft(review);
+  if (b.review_id) await db.$executeRawUnsafe(`UPDATE "GoogleReview" SET "reply_text" = $1 WHERE "id" = $2`, reply, String(b.review_id));
+  return { reply };
+});
+
+registerFn('listGoogleReviews', async ({ body, user }: any) => {
+  await requireBackOffice(user, 'listGoogleReviews');
+  await ensureGoogleReview();
+  const status = String((body || {}).status || '').trim();
+  const rows: any[] = await db.$queryRawUnsafe(
+    `SELECT * FROM "GoogleReview" ${status ? 'WHERE "reply_status" = $1' : ''} ORDER BY "createdAt" DESC LIMIT 200`,
+    ...(status ? [status] : []),
+  );
+  const pending = rows.filter((r) => r.reply_status !== 'replied').length;
+  return { rows, pending, total: rows.length };
+});
+
+registerFn('markReviewReplied', async ({ body, user }: any) => {
+  await requireBackOffice(user, 'markReviewReplied');
+  await ensureGoogleReview();
+  const b = body || {};
+  const id = String(b.review_id || '').trim();
+  if (!id) throw new Error('review_id required');
+  const replyText = String(b.reply_text || '').slice(0, 4000);
+  await db.$executeRawUnsafe(
+    `UPDATE "GoogleReview" SET "reply_status" = 'replied', "reply_text" = $1, "replied_at" = NOW() WHERE "id" = $2`,
+    replyText, id,
+  );
+  return { ok: true, id };
+});
+
+registerFn('deleteGoogleReview', async ({ body, user }: any) => {
+  await requireBackOffice(user, 'deleteGoogleReview');
+  await ensureGoogleReview();
+  const id = String((body || {}).review_id || '').trim();
+  if (!id) throw new Error('review_id required');
+  await db.$executeRawUnsafe(`DELETE FROM "GoogleReview" WHERE "id" = $1`, id);
+  return { ok: true };
+});
+
 // AUTHED — reservation + marketing analytics for a date range (+ optional compare range).
 // Every reservation already carries source/campaign/medium/utm, so this is pure aggregation
 // over THIS tenant's own reservations (schema-scoped). Powers the reservations dashboard.
