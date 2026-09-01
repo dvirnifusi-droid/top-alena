@@ -7491,6 +7491,23 @@ registerFn('submitCustomerSurvey', async ({ body }: any) => {
       } });
     } catch (e: any) { console.error('[submitCustomerSurvey] incident:', e?.message); }
   }
+
+  // Push the owner/managers (also mirrored to WhatsApp) so a review is acted on
+  // immediately — a bad one carries every detail needed to call the guest back.
+  try {
+    if (isGood) {
+      await pushoverToAdmins(
+        `🌟 ביקורת טובה ${'⭐'.repeat(rating)}`,
+        `${name}${phone ? ` · ${phone}` : ''}${b.comments ? `\n"${String(b.comments).slice(0, 200)}"` : ''}\n(הופנה לביקורת בגוגל)`,
+      );
+    } else {
+      await pushoverToAdmins(
+        '⚠️ ביקורת לא טובה — צריך לחזור ללקוח',
+        String(b.incident_description || `דירוג ${rating}/5\n📞 ${name}${phone ? ` · ${phone}` : ''}\nמה קרה: ${b.comments || '-'}`).slice(0, 1200),
+      );
+    }
+  } catch (e: any) { console.error('[submitCustomerSurvey] push:', e?.message); }
+
   return { ok: true };
 }, { public: true });
 
