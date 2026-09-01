@@ -10,7 +10,7 @@ import PermissionTierEditor, { buildCatalog } from "@/components/shared/Permissi
 import { useMyPermissions } from "@/hooks/useMyPermissions";
 import {
   Users, GraduationCap, AlertTriangle, CheckSquare, Building, BarChart3,
-  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield, Lock, ShoppingCart, ScanLine, Gift, ClipboardList
+  LayoutGrid, Trophy, Menu, FileText, Utensils, Sparkles, Crown, Rocket, Map, Brain, Calendar, CalendarDays, CalendarHeart, Banknote, MessageSquare, Briefcase, QrCode, ClipboardCheck, Settings, TrendingUp, Zap, Megaphone, Bell, Package, Navigation, LogOut, Tablet, Download, ChefHat, Wallet, Shield, Lock, ShoppingCart, ScanLine, Gift, ClipboardList, Star
 } from "lucide-react";
 import {
   Sidebar, SidebarContent,
@@ -106,6 +106,7 @@ export const adminLinks = [
   { title: "🤝 ספקי אירועים", url: createPageUrl("EventVendors"), icon: Users, color: "cinnamon" },
   { title: "📦 משלוחים", url: createPageUrl("DeliveriesHub"), icon: Package, color: "gold" },
   { title: "📢 שיווק ולקוחות", url: createPageUrl("MarketingHub"), icon: Megaphone, color: "olive" },
+  { title: "⭐ ביקורות גוגל", url: createPageUrl("GoogleReviewsHub"), icon: Star, color: "olive" },
   { title: "🏆 גמיפיקציה וסטוריז", url: createPageUrl("StoriesHub"), icon: Trophy, color: "cinnamon" },
 
   { title: "👑 Platform Admin", url: createPageUrl("PlatformAdmin"), icon: Shield, color: "espresso" },
