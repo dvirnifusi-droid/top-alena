@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { CustomerFeedback } from '@/entities/CustomerFeedback';
+import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -77,6 +78,121 @@ function FeedbackCard({ feedback }) {
     );
 }
 
+// The Google-review funnel: QR scans → completed surveys → happy guests steered
+// to Google (vs unhappy ones routed privately to the owner) + rating trend.
+function ReviewTrackingDashboard() {
+    const [data, setData] = useState(null);
+    const [days, setDays] = useState(30);
+    const [loading, setLoading] = useState(true);
+    useEffect(() => {
+        let alive = true; setLoading(true);
+        base44.functions.getReviewTracking({ days })
+            .then((r) => { if (alive) { setData(r?.data || r); setLoading(false); } })
+            .catch(() => { if (alive) setLoading(false); });
+        return () => { alive = false; };
+    }, [days]);
+
+    const d = data || {};
+    const dist = d.distribution || {};
+    const distMax = Math.max(1, ...Object.values(dist).map(Number));
+    const last14 = (d.trend || []).slice(-14);
+    const maxTrend = Math.max(1, ...last14.map((t) => Math.max(t.scans, t.completed)));
+
+    const Kpi = ({ label, value, sub, color }) => (
+        <div className="rounded-2xl border p-4 bg-white text-center" style={{ borderColor: '#E8D9B5' }}>
+            <div className="text-3xl font-extrabold" style={{ color: color || '#231D17' }}>{value}</div>
+            <div className="text-xs font-semibold mt-1" style={{ color: '#7A6F5D' }}>{label}</div>
+            {sub ? <div className="text-[11px] mt-0.5" style={{ color: '#9a8f7d' }}>{sub}</div> : null}
+        </div>
+    );
+
+    return (
+        <Card className="mb-6" style={{ background: '#FFFDF8', borderColor: '#E8D9B5' }}>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
+                <div>
+                    <CardTitle className="text-lg flex items-center gap-2">⭐ מעקב ביקורות גוגל</CardTitle>
+                    <CardDescription>סריקת QR ← סקר שהושלם ← מרוצים שנשלחו לגוגל</CardDescription>
+                </div>
+                <div className="flex gap-1">
+                    {[7, 30, 90].map((n) => (
+                        <button key={n} onClick={() => setDays(n)} className="px-2.5 py-1 rounded-full text-xs font-semibold border"
+                            style={days === n ? { background: '#44512C', color: '#fff', borderColor: '#44512C' } : { background: '#fff', color: '#7A6F5D', borderColor: '#E8D9B5' }}>
+                            {n} ימים
+                        </button>
+                    ))}
+                </div>
+            </CardHeader>
+            <CardContent>
+                {loading ? (
+                    <div className="py-10 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-[#B89556]" /></div>
+                ) : (
+                    <div className="space-y-5">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <Kpi label="סריקות QR" value={d.scans ?? 0} />
+                            <Kpi label="השלימו סקר" value={d.completed ?? 0} sub={d.completion_rate != null ? `${d.completion_rate}% מהסריקות` : ''} />
+                            <Kpi label="נשלחו לגוגל" value={d.good ?? 0} color="#A04A2E" sub={`${d.google_rate ?? 0}% מהמשלימים`} />
+                            <Kpi label="דירוג ממוצע" value={(d.avg_rating ?? 0).toFixed(1)} color="#E0A63E" sub={`אוכל ${d.avg_food ?? 0} · שירות ${d.avg_service ?? 0}`} />
+                        </div>
+
+                        <div className="rounded-xl p-4" style={{ background: '#F4ECD8' }}>
+                            <div className="text-xs font-semibold mb-2" style={{ color: '#44512C' }}>המשפך</div>
+                            <div className="flex items-center gap-2 text-center text-sm">
+                                <div className="flex-1"><div className="font-bold text-lg">{d.scans ?? 0}</div><div className="text-[11px] text-[#7A6F5D]">סרקו</div></div>
+                                <span className="text-[#B89556]">←</span>
+                                <div className="flex-1"><div className="font-bold text-lg">{d.completed ?? 0}</div><div className="text-[11px] text-[#7A6F5D]">השלימו</div></div>
+                                <span className="text-[#B89556]">←</span>
+                                <div className="flex-1"><div className="font-bold text-lg" style={{ color: '#A04A2E' }}>{d.good ?? 0}</div><div className="text-[11px] text-[#7A6F5D]">לגוגל</div></div>
+                                <span className="text-[#B89556]">·</span>
+                                <div className="flex-1"><div className="font-bold text-lg text-red-600">{d.bad ?? 0}</div><div className="text-[11px] text-[#7A6F5D]">אליך (שלילי)</div></div>
+                            </div>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-5">
+                            <div>
+                                <div className="text-xs font-semibold mb-2" style={{ color: '#7A6F5D' }}>פילוח דירוגים</div>
+                                {[5, 4, 3, 2, 1].map((star) => {
+                                    const c = Number(dist[String(star)] || 0);
+                                    return (
+                                        <div key={star} className="flex items-center gap-2 mb-1.5 text-xs">
+                                            <span className="w-8 tabular-nums" style={{ color: '#7A6F5D' }}>{star}★</span>
+                                            <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: '#F0E6CF' }}>
+                                                <div className="h-full rounded-full" style={{ width: `${(c / distMax) * 100}%`, background: star >= 4 ? '#44512C' : star === 3 ? '#B89556' : '#A04A2E' }} />
+                                            </div>
+                                            <span className="w-6 tabular-nums text-left" style={{ color: '#231D17' }}>{c}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div>
+                                <div className="text-xs font-semibold mb-2 flex items-center gap-3" style={{ color: '#7A6F5D' }}>
+                                    <span>מגמה יומית</span>
+                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#B89556' }} />סריקות</span>
+                                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#44512C' }} />השלימו</span>
+                                </div>
+                                <div className="flex items-end gap-1 h-24">
+                                    {last14.length === 0 ? <span className="text-xs" style={{ color: '#9a8f7d' }}>אין נתונים עדיין</span> : last14.map((t) => (
+                                        <div key={t.day} className="flex-1 flex flex-col items-center justify-end gap-0.5" title={`${t.day}: ${t.scans} סריקות · ${t.completed} השלימו · ממוצע ${t.avg}`}>
+                                            <div className="w-full flex items-end justify-center gap-0.5 h-20">
+                                                <div className="w-1/2 rounded-t" style={{ height: `${(t.scans / maxTrend) * 100}%`, background: '#B89556', minHeight: t.scans ? 2 : 0 }} />
+                                                <div className="w-1/2 rounded-t" style={{ height: `${(t.completed / maxTrend) * 100}%`, background: '#44512C', minHeight: t.completed ? 2 : 0 }} />
+                                            </div>
+                                            <span className="text-[8px]" style={{ color: '#9a8f7d' }}>{t.day.slice(8)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <p className="text-[11px]" style={{ color: '#9a8f7d' }}>
+                            💡 "נשלחו לגוגל" = לקוחות שנתנו 4-5★ וקיבלו את הכפתור לביקורת. שלילי (1-3★) מגיע אליך פרטית ולא לגוגל.
+                        </p>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function CustomerSurveysPage() {
     const [feedbacks, setFeedbacks] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -135,7 +251,9 @@ export default function CustomerSurveysPage() {
                     subtitle="כל המשובים מהלקוחות שלך במקום אחד."
                     icon={MessageSquare}
                 />
-                
+
+                <ReviewTrackingDashboard />
+
                 <Tabs value={filter} onValueChange={setFilter} className="mb-6">
                     <TabsList className="grid w-full sm:w-auto sm:grid-cols-3">
                         <TabsTrigger value="all">הכל</TabsTrigger>

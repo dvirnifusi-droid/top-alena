@@ -7492,6 +7492,71 @@ registerFn('submitCustomerSurvey', async ({ body }: any) => {
   return { ok: true };
 }, { public: true });
 
+// PUBLIC — log a survey page-view (a "scan") for the review-funnel dashboard.
+let _survViewEnsured = false;
+let _survViewEnsuring: Promise<void> | null = null;
+async function ensureSurveyView(): Promise<void> {
+  if (_survViewEnsured) return;
+  if (_survViewEnsuring) { await _survViewEnsuring; return; }
+  _survViewEnsuring = (async () => {
+    await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SurveyView" (
+      "id" TEXT PRIMARY KEY,
+      "source" TEXT,
+      "table_number" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`).catch(() => {});
+    _survViewEnsured = true;
+  })();
+  try { await _survViewEnsuring; } finally { if (!_survViewEnsured) _survViewEnsuring = null; }
+}
+registerFn('logSurveyView', async ({ body }: any) => {
+  await ensureSurveyView();
+  const b = (body || {}) as any;
+  const { randomUUID } = await import('node:crypto');
+  await db.$executeRawUnsafe(
+    `INSERT INTO "SurveyView" ("id","source","table_number","createdAt") VALUES ($1,$2,$3,NOW())`,
+    randomUUID(), String(b.source || 'qr').slice(0, 40), b.table ? String(b.table).slice(0, 40) : null,
+  ).catch(() => {});
+  return { ok: true };
+}, { public: true });
+
+// ADMIN — the Google-review funnel: scans → completed survey → good (steered to
+// Google) vs bad (private incident to the owner), plus rating trend + spread.
+registerFn('getReviewTracking', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'getReviewTracking');
+  await ensureSurveyView();
+  const days = Math.max(1, Math.min(365, parseInt(String((body || {}).days), 10) || 30));
+  const since = new Date(Date.now() - days * 864e5);
+  const views: any[] = await db.$queryRawUnsafe(`SELECT source, "createdAt" FROM "SurveyView" WHERE "createdAt" >= $1`, since).catch(() => []);
+  const fbs: any[] = await db.customerFeedback.findMany({ where: { createdAt: { gte: since } } }).catch(() => []);
+  const scans = views.length;
+  const completed = fbs.length;
+  const good = fbs.filter((f) => (f.rating || 0) >= 4).length;
+  const bad = fbs.filter((f) => (f.rating || 0) > 0 && (f.rating || 0) <= 3).length;
+  const sentToGoogle = fbs.filter((f) => f.was_redirected_to_google).length;
+  const ratingsSum = fbs.reduce((s, f) => s + (f.rating || 0), 0);
+  const avg = completed ? Math.round((ratingsSum / completed) * 100) / 100 : 0;
+  const dist: Record<string, number> = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
+  for (const f of fbs) { const r = f.rating; if (r >= 1 && r <= 5) dist[String(r)]++; }
+  const avgOf = (a: number[]) => (a.length ? Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100 : 0);
+  const foodVals = fbs.filter((f) => f.food_rating > 0).map((f) => f.food_rating);
+  const serviceVals = fbs.filter((f) => f.service_rating > 0).map((f) => f.service_rating);
+  const dayKey = (d: any) => (d instanceof Date ? d : new Date(d)).toISOString().slice(0, 10);
+  const trendMap = new Map<string, { day: string; scans: number; completed: number; good: number; sum: number }>();
+  const bump = (k: string) => { if (!trendMap.has(k)) trendMap.set(k, { day: k, scans: 0, completed: 0, good: 0, sum: 0 }); return trendMap.get(k)!; };
+  for (const v of views) bump(dayKey(v.createdAt)).scans++;
+  for (const f of fbs) { const t = bump(dayKey(f.createdAt)); t.completed++; if ((f.rating || 0) >= 4) t.good++; t.sum += (f.rating || 0); }
+  const trend = [...trendMap.values()].sort((a, b) => a.day.localeCompare(b.day))
+    .map((t) => ({ day: t.day, scans: t.scans, completed: t.completed, good: t.good, avg: t.completed ? Math.round((t.sum / t.completed) * 10) / 10 : 0 }));
+  return {
+    days, scans, completed, good, bad, sent_to_google: sentToGoogle,
+    completion_rate: scans ? Math.round((completed / scans) * 100) : null,
+    google_rate: completed ? Math.round((good / completed) * 100) : 0,
+    avg_rating: avg, avg_food: avgOf(foodVals), avg_service: avgOf(serviceVals),
+    distribution: dist, trend,
+  };
+});
+
 // AUTHED — reservation + marketing analytics for a date range (+ optional compare range).
 // Every reservation already carries source/campaign/medium/utm, so this is pure aggregation
 // over THIS tenant's own reservations (schema-scoped). Powers the reservations dashboard.

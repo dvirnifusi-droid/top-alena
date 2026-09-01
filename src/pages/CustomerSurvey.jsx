@@ -70,6 +70,9 @@ export default function CustomerSurveyPage() {
         const source = urlParams.get('source');
         const tableParam = urlParams.get('table');
 
+        // Log the scan/view for the review-funnel dashboard (public, best-effort).
+        base44.asServiceRole.functions.logSurveyView({ source: source || 'link', table: tableParam }).catch(() => {});
+
         if (source === 'qr') {
             if (tableParam) setTableNumber(tableParam);
             return;
