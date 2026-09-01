@@ -341,6 +341,83 @@ function EventDepositDialog({ open, onOpenChange, lead, onDone }) {
   );
 }
 
+// Connect the Facebook lead-form Google Sheet → events CRM. Leads flow in
+// automatically every 15 min (backend cron) + a manual "sync now" button.
+function EventLeadsSheetCard({ onImported }) {
+  const [cfg, setCfg] = React.useState(null);
+  const [url, setUrl] = React.useState('');
+  const [enabled, setEnabled] = React.useState(true);
+  const [open, setOpen] = React.useState(false);
+  const [busy, setBusy] = React.useState('');
+  const [msg, setMsg] = React.useState(null);
+
+  const load = React.useCallback(async () => {
+    try {
+      const r = await base44.functions.getEventLeadsSheet({});
+      const c = (r?.data || r)?.config || {};
+      setCfg(c); setUrl(c.sheet_url || ''); setEnabled(c.enabled !== false);
+      if (c.sheet_url) setOpen(true);
+    } catch { /* ignore */ }
+  }, []);
+  React.useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    setBusy('save'); setMsg(null);
+    try {
+      const r = await base44.functions.setEventLeadsSheet({ sheet_url: url.trim(), enabled });
+      const sy = (r?.data || r)?.sync;
+      setMsg(sy?.ok === false ? { ok: false, text: sy.message || sy.error || 'שגיאה' } : { ok: true, text: sy?.ok ? `נשמר · יובאו ${sy.imported} לידים` : 'נשמר ✓' });
+      await load(); onImported?.();
+    } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    finally { setBusy(''); }
+  };
+  const syncNow = async () => {
+    setBusy('sync'); setMsg(null);
+    try {
+      const d = (await base44.functions.importEventLeadsNow({}));
+      const res = d?.data || d;
+      setMsg(res?.ok === false ? { ok: false, text: res.message || res.error || 'שגיאה' } : { ok: true, text: res?.skipped ? 'אין גיליון מוגדר' : `יובאו ${res.imported} חדשים · ${res.skipped} כבר קיימים` });
+      await load(); onImported?.();
+    } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); }
+    finally { setBusy(''); }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="cursor-pointer" onClick={() => setOpen((o) => !o)}>
+        <CardTitle className="text-base flex items-center gap-2">
+          <span>🔗 לידים מפייסבוק (Google Sheets)</span>
+          {cfg?.sheet_url && <Badge variant="outline" className="text-emerald-700 border-emerald-300">מחובר</Badge>}
+          <span className="mr-auto text-xs text-muted-foreground">{open ? '▲' : '▼'}</span>
+        </CardTitle>
+        <CardDescription>טופס הלידים בפייסבוק שומר את הפרטים בגוגל שיטס — כאן מחברים אותו כדי שהלידים ייכנסו אוטומטית ל-CRM (כל 15 דקות).</CardDescription>
+      </CardHeader>
+      {open && (
+        <CardContent className="space-y-3">
+          <div>
+            <Label className="text-sm">קישור לגוגל שיטס <span className="text-muted-foreground">(שיתוף: "כל מי שיש לו הקישור — צפייה")</span></Label>
+            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/..." dir="ltr" className="mt-1 text-left" />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+            סנכרון אוטומטי פעיל (כל 15 דקות)
+          </label>
+          {msg && <div className={`text-sm rounded px-3 py-2 ${msg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{msg.text}</div>}
+          <div className="flex gap-2 flex-wrap items-center">
+            <Button size="sm" onClick={save} disabled={busy === 'save'} className="bg-orange-600 hover:bg-orange-700">
+              {busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'שמור וחבר'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={syncNow} disabled={busy === 'sync' || !cfg?.sheet_url}>
+              {busy === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <><RefreshCw className="w-4 h-4 ml-1" />סנכרן עכשיו</>}
+            </Button>
+            {cfg?.last_sync && <span className="text-xs text-muted-foreground">סונכרן: {new Date(cfg.last_sync).toLocaleString('he-IL')} · סה״כ יובאו {cfg.last_count || 0}</span>}
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 function PendingCallbackCard() {
   const _branding = useTenantBranding();
   const brandName = _branding?.name || 'המסעדה';
@@ -400,6 +477,7 @@ function PendingCallbackCard() {
     <EventDepositDialog open={!!depositLead} lead={depositLead} onOpenChange={(v) => { if (!v) setDepositLead(null); }} onDone={load} />
     <CloseEventDialog lead={closeLead} onClose={() => setCloseLead(null)} onSaved={() => { setCloseLead(null); load(); }} />
     <ThanksPageSettings />
+    <EventLeadsSheetCard onImported={load} />
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-orange-500" /> אירועים שמחכים שמנהל יתקשר ללקוח</CardTitle>

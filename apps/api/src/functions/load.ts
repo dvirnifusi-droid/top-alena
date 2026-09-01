@@ -18896,6 +18896,173 @@ registerFn('createEventLead', async ({ user, body }: any) => {
   return { ok: true, lead: { id: lead.id } };
 });
 
+// ─────────────────────────────────────────────────────────────────────────
+// Facebook lead-form → Google-Sheet → Events CRM. A Meta/Facebook lead ad
+// writes each lead as a row in a Google Sheet; we pull it (public CSV) on a
+// 15-min cron + a manual button, map the columns to EventLead, dedup by
+// phone+received-time, and push the owner when new leads land. No auto-message
+// to the lead (owner choice) — they just show up in the callback board.
+let _elSheetEnsured = false;
+let _elSheetEnsuring: Promise<void> | null = null;
+async function ensureEventLeadsSheet(): Promise<void> {
+  if (_elSheetEnsured) return;
+  if (_elSheetEnsuring) { await _elSheetEnsuring; return; }
+  _elSheetEnsuring = (async () => {
+    await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "EventLeadsSheet" (
+      "id" TEXT PRIMARY KEY,
+      "sheet_url" TEXT,
+      "enabled" BOOLEAN NOT NULL DEFAULT true,
+      "last_sync" TIMESTAMP(3),
+      "last_count" INTEGER NOT NULL DEFAULT 0,
+      "imported_keys" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`).catch(() => {});
+    _elSheetEnsured = true;
+  })();
+  try { await _elSheetEnsuring; } finally { if (!_elSheetEnsured) _elSheetEnsuring = null; }
+}
+
+// Minimal CSV parser that respects quoted fields (commas/newlines inside "...").
+function parseCsvRows(text: string): string[][] {
+  const rows: string[][] = []; let row: string[] = []; let cell = ''; let q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) {
+      if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += ch;
+    } else if (ch === '"') { q = true; }
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+    else if (ch === '\r') { /* skip */ }
+    else cell += ch;
+  }
+  if (cell.length || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+// 972584883790 / +972-58-... / 0584883790 → 0584883790
+function normLeadPhone(raw: string): string {
+  let d = String(raw || '').replace(/[^\d]/g, '');
+  if (!d) return '';
+  if (d.startsWith('972')) d = '0' + d.slice(3);
+  if (!d.startsWith('0')) d = '0' + d;
+  return d;
+}
+
+async function syncEventLeadsCore(opts: { notify?: boolean } = {}): Promise<any> {
+  await ensureEventLeadsSheet();
+  const cfgRows: any[] = await db.$queryRawUnsafe(`SELECT * FROM "EventLeadsSheet" WHERE id='default' LIMIT 1`).catch(() => []);
+  const cfg = cfgRows[0];
+  if (!cfg || !cfg.sheet_url || cfg.enabled === false) return { skipped: true, reason: !cfg?.sheet_url ? 'no_url' : 'disabled' };
+  const url = String(cfg.sheet_url).trim();
+  const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (!m) return { skipped: true, reason: 'bad_url' };
+  const gidM = url.match(/[#&?]gid=(\d+)/);
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv${gidM ? `&gid=${gidM[1]}` : ''}`;
+  const res = await fetch(csvUrl);
+  const text = await res.text();
+  if (!res.ok || /<!DOCTYPE html>|ServiceLogin/i.test(text)) {
+    return { ok: false, error: 'sheet_private', message: 'הגיליון פרטי — הגדר "כל מי שיש לו הקישור: צפייה" ונסה שוב.' };
+  }
+  const rows = parseCsvRows(text);
+  if (rows.length < 2) return { ok: true, imported: 0, skipped: 0, total: 0 };
+  const header = rows[0].map((h) => h.replace(/﻿/g, '').trim());
+  const findCol = (subs: string[]) => header.findIndex((h) => subs.some((s) => h.includes(s)));
+  const idx = {
+    received: findCol(['קבלת הליד', 'תאריך קבלת']),
+    name: findCol(['שם']),
+    phone: findCol(['טלפון']),
+    type: findCol(['חוגג', 'סוג האירוע', 'סוג']),
+    guests: findCol(['כמות', 'אנשים']),
+    date: findCol(['תאריך האירוע']),
+    notes: findCol(['הערות']),
+    content: findCol(['Content', 'קמפיין', 'מודעה']),
+  };
+  const seen: string[] = Array.isArray(cfg.imported_keys) ? cfg.imported_keys.map(String) : [];
+  const seenSet = new Set(seen);
+  const cell = (r: string[], i: number) => (i >= 0 && i < r.length ? String(r[i] || '').trim() : '');
+  let imported = 0, skipped = 0; const newLeads: any[] = []; const newKeys: string[] = [];
+  for (let ri = 1; ri < rows.length; ri++) {
+    const r = rows[ri];
+    const name = cell(r, idx.name);
+    const phone = normLeadPhone(cell(r, idx.phone));
+    if (!phone || phone === '0' || !name || name === '-') continue; // blank/placeholder row
+    const received = cell(r, idx.received);
+    const key = `${phone}|${received}`;
+    if (seenSet.has(key)) { skipped++; continue; }
+    seenSet.add(key); newKeys.push(key);
+    const content = cell(r, idx.content);
+    const sheetNotes = cell(r, idx.notes);
+    const gc = parseInt(cell(r, idx.guests).replace(/[^\d]/g, ''), 10);
+    const head = [sheetNotes, `📱 ליד מפייסבוק${content ? ` · ${content}` : ''}${received ? ` · ${received}` : ''}`].filter(Boolean).join('\n');
+    const notes = `${head}\n---META---\n${JSON.stringify({ ad_source: content || undefined, received: received || undefined })}`;
+    const nowIso = new Date().toISOString();
+    try {
+      const lead = await db.eventLead.create({ data: {
+        contact_name: name || null,
+        contact_phone: phone,
+        event_date: cell(r, idx.date) || null,
+        event_type: cell(r, idx.type) || null,
+        guest_count: Number.isFinite(gc) ? gc : null,
+        budget_per_person: null,
+        hours_window: null,
+        status: 'pending',
+        score: null,
+        source: 'facebook',
+        notes,
+        created_by: 'facebook-sheet',
+        created_date: nowIso,
+        updated_date: nowIso,
+      } });
+      newLeads.push({ id: lead.id, name, phone, type: cell(r, idx.type) });
+      imported++;
+    } catch { /* skip a bad row, keep importing */ }
+  }
+  const allKeys = [...seen, ...newKeys].slice(-5000); // bound growth
+  await db.$executeRawUnsafe(
+    `UPDATE "EventLeadsSheet" SET "imported_keys"=$1::jsonb, "last_sync"=NOW(), "last_count"="last_count"+$2, "updatedAt"=NOW() WHERE id='default'`,
+    JSON.stringify(allKeys), imported,
+  ).catch(() => {});
+  if (imported > 0 && opts.notify !== false) {
+    const lines = newLeads.slice(0, 8).map((l) => `• ${l.name}${l.type ? ` — ${l.type}` : ''} · ${l.phone}`);
+    const body = [`🎉 ${imported} לידים חדשים מפייסבוק נכנסו ל-CRM האירועים`, '', ...lines, newLeads.length > 8 ? `ועוד ${newLeads.length - 8}…` : ''].filter(Boolean).join('\n');
+    try { await pushoverEventsOwners('🎉 לידים חדשים מפייסבוק', body); } catch { /* push best-effort */ }
+  }
+  return { ok: true, imported, skipped, total: rows.length - 1 };
+}
+
+registerFn('getEventLeadsSheet', async ({ user }: any) => {
+  const role = (user?.role || '').toLowerCase();
+  if (!['owner', 'admin', 'manager'].includes(role)) throw new Error('admin only');
+  await ensureEventLeadsSheet();
+  const rows: any[] = await db.$queryRawUnsafe(`SELECT id, sheet_url, enabled, last_sync, last_count FROM "EventLeadsSheet" WHERE id='default' LIMIT 1`).catch(() => []);
+  return { config: rows[0] || { sheet_url: '', enabled: true, last_sync: null, last_count: 0 } };
+});
+
+registerFn('setEventLeadsSheet', async ({ user, body }: any) => {
+  const role = (user?.role || '').toLowerCase();
+  if (!['owner', 'admin', 'manager'].includes(role)) throw new Error('admin only');
+  await ensureEventLeadsSheet();
+  const b = body || {};
+  const url = String(b.sheet_url || '').trim();
+  const enabled = b.enabled === false ? false : true;
+  if (url && !/\/spreadsheets\/d\/[a-zA-Z0-9-_]+/.test(url)) throw new Error('קישור גיליון לא תקין');
+  await db.$executeRawUnsafe(
+    `INSERT INTO "EventLeadsSheet" ("id","sheet_url","enabled","updatedAt") VALUES ('default',$1,$2,NOW())
+     ON CONFLICT ("id") DO UPDATE SET "sheet_url"=$1,"enabled"=$2,"updatedAt"=NOW()`,
+    url || null, enabled,
+  ).catch(() => {});
+  // Immediate first sync so the owner sees leads right away (no owner spam on setup).
+  let sync = null;
+  if (url && enabled) { try { sync = await syncEventLeadsCore({ notify: false }); } catch (e: any) { sync = { ok: false, error: String(e?.message || e) }; } }
+  return { ok: true, sync };
+});
+
+registerFn('importEventLeadsNow', async ({ user }: any) => {
+  const role = (user?.role || '').toLowerCase();
+  if (!['owner', 'admin', 'manager'].includes(role)) throw new Error('admin only');
+  return await syncEventLeadsCore({ notify: true });
+});
+
 // AUTH — edit an existing event lead's contact/details (owner/manager fixes a
 // phone number, date, guest count, etc.). Preserves the lead's pipeline status,
 // score, source and the internal notes markers; merges the edited extra fields
@@ -27372,6 +27539,16 @@ if (!(globalThis as any).__noShowCronTimer) {
       (globalThis as any).__noShowCronTimer = setTimeout(loop, 5 * 60 * 1000);
     });
   }, 90 * 1000);
+}
+
+// Pull new Facebook-lead-form rows from the configured Google Sheet into the
+// events CRM every 15 min (no-op unless the owner set a sheet URL + enabled it).
+if (!(globalThis as any).__eventLeadsSheetTimer) {
+  (globalThis as any).__eventLeadsSheetTimer = setTimeout(function loop() {
+    syncEventLeadsCore({ notify: true }).catch(() => {}).finally(() => {
+      (globalThis as any).__eventLeadsSheetTimer = setTimeout(loop, 15 * 60 * 1000);
+    });
+  }, 150 * 1000);
 }
 
 // === Daily summary push to owner at 22:30 IL ================================
