@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import LanguagePicker from '@/components/shared/LanguagePicker';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
@@ -103,7 +103,6 @@ export default function CustomerSurveyPage() {
     const [isJoiningClub, setIsJoiningClub] = useState(false);
     const [showClub, setShowClub] = useState(false);
     const [settings, setSettings] = useState(null);
-    const advanceTimer = useRef(null);
 
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -176,25 +175,19 @@ export default function CustomerSurveyPage() {
         loadSettings();
     }, []);
 
-    // rv is passed explicitly — the auto-advance timer fires with a stale `rating`
-    // closure, so we must not read state here.
-    const submitRating = async (rv) => {
-        if (rv > 3) {
-            try { await saveFeedback(true, rv); } catch (e) { console.error('Error saving good-review feedback:', e); }
+    // ONE tap = go. No delay. For 4-5★ we open Google RIGHT HERE, inside the tap's
+    // own gesture, so the browser doesn't block the popup (a delayed window.open
+    // would be blocked). ≤3★ jumps straight to the private feedback form.
+    const handleStarTap = (v) => {
+        setRating(v);
+        if (v > 3) {
+            if (isMainTenant) { try { window.open(GOOGLE_REVIEW_LINK, '_blank'); } catch { /* fallback button on thanks_good */ } }
+            saveFeedback(true, v).catch((e) => console.error('Error saving good-review feedback:', e));
             setStep('thanks_good');
         } else {
             setStep('feedback');
         }
     };
-    // Tapping a star auto-advances after a short beat — so it's obvious something
-    // happened and it's ONE tap to the Google ask. Re-tapping resets the timer so
-    // the guest can still change their mind before it moves on.
-    const pickAndAdvance = (v) => {
-        setRating(v);
-        if (advanceTimer.current) clearTimeout(advanceTimer.current);
-        advanceTimer.current = setTimeout(() => submitRating(v), 550);
-    };
-    useEffect(() => () => { if (advanceTimer.current) clearTimeout(advanceTimer.current); }, []);
 
     const handleFeedbackSubmit = async () => {
         setLoading(true);
@@ -388,24 +381,13 @@ export default function CustomerSurveyPage() {
                                 {isQrSource ? `איך הייתה החוויה שלכם ב${brandName}?` : `נהניתם ב${brandName}? נשמח לשמוע`}
                             </p>
                         </div>
-                        <div className="px-6 py-9">
-                            <p className="text-center text-sm mb-4 font-semibold" style={{ color: A.muted }}>סמנו כמה כוכבים 👇</p>
-                            <StarRow value={rating} activeValue={activeStars} onPick={pickAndAdvance} onHover={setHover} onLeave={() => setHover(0)} size="w-12 h-12" />
-                            <div className="h-7 mt-3 text-center font-bold text-lg ol-serif" style={{ color: A.terracotta }}>
-                                {RATING_COPY[activeStars] || (rating === 0 ? 'הקישו על הכוכבים 👆' : '')}
+                        <div className="px-6 py-10">
+                            <p className="text-center text-sm mb-4 font-semibold" style={{ color: A.muted }}>הקישו כוכבים — וזהו 👇</p>
+                            <StarRow value={rating} activeValue={activeStars} onPick={handleStarTap} onHover={setHover} onLeave={() => setHover(0)} size="w-14 h-14" />
+                            <div className="h-7 mt-4 text-center font-bold text-lg ol-serif" style={{ color: A.terracotta }}>
+                                {RATING_COPY[activeStars] || 'הקישו על הכוכבים 👆'}
                             </div>
                         </div>
-                        {rating > 0 && (
-                            <div className="px-6 pb-6">
-                                <button
-                                    onClick={() => { if (advanceTimer.current) clearTimeout(advanceTimer.current); submitRating(rating); }}
-                                    className="w-full h-13 py-3.5 rounded-2xl text-white text-lg font-bold shadow-lg transition-transform active:scale-95"
-                                    style={{ background: `linear-gradient(90deg, ${A.olive}, #384218)` }}
-                                >
-                                    {rating >= 4 ? 'המשך ➜' : 'המשך'}
-                                </button>
-                            </div>
-                        )}
                     </div>
                 )}
 
