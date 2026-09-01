@@ -326,19 +326,26 @@ export default function CustomerSurveyPage() {
         </div>
     );
 
+    // Fires on onPointerUp (first real tap on iOS — onClick is deferred there when
+    // an element changes on hover). Single handler = no double submit. Bigger,
+    // padded hit area so a fingertip lands cleanly.
     const StarRow = ({ value, activeValue, onPick, onHover, onLeave, size = 'w-9 h-9' }) => (
-        <div className="flex justify-center items-center gap-1.5">
+        <div className="flex justify-center items-center gap-1">
             {[...Array(5)].map((_, index) => {
                 const sv = index + 1;
-                const on = sv <= activeValue;
+                const on = sv <= (activeValue ?? value);
                 return (
-                    <Star key={sv}
-                        className={`${size} cursor-pointer transition-all duration-150 ${on ? 'scale-110' : ''}`}
-                        style={{ color: on ? A.gold : '#D8CBB0', fill: on ? A.gold : 'transparent' }}
-                        onClick={() => onPick(sv)}
+                    <span key={sv} role="button" tabIndex={0} className="p-1.5 cursor-pointer"
+                        style={{ touchAction: 'manipulation' }}
+                        onPointerUp={() => onPick(sv)}
                         onMouseEnter={() => onHover?.(sv)}
                         onMouseLeave={() => onLeave?.()}
-                    />
+                    >
+                        <Star
+                            className={`${size} transition-all duration-150 pointer-events-none ${on ? 'scale-110' : ''}`}
+                            style={{ color: on ? A.gold : '#D8CBB0', fill: on ? A.gold : 'transparent' }}
+                        />
+                    </span>
                 );
             })}
         </div>
