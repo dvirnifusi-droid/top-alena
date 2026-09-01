@@ -124,7 +124,7 @@ export default function CustomerSurveyPage() {
             try {
                 // PUBLIC fn — the survey is scanned by guests with no login, so we
                 // can't use the authed ReservationSettings entity here.
-                const r = await base44.functions.getReservationSettings({});
+                const r = await base44.asServiceRole.functions.getReservationSettings({});
                 const s = (r && r.data !== undefined) ? r.data : r;
                 if (s) setSettings(s);
             } catch (error) { console.error('Error loading settings:', error); }
@@ -159,7 +159,7 @@ export default function CustomerSurveyPage() {
         try {
             // PUBLIC club-join fn (guest, no login). city is required by the fn but
             // the survey doesn't ask for it — send a placeholder.
-            await base44.functions.clubJoin({ name: clubForm.name, phone: clubForm.phone, city: 'לא צוין', marketing_consent: true });
+            await base44.asServiceRole.functions.clubJoin({ name: clubForm.name, phone: clubForm.phone, city: 'לא צוין', marketing_consent: true });
             setClubSignupSuccess(true);
         } catch (error) {
             console.error('Failed to join customer club:', error);
@@ -191,7 +191,7 @@ export default function CustomerSurveyPage() {
         ].join('\n');
         const customerReaction = `דירוג ${rating}/5 · אוכל ${feedbackForm.food_rating}/5 · שירות ${feedbackForm.service_rating}/5. ${comments || ''}`.trim();
 
-        await base44.functions.submitCustomerSurvey({
+        await base44.asServiceRole.functions.submitCustomerSurvey({
             is_good: isGoodReview,
             rating,
             customer_name: customerName,
