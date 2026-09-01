@@ -20,6 +20,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Star, CheckCircle, Frown, Calendar as CalendarIcon } from 'lucide-react';
+import TimePicker from '@/components/shared/TimePicker';
 import { format } from 'date-fns';
 
 const GOOGLE_REVIEW_LINK = 'https://g.page/r/CReDn7f8zub7EBM/review';
@@ -31,6 +32,45 @@ const A = {
     border: '#E8D9B5', charcoal: '#231D17', muted: '#7A6F5D',
 };
 const RATING_COPY = ['', 'נשתפר בשבילכם 🙏', 'מצטערים 😔', 'סבבה, נשתדל יותר', 'תודה, שמחנו! 😊', 'וואו, אלופים! 🤩'];
+
+// The 5★ Google-review card. Top-level (stable identity) so the optional review
+// box keeps focus while typing. Google forbids apps posting reviews for someone,
+// and its link can't be pre-filled — so the best "carry to Google" is: copy what
+// they wrote to the clipboard and open Google, one paste away.
+function GoogleReviewCard({ link }) {
+    const [text, setText] = React.useState('');
+    const [copied, setCopied] = React.useState(false);
+    const go = async () => {
+        const t = text.trim();
+        if (t) { try { await navigator.clipboard.writeText(t); setCopied(true); } catch { /* clipboard blocked — still open Google */ } }
+        window.open(link, '_blank');
+    };
+    return (
+        <div className="rounded-3xl p-6 text-center shadow-lg" style={{ background: '#fff', border: `2px solid ${A.brass}` }}>
+            <div className="text-5xl mb-1 alena-bounce">⭐</div>
+            <h3 className="font-extrabold text-xl mb-1 ol-serif" style={{ color: A.charcoal }}>עשיתם לנו את היום 🙏</h3>
+            <p className="text-sm mb-3 leading-relaxed" style={{ color: A.muted }}>
+                אם נהניתם — פרגנו לנו ביקורת בגוגל.<br />לוקח <b style={{ color: A.terracotta }}>20 שניות</b>, ומשנה לנו את העולם 🌍
+            </p>
+            <textarea
+                value={text} onChange={(e) => { setText(e.target.value); setCopied(false); }}
+                rows={2} placeholder="רוצים לכתוב מילה טובה? נעתיק לכם והדביקו בגוגל (לא חובה)"
+                className="w-full rounded-xl border p-2.5 text-sm text-right resize-none mb-3"
+                style={{ borderColor: A.border, background: '#FFFDF8', color: A.charcoal }}
+            />
+            <button
+                onClick={go}
+                className="alena-pulse w-full h-14 rounded-2xl text-white text-lg font-bold shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95"
+                style={{ background: `linear-gradient(90deg, ${A.terracotta}, ${A.terracottaDark})` }}
+            >
+                <span className="text-2xl">⭐</span>{text.trim() ? 'העתיקו ופרסמו בגוגל' : 'כתבו לנו ביקורת בגוגל'}
+            </button>
+            <p className="text-[11px] mt-3" style={{ color: copied ? A.olive : A.muted }}>
+                {copied ? '✓ הביקורת הועתקה — פשוט הדביקו בגוגל (החזקה ← הדבק)' : 'נפתח ישירות בחשבון הגוגל שלכם · אנחנו לא שומרים כלום'}
+            </p>
+        </div>
+    );
+}
 
 export default function CustomerSurveyPage() {
     const branding = useTenantBranding();
@@ -49,7 +89,7 @@ export default function CustomerSurveyPage() {
     const [hover, setHover] = useState(0);
     const [comments, setComments] = useState('');
     const [feedbackForm, setFeedbackForm] = useState({
-        visit_date: null, party_size: '', food_rating: 0, service_rating: 0,
+        visit_date: null, visit_time: '', party_size: '', food_rating: 0, service_rating: 0,
         contact_name: '', contact_phone: '',
     });
     const [foodHover, setFoodHover] = useState(0);
@@ -197,7 +237,7 @@ export default function CustomerSurveyPage() {
         const incidentDescription = [
             `דירוג כללי: ${rv}/5`,
             `אוכל: ${feedbackForm.food_rating || 'לא צוין'}/5 | שירות: ${feedbackForm.service_rating || 'לא צוין'}/5`,
-            `תאריך ביקור: ${feedbackForm.visit_date ? format(feedbackForm.visit_date, 'dd/MM/yyyy') : 'לא צוין'}`,
+            `תאריך ושעת הביקור: ${feedbackForm.visit_date ? format(feedbackForm.visit_date, 'dd/MM/yyyy') : 'לא צוין'}${feedbackForm.visit_time ? ` בשעה ${feedbackForm.visit_time}` : ''}`,
             `כמות סועדים: ${feedbackForm.party_size || 'לא צוין'}`,
             ``,
             `ממה התאכזב הלקוח:`,
@@ -260,24 +300,6 @@ export default function CustomerSurveyPage() {
     const activeStars = hover || rating;
 
     // ── The single most important element: the Google-review CTA ──────────────
-    const GoogleReviewCTA = () => (
-        <div className="rounded-3xl p-6 text-center shadow-lg" style={{ background: '#fff', border: `2px solid ${A.brass}` }}>
-            <div className="text-5xl mb-1 alena-bounce">⭐</div>
-            <h3 className="font-extrabold text-xl mb-1 ol-serif" style={{ color: A.charcoal }}>עשיתם לנו את היום 🙏</h3>
-            <p className="text-sm mb-5 leading-relaxed" style={{ color: A.muted }}>
-                אם נהניתם — פרגנו לנו ביקורת קצרה בגוגל.<br />לוקח <b style={{ color: A.terracotta }}>20 שניות</b>, ומשנה לנו את העולם 🌍
-            </p>
-            <button
-                onClick={() => window.open(GOOGLE_REVIEW_LINK, '_blank')}
-                className="alena-pulse w-full h-14 rounded-2xl text-white text-lg font-bold shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95"
-                style={{ background: `linear-gradient(90deg, ${A.terracotta}, ${A.terracottaDark})` }}
-            >
-                <span className="text-2xl">⭐</span> כתבו לנו ביקורת בגוגל
-            </button>
-            <p className="text-[11px] mt-3" style={{ color: A.muted }}>נפתח ישירות בחשבון הגוגל שלכם · אנחנו לא רואים שום פרט</p>
-        </div>
-    );
-
     const WhatsAppCommunity = () => (settings?.whatsapp_group_enabled && settings?.whatsapp_group_link ? (
         <button
             onClick={() => window.open(settings.whatsapp_group_link, '_blank')}
@@ -396,14 +418,29 @@ export default function CustomerSurveyPage() {
                             <p className="mt-1 text-sm" style={{ color: '#F6E7D8' }}>ספרו לנו מה קרה — נטפל בזה אישית ומהר</p>
                         </div>
                         <CardContent className="p-5 space-y-5">
-                            <div className="grid grid-cols-2 gap-3">
+                            {/* Contact FIRST + required — the owner must be able to call them back. */}
+                            <div className="rounded-xl p-4" style={{ background: A.creamCard, border: `1px solid ${A.brass}` }}>
+                                <h4 className="font-bold mb-1 text-sm flex items-center gap-1" style={{ color: A.terracotta }}>📞 נתקן את זה אישית — איך נחזור אליכם?</h4>
+                                <p className="text-xs mb-3" style={{ color: A.muted }}>מנהל המסעדה יחזור אליכם בהקדם</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input value={feedbackForm.contact_name} onChange={(e) => setFeedbackForm({ ...feedbackForm, contact_name: e.target.value })} placeholder="שם מלא *" className="bg-white" />
+                                    <Input value={feedbackForm.contact_phone} onChange={(e) => setFeedbackForm({ ...feedbackForm, contact_phone: e.target.value })} placeholder="טלפון *" type="tel" dir="ltr" className="bg-white text-right" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <Label className="text-sm font-semibold" style={{ color: A.charcoal }}>מה קרה? מה הייתם מצפים שיהיה טוב יותר? *</Label>
+                                <Textarea placeholder="ספרו לנו בכמה מילים — כדי שנוכל לתקן..." value={comments} onChange={(e) => setComments(e.target.value)} rows={3} className="resize-none mt-1.5" />
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2">
                                 <div>
-                                    <Label htmlFor="visit-date" className="text-xs" style={{ color: A.muted }}>תאריך הביקור</Label>
+                                    <Label className="text-xs" style={{ color: A.muted }}>תאריך הביקור</Label>
                                     <Popover>
                                         <PopoverTrigger asChild>
-                                            <Button variant="outline" className="w-full justify-start text-right font-normal mt-1">
-                                                <CalendarIcon className="ml-2 h-4 w-4" />
-                                                {feedbackForm.visit_date ? format(feedbackForm.visit_date, 'dd/MM/yyyy') : <span>בחרו</span>}
+                                            <Button variant="outline" className="w-full justify-start text-right font-normal mt-1 px-2">
+                                                <CalendarIcon className="ml-1 h-4 w-4" />
+                                                {feedbackForm.visit_date ? format(feedbackForm.visit_date, 'dd/MM') : <span>בחרו</span>}
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-auto p-0">
@@ -412,8 +449,12 @@ export default function CustomerSurveyPage() {
                                     </Popover>
                                 </div>
                                 <div>
-                                    <Label htmlFor="party-size" className="text-xs" style={{ color: A.muted }}>כמות סועדים</Label>
-                                    <Input id="party-size" type="number" value={feedbackForm.party_size} onChange={(e) => setFeedbackForm({ ...feedbackForm, party_size: e.target.value })} placeholder="למשל: 4" className="mt-1" />
+                                    <Label className="text-xs" style={{ color: A.muted }}>שעה</Label>
+                                    <div className="mt-1"><TimePicker value={feedbackForm.visit_time} onChange={(v) => setFeedbackForm({ ...feedbackForm, visit_time: v })} /></div>
+                                </div>
+                                <div>
+                                    <Label className="text-xs" style={{ color: A.muted }}>כמות סועדים</Label>
+                                    <Input type="number" value={feedbackForm.party_size} onChange={(e) => setFeedbackForm({ ...feedbackForm, party_size: e.target.value })} placeholder="4" className="mt-1" />
                                 </div>
                             </div>
 
@@ -427,25 +468,16 @@ export default function CustomerSurveyPage() {
                                     <div className="mt-1"><StarRow value={feedbackForm.service_rating} activeValue={serviceHover || feedbackForm.service_rating} onPick={(v) => setFeedbackForm({ ...feedbackForm, service_rating: v })} onHover={setServiceHover} onLeave={() => setServiceHover(0)} size="w-7 h-7" /></div>
                                 </div>
                             </div>
-
-                            <div>
-                                <Label className="text-sm font-semibold" style={{ color: A.charcoal }}>ממה התאכזבתם, ומה הייתם מצפים?</Label>
-                                <Textarea placeholder="ספרו לנו בכמה מילים..." value={comments} onChange={(e) => setComments(e.target.value)} rows={3} className="resize-none mt-1.5" />
-                            </div>
-
-                            <div className="rounded-xl p-4" style={{ background: A.creamCard, border: `1px solid ${A.border}` }}>
-                                <h4 className="font-semibold mb-1 text-sm" style={{ color: A.olive }}>📞 שנחזור אליכם? (רשות)</h4>
-                                <p className="text-xs mb-3" style={{ color: A.muted }}>נשמח לתקן אישית</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <Input value={feedbackForm.contact_name} onChange={(e) => setFeedbackForm({ ...feedbackForm, contact_name: e.target.value })} placeholder="שם" className="bg-white" />
-                                    <Input value={feedbackForm.contact_phone} onChange={(e) => setFeedbackForm({ ...feedbackForm, contact_phone: e.target.value })} placeholder="טלפון" className="bg-white" />
-                                </div>
-                            </div>
                         </CardContent>
                         <div className="px-5 pb-6">
-                            <button onClick={handleFeedbackSubmit} disabled={loading} className="w-full py-3.5 rounded-2xl text-white text-lg font-bold shadow-lg transition-transform active:scale-95 disabled:opacity-50" style={{ background: `linear-gradient(90deg, ${A.olive}, #384218)` }}>
-                                {loading ? 'שולח...' : 'שלחו לנו — נטפל בזה'}
-                            </button>
+                            {(() => {
+                                const ready = feedbackForm.contact_name.trim() && feedbackForm.contact_phone.trim() && comments.trim();
+                                return (
+                                    <button onClick={handleFeedbackSubmit} disabled={loading || !ready} className="w-full py-3.5 rounded-2xl text-white text-lg font-bold shadow-lg transition-transform active:scale-95 disabled:opacity-40" style={{ background: `linear-gradient(90deg, ${A.olive}, #384218)` }}>
+                                        {loading ? 'שולח...' : !ready ? 'מלאו שם, טלפון ומה קרה' : 'שלחו — נטפל בזה אישית'}
+                                    </button>
+                                );
+                            })()}
                         </div>
                     </div>
                 )}
@@ -458,7 +490,7 @@ export default function CustomerSurveyPage() {
                             <h1 className="text-2xl font-extrabold ol-serif" style={{ color: A.charcoal }}>תודה {customerName}!</h1>
                             <div className="mt-2"><StarRow value={5} activeValue={5} onPick={() => {}} size="w-7 h-7" /></div>
                         </div>
-                        {isMainTenant && <GoogleReviewCTA />}
+                        {isMainTenant && <GoogleReviewCard link={GOOGLE_REVIEW_LINK} />}
                         <WhatsAppCommunity />
                         <ClubSignup />
                     </div>
