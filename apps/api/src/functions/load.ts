@@ -7430,6 +7430,68 @@ registerFn('getReservationSettings', async () => {
   return s ?? null;
 }, { public: true });
 
+// PUBLIC — a guest (no login) submits the QR/link satisfaction survey. Saves the
+// feedback, refreshes the customer's satisfaction, and for a BAD review opens a
+// managers-only incident so it reaches the owner. Good reviews are steered to
+// Google client-side (no server call needed for that). This exists because the
+// survey is scanned by guests with NO app account — every op here must be public.
+registerFn('submitCustomerSurvey', async ({ body }: any) => {
+  const b = (body || {}) as any;
+  const isGood = !!b.is_good;
+  const rating = Math.max(0, Math.min(5, parseInt(String(b.rating), 10) || 0));
+  const name = String(b.customer_name || '').trim().slice(0, 120) || 'לקוח מסקר QR';
+  const phoneDigits = String(b.customer_phone || '').replace(/[^\d]/g, '');
+  const phone = phoneDigits ? String(b.customer_phone).trim().slice(0, 40) : '';
+  const num = (v: any) => { const n = parseInt(String(v ?? '').replace(/[^\d]/g, ''), 10); return Number.isFinite(n) ? n : null; };
+  const nowIso = new Date().toISOString();
+
+  await db.customerFeedback.create({ data: {
+    session_id: b.session_id ? String(b.session_id) : null,
+    customer_name: name,
+    customer_phone: phone || null,
+    rating,
+    comments: String(b.comments || '').slice(0, 2000),
+    was_redirected_to_google: isGood,
+    incident_created: !isGood,
+    visit_date: b.visit_date ? new Date(b.visit_date) : null,
+    party_size: num(b.party_size),
+    food_rating: num(b.food_rating),
+    service_rating: num(b.service_rating),
+    table_number: b.table_number ? String(b.table_number).slice(0, 40) : null,
+    created_date: nowIso, updated_date: nowIso,
+  } }).catch((e: any) => console.error('[submitCustomerSurvey] feedback:', e?.message));
+
+  if (phoneDigits.length >= 9) {
+    try {
+      const existing = await db.customer.findFirst({ where: { phone: phoneDigits } });
+      const patch: any = { last_visit: nowIso, satisfaction_status: isGood ? 'satisfied' : 'unsatisfied' };
+      if (!isGood) patch.last_negative_feedback = nowIso;
+      if (existing) await db.customer.update({ where: { id: existing.id }, data: patch });
+      else await db.customer.create({ data: { name, phone: phoneDigits, visit_count: 0, loyalty_tier: 'regular', ...patch } });
+    } catch (e: any) { console.error('[submitCustomerSurvey] customer:', e?.message); }
+  }
+
+  if (!isGood) {
+    try {
+      await db.incident.create({ data: {
+        incident_number: `SURVEY-${Date.now()}`,
+        title: `משוב שלילי מלקוח - ${name}`,
+        description: String(b.incident_description || `דירוג כללי ${rating}/5\n${b.comments || ''}`).slice(0, 4000),
+        category: 'customer_service',
+        severity: rating <= 2 ? 'high' : rating === 3 ? 'medium' : 'low',
+        status: 'reported',
+        visibility_level: 'managers_only',
+        reported_by: 'system@surveys.auto',
+        incident_date: new Date(),
+        location: String(b.location || 'ברקוד QR').slice(0, 120),
+        customer_reaction: String(b.customer_reaction || '').slice(0, 2000) || null,
+        follow_up_required: true,
+      } });
+    } catch (e: any) { console.error('[submitCustomerSurvey] incident:', e?.message); }
+  }
+  return { ok: true };
+}, { public: true });
+
 // AUTHED — reservation + marketing analytics for a date range (+ optional compare range).
 // Every reservation already carries source/campaign/medium/utm, so this is pure aggregation
 // over THIS tenant's own reservations (schema-scoped). Powers the reservations dashboard.

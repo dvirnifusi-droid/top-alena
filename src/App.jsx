@@ -45,6 +45,7 @@ import InstagramStudio from './pages/InstagramStudio';
 import Login from './pages/Login';
 import GoogleHandoff from './pages/GoogleHandoff';
 import PublicReservation from './pages/PublicReservation';
+import CustomerSurvey from './pages/CustomerSurvey';
 import Signup from './pages/Signup';
 import ClubJoin from './pages/ClubJoin';
 import ClubUpdate from './pages/ClubUpdate';
@@ -211,6 +212,8 @@ function App() {
           <Route path="/ReservationView" element={<ReservationView />} />
           <Route path="/Waiter" element={<Waiter />} />
           <Route path="/menu" element={<Waiter />} />
+          {/* Guest satisfaction survey — scanned by guests with NO account, must be public */}
+          <Route path="/CustomerSurvey" element={<CustomerSurvey />} />
 
           {/* דורש התחברות */}
           <Route path="/*" element={

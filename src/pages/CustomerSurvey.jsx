@@ -8,9 +8,10 @@ import { ManualSurvey } from '@/entities/ManualSurvey';
 import { CustomerFeedback } from '@/entities/CustomerFeedback';
 import { Incident } from '@/entities/Incident';
 import { User } from '@/entities/User';
-import { Customer } from '@/entities/Customer'; // Added Customer entity
-import { Reservation } from '@/entities/Reservation'; // T+24h survey link prefill
-import { ReservationSettings } from '@/entities/ReservationSettings'; // Import ReservationSettings
+import { Customer } from '@/entities/Customer';
+import { Reservation } from '@/entities/Reservation';
+import { ReservationSettings } from '@/entities/ReservationSettings';
+import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,21 +22,26 @@ import { Label } from '@/components/ui/label';
 import { Star, CheckCircle, Frown, Calendar as CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 
-
 const GOOGLE_REVIEW_LINK = 'https://g.page/r/CReDn7f8zub7EBM/review';
+
+// Alena brand palette — warm, premium (was generic green/emerald before).
+const A = {
+    terracotta: '#A04A2E', terracottaDark: '#7A3722', olive: '#44512C',
+    brass: '#B89556', gold: '#E0A63E', cream: '#FAF5E8', creamCard: '#F4ECD8',
+    border: '#E8D9B5', charcoal: '#231D17', muted: '#7A6F5D',
+};
+const RATING_COPY = ['', 'נשתפר בשבילכם 🙏', 'מצטערים 😔', 'סבבה, נשתדל יותר', 'תודה, שמחנו! 😊', 'וואו, אלופים! 🤩'];
 
 export default function CustomerSurveyPage() {
     const branding = useTenantBranding();
     const brandName = branding?.name || 'המסעדה';
-    // GOOGLE_REVIEW_LINK points at Alena's specific Google place and there is no
-    // per-tenant settings/branding field for it. To avoid sending other tenants'
-    // customers to Alena's review page, only offer the Google review CTA on the
-    // main Alena tenant.
+    // GOOGLE_REVIEW_LINK points at Alena's specific Google place; only offer the
+    // Google CTA on the main Alena tenant so other tenants' guests aren't sent there.
     const isMainTenant = /עלינ|alena|alina/i.test(branding?.name || '');
     const [searchParams] = useSearchParams();
     const sessionId = searchParams.get('sessionId');
-    const shortCode = searchParams.get('s'); // Changed from manualId to shortCode 's'
-    const reservationId = searchParams.get('res'); // T+24h survey link prefill
+    const shortCode = searchParams.get('s');
+    const reservationId = searchParams.get('res');
 
     const [session, setSession] = useState(null);
     const [manualSurvey, setManualSurvey] = useState(null);
@@ -43,81 +49,55 @@ export default function CustomerSurveyPage() {
     const [hover, setHover] = useState(0);
     const [comments, setComments] = useState('');
     const [feedbackForm, setFeedbackForm] = useState({
-        visit_date: null,
-        party_size: '',
-        food_rating: 0,
-        service_rating: 0,
-        contact_name: '',
-        contact_phone: ''
+        visit_date: null, party_size: '', food_rating: 0, service_rating: 0,
+        contact_name: '', contact_phone: '',
     });
     const [foodHover, setFoodHover] = useState(0);
     const [serviceHover, setServiceHover] = useState(0);
     const [step, setStep] = useState('rating'); // rating, feedback, thanks_good, thanks_bad
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [tableNumber, setTableNumber] = useState(null); // New state for table number from QR
-    const [clubForm, setClubForm] = useState({ name: '', phone: '' }); // Added state for club form
-    const [clubSignupSuccess, setClubSignupSuccess] = useState(false); // Added state for club signup success
-    const [isJoiningClub, setIsJoiningClub] = useState(false); // Added state for club signup loading
-    const [settings, setSettings] = useState(null); // New state for ReservationSettings
+    const [tableNumber, setTableNumber] = useState(null);
+    const [clubForm, setClubForm] = useState({ name: '', phone: '' });
+    const [clubSignupSuccess, setClubSignupSuccess] = useState(false);
+    const [isJoiningClub, setIsJoiningClub] = useState(false);
+    const [showClub, setShowClub] = useState(false);
+    const [settings, setSettings] = useState(null);
 
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const source = urlParams.get('source');
         const tableParam = urlParams.get('table');
-        
+
         if (source === 'qr') {
-            console.log('Survey accessed via QR code');
-            // אם זה QR כללי, פשוט תמשיך עם הסקר ללא טעינת נתונים נוספים
-            if (tableParam) {
-                setTableNumber(tableParam);
-            }
-            // לא צריך לטעון שום נתונים נוספים עבור QR כלליים, פשוט ממשיכים עם הסקר.
+            if (tableParam) setTableNumber(tableParam);
             return;
         }
-        
-        // אם לא QR, אך עדיין יש tableParam (למקרה של שימוש עתידי או קונפיגורציה אחרת)
-        if (tableParam && tableParam !== 'general') {
-            setTableNumber(tableParam);
-        }
+        if (tableParam && tableParam !== 'general') setTableNumber(tableParam);
 
         const loadData = async () => {
             if (sessionId) {
-                // סקר רגיל מטבלת הפגישות
                 try {
                     const sessions = await TableSession.filter({ id: sessionId });
-                    if (sessions.length > 0) {
-                        setSession(sessions[0]);
-                    } else {
-                        setError('לא נמצאה הזמנה תואמת. ייתכן שהקישור אינו תקין.');
-                    }
+                    if (sessions.length > 0) setSession(sessions[0]);
+                    else setError('לא נמצאה הזמנה תואמת. ייתכן שהקישור אינו תקין.');
                 } catch (e) {
                     console.error('Error loading session:', e);
                     setError('שגיאה בטעינת הנתונים. ייתכן שהקישור אינו תקין.');
                 }
             } else if (shortCode) {
-                // סקר ידני עם קוד מקוצר
                 try {
                     const surveys = await ManualSurvey.filter({ survey_id: shortCode });
                     if (surveys.length > 0) {
                         setManualSurvey(surveys[0]);
-                        // עדכון שהסקר נצפה
-                        try {
-                            await ManualSurvey.update(surveys[0].id, { status: 'viewed' });
-                        } catch (updateError) {
-                            console.error('Error updating manual survey status:', updateError);
-                            // לא עוצרים את התהליך בגלל זה
-                        }
-                    } else {
-                        setError('לא נמצא סקר תואם. ייתכן שהקישור אינו תקין.');
-                    }
+                        try { await ManualSurvey.update(surveys[0].id, { status: 'viewed' }); }
+                        catch (updateError) { console.error('Error updating manual survey status:', updateError); }
+                    } else setError('לא נמצא סקר תואם. ייתכן שהקישור אינו תקין.');
                 } catch (e) {
                     console.error('Error loading manual survey:', e);
                     setError('שגיאה בטעינת הנתונים. ייתכן שהקישור אינו תקין.');
                 }
             } else if (reservationId) {
-                // T+24h survey — link came from yesterday's reservation WhatsApp.
-                // Prefill name + phone so the guest doesn't re-type them.
                 try {
                     const reservations = await Reservation.filter({ id: reservationId });
                     if (reservations.length > 0) {
@@ -131,47 +111,32 @@ export default function CustomerSurveyPage() {
                         }));
                         setClubForm({ name: r.customer_name || '', phone: r.customer_phone || '' });
                     }
-                } catch (e) {
-                    console.warn('Could not prefill from reservation', e);
-                    // Survey still works without prefill — proceed silently.
-                }
+                } catch (e) { console.warn('Could not prefill from reservation', e); }
             } else {
-                // אם אין sessionId / shortCode / reservationId / QR — קישור לא תקין.
                 setError('קישור הסקר אינו תקין. לא נמצא מזהה ספציפי או קוד QR.');
             }
         };
-
         loadData();
     }, [sessionId, shortCode, reservationId]);
 
-    // New useEffect to load settings
     useEffect(() => {
         const loadSettings = async () => {
             try {
-                // Assuming there's only one settings entry, or we want the first one
-                const settingsData = await ReservationSettings.list('', 1); 
-                if (settingsData && settingsData.length > 0) {
-                    setSettings(settingsData[0]);
-                }
-            } catch (error) {
-                console.error('Error loading settings:', error);
-            }
+                // PUBLIC fn — the survey is scanned by guests with no login, so we
+                // can't use the authed ReservationSettings entity here.
+                const r = await base44.functions.getReservationSettings({});
+                const s = (r && r.data !== undefined) ? r.data : r;
+                if (s) setSettings(s);
+            } catch (error) { console.error('Error loading settings:', error); }
         };
         loadSettings();
-    }, []); // Empty dependency array means this runs once on mount
-
+    }, []);
 
     const handleRatingSubmit = async () => {
         if (rating > 3) {
-            // Good review
-            try {
-                await saveFeedback(true);
-            } catch (e) {
-                console.error('Error saving good-review feedback:', e);
-            }
+            try { await saveFeedback(true); } catch (e) { console.error('Error saving good-review feedback:', e); }
             setStep('thanks_good');
         } else {
-            // Bad review
             setStep('feedback');
         }
     };
@@ -181,540 +146,330 @@ export default function CustomerSurveyPage() {
         try {
             await saveFeedback(false);
             setStep('thanks_bad');
-        } catch(e) {
-            console.error("Error saving feedback:", e);
-            alert("שגיאה בשמירת המשוב. נסה שוב.");
-        } finally {
-            setLoading(false);
-        }
+        } catch (e) {
+            console.error('Error saving feedback:', e);
+            alert('שגיאה בשמירת המשוב. נסה שוב.');
+        } finally { setLoading(false); }
     };
 
     const handleJoinClub = async (e) => {
         e.preventDefault();
-        if (!clubForm.name || !clubForm.phone) {
-            alert('אנא מלא שם וטלפון');
-            return;
-        }
+        if (!clubForm.name || !clubForm.phone) { alert('אנא מלא שם וטלפון'); return; }
         setIsJoiningClub(true);
         try {
-            // Check if customer already exists
-            const existingCustomers = await Customer.filter({ phone: clubForm.phone });
-            if (existingCustomers.length > 0) {
-                // Customer exists, maybe update their record
-                const existingId = existingCustomers[0].id;
-                const updatedData = { 
-                    total_visits: (existingCustomers[0].total_visits || 0) + 1,
-                    last_visit: new Date().toISOString()
-                };
-                await Customer.update(existingId, updatedData);
-            } else {
-                // Create new customer
-                await Customer.create({
-                    name: clubForm.name,
-                    phone: clubForm.phone,
-                    last_visit: new Date().toISOString(),
-                    total_visits: 1,
-                    is_new: false,
-                });
-            }
+            // PUBLIC club-join fn (guest, no login). city is required by the fn but
+            // the survey doesn't ask for it — send a placeholder.
+            await base44.functions.clubJoin({ name: clubForm.name, phone: clubForm.phone, city: 'לא צוין', marketing_consent: true });
             setClubSignupSuccess(true);
         } catch (error) {
-            console.error("Failed to join customer club:", error);
-            alert("אופס! הייתה בעיה בהרשמה למועדון. נסה שוב.");
-        } finally {
-            setIsJoiningClub(false);
-        }
+            console.error('Failed to join customer club:', error);
+            alert('אופס! הייתה בעיה בהרשמה למועדון. נסה שוב.');
+        } finally { setIsJoiningClub(false); }
     };
 
     const saveFeedback = async (isGoodReview) => {
-        try {
-            const customerName = session?.customer_name || manualSurvey?.customer_name || 
-                               (feedbackForm.contact_name || (tableNumber ? `אורח בשולחן ${tableNumber}` : 'לקוח מברקוד QR'));
-            const customerPhone = session?.customer_phone || manualSurvey?.customer_phone || feedbackForm.contact_phone || '';
-            
-            // שמירת המשוב
-            const feedbackData = {
-                session_id: sessionId || (manualSurvey ? manualSurvey.id : null),
-                customer_name: customerName,
-                customer_phone: customerPhone,
-                rating: rating,
-                comments: comments || '',
-                was_redirected_to_google: isGoodReview,
-                incident_created: !isGoodReview,
-                visit_date: feedbackForm.visit_date,
-                party_size: parseInt(feedbackForm.party_size) || null,
-                food_rating: feedbackForm.food_rating,
-                service_rating: feedbackForm.service_rating,
-                table_number: tableNumber && !sessionId && !manualSurvey ? tableNumber : null
-            };
+        // Guests have NO login, so persistence goes through the PUBLIC
+        // submitCustomerSurvey fn (feedback + customer satisfaction + a
+        // managers-only incident for bad reviews) — no authed entity calls.
+        const customerName = session?.customer_name || manualSurvey?.customer_name ||
+            (feedbackForm.contact_name || (tableNumber ? `אורח בשולחן ${tableNumber}` : 'לקוח מברקוד QR'));
+        const customerPhone = session?.customer_phone || manualSurvey?.customer_phone || feedbackForm.contact_phone || '';
+        const location = session ? `שולחן ${session.table_number}` : manualSurvey ? 'סקר ידני' : tableNumber ? `שולחן ${tableNumber} (QR)` : 'ברקוד QR כללי';
+        const contactInfo = (feedbackForm.contact_name || feedbackForm.contact_phone)
+            ? `\n\n📞 פרטי קשר: ${feedbackForm.contact_name || 'לא סופק'} · ${feedbackForm.contact_phone || customerPhone || 'לא סופק'}`
+            : `\n\n📞 טלפון: ${customerPhone || 'לא סופק'}`;
+        const incidentDescription = [
+            `דירוג כללי: ${rating}/5`,
+            `אוכל: ${feedbackForm.food_rating || 'לא צוין'}/5 | שירות: ${feedbackForm.service_rating || 'לא צוין'}/5`,
+            `תאריך ביקור: ${feedbackForm.visit_date ? format(feedbackForm.visit_date, 'dd/MM/yyyy') : 'לא צוין'}`,
+            `כמות סועדים: ${feedbackForm.party_size || 'לא צוין'}`,
+            ``,
+            `ממה התאכזב הלקוח:`,
+            `${comments || 'לא סופקו הערות'}`,
+            ``,
+            `מקור: ${location}${contactInfo}`,
+        ].join('\n');
+        const customerReaction = `דירוג ${rating}/5 · אוכל ${feedbackForm.food_rating}/5 · שירות ${feedbackForm.service_rating}/5. ${comments || ''}`.trim();
 
-            await CustomerFeedback.create(feedbackData);
+        await base44.functions.submitCustomerSurvey({
+            is_good: isGoodReview,
+            rating,
+            customer_name: customerName,
+            customer_phone: customerPhone,
+            comments: comments || '',
+            session_id: sessionId || (manualSurvey ? manualSurvey.id : null),
+            visit_date: feedbackForm.visit_date ? new Date(feedbackForm.visit_date).toISOString() : null,
+            party_size: feedbackForm.party_size,
+            food_rating: feedbackForm.food_rating,
+            service_rating: feedbackForm.service_rating,
+            table_number: tableNumber && !sessionId && !manualSurvey ? tableNumber : null,
+            location,
+            incident_description: incidentDescription,
+            customer_reaction: customerReaction,
+        });
 
-            // טיפול בלקוחות במועדון הלקוחות
-            if (customerPhone && customerName) {
-                try {
-                    const existingCustomers = await Customer.filter({ phone: customerPhone });
-                    
-                    if (existingCustomers.length > 0) {
-                        // לקוח קיים - עדכון הסטטוס
-                        const customer = existingCustomers[0];
-                        const updateData = {
-                            total_visits: (customer.total_visits || 0) + 1,
-                            last_visit: new Date().toISOString(),
-                            satisfaction_status: isGoodReview ? 'satisfied' : 'unsatisfied'
-                        };
-                        
-                        if (!isGoodReview) {
-                            updateData.last_negative_feedback = new Date().toISOString();
-                        }
-                        
-                        await Customer.update(customer.id, updateData);
-                    } else {
-                        // לקוח חדש - יצירה עם הסטטוס המתאים
-                        const newCustomerData = {
-                            name: customerName,
-                            phone: customerPhone,
-                            last_visit: new Date().toISOString(),
-                            total_visits: 1,
-                            is_new: false,
-                            satisfaction_status: isGoodReview ? 'satisfied' : 'unsatisfied'
-                        };
-                        
-                        if (!isGoodReview) {
-                            newCustomerData.last_negative_feedback = new Date().toISOString();
-                        }
-                        
-                        await Customer.create(newCustomerData);
-                    }
-                } catch (customerError) {
-                    console.error('Error managing customer in club:', customerError);
-                    // לא עוצרים את התהליך אם יש שגיאה במועדון לקוחות
-                }
-            }
-
-            // עדכון סטטוס הסקר הידני להושלם (רק אם יש)
-            if (manualSurvey) {
-                try {
-                    await ManualSurvey.update(manualSurvey.id, { status: 'completed' });
-                } catch (updateError) {
-                    console.error('Error updating manual survey to completed:', updateError);
-                }
-            }
-
-            // יצירת תקרית עבור ביקורת שלילית
-            if (!isGoodReview) {
-                try {
-                    console.log('יוצר תקרית למשוב שלילי:', { rating, comments, customerName, customerPhone, feedbackForm, tableNumber });
-                    
-                    // קבלת המשתמש הנוכחי או יצירת reported_by תקין
-                    let reportedBy = 'system@surveys.auto';
-                    try {
-                        const currentUser = await User.me();
-                        if (currentUser && currentUser.email) {
-                            reportedBy = currentUser.email;
-                        }
-                    } catch (userError) {
-                        console.log('לא ניתן לקבל משתמש נוכחי, משתמש בברירת מחדל');
-                    }
-
-                    const contactInfo = feedbackForm.contact_name || feedbackForm.contact_phone ? 
-                        `\n\n📞 פרטי קשר שהלקוח השאיר:\nשם: ${feedbackForm.contact_name || 'לא סופק'}\nטלפון: ${feedbackForm.contact_phone || customerPhone || 'לא סופק'}` : 
-                        `\n\n📞 טלפון ליצירת קשר: ${customerPhone || 'לא סופק'}`;
-
-                    const incidentDescription = `
-                        דירוג כללי: ${rating}/5
-                        אוכל: ${feedbackForm.food_rating || 'לא צוין'}/5 | שירות: ${feedbackForm.service_rating || 'לא צוין'}/5
-                        תאריך ביקור: ${feedbackForm.visit_date ? format(feedbackForm.visit_date, 'dd/MM/yyyy') : 'לא צוין'}
-                        כמות סועדים: ${feedbackForm.party_size || 'לא צוין'}
-
-                        תשובת הלקוח לשאלה "ממה התאכזבת ומה היית מצפה שיקרה טוב יותר":
-                        ${comments || 'לא סופקו הערות נוספות'}
-
-                        מקור: ${session ? `שולחן ${session.table_number}` : manualSurvey ? 'סקר ידני' : tableNumber ? `ברקוד שולחן ${tableNumber}` : 'ברקוד QR כללי'}${contactInfo}
-                    `;
-
-                    const incidentData = {
-                        incident_number: `SURVEY-${Date.now()}`,
-                        title: `משוב שלילי מלקוח - ${customerName}`,
-                        description: incidentDescription.trim(),
-                        category: 'customer_service',
-                        severity: rating <= 2 ? 'high' : rating === 3 ? 'medium' : 'low',
-                        status: 'reported',
-                        visibility_level: 'managers_only',
-                        reported_by: reportedBy,
-                        incident_date: new Date().toISOString(),
-                        location: session ? `שולחן ${session.table_number}` : manualSurvey ? 'סקר ידני' : tableNumber ? `שולחן ${tableNumber} (QR)` : 'ברקוד QR כללי',
-                        customer_reaction: `דירוג כללי: ${rating}/5. אוכל: ${feedbackForm.food_rating}/5. שירות: ${feedbackForm.service_rating}/5. הערות: ${comments}\n\nפרטי קשר: ${customerName}${customerPhone || feedbackForm.contact_phone ? ` | טלפון: ${customerPhone || feedbackForm.contact_phone}` : ''}`,
-                        solution_provided: 'ממתין לטיפול - יש לחזור ללקוח ולטפל בבעיה',
-                        impact_on_shift: 'דורש בדיקה ומעקב עם הלקוח',
-                        follow_up_required: true,
-                        prevention_measures: `יש לבדוק ולטפל בבעיה שהועלתה על ידי ${customerName}${customerPhone || feedbackForm.contact_phone ? ` (${customerPhone || feedbackForm.contact_phone})` : ''}`
-                    };
-
-                    console.log('נתוני התקרית שנוצרה:', incidentData);
-                    
-                    const createdIncident = await Incident.create(incidentData);
-                    console.log('תקרית נוצרה בהצלחה עם פרטי קשר:', createdIncident);
-                    
-                } catch (incidentError) {
-                    console.error('Error creating incident:', incidentError);
-                    // נמשיך בתהליך גם אם יצירת התקרית נכשלה
-                    alert('המשוב נשמר, אך הייתה בעיה ביצירת התקרית. אנא צור קשר עם המנהל.');
-                }
-            } else {
-                console.log('לא נוצרת תקרית - משוב חיובי:', { isGoodReview });
-            }
-
-        } catch (error) {
-            console.error('Error in saveFeedback:', error);
-            throw error; // זורקים את השגיאה הלאה כדי שהקומפוננט יוכל לטפל בה
-        }
+        // Best-effort — only works if opened from an authed context; a guest 401 is fine.
+        if (manualSurvey) { try { await ManualSurvey.update(manualSurvey.id, { status: 'completed' }); } catch { /* guest */ } }
     };
 
     const isQrSource = new URLSearchParams(window.location.search).get('source') === 'qr';
-
-    // Only show loading if we expect to load session/manualSurvey and haven't yet, AND no error, AND it's NOT a QR source
     const isLoadingData = !isQrSource && ((sessionId && !session) || (shortCode && !manualSurvey));
+
+    const pageStyle = { background: `linear-gradient(160deg, ${A.cream} 0%, #F3E7CD 55%, #EFE0C2 100%)` };
 
     if (error) {
         return (
-            <div className="flex items-center justify-center h-screen bg-red-50 text-red-700 p-8 text-center" dir="rtl">
-                <Card className="max-w-md">
-                    <CardContent className="p-6">
-                        <Frown className="w-12 h-12 mx-auto mb-4 text-red-500" />
-                        <h2 className="text-xl font-bold mb-2">אופס!</h2>
-                        <p>{error}</p>
-                    </CardContent>
-                </Card>
+            <div className="flex items-center justify-center min-h-screen p-6 text-center" dir="rtl" style={pageStyle}>
+                <div className="w-full max-w-sm rounded-3xl p-8 shadow-xl" style={{ background: '#fff', border: `1px solid ${A.border}` }}>
+                    <Frown className="w-12 h-12 mx-auto mb-4" style={{ color: A.terracotta }} />
+                    <h2 className="text-xl font-bold mb-2" style={{ color: A.charcoal }}>אופס!</h2>
+                    <p style={{ color: A.muted }}>{error}</p>
+                </div>
             </div>
         );
     }
-    
+
     if (isLoadingData) {
         return (
-            <div className="flex items-center justify-center h-screen" dir="rtl">
-                <Card className="max-w-md">
-                    <CardContent className="p-6 text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
-                        <p>טוען...</p>
-                    </CardContent>
-                </Card>
+            <div className="flex items-center justify-center min-h-screen" dir="rtl" style={pageStyle}>
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: A.terracotta }}></div>
+                    <p style={{ color: A.muted }}>טוען...</p>
+                </div>
             </div>
         );
     }
 
     const customerName = session?.customer_name || manualSurvey?.customer_name || (tableNumber && tableNumber !== 'general' ? `אורח בשולחן ${tableNumber}` : 'אורח יקר');
+    const activeStars = hover || rating;
+
+    // ── The single most important element: the Google-review CTA ──────────────
+    const GoogleReviewCTA = () => (
+        <div className="rounded-3xl p-6 text-center shadow-lg" style={{ background: '#fff', border: `2px solid ${A.brass}` }}>
+            <div className="text-5xl mb-1 alena-bounce">⭐</div>
+            <h3 className="font-extrabold text-xl mb-1 ol-serif" style={{ color: A.charcoal }}>עשיתם לנו את היום 🙏</h3>
+            <p className="text-sm mb-5 leading-relaxed" style={{ color: A.muted }}>
+                אם נהניתם — פרגנו לנו ביקורת קצרה בגוגל.<br />לוקח <b style={{ color: A.terracotta }}>20 שניות</b>, ומשנה לנו את העולם 🌍
+            </p>
+            <button
+                onClick={() => window.open(GOOGLE_REVIEW_LINK, '_blank')}
+                className="alena-pulse w-full h-14 rounded-2xl text-white text-lg font-bold shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95"
+                style={{ background: `linear-gradient(90deg, ${A.terracotta}, ${A.terracottaDark})` }}
+            >
+                <span className="text-2xl">⭐</span> כתבו לנו ביקורת בגוגל
+            </button>
+            <p className="text-[11px] mt-3" style={{ color: A.muted }}>נפתח ישירות בחשבון הגוגל שלכם · אנחנו לא רואים שום פרט</p>
+        </div>
+    );
+
+    const WhatsAppCommunity = () => (settings?.whatsapp_group_enabled && settings?.whatsapp_group_link ? (
+        <button
+            onClick={() => window.open(settings.whatsapp_group_link, '_blank')}
+            className="w-full rounded-2xl p-4 flex items-center gap-3 text-right transition-transform active:scale-[0.98]"
+            style={{ background: A.creamCard, border: `1px solid ${A.border}` }}
+        >
+            <span className="text-2xl shrink-0">💬</span>
+            <span className="flex-1">
+                <span className="block font-bold" style={{ color: A.olive }}>הצטרפו לקהילת "החברים של עלינא"</span>
+                <span className="block text-xs" style={{ color: A.muted }}>ראשונים לדעת על אירועים, תפריטים חדשים והטבות שמורות · לא מציקים 🤫</span>
+            </span>
+            <span className="text-sm font-bold shrink-0" style={{ color: A.terracotta }}>הצטרפו ‹</span>
+        </button>
+    ) : null);
+
+    const ClubSignup = () => (
+        <div className="rounded-2xl p-4" style={{ background: A.creamCard, border: `1px solid ${A.border}` }}>
+            {clubSignupSuccess ? (
+                <div className="text-center py-2">
+                    <CheckCircle className="w-10 h-10 mx-auto mb-2" style={{ color: A.olive }} />
+                    <h3 className="font-bold" style={{ color: A.olive }}>נהדר! צורפתם למועדון 🎁</h3>
+                    <p className="text-sm mt-1" style={{ color: A.muted }}>נשלח לכם הטבות ועדכונים בקרוב</p>
+                </div>
+            ) : !showClub ? (
+                <button onClick={() => setShowClub(true)} className="w-full flex items-center gap-3 text-right">
+                    <span className="text-2xl shrink-0">🎁</span>
+                    <span className="flex-1">
+                        <span className="block font-bold" style={{ color: A.terracotta }}>הצטרפו למועדון הלקוחות</span>
+                        <span className="block text-xs" style={{ color: A.muted }}>הטבות, הנחות ועדכונים לפני כולם</span>
+                    </span>
+                    <span className="text-sm font-bold shrink-0" style={{ color: A.terracotta }}>+ הצטרפו</span>
+                </button>
+            ) : (
+                <>
+                    <h3 className="font-bold mb-3 flex items-center gap-2" style={{ color: A.terracotta }}><span>🎁</span> מועדון הלקוחות</h3>
+                    <form onSubmit={handleJoinClub} className="space-y-2.5">
+                        <Input placeholder="שם מלא" value={clubForm.name} onChange={(e) => setClubForm({ ...clubForm, name: e.target.value })} required className="bg-white" />
+                        <Input placeholder="מספר טלפון" type="tel" value={clubForm.phone} onChange={(e) => setClubForm({ ...clubForm, phone: e.target.value })} required className="bg-white" />
+                        <Button type="submit" className="w-full text-white" style={{ background: A.terracotta }} disabled={isJoiningClub}>
+                            {isJoiningClub ? 'מצטרף...' : 'כן, אני רוצה להצטרף!'}
+                        </Button>
+                    </form>
+                </>
+            )}
+        </div>
+    );
+
+    const StarRow = ({ value, activeValue, onPick, onHover, onLeave, size = 'w-9 h-9' }) => (
+        <div className="flex justify-center items-center gap-1.5">
+            {[...Array(5)].map((_, index) => {
+                const sv = index + 1;
+                const on = sv <= activeValue;
+                return (
+                    <Star key={sv}
+                        className={`${size} cursor-pointer transition-all duration-150 ${on ? 'scale-110' : ''}`}
+                        style={{ color: on ? A.gold : '#D8CBB0', fill: on ? A.gold : 'transparent' }}
+                        onClick={() => onPick(sv)}
+                        onMouseEnter={() => onHover?.(sv)}
+                        onMouseLeave={() => onLeave?.()}
+                    />
+                );
+            })}
+        </div>
+    );
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-4 relative" dir="rtl">
-            <div className="absolute top-3 left-3"><LanguagePicker /></div>
-            <Card className="w-full max-w-2xl shadow-xl border-0 bg-white/90 backdrop-blur-sm">
+        <div className="flex items-start sm:items-center justify-center min-h-screen p-4 relative" dir="rtl" style={pageStyle}>
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@600;800&display=swap');
+                .ol-serif{font-family:'Frank Ruhl Libre',Georgia,serif;}
+                @keyframes alenaPulse{0%,100%{box-shadow:0 8px 22px -6px rgba(160,74,46,.55)}50%{box-shadow:0 8px 34px 0px rgba(160,74,46,.85)}}
+                .alena-pulse{animation:alenaPulse 1.8s ease-in-out infinite}
+                @keyframes alenaBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+                .alena-bounce{animation:alenaBounce 1.6s ease-in-out infinite}
+            `}</style>
+            <div className="absolute top-3 left-3 z-10"><LanguagePicker /></div>
+
+            <div className="w-full max-w-md mt-2 sm:mt-0">
+                {/* ── RATING ── */}
                 {step === 'rating' && (
-                    <>
-                        <CardHeader className="text-center bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-t-lg">
-                            <CardTitle className="text-2xl font-bold">היי {customerName}!</CardTitle>
-                            <CardDescription className="text-green-100">
-                                {isQrSource ? (
-                                    "תודה שסרקת את הברקוד! המשוב שלך חשוב לנו 💚"
-                                ) : (
-                                    `נהניתם במסעדת ${brandName}? נשמח לשמוע מכם`
-                                )}
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="flex justify-center items-center gap-2 py-12">
-                            {[...Array(5)].map((_, index) => {
-                                const starValue = index + 1;
-                                return (
-                                    <Star
-                                        key={starValue}
-                                        className={`w-12 h-12 cursor-pointer transition-all duration-200 ${
-                                            starValue <= (hover || rating) 
-                                                ? 'text-yellow-400 fill-yellow-400 scale-110' 
-                                                : 'text-gray-300 hover:text-[#D9BD83]'
-                                        }`}
-                                        onClick={() => setRating(starValue)}
-                                        onMouseEnter={() => setHover(starValue)}
-                                        onMouseLeave={() => setHover(0)}
-                                    />
-                                );
-                            })}
-                        </CardContent>
-                        <CardFooter>
-                            <Button 
-                                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-lg py-3" 
-                                onClick={handleRatingSubmit} 
+                    <div className="rounded-3xl overflow-hidden shadow-2xl" style={{ background: '#fff', border: `1px solid ${A.border}` }}>
+                        <div className="text-center px-6 pt-9 pb-7 text-white" style={{ background: `linear-gradient(140deg, ${A.terracotta}, ${A.terracottaDark})` }}>
+                            <div className="text-4xl mb-2">🍽️</div>
+                            <h1 className="text-2xl font-extrabold ol-serif">היי {customerName}!</h1>
+                            <p className="mt-1 text-sm" style={{ color: '#F6E7D8' }}>
+                                {isQrSource ? `איך הייתה החוויה שלכם ב${brandName}?` : `נהניתם ב${brandName}? נשמח לשמוע`}
+                            </p>
+                        </div>
+                        <div className="px-6 py-9">
+                            <p className="text-center text-sm mb-4 font-semibold" style={{ color: A.muted }}>סמנו כמה כוכבים 👇</p>
+                            <StarRow value={rating} activeValue={activeStars} onPick={setRating} onHover={setHover} onLeave={() => setHover(0)} size="w-12 h-12" />
+                            <div className="h-7 mt-3 text-center font-bold text-lg ol-serif" style={{ color: A.terracotta }}>
+                                {RATING_COPY[activeStars] || ''}
+                            </div>
+                        </div>
+                        <div className="px-6 pb-6">
+                            <button
+                                onClick={handleRatingSubmit}
                                 disabled={rating === 0}
+                                className="w-full h-13 py-3.5 rounded-2xl text-white text-lg font-bold shadow-lg transition-transform active:scale-95 disabled:opacity-40"
+                                style={{ background: `linear-gradient(90deg, ${A.olive}, #384218)` }}
                             >
-                                המשך
-                            </Button>
-                        </CardFooter>
-                    </>
+                                {rating >= 4 ? 'המשך ➜' : rating > 0 ? 'המשך' : 'בחרו דירוג'}
+                            </button>
+                        </div>
+                    </div>
                 )}
 
+                {/* ── FEEDBACK (rating ≤ 3, private) ── */}
                 {step === 'feedback' && (
-                    <>
-                        <CardHeader className="text-center bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-t-lg">
-                            <Frown className="w-12 h-12 mx-auto mb-4" />
-                            <CardTitle className="text-2xl font-bold">אנו מצטערים לשמוע</CardTitle>
-                            <CardDescription className="text-green-100">
-                                נשמח אם תוכלו לפרט מה פחות אהבתם כדי שנוכל להשתפר
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-6 space-y-6">
-                            <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-3xl overflow-hidden shadow-2xl" style={{ background: '#fff', border: `1px solid ${A.border}` }}>
+                        <div className="text-center px-6 pt-8 pb-6 text-white" style={{ background: `linear-gradient(140deg, ${A.terracotta}, ${A.terracottaDark})` }}>
+                            <Frown className="w-11 h-11 mx-auto mb-2" />
+                            <h2 className="text-xl font-extrabold ol-serif">מצטערים שלא היה מושלם</h2>
+                            <p className="mt-1 text-sm" style={{ color: '#F6E7D8' }}>ספרו לנו מה קרה — נטפל בזה אישית ומהר</p>
+                        </div>
+                        <CardContent className="p-5 space-y-5">
+                            <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <Label htmlFor="visit-date">תאריך הביקור</Label>
+                                    <Label htmlFor="visit-date" className="text-xs" style={{ color: A.muted }}>תאריך הביקור</Label>
                                     <Popover>
                                         <PopoverTrigger asChild>
-                                            <Button
-                                                variant={"outline"}
-                                                className="w-full justify-start text-right font-normal"
-                                            >
+                                            <Button variant="outline" className="w-full justify-start text-right font-normal mt-1">
                                                 <CalendarIcon className="ml-2 h-4 w-4" />
-                                                {feedbackForm.visit_date ? format(feedbackForm.visit_date, "PPP") : <span>בחר תאריך</span>}
+                                                {feedbackForm.visit_date ? format(feedbackForm.visit_date, 'dd/MM/yyyy') : <span>בחרו</span>}
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-auto p-0">
-                                            <Calendar
-                                                mode="single"
-                                                selected={feedbackForm.visit_date}
-                                                onSelect={(date) => setFeedbackForm({...feedbackForm, visit_date: date})}
-                                                initialFocus
-                                            />
+                                            <Calendar mode="single" selected={feedbackForm.visit_date} onSelect={(date) => setFeedbackForm({ ...feedbackForm, visit_date: date })} initialFocus />
                                         </PopoverContent>
                                     </Popover>
                                 </div>
                                 <div>
-                                    <Label htmlFor="party-size">כמות סועדים</Label>
-                                    <Input 
-                                        id="party-size"
-                                        type="number"
-                                        value={feedbackForm.party_size}
-                                        onChange={(e) => setFeedbackForm({...feedbackForm, party_size: e.target.value})}
-                                        placeholder="למשל: 4"
-                                    />
+                                    <Label htmlFor="party-size" className="text-xs" style={{ color: A.muted }}>כמות סועדים</Label>
+                                    <Input id="party-size" type="number" value={feedbackForm.party_size} onChange={(e) => setFeedbackForm({ ...feedbackForm, party_size: e.target.value })} placeholder="למשל: 4" className="mt-1" />
                                 </div>
                             </div>
 
-                            {/* פרטי קשר - חדש */}
-                            <div className="bg-[#F4ECD8] p-4 rounded-lg border border-[#E8D9B5]">
-                                <h4 className="font-semibold text-blue-900 mb-3">📞 פרטי קשר (אופציונלי)</h4>
-                                <p className="text-sm text-[#2E3819] mb-3">אם תרצו שנחזור אליכם לטיפול אישי בנושא</p>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <Label htmlFor="contact-name">שם מלא</Label>
-                                        <Input 
-                                            id="contact-name"
-                                            value={feedbackForm.contact_name}
-                                            onChange={(e) => setFeedbackForm({...feedbackForm, contact_name: e.target.value})}
-                                            placeholder="למשל: ישראל ישראלי"
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="contact-phone">מספר טלפון</Label>
-                                        <Input 
-                                            id="contact-phone"
-                                            value={feedbackForm.contact_phone}
-                                            onChange={(e) => setFeedbackForm({...feedbackForm, contact_phone: e.target.value})}
-                                            placeholder="למשל: 050-1234567"
-                                        />
-                                    </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="text-center">
+                                    <Label className="text-xs" style={{ color: A.muted }}>האוכל</Label>
+                                    <div className="mt-1"><StarRow value={feedbackForm.food_rating} activeValue={foodHover || feedbackForm.food_rating} onPick={(v) => setFeedbackForm({ ...feedbackForm, food_rating: v })} onHover={setFoodHover} onLeave={() => setFoodHover(0)} size="w-7 h-7" /></div>
+                                </div>
+                                <div className="text-center">
+                                    <Label className="text-xs" style={{ color: A.muted }}>השירות</Label>
+                                    <div className="mt-1"><StarRow value={feedbackForm.service_rating} activeValue={serviceHover || feedbackForm.service_rating} onPick={(v) => setFeedbackForm({ ...feedbackForm, service_rating: v })} onHover={setServiceHover} onLeave={() => setServiceHover(0)} size="w-7 h-7" /></div>
                                 </div>
                             </div>
 
                             <div>
-                                <Label>איך היה האוכל?</Label>
-                                <div className="flex justify-center items-center gap-2 pt-2">
-                                    {[...Array(5)].map((_, index) => {
-                                        const starValue = index + 1;
-                                        return (
-                                            <Star
-                                                key={`food-${starValue}`}
-                                                className={`w-8 h-8 cursor-pointer transition-all duration-200 ${
-                                                    starValue <= (foodHover || feedbackForm.food_rating) 
-                                                        ? 'text-yellow-400 fill-yellow-400 scale-110' 
-                                                        : 'text-gray-300 hover:text-[#D9BD83]'
-                                                }`}
-                                                onClick={() => setFeedbackForm({...feedbackForm, food_rating: starValue})}
-                                                onMouseEnter={() => setFoodHover(starValue)}
-                                                onMouseLeave={() => setFoodHover(0)}
-                                            />
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <Label>איך היה השירות?</Label>
-                                <div className="flex justify-center items-center gap-2 pt-2">
-                                    {[...Array(5)].map((_, index) => {
-                                        const starValue = index + 1;
-                                        return (
-                                            <Star
-                                                key={`service-${starValue}`}
-                                                className={`w-8 h-8 cursor-pointer transition-all duration-200 ${
-                                                    starValue <= (serviceHover || feedbackForm.service_rating) 
-                                                        ? 'text-yellow-400 fill-yellow-400 scale-110' 
-                                                        : 'text-gray-300 hover:text-[#D9BD83]'
-                                                }`}
-                                                onClick={() => setFeedbackForm({...feedbackForm, service_rating: starValue})}
-                                                onMouseEnter={() => setServiceHover(starValue)}
-                                                onMouseLeave={() => setServiceHover(0)}
-                                            />
-                                        );
-                                    })}
-                                </div>
+                                <Label className="text-sm font-semibold" style={{ color: A.charcoal }}>ממה התאכזבתם, ומה הייתם מצפים?</Label>
+                                <Textarea placeholder="ספרו לנו בכמה מילים..." value={comments} onChange={(e) => setComments(e.target.value)} rows={3} className="resize-none mt-1.5" />
                             </div>
 
-                            <div>
-                               <Label>ממה התאכזבת ומה היית מצפה שיקרה טוב יותר?</Label>
-                                <Textarea
-                                    placeholder="ספרו לנו..."
-                                    value={comments}
-                                    onChange={(e) => setComments(e.target.value)}
-                                    rows={4}
-                                    className="resize-none mt-1"
-                                />
+                            <div className="rounded-xl p-4" style={{ background: A.creamCard, border: `1px solid ${A.border}` }}>
+                                <h4 className="font-semibold mb-1 text-sm" style={{ color: A.olive }}>📞 שנחזור אליכם? (רשות)</h4>
+                                <p className="text-xs mb-3" style={{ color: A.muted }}>נשמח לתקן אישית</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input value={feedbackForm.contact_name} onChange={(e) => setFeedbackForm({ ...feedbackForm, contact_name: e.target.value })} placeholder="שם" className="bg-white" />
+                                    <Input value={feedbackForm.contact_phone} onChange={(e) => setFeedbackForm({ ...feedbackForm, contact_phone: e.target.value })} placeholder="טלפון" className="bg-white" />
+                                </div>
                             </div>
                         </CardContent>
-                        <CardFooter>
-                            <Button 
-                                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700" 
-                                onClick={handleFeedbackSubmit} 
-                                disabled={loading}
-                            >
-                                {loading ? 'שולח...' : 'שלח משוב'}
-                            </Button>
-                        </CardFooter>
-                    </>
+                        <div className="px-5 pb-6">
+                            <button onClick={handleFeedbackSubmit} disabled={loading} className="w-full py-3.5 rounded-2xl text-white text-lg font-bold shadow-lg transition-transform active:scale-95 disabled:opacity-50" style={{ background: `linear-gradient(90deg, ${A.olive}, #384218)` }}>
+                                {loading ? 'שולח...' : 'שלחו לנו — נטפל בזה'}
+                            </button>
+                        </div>
+                    </div>
                 )}
 
-                {(step === 'thanks_good' || step === 'thanks_bad') && (
-                    <>
-                        <CardHeader className="text-center bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-t-lg">
+                {/* ── THANKS (good) — Google CTA is the hero ── */}
+                {step === 'thanks_good' && (
+                    <div className="space-y-4">
+                        <div className="text-center pt-2 pb-1">
+                            <div className="text-5xl mb-1">🎉</div>
+                            <h1 className="text-2xl font-extrabold ol-serif" style={{ color: A.charcoal }}>תודה {customerName}!</h1>
+                            <div className="mt-2"><StarRow value={5} activeValue={5} onPick={() => {}} size="w-7 h-7" /></div>
+                        </div>
+                        {isMainTenant && <GoogleReviewCTA />}
+                        <WhatsAppCommunity />
+                        <ClubSignup />
+                    </div>
+                )}
+
+                {/* ── THANKS (bad) — apologetic, private, no Google ── */}
+                {step === 'thanks_bad' && (
+                    <div className="space-y-4">
+                        <div className="rounded-3xl p-7 text-center shadow-xl" style={{ background: '#fff', border: `1px solid ${A.border}` }}>
                             <div className="text-4xl mb-2">🙏</div>
-                            <CardTitle className="text-2xl mb-2">תודה רבה!</CardTitle>
-                            <CardDescription className="text-green-100">
-                                {isQrSource ? "המשוב שלכם התקבל בהצלחה 💚" : "המשוב שלכם התקבל בהצלחה"}
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-8 text-center">
-                            {step === 'thanks_good' && (
-                                <p className="text-gray-600 mb-4">
-                                    אנחנו שמחים לשמוע שנהניתם! המשוב שלכם התקבל בהצלחה.
-                                </p>
-                            )}
-                            {step === 'thanks_bad' && (
-                                <>
-                                    <p className="text-gray-600 mb-4">
-                                        ההערות שלכם חשובות לנו מאוד. שלחנו את המשוב למנהל המסעדה לטיפול מיידי. 
-                                        {(feedbackForm.contact_name || feedbackForm.contact_phone) && (
-                                            <span className="text-[#44512C] font-semibold"> נחזור אליכם בהקדם האפשרי.</span>
-                                        )}
-                                    </p>
-                                    <p className="text-gray-600">
-                                        אנו נעשה הכל כדי להבטיח שהחוויה הבאה שלכם תהיה מושלמת.
-                                    </p>
-
-                                    {(feedbackForm.contact_name || feedbackForm.contact_phone) && (
-                                        <div className="bg-green-50 p-4 rounded-lg border border-green-200 mt-4 text-right">
-                                            <p className="text-green-800 text-sm">
-                                                ✅ <strong>הפרטים שלכם נשמרו:</strong><br/>
-                                                {feedbackForm.contact_name && `שם: ${feedbackForm.contact_name}`}<br/>
-                                                {feedbackForm.contact_phone && `טלפון: ${feedbackForm.contact_phone}`}
-                                            </p>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-
-                            {isQrSource && (
-                                <div className="bg-green-50 p-4 rounded-lg border border-green-200 mb-4">
-                                    <p className="text-green-800 text-sm">
-                                        💡 <strong>עצה:</strong> שמח שהשתמשת בברקוד! זה עוזר לנו לדעת שהמערכת עובדת טוב
-                                    </p>
+                            <h1 className="text-2xl font-extrabold ol-serif mb-2" style={{ color: A.charcoal }}>תודה על הכנות</h1>
+                            <p className="text-sm leading-relaxed" style={{ color: A.muted }}>
+                                ההערות שלכם הגיעו ישירות למנהל המסעדה לטיפול מיידי.
+                                {(feedbackForm.contact_name || feedbackForm.contact_phone) && <span className="font-semibold" style={{ color: A.olive }}> נחזור אליכם בהקדם.</span>}
+                            </p>
+                            {(feedbackForm.contact_name || feedbackForm.contact_phone) && (
+                                <div className="rounded-xl p-3 mt-4 text-right text-sm" style={{ background: A.creamCard, border: `1px solid ${A.border}` }}>
+                                    <span style={{ color: A.olive }}>✅ <strong>הפרטים שלכם נשמרו:</strong></span><br />
+                                    {feedbackForm.contact_name && <span style={{ color: A.muted }}>שם: {feedbackForm.contact_name}<br /></span>}
+                                    {feedbackForm.contact_phone && <span style={{ color: A.muted }}>טלפון: {feedbackForm.contact_phone}</span>}
                                 </div>
                             )}
-
-                            {/* הצטרפות לקבוצת וואטסאפ */}
-                            {settings?.whatsapp_group_enabled && settings?.whatsapp_group_link && (
-                                <div className="bg-green-50 p-6 rounded-lg border border-green-200 mt-6 text-center">
-                                    <h3 className="font-bold text-green-900 text-xl mb-2 flex items-center justify-center gap-2">
-                                        <span className="text-3xl">💎</span>
-                                        קהילת ה-VIP שלנו בוואטסאפ מחכה לכם!
-                                    </h3>
-                                    <p className="text-green-800 mb-4">
-                                        הצטרפו לקבוצה השקטה שלנו וקבלו ראשונים עדכונים על אירועים מיוחדים, תפריטים חדשים והטבות ששמורות רק לחברים!
-                                    </p>
-                                    <Button
-                                        onClick={() => window.open(settings.whatsapp_group_link, '_blank')}
-                                        className="bg-green-600 hover:bg-green-700 text-white h-12 px-8 text-lg rounded-full shadow-lg transition-transform hover:scale-105"
-                                    >
-                                        <span className="text-xl mr-2">💬</span>
-                                        הצטרפו עכשיו ותתפנקו
-                                    </Button>
-                                    <p className="text-xs text-green-700 mt-2">
-                                        ✨ מבטיחים לא להציק - רק דברים טובים!
-                                    </p>
-                                </div>
-                            )}
-                            
-                            {step === 'thanks_good' && isMainTenant && (
-                                <div className="bg-[#F4ECD8] p-6 rounded-lg border border-[#E8D9B5] mt-6 text-center">
-                                    <h3 className="font-bold text-blue-900 text-xl mb-2">עזרתם לנו המון! ❤️</h3>
-                                    <p className="text-[#2E3819] mb-4">
-                                        ביקורת חיובית בגוגל היא הדלק שלנו להמשיך ולהשתפר. זה לוקח רק רגע, ועוזר לעסקים מקומיים כמונו יותר ממה שאתם חושבים.
-                                    </p>
-                                    <Button 
-                                        onClick={() => window.open(GOOGLE_REVIEW_LINK, '_blank')}
-                                        className="bg-[#44512C] hover:bg-[#44512C] text-white h-12 px-8 text-lg rounded-full shadow-lg transition-transform hover:scale-105"
-                                    >
-                                        🌟 אכתוב לכם ביקורת מפרגנת
-                                    </Button>
-                                </div>
-                            )}
-
-                             {/* Customer Club Signup */}
-                            <div className="bg-[#F4ECD8] p-6 rounded-lg border border-purple-200 mt-6">
-                                {clubSignupSuccess ? (
-                                    <div className="text-center">
-                                        <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
-                                        <h3 className="font-bold text-green-800 text-xl">נהדר! צורפת למועדון הלקוחות.</h3>
-                                        <p className="text-green-700 mt-2">נשלח לך עדכונים והטבות בקרוב 🎁</p>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <h3 className="font-bold text-purple-900 mb-2">הצטרפו למועדון הלקוחות שלנו!</h3>
-                                        <p className="text-[#7A3722] mb-4 text-sm">קבלו הטבות, הנחות ועדכונים לפני כולם.</p>
-                                        <form onSubmit={handleJoinClub} className="space-y-3">
-                                            <Input 
-                                                placeholder="שם מלא"
-                                                value={clubForm.name}
-                                                onChange={(e) => setClubForm({...clubForm, name: e.target.value})}
-                                                required
-                                            />
-                                            <Input 
-                                                placeholder="מספר טלפון"
-                                                type="tel"
-                                                value={clubForm.phone}
-                                                onChange={(e) => setClubForm({...clubForm, phone: e.target.value})}
-                                                required
-                                            />
-                                            <Button 
-                                                type="submit"
-                                                className="w-full bg-[#A04A2E] hover:bg-[#7A3722]"
-                                                disabled={isJoiningClub}
-                                            >
-                                                {isJoiningClub ? 'מצטרף...' : 'כן, אני רוצה להצטרף!'}
-                                            </Button>
-                                        </form>
-                                    </>
-                                )}
-                            </div>
-                        </CardContent>
-                    </>
+                        </div>
+                        <WhatsAppCommunity />
+                        <ClubSignup />
+                    </div>
                 )}
-            </Card>
+            </div>
         </div>
     );
 }
