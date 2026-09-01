@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import ReviewDashboard from '../components/reviews/ReviewDashboard';
 import ReviewQrCard from '../components/reviews/ReviewQrCard';
 import TargetedReviewBroadcast from '../components/reviews/TargetedReviewBroadcast';
+import ReviewReplyInbox from '../components/reviews/ReviewReplyInbox';
 
 export default function GoogleReviewsHub() {
   const [data, setData] = useState(null);
@@ -34,6 +35,7 @@ export default function GoogleReviewsHub() {
           </div>
         </div>
         <TargetedReviewBroadcast reviewLink={link} />
+        <ReviewReplyInbox />
       </div>
     </PageGuard>
   );
