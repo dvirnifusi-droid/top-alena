@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import LanguagePicker from '@/components/shared/LanguagePicker';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
@@ -63,6 +63,7 @@ export default function CustomerSurveyPage() {
     const [isJoiningClub, setIsJoiningClub] = useState(false);
     const [showClub, setShowClub] = useState(false);
     const [settings, setSettings] = useState(null);
+    const advanceTimer = useRef(null);
 
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -132,14 +133,25 @@ export default function CustomerSurveyPage() {
         loadSettings();
     }, []);
 
-    const handleRatingSubmit = async () => {
-        if (rating > 3) {
-            try { await saveFeedback(true); } catch (e) { console.error('Error saving good-review feedback:', e); }
+    // rv is passed explicitly — the auto-advance timer fires with a stale `rating`
+    // closure, so we must not read state here.
+    const submitRating = async (rv) => {
+        if (rv > 3) {
+            try { await saveFeedback(true, rv); } catch (e) { console.error('Error saving good-review feedback:', e); }
             setStep('thanks_good');
         } else {
             setStep('feedback');
         }
     };
+    // Tapping a star auto-advances after a short beat — so it's obvious something
+    // happened and it's ONE tap to the Google ask. Re-tapping resets the timer so
+    // the guest can still change their mind before it moves on.
+    const pickAndAdvance = (v) => {
+        setRating(v);
+        if (advanceTimer.current) clearTimeout(advanceTimer.current);
+        advanceTimer.current = setTimeout(() => submitRating(v), 550);
+    };
+    useEffect(() => () => { if (advanceTimer.current) clearTimeout(advanceTimer.current); }, []);
 
     const handleFeedbackSubmit = async () => {
         setLoading(true);
@@ -167,10 +179,11 @@ export default function CustomerSurveyPage() {
         } finally { setIsJoiningClub(false); }
     };
 
-    const saveFeedback = async (isGoodReview) => {
+    const saveFeedback = async (isGoodReview, ratingOverride) => {
         // Guests have NO login, so persistence goes through the PUBLIC
         // submitCustomerSurvey fn (feedback + customer satisfaction + a
         // managers-only incident for bad reviews) — no authed entity calls.
+        const rv = (ratingOverride ?? rating);
         const customerName = session?.customer_name || manualSurvey?.customer_name ||
             (feedbackForm.contact_name || (tableNumber ? `אורח בשולחן ${tableNumber}` : 'לקוח מברקוד QR'));
         const customerPhone = session?.customer_phone || manualSurvey?.customer_phone || feedbackForm.contact_phone || '';
@@ -179,7 +192,7 @@ export default function CustomerSurveyPage() {
             ? `\n\n📞 פרטי קשר: ${feedbackForm.contact_name || 'לא סופק'} · ${feedbackForm.contact_phone || customerPhone || 'לא סופק'}`
             : `\n\n📞 טלפון: ${customerPhone || 'לא סופק'}`;
         const incidentDescription = [
-            `דירוג כללי: ${rating}/5`,
+            `דירוג כללי: ${rv}/5`,
             `אוכל: ${feedbackForm.food_rating || 'לא צוין'}/5 | שירות: ${feedbackForm.service_rating || 'לא צוין'}/5`,
             `תאריך ביקור: ${feedbackForm.visit_date ? format(feedbackForm.visit_date, 'dd/MM/yyyy') : 'לא צוין'}`,
             `כמות סועדים: ${feedbackForm.party_size || 'לא צוין'}`,
@@ -189,11 +202,11 @@ export default function CustomerSurveyPage() {
             ``,
             `מקור: ${location}${contactInfo}`,
         ].join('\n');
-        const customerReaction = `דירוג ${rating}/5 · אוכל ${feedbackForm.food_rating}/5 · שירות ${feedbackForm.service_rating}/5. ${comments || ''}`.trim();
+        const customerReaction = `דירוג ${rv}/5 · אוכל ${feedbackForm.food_rating}/5 · שירות ${feedbackForm.service_rating}/5. ${comments || ''}`.trim();
 
         await base44.asServiceRole.functions.submitCustomerSurvey({
             is_good: isGoodReview,
-            rating,
+            rating: rv,
             customer_name: customerName,
             customer_phone: customerPhone,
             comments: comments || '',
@@ -352,21 +365,22 @@ export default function CustomerSurveyPage() {
                         </div>
                         <div className="px-6 py-9">
                             <p className="text-center text-sm mb-4 font-semibold" style={{ color: A.muted }}>סמנו כמה כוכבים 👇</p>
-                            <StarRow value={rating} activeValue={activeStars} onPick={setRating} onHover={setHover} onLeave={() => setHover(0)} size="w-12 h-12" />
+                            <StarRow value={rating} activeValue={activeStars} onPick={pickAndAdvance} onHover={setHover} onLeave={() => setHover(0)} size="w-12 h-12" />
                             <div className="h-7 mt-3 text-center font-bold text-lg ol-serif" style={{ color: A.terracotta }}>
-                                {RATING_COPY[activeStars] || ''}
+                                {RATING_COPY[activeStars] || (rating === 0 ? 'הקישו על הכוכבים 👆' : '')}
                             </div>
                         </div>
-                        <div className="px-6 pb-6">
-                            <button
-                                onClick={handleRatingSubmit}
-                                disabled={rating === 0}
-                                className="w-full h-13 py-3.5 rounded-2xl text-white text-lg font-bold shadow-lg transition-transform active:scale-95 disabled:opacity-40"
-                                style={{ background: `linear-gradient(90deg, ${A.olive}, #384218)` }}
-                            >
-                                {rating >= 4 ? 'המשך ➜' : rating > 0 ? 'המשך' : 'בחרו דירוג'}
-                            </button>
-                        </div>
+                        {rating > 0 && (
+                            <div className="px-6 pb-6">
+                                <button
+                                    onClick={() => { if (advanceTimer.current) clearTimeout(advanceTimer.current); submitRating(rating); }}
+                                    className="w-full h-13 py-3.5 rounded-2xl text-white text-lg font-bold shadow-lg transition-transform active:scale-95"
+                                    style={{ background: `linear-gradient(90deg, ${A.olive}, #384218)` }}
+                                >
+                                    {rating >= 4 ? 'המשך ➜' : 'המשך'}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
