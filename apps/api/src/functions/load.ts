@@ -60,6 +60,8 @@ import { getMyMonthlyUsage, writeAiUsage } from '../lib/aiUsage.js';
 import { currentTenantSlug } from '../lib/whatsappRouter.js';
 import { getBrandName, renderBrand } from '../lib/brandName.js';
 import { businessContextBlock, invalidateBusinessContextCache } from '../lib/businessContext.js';
+import { nextMilestones } from '../lib/reviewMath.js';
+import { resolveAudienceCustomerIds } from '../lib/reviewAudience.js';
 import { Readable } from 'node:stream';
 import webpush from 'web-push';
 import {
@@ -7554,6 +7556,89 @@ registerFn('getReviewTracking', async ({ user, body }: any) => {
     google_rate: completed ? Math.round((good / completed) * 100) : 0,
     avg_rating: avg, avg_food: avgOf(foodVals), avg_service: avgOf(serviceVals),
     distribution: dist, trend,
+  };
+});
+
+// --- Google Reviews Hub -------------------------------------------------
+// Current Google rating/count are entered by the owner (no Google API yet in
+// Phase A) and persisted in IntegrationSecret so they survive restarts.
+registerFn('setReviewCurrentStats', async ({ body, user }: any) => {
+  await requireBackOffice(user, 'setReviewCurrentStats');
+  const rating = Number((body || {}).rating);
+  const count = Number((body || {}).count);
+  if (!(rating >= 0 && rating <= 5)) throw new Error('rating must be 0..5');
+  if (!(count >= 0)) throw new Error('count must be >= 0');
+  const pairs: [string, string][] = [
+    ['GOOGLE_REVIEW_RATING', String(rating)],
+    ['GOOGLE_REVIEW_COUNT', String(Math.round(count))],
+  ];
+  for (const [key, value] of pairs) {
+    const existing = await db.integrationSecret.findFirst({ where: { key } });
+    if (existing) await db.integrationSecret.update({ where: { id: existing.id }, data: { value, updated_at: new Date() } });
+    else await db.integrationSecret.create({ data: { key, value, note: 'Google reviews hub', updated_at: new Date() } });
+  }
+  return { ok: true, rating, count: Math.round(count) };
+});
+
+registerFn('getReviewsHubDashboard', async ({ body, user, req }: any) => {
+  await requireBackOffice(user, 'getReviewsHubDashboard');
+  const days = Math.min(365, Math.max(1, Number((body || {}).days) || 30));
+  const tracking = await (functionHandlers['getReviewTracking'] as any)({ body: { days }, user, req });
+  const rating = Number(await getSecret('GOOGLE_REVIEW_RATING')) || null;
+  const count = Number(await getSecret('GOOGLE_REVIEW_COUNT')) || null;
+  const link = (await getSecret('GOOGLE_REVIEW_URL')) || 'https://g.page/r/CReDn7f8zub7EBM/review';
+  const milestones = rating != null && count != null ? nextMilestones(rating, count) : [];
+  const toNext = rating != null && count != null && milestones[0]
+    ? { target: milestones[0].target, reviews: milestones[0].reviews }
+    : null;
+  return { tracking, current: { rating, count }, review_link: link, milestones, to_next: toNext };
+});
+
+// Resolve "guests who dined/had an event on date D" -> deduped satisfied+consented
+// customers, and return the same preview shape the campaign UI expects.
+registerFn('previewReviewAudienceByDate', async ({ body, user }: any) => {
+  await requireBackOffice(user, 'previewReviewAudienceByDate');
+  const dateStr = String((body || {}).date || '').trim(); // 'YYYY-MM-DD'
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) throw new Error('date must be YYYY-MM-DD');
+  const start = new Date(dateStr + 'T00:00:00');
+  const next = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+  const reservations: any[] = await db.reservation.findMany({
+    where: { date: { gte: start, lt: next } },
+    select: { customer_id: true, customer_phone: true },
+  });
+  const events: any[] = await db.eventBooking.findMany({
+    where: { event_date: dateStr },
+    select: { customer_phone: true },
+  });
+  const phones = [
+    ...reservations.map((r) => r.customer_phone),
+    ...events.map((e) => e.customer_phone),
+  ].map((p) => String(p || '').replace(/\D/g, '')).filter(Boolean);
+  const idHints = reservations.map((r) => r.customer_id).filter(Boolean);
+
+  // Only candidate customers (by phone or id) — never the whole table.
+  const candidates: any[] = await db.customer.findMany({
+    where: { OR: [{ phone: { in: phones } }, { id: { in: idHints } }] },
+    select: { id: true, phone: true },
+  });
+  const customerIds = resolveAudienceCustomerIds({ reservations, events, customers: candidates });
+  if (customerIds.length === 0) return { count: 0, throttled_out: 0, sample: [], customer_ids: [] };
+
+  // Same consent gate the campaign uses + require satisfied + 24h throttle.
+  const where = buildSegmentWhere('manual', { customer_ids: customerIds });
+  const gated = { AND: [where, { satisfaction_status: 'satisfied' }] };
+  const matched: any[] = await db.customer.findMany({
+    where: gated,
+    select: { id: true, name: true, phone: true, visit_count: true, loyalty_tier: true, last_visit: true, last_marketing_sent_at: true },
+  });
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const eligible = matched.filter((c) => !c.last_marketing_sent_at || c.last_marketing_sent_at < cutoff);
+  return {
+    count: eligible.length,
+    throttled_out: matched.length - eligible.length,
+    sample: eligible.slice(0, 5),
+    customer_ids: eligible.map((c) => c.id),
   };
 });
 
