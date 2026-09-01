@@ -38,36 +38,22 @@ const RATING_COPY = ['', 'נשתפר בשבילכם 🙏', 'מצטערים 😔'
 // and its link can't be pre-filled — so the best "carry to Google" is: copy what
 // they wrote to the clipboard and open Google, one paste away.
 function GoogleReviewCard({ link }) {
-    const [text, setText] = React.useState('');
-    const [copied, setCopied] = React.useState(false);
-    const go = async () => {
-        const t = text.trim();
-        if (t) { try { await navigator.clipboard.writeText(t); setCopied(true); } catch { /* clipboard blocked — still open Google */ } }
-        window.open(link, '_blank');
-    };
+    // One clear button. window.open runs inside the tap gesture → not popup-blocked.
     return (
         <div className="rounded-3xl p-6 text-center shadow-lg" style={{ background: '#fff', border: `2px solid ${A.brass}` }}>
-            <div className="text-5xl mb-1 alena-bounce">⭐</div>
-            <h3 className="font-extrabold text-xl mb-1 ol-serif" style={{ color: A.charcoal }}>עשיתם לנו את היום 🙏</h3>
-            <p className="text-sm mb-3 leading-relaxed" style={{ color: A.muted }}>
-                אם נהניתם — פרגנו לנו ביקורת בגוגל.<br />לוקח <b style={{ color: A.terracotta }}>20 שניות</b>, ומשנה לנו את העולם 🌍
+            <div className="text-6xl mb-2 alena-bounce">⭐</div>
+            <h3 className="font-extrabold text-2xl mb-1 ol-serif" style={{ color: A.charcoal }}>נשמח שתפרגנו לנו! 🙏</h3>
+            <p className="text-sm mb-5 leading-relaxed" style={{ color: A.muted }}>
+                לוקח <b style={{ color: A.terracotta }}>20 שניות</b> ומשנה לנו את העולם 🌍
             </p>
-            <textarea
-                value={text} onChange={(e) => { setText(e.target.value); setCopied(false); }}
-                rows={2} placeholder="רוצים לכתוב מילה טובה? נעתיק לכם והדביקו בגוגל (לא חובה)"
-                className="w-full rounded-xl border p-2.5 text-sm text-right resize-none mb-3"
-                style={{ borderColor: A.border, background: '#FFFDF8', color: A.charcoal }}
-            />
             <button
-                onClick={go}
-                className="alena-pulse w-full h-14 rounded-2xl text-white text-lg font-bold shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95"
+                onClick={() => window.open(link, '_blank')}
+                className="alena-pulse w-full h-16 rounded-2xl text-white text-xl font-bold shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95"
                 style={{ background: `linear-gradient(90deg, ${A.terracotta}, ${A.terracottaDark})` }}
             >
-                <span className="text-2xl">⭐</span>{text.trim() ? 'העתיקו ופרסמו בגוגל' : 'כתבו לנו ביקורת בגוגל'}
+                <span className="text-2xl">⭐</span> נשמח שתפרגן לנו בגוגל
             </button>
-            <p className="text-[11px] mt-3" style={{ color: copied ? A.olive : A.muted }}>
-                {copied ? '✓ הביקורת הועתקה — פשוט הדביקו בגוגל (החזקה ← הדבק)' : 'נפתח ישירות בחשבון הגוגל שלכם · אנחנו לא שומרים כלום'}
-            </p>
+            <p className="text-[11px] mt-3" style={{ color: A.muted }}>נפתח ישירות בחשבון הגוגל שלכם</p>
         </div>
     );
 }
@@ -175,13 +161,13 @@ export default function CustomerSurveyPage() {
         loadSettings();
     }, []);
 
-    // ONE tap = go. No delay. For 4-5★ we open Google RIGHT HERE, inside the tap's
-    // own gesture, so the browser doesn't block the popup (a delayed window.open
-    // would be blocked). ≤3★ jumps straight to the private feedback form.
+    // ONE tap on a star jumps instantly to a single clear button: 4-5★ → the
+    // "פרגנו בגוגל" screen; ≤3★ → "ספרו לנו מה קרה". We DON'T auto-open Google
+    // (mobile popup-blockers kill a programmatic window.open) — the guest taps the
+    // one prominent button, and THAT gesture opens Google reliably.
     const handleStarTap = (v) => {
         setRating(v);
         if (v > 3) {
-            if (isMainTenant) { try { window.open(GOOGLE_REVIEW_LINK, '_blank'); } catch { /* fallback button on thanks_good */ } }
             saveFeedback(true, v).catch((e) => console.error('Error saving good-review feedback:', e));
             setStep('thanks_good');
         } else {
@@ -396,8 +382,8 @@ export default function CustomerSurveyPage() {
                     <div className="rounded-3xl overflow-hidden shadow-2xl" style={{ background: '#fff', border: `1px solid ${A.border}` }}>
                         <div className="text-center px-6 pt-8 pb-6 text-white" style={{ background: `linear-gradient(140deg, ${A.terracotta}, ${A.terracottaDark})` }}>
                             <Frown className="w-11 h-11 mx-auto mb-2" />
-                            <h2 className="text-xl font-extrabold ol-serif">מצטערים שלא היה מושלם</h2>
-                            <p className="mt-1 text-sm" style={{ color: '#F6E7D8' }}>ספרו לנו מה קרה — נטפל בזה אישית ומהר</p>
+                            <h2 className="text-2xl font-extrabold ol-serif">נשמח שתספרו לנו מה קרה</h2>
+                            <p className="mt-1 text-sm" style={{ color: '#F6E7D8' }}>נטפל בזה אישית ומהר — ונחזור אליכם</p>
                         </div>
                         <CardContent className="p-5 space-y-5">
                             {/* Contact FIRST + required — the owner must be able to call them back. */}
