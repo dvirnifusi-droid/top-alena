@@ -21,6 +21,94 @@ import {
   Clock
 } from 'lucide-react';
 
+// NEW — Beecomm Cloud Analytics API (real sales/reports → dashboards + food-cost).
+// The OrderCenter integration below is legacy (moved to Beecomm Cloud).
+function AnalyticsConfigCard() {
+  const [st, setSt] = useState(null);
+  const [f, setF] = useState({ client_id: '', client_secret: '', active: true });
+  const [access, setAccess] = useState(null);
+  const [sel, setSel] = useState({ restaurant_id: '', restaurant_name: '', branches: [] });
+  const [busy, setBusy] = useState('');
+  const [msg, setMsg] = useState(null);
+  const [open, setOpen] = useState(true);
+
+  const load = React.useCallback(async () => {
+    try {
+      const r = await base44.functions.getBeecommAnalyticsStatus({});
+      const s = r?.data || r; setSt(s);
+      if (s?.configured) { setF((p) => ({ ...p, active: s.active })); setSel({ restaurant_id: s.restaurant_id || '', restaurant_name: s.restaurant_name || '', branches: s.branches || [] }); }
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const saveCfg = async (extra) => base44.functions.setBeecommAnalyticsConfig({
+    client_id: f.client_id.trim() || undefined, client_secret: f.client_secret.trim() || undefined,
+    restaurant_id: sel.restaurant_id || undefined, restaurant_name: sel.restaurant_name || undefined,
+    branches: sel.branches, active: f.active, ...extra,
+  });
+  const save = async () => { setBusy('save'); setMsg(null); try { await saveCfg(); setMsg({ ok: true, text: 'נשמר ✓' }); await load(); } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); } finally { setBusy(''); } };
+  const test = async () => {
+    setBusy('test'); setMsg(null);
+    try {
+      await saveCfg();
+      const r = await base44.functions.testBeecommAnalytics({}); const d = r?.data || r;
+      if (d.ok) { setAccess(d.access_list || []); setMsg({ ok: true, text: (d.access_list || []).length ? 'מחובר ✓ — בחר מסעדה וסניפים למטה' : 'מחובר ✓ (אין מסעדות בגישה)' }); }
+      else setMsg({ ok: false, text: d.message });
+    } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); } finally { setBusy(''); }
+  };
+  const syncNow = async () => {
+    setBusy('sync'); setMsg(null);
+    try { const r = await base44.functions.syncBeecommAnalyticsNow({}); const d = r?.data || r;
+      setMsg(d.ok === false ? { ok: false, text: d.error || d.reason } : { ok: true, text: d.skipped ? `דילג (${d.reason})` : `סונכרנו ${d.imported} ימים (${d.z_available} Z זמינים)` });
+      await load();
+    } catch (e) { setMsg({ ok: false, text: e?.message || 'שגיאה' }); } finally { setBusy(''); }
+  };
+  const pickRestaurant = (r) => setSel({ restaurant_id: r.restaurantId, restaurant_name: r.restaurantName, branches: (r.branches || []).map((b) => b.id) });
+  const toggleBranch = (id) => setSel((s) => ({ ...s, branches: s.branches.includes(id) ? s.branches.filter((x) => x !== id) : [...s.branches, id] }));
+  const curRest = access && access.find((x) => x.restaurantId === sel.restaurant_id);
+
+  return (
+    <Card className="border-2" style={{ borderColor: '#B89556', background: '#FFFDF8' }}>
+      <CardHeader className="cursor-pointer" onClick={() => setOpen((o) => !o)}>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <span>☁️ Beecomm Cloud — Analytics (מכירות ודוחות)</span>
+          {st?.active && <Badge className="bg-green-100 text-green-800">מחובר</Badge>}
+          <span className="mr-auto text-sm text-gray-400">{open ? '▲' : '▼'}</span>
+        </CardTitle>
+        <p className="text-sm text-gray-500">מושך היסטוריית מכירות אמיתית מהקופה → תחזיות, פוד-קוסט, דשבורדים. מסתנכרן אוטומטית פעם ביום.</p>
+      </CardHeader>
+      {open && (
+        <CardContent className="space-y-4">
+          <div className="grid md:grid-cols-2 gap-3">
+            <div><Label>client_id</Label><Input value={f.client_id} onChange={(e) => setF({ ...f, client_id: e.target.value })} placeholder={st?.client_id_masked || 'מ-Beecomm'} dir="ltr" className="text-left mt-1" /></div>
+            <div><Label>client_secret</Label><Input type="password" value={f.client_secret} onChange={(e) => setF({ ...f, client_secret: e.target.value })} placeholder={st?.configured ? '••• (שמור — השאר ריק כדי לא לשנות)' : 'מ-Beecomm'} dir="ltr" className="text-left mt-1" /></div>
+          </div>
+          {msg && <div className={`text-sm rounded px-3 py-2 ${msg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{msg.text}</div>}
+          {access && access.length > 0 && (
+            <div className="rounded-lg p-3 space-y-2" style={{ background: '#F4ECD8' }}>
+              <Label>בחר מסעדה:</Label>
+              <div className="flex flex-wrap gap-2">
+                {access.map((r) => (<button key={r.restaurantId} onClick={() => pickRestaurant(r)} className="px-3 py-1 rounded-full text-sm border" style={sel.restaurant_id === r.restaurantId ? { background: '#44512C', color: '#fff', borderColor: '#44512C' } : { background: '#fff' }}>{r.restaurantName}</button>))}
+              </div>
+              {curRest && <div><Label>סניפים:</Label><div className="flex flex-wrap gap-2 mt-1">{(curRest.branches || []).map((b) => (<label key={b.id} className="flex items-center gap-1 text-sm bg-white px-2 py-1 rounded border"><input type="checkbox" checked={sel.branches.includes(b.id)} onChange={() => toggleBranch(b.id)} />{b.name}</label>))}</div></div>}
+            </div>
+          )}
+          {st?.configured && !access && sel.restaurant_name && <p className="text-sm text-gray-600">מסעדה מחוברת: <b>{sel.restaurant_name}</b> · {sel.branches.length} סניפים</p>}
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} /> סנכרון אוטומטי פעיל (יומי)</label>
+          <div className="flex gap-2 flex-wrap items-center">
+            <Button onClick={test} disabled={busy === 'test'} variant="outline">{busy === 'test' ? 'בודק...' : 'בדוק חיבור'}</Button>
+            <Button onClick={save} disabled={busy === 'save'} className="bg-[#44512C] hover:bg-[#384218]">{busy === 'save' ? 'שומר...' : 'שמור'}</Button>
+            <Button onClick={syncNow} disabled={busy === 'sync' || !st?.active} variant="outline">{busy === 'sync' ? 'מסנכרן...' : 'סנכרן עכשיו'}</Button>
+            {st?.last_sync && <span className="text-xs text-gray-500">סונכרן: {new Date(st.last_sync).toLocaleString('he-IL')} · {st.last_count || 0} ימים</span>}
+          </div>
+          {st?.last_error && <p className="text-xs text-red-600">שגיאה אחרונה: {st.last_error}</p>}
+          <p className="text-xs text-gray-400">💡 צריך <b>client_id + client_secret</b> מ-Beecomm (עדיין לא נשלחו — בקש מהם). מגבלה: 10 בקשות/יום, לכן מושכים רק ימים חדשים.</p>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 export default function BeecommIntegrationPage() {
   const [config, setConfig] = useState(null);
   const [newConfig, setNewConfig] = useState({
@@ -211,6 +299,9 @@ export default function BeecommIntegrationPage() {
           </h1>
           <p className="text-gray-600 text-lg">ניהול הזמנות וסנכרון נתונים</p>
         </div>
+
+        {/* NEW: Beecomm Cloud Analytics API — the current integration */}
+        <AnalyticsConfigCard />
 
         {/* Connection Status */}
         <Card className="border-2 border-[#E8D9B5]">

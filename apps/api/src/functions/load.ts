@@ -24055,6 +24055,217 @@ registerFn('beecommGetStatus', async () => {
   };
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Beecomm CLOUD ANALYTICS API (api.beecommcloud.com/v2) — the REAL sales/reports
+// API (the OrderCenter API above is dead — the restaurant moved to Beecomm Cloud).
+// Delta-syncs closed Z reports into BeecommHistoricalDay so ALL existing
+// dashboards + food-cost light up. Rate limit = 10 req/day → sync only NEW Z's.
+// Isolated raw config table (no drift on the Prisma BeecommConfig model).
+// ═══════════════════════════════════════════════════════════════════════════
+const BEECOMM_ANALYTICS_BASE = 'https://api.beecommcloud.com/v2';
+let _bcaEnsured = false; let _bcaEnsuring: Promise<void> | null = null;
+async function ensureBeecommAnalytics(): Promise<void> {
+  if (_bcaEnsured) return;
+  if (_bcaEnsuring) { await _bcaEnsuring; return; }
+  _bcaEnsuring = (async () => {
+    await (prisma as any).$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "BeecommAnalyticsConfig" (
+      "id" TEXT PRIMARY KEY,
+      "client_id" TEXT, "client_secret" TEXT,
+      "base_url" TEXT,
+      "restaurant_id" TEXT, "restaurant_name" TEXT,
+      "branches" JSONB NOT NULL DEFAULT '[]'::jsonb,
+      "token" TEXT, "token_expires" TIMESTAMP(3),
+      "catalog" JSONB, "catalog_at" TIMESTAMP(3),
+      "last_synced_date" TEXT,
+      "active" BOOLEAN NOT NULL DEFAULT false,
+      "last_sync" TIMESTAMP(3), "last_count" INTEGER NOT NULL DEFAULT 0, "last_error" TEXT,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`).catch(() => {});
+    _bcaEnsured = true;
+  })();
+  try { await _bcaEnsuring; } finally { if (!_bcaEnsured) _bcaEnsuring = null; }
+}
+async function bcaLoad(): Promise<any> {
+  await ensureBeecommAnalytics();
+  const rows: any[] = await (prisma as any).$queryRawUnsafe(`SELECT * FROM "BeecommAnalyticsConfig" WHERE id='default' LIMIT 1`).catch(() => []);
+  return rows[0] || null;
+}
+// Auth — POST /auth/token (form) → access_token (24h). getAccessList uses the raw
+// token header; the analytics endpoints use "Authorization: Bearer <token>".
+async function bcaAuth(cfg: any): Promise<string> {
+  const base = cfg.base_url || BEECOMM_ANALYTICS_BASE;
+  const body = new URLSearchParams({ client_id: String(cfg.client_id || ''), client_secret: String(cfg.client_secret || '') });
+  const res = await fetch(`${base}/auth/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
+  const text = await res.text(); let j: any; try { j = JSON.parse(text); } catch { j = { result: false, message: text.slice(0, 200) }; }
+  if (!res.ok || !j?.result || !j?.access_token) throw new Error(j?.message || `HTTP ${res.status}`);
+  return String(j.access_token);
+}
+async function bcaToken(cfg: any): Promise<string> {
+  const exp = cfg.token_expires ? new Date(cfg.token_expires).getTime() : 0;
+  if (cfg.token && exp > Date.now() + 300_000) return cfg.token;
+  const t = await bcaAuth(cfg);
+  await (prisma as any).$executeRawUnsafe(`UPDATE "BeecommAnalyticsConfig" SET token=$1, token_expires=$2, "updatedAt"=NOW() WHERE id='default'`, t, new Date(Date.now() + 23 * 3600 * 1000)).catch(() => {});
+  return t;
+}
+async function bcaPost(base: string, token: string, path: string, payload: any): Promise<any> {
+  const res = await fetch(`${base}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const text = await res.text(); let j: any; try { j = JSON.parse(text); } catch { j = { result: false, message: text.slice(0, 300) }; }
+  if (!res.ok) throw new Error(j?.message || `HTTP ${res.status}`);
+  return j;
+}
+// orderType → bucket (Beecomm: 1 dine-in, 2 takeaway/TA, 3 delivery — best-effort).
+function bcaBucket(t: number): 'dine_in' | 'takeaway' | 'delivery' { return t === 3 ? 'delivery' : t === 2 ? 'takeaway' : 'dine_in'; }
+async function bcaCatalog(base: string, token: string, cfg: any): Promise<Record<string, string>> {
+  const at = cfg.catalog_at ? new Date(cfg.catalog_at).getTime() : 0;
+  if (cfg.catalog && at > Date.now() - 7 * 864e5) return cfg.catalog;
+  try {
+    const r = await bcaPost(base, token, '/analytics/getCatalogStructure', { restaurantId: cfg.restaurant_id, branches: (cfg.branches || []).map(String) });
+    const map: Record<string, string> = {};
+    for (const s of (r.structure || [])) map[String(s.id)] = String(s.name || '');
+    await (prisma as any).$executeRawUnsafe(`UPDATE "BeecommAnalyticsConfig" SET catalog=$1::jsonb, catalog_at=NOW() WHERE id='default'`, JSON.stringify(map)).catch(() => {});
+    return map;
+  } catch { return (cfg.catalog || {}); }
+}
+// Delta sync: getZList(window) → getAnalyticsData(new Z's) → aggregate PER DAY →
+// upsert BeecommHistoricalDay (the shape every downstream dashboard already reads).
+async function syncBeecommAnalyticsCore(opts: { days?: number } = {}): Promise<any> {
+  const cfg = await bcaLoad();
+  if (!cfg || !cfg.client_id || !cfg.client_secret || !cfg.restaurant_id || cfg.active === false) {
+    return { skipped: true, reason: !cfg?.client_id ? 'not_configured' : (!cfg?.restaurant_id ? 'no_restaurant' : 'inactive') };
+  }
+  const base = cfg.base_url || BEECOMM_ANALYTICS_BASE;
+  const il = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(d);
+  const num = (v: any) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  try {
+    const token = await bcaToken(cfg);
+    const branches: string[] = Array.isArray(cfg.branches) ? cfg.branches.map(String) : [];
+    const backDays = Math.min(120, Math.max(1, opts.days || 30));
+    const start = (cfg.last_synced_date && !opts.days) ? cfg.last_synced_date : il(new Date(Date.now() - backDays * 864e5));
+    const end = il(new Date());
+    const zl = await bcaPost(base, token, '/analytics/getZList', { restaurantId: cfg.restaurant_id, branches, query: { start, end } });
+    const zList: any[] = zl.zList || [];
+    const existing: any[] = await (prisma as any).$queryRawUnsafe(`SELECT z_numbers FROM "BeecommHistoricalDay"`).catch(() => []);
+    const haveZ = new Set<string>();
+    for (const r of existing) for (const z of (Array.isArray(r.z_numbers) ? r.z_numbers : [])) haveZ.add(String(z));
+    const newZ = zList.filter((z) => !haveZ.has(String(z.zNumber))).slice(0, 10); // ≤10 per getAnalyticsData
+    if (!newZ.length) {
+      await (prisma as any).$executeRawUnsafe(`UPDATE "BeecommAnalyticsConfig" SET last_sync=NOW(), last_synced_date=$1, last_error=NULL WHERE id='default'`, end).catch(() => {});
+      return { ok: true, imported: 0, z_available: zList.length };
+    }
+    const catalog = await bcaCatalog(base, token, cfg);
+    const ad = await bcaPost(base, token, '/analytics/getAnalyticsData', { restaurantId: cfg.restaurant_id, branches, query: { start, end, zIds: newZ.map((z) => String(z.id)) } });
+    const zData: any[] = ad.data || [];
+    // aggregate per calendar day (most days = 1 Z, but merge if several)
+    const byDay = new Map<string, any>();
+    for (const z of zData) {
+      const day = String(z.valueDate || z.startTs || '').slice(0, 10); if (!day) continue;
+      const posId = String(z.branchId || cfg.restaurant_id);
+      const key = `${posId}|${day}`;
+      if (!byDay.has(key)) byDay.set(key, { posId, day, z_numbers: [], net: 0, gross: 0, tips: 0, diners: 0, orders: 0, pay: {}, dishes: new Map(), cats: {}, dine_in: { count: 0, sum: 0 }, takeaway: { count: 0, sum: 0 }, delivery: { count: 0, sum: 0 } });
+      const D = byDay.get(key);
+      D.z_numbers.push(z.zNumber);
+      for (const o of (z.orders || [])) {
+        const tot = num(o.total), ntot = num(o.netTotal), svc = num(o.serviceAmount ?? o.service);
+        D.gross += tot; D.net += (ntot || tot - svc); D.tips += svc; D.diners += num(o.dinnersCount); D.orders++;
+        const b = bcaBucket(num(o.orderType)); D[b].count++; D[b].sum += tot;
+      }
+      for (const p of (z.payments || [])) { const n = String(p.paymentTypeName || 'אחר'); D.pay[n] = D.pay[n] || { sum: 0, count: 0 }; D.pay[n].sum += num(p.paymentSum); D.pay[n].count++; }
+      for (const it of (z.orderItems || [])) {
+        const name = String(it.dishName || '').trim(); if (!name) continue;
+        const qty = num(it.quantity); const sum = num(it.priceIncludingExtras ?? it.price ?? it.calculatedPrice) * qty;
+        const catName = catalog[String(it.catalogLevel1Id || it.catalogLevel0Id || '')] || '';
+        const e = D.dishes.get(name) || { name, dishId: it.dishId || null, quantity: 0, sum: 0, categoryName: catName };
+        e.quantity += qty; e.sum += sum; if (!e.categoryName && catName) e.categoryName = catName; D.dishes.set(name, e);
+        if (catName) D.cats[catName] = num(D.cats[catName]) + sum;
+      }
+    }
+    let imported = 0;
+    for (const D of byDay.values()) {
+      const topDishes = [...D.dishes.values()].sort((a: any, b: any) => b.sum - a.sum).slice(0, 100);
+      await (prisma as any).$executeRawUnsafe(
+        `INSERT INTO "BeecommHistoricalDay" ("id","pos_id","date","z_numbers","net_total","gross_total","total_tips","diners","orders_count","payments","top_dishes","category_totals","dine_in","takeaway","delivery","fetched_at","createdAt")
+         VALUES (gen_random_uuid()::text,$1,$2,$3::jsonb,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,$13::jsonb,$14::jsonb,NOW(),NOW())
+         ON CONFLICT ("pos_id","date") DO UPDATE SET "z_numbers"=$3::jsonb,"net_total"=$4,"gross_total"=$5,"total_tips"=$6,"diners"=$7,"orders_count"=$8,"payments"=$9::jsonb,"top_dishes"=$10::jsonb,"category_totals"=$11::jsonb,"dine_in"=$12::jsonb,"takeaway"=$13::jsonb,"delivery"=$14::jsonb,"fetched_at"=NOW()`,
+        D.posId, D.day, JSON.stringify(D.z_numbers), Math.round(D.net), Math.round(D.gross), Math.round(D.tips), D.diners, D.orders,
+        JSON.stringify(D.pay), JSON.stringify(topDishes), JSON.stringify(D.cats), JSON.stringify(D.dine_in), JSON.stringify(D.takeaway), JSON.stringify(D.delivery),
+      ).catch((e: any) => console.error('[bca] upsert day', D.day, e?.message));
+      imported++;
+    }
+    await (prisma as any).$executeRawUnsafe(`UPDATE "BeecommAnalyticsConfig" SET last_sync=NOW(), last_synced_date=$1, last_count="last_count"+$2, last_error=NULL WHERE id='default'`, end, imported).catch(() => {});
+    return { ok: true, imported, z_available: zList.length, z_fetched: newZ.length };
+  } catch (e: any) {
+    await (prisma as any).$executeRawUnsafe(`UPDATE "BeecommAnalyticsConfig" SET last_error=$1 WHERE id='default'`, String(e?.message || e).slice(0, 300)).catch(() => {});
+    return { ok: false, error: String(e?.message || e).slice(0, 300) };
+  }
+}
+
+// ── Analytics config + control fns (owner) ──
+registerFn('getBeecommAnalyticsStatus', async ({ user }: any) => {
+  await requireBackOffice(user, 'getBeecommAnalyticsStatus');
+  const c = await bcaLoad();
+  if (!c) return { configured: false };
+  return {
+    configured: !!c.client_id, active: !!c.active,
+    restaurant_id: c.restaurant_id || null, restaurant_name: c.restaurant_name || null,
+    branches: Array.isArray(c.branches) ? c.branches : [],
+    last_sync: c.last_sync, last_synced_date: c.last_synced_date, last_count: c.last_count || 0, last_error: c.last_error || null,
+    client_id_masked: c.client_id ? `${String(c.client_id).slice(0, 4)}…${String(c.client_id).slice(-3)}` : null,
+  };
+});
+registerFn('setBeecommAnalyticsConfig', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'setBeecommAnalyticsConfig');
+  await ensureBeecommAnalytics();
+  const b = (body || {}) as any;
+  const existing = await bcaLoad();
+  // keep the stored secret if the UI sends a blank (so we don't wipe it on re-save)
+  const secret = (b.client_secret && String(b.client_secret).trim()) ? String(b.client_secret).trim() : (existing?.client_secret || null);
+  await (prisma as any).$executeRawUnsafe(
+    `INSERT INTO "BeecommAnalyticsConfig" ("id","client_id","client_secret","base_url","restaurant_id","restaurant_name","branches","active","token","token_expires","updatedAt")
+     VALUES ('default',$1,$2,$3,$4,$5,$6::jsonb,$7,NULL,NULL,NOW())
+     ON CONFLICT ("id") DO UPDATE SET "client_id"=$1,"client_secret"=$2,"base_url"=$3,"restaurant_id"=$4,"restaurant_name"=$5,"branches"=$6::jsonb,"active"=$7,"token"=NULL,"token_expires"=NULL,"updatedAt"=NOW()`,
+    b.client_id ? String(b.client_id).trim() : (existing?.client_id || null), secret,
+    (b.base_url && String(b.base_url).trim()) || BEECOMM_ANALYTICS_BASE,
+    b.restaurant_id ? String(b.restaurant_id).trim() : (existing?.restaurant_id || null),
+    b.restaurant_name ? String(b.restaurant_name).trim() : (existing?.restaurant_name || null),
+    JSON.stringify(Array.isArray(b.branches) ? b.branches : (existing?.branches || [])),
+    b.active === false ? false : true,
+  ).catch((e: any) => { throw new Error(e?.message || 'save failed'); });
+  return { ok: true };
+});
+// Test creds → auth + getAccessList so the owner can pick restaurant + branches.
+registerFn('testBeecommAnalytics', async ({ user }: any) => {
+  await requireBackOffice(user, 'testBeecommAnalytics');
+  const cfg = await bcaLoad();
+  if (!cfg?.client_id || !cfg?.client_secret) return { ok: false, message: 'הזן client_id ו-client_secret ושמור קודם' };
+  const base = cfg.base_url || BEECOMM_ANALYTICS_BASE;
+  try {
+    const token = await bcaToken(cfg);
+    const al = await bcaGet(base, token, '/ext/getAccessList');
+    return { ok: true, message: 'מחובר ✓', access_list: al.access_list || [] };
+  } catch (e: any) { return { ok: false, message: String(e?.message || e).slice(0, 200) }; }
+});
+registerFn('syncBeecommAnalyticsNow', async ({ user, body }: any) => {
+  await requireBackOffice(user, 'syncBeecommAnalyticsNow');
+  return await syncBeecommAnalyticsCore({ days: (body || {}).days ? Number((body as any).days) : undefined });
+});
+
+// getAccessList uses the raw token (no "Bearer").
+async function bcaGet(base: string, token: string, path: string): Promise<any> {
+  const res = await fetch(`${base}${path}`, { headers: { Authorization: token } });
+  const text = await res.text(); let j: any; try { j = JSON.parse(text); } catch { j = { result: false, message: text.slice(0, 300) }; }
+  if (!res.ok) throw new Error(j?.message || `HTTP ${res.status}`);
+  return j;
+}
+
+// Daily cron — pull new Z's once/day (well within the 10-req/day limit).
+if (!(globalThis as any).__beecommAnalyticsTimer) {
+  (globalThis as any).__beecommAnalyticsTimer = setTimeout(function loop() {
+    syncBeecommAnalyticsCore({}).catch(() => {}).finally(() => {
+      (globalThis as any).__beecommAnalyticsTimer = setTimeout(loop, 12 * 3600 * 1000);
+    });
+  }, 5 * 60 * 1000);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // EVENT DIGITAL CONTRACT — generation, public signing, listing
 // Built from the Word doc Dvir uses as a paper sign-off. Each contract is a
