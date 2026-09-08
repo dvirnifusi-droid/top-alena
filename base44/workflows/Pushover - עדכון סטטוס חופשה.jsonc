@@ -1,0 +1,37 @@
+{
+  "name": "Pushover - \u05e2\u05d3\u05db\u05d5\u05df \u05e1\u05d8\u05d8\u05d5\u05e1 \u05d7\u05d5\u05e4\u05e9\u05d4",
+  "description": "",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "update"
+      ],
+      "entity_name": "LeaveRequest"
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "pushover",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "pushoverOnLeaveUpdate",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "pushoverOnLeaveUpdate"
+  }
+}
