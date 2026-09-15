@@ -485,19 +485,21 @@ function PendingCallbackCard() {
   const [visibleCount, setVisibleCount] = React.useState(15);   // paginate the board (perf)
   const [expandedTL, setExpandedTL] = React.useState(() => new Set()); // lead ids w/ full timeline
 
-  const load = React.useCallback(async () => {
-    setLoading(true);
+  const load = React.useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const r = await base44.functions.listEventLeads({});
       const arr = r?.data?.leads || r?.leads || [];
       // Only leads Dana finished collecting — needs at least a phone.
       setLeads(arr.filter((l) => l.contact_phone));
-    } catch { setLeads([]); }
-    finally { setLoading(false); }
+    } catch { if (!silent) setLeads([]); }
+    finally { if (!silent) setLoading(false); }
   }, []);
   React.useEffect(() => { load(); }, [load]);
   React.useEffect(() => {
-    const id = setInterval(() => { load(); }, 120000);
+    // Background refresh — SILENT so the board never blanks to a spinner. The
+    // spinner flash on every poll/action made the page impossible to screenshot.
+    const id = setInterval(() => { load(true); }, 120000);
     return () => clearInterval(id);
   }, [load]);
 
@@ -511,7 +513,7 @@ function PendingCallbackCard() {
     setBusy(lead.id);
     try {
       await base44.functions.setLeadCallbackStage({ lead_id: lead.id, stage, notes });
-      await load();
+      await load(true);
     } catch (e) { alert('שמירה נכשלה: ' + (e?.message || '')); }
     finally { setBusy(null); }
   };
@@ -519,13 +521,13 @@ function PendingCallbackCard() {
   // Timeline + tags (all stored server-side in the lead's META block).
   const logActivity = async (lead, type, text, extra = {}) => {
     setBusy(lead.id);
-    try { await base44.functions.addLeadActivity({ lead_id: lead.id, type, text, ...extra }); await load(); }
+    try { await base44.functions.addLeadActivity({ lead_id: lead.id, type, text, ...extra }); await load(true); }
     catch (e) { alert('שמירה נכשלה: ' + (e?.message || '')); }
     finally { setBusy(null); }
   };
   const setFlags = async (lead, flags) => {
     setBusy(lead.id);
-    try { await base44.functions.setLeadFlags({ lead_id: lead.id, ...flags }); await load(); }
+    try { await base44.functions.setLeadFlags({ lead_id: lead.id, ...flags }); await load(true); }
     catch (e) { alert('שמירה נכשלה: ' + (e?.message || '')); }
     finally { setBusy(null); }
   };
@@ -556,12 +558,12 @@ function PendingCallbackCard() {
 
   return (
     <>
-    <AddEventLeadDialog open={showAdd || !!editLead} lead={editLead} onOpenChange={(v) => { if (!v) { setShowAdd(false); setEditLead(null); } }} onCreated={load} />
-    <EventDepositDialog open={!!depositLead} lead={depositLead} onOpenChange={(v) => { if (!v) setDepositLead(null); }} onDone={load} />
-    <CloseEventDialog lead={closeLead} onClose={() => setCloseLead(null)} onSaved={() => { setCloseLead(null); load(); }} />
+    <AddEventLeadDialog open={showAdd || !!editLead} lead={editLead} onOpenChange={(v) => { if (!v) { setShowAdd(false); setEditLead(null); } }} onCreated={() => load(true)} />
+    <EventDepositDialog open={!!depositLead} lead={depositLead} onOpenChange={(v) => { if (!v) setDepositLead(null); }} onDone={() => load(true)} />
+    <CloseEventDialog lead={closeLead} onClose={() => setCloseLead(null)} onSaved={() => { setCloseLead(null); load(true); }} />
     <ScheduleCallDialog open={!!scheduleLead} onOpenChange={(v) => { if (!v) setScheduleLead(null); }} onSave={async ({ scheduled_at, text }) => { if (scheduleLead) await logActivity(scheduleLead, 'call_scheduled', text, { scheduled_at }); }} />
     <ThanksPageSettings />
-    <EventLeadsSheetCard onImported={load} />
+    <EventLeadsSheetCard onImported={() => load(true)} />
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-orange-500" /> אירועים שמחכים שמנהל יתקשר ללקוח</CardTitle>
@@ -820,17 +822,17 @@ function BookingsCard() {
   const [busy, setBusy] = React.useState(null);
   const [confirmModal, setConfirmModal] = React.useState(null); // approved booking awaiting customer notification
 
-  const load = React.useCallback(async () => {
-    setLoading(true);
+  const load = React.useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const r = await base44.functions.listEventBookings({});
       setBookings(r?.data?.bookings || r?.bookings || []);
-    } catch { setBookings([]); }
-    finally { setLoading(false); }
+    } catch { if (!silent) setBookings([]); }
+    finally { if (!silent) setLoading(false); }
   }, []);
   React.useEffect(() => { load(); }, [load]);
   React.useEffect(() => {
-    const id = setInterval(() => { load(); }, 120000); // 2 minutes, matches the parent
+    const id = setInterval(() => { load(true); }, 120000); // SILENT background refresh (no spinner flash)
     return () => clearInterval(id);
   }, [load]);
 
@@ -840,7 +842,7 @@ function BookingsCard() {
     try {
       const fn = action === 'approve' ? 'approveEventBooking' : 'rejectEventBooking';
       await base44.functions[fn]({ booking_id: booking.id, notes });
-      await load();
+      await load(true);
       // On approve: open the customer-message modal so the manager can send a confirmation.
       if (action === 'approve') setConfirmModal(booking);
     } catch (e) { alert('פעולה נכשלה: ' + (e?.message || '')); }
@@ -1050,17 +1052,17 @@ function UpcomingEventsTimeline() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const r = await base44.functions.listUpcomingConfirmedEvents({});
       setEvents(r?.data?.events || r?.events || []);
-    } catch { setEvents([]); }
-    finally { setLoading(false); }
+    } catch { if (!silent) setEvents([]); }
+    finally { if (!silent) setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    const id = setInterval(() => { load(); }, 120000);
+    const id = setInterval(() => { load(true); }, 120000); // SILENT background refresh
     return () => clearInterval(id);
   }, [load]);
 
@@ -1310,16 +1312,16 @@ function EventsTable() {
   const [loading, setLoading] = React.useState(true);
   const [manual, setManual] = React.useState(null);
   const [editBooking, setEditBooking] = React.useState(null);
-  const load = React.useCallback(async () => {
-    setLoading(true);
+  const load = React.useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try { const r = await base44.functions.listEventBookings({}); setBookings(r?.data?.bookings || r?.bookings || []); }
-    catch { setBookings([]); }
-    finally { setLoading(false); }
+    catch { if (!silent) setBookings([]); }
+    finally { if (!silent) setLoading(false); }
   }, []);
-  React.useEffect(() => { load(); const id = setInterval(load, 90000); return () => clearInterval(id); }, [load]);
+  React.useEffect(() => { load(); const id = setInterval(() => load(true), 90000); return () => clearInterval(id); }, [load]);
   const del = async (id) => {
     if (!window.confirm('למחוק את האירוע?')) return;
-    try { await base44.functions.deleteEventBooking({ id }); load(); }
+    try { await base44.functions.deleteEventBooking({ id }); load(true); }
     catch (e) { alert('שגיאה: ' + (e?.message || '')); }
   };
   const menuOf = (b) => (b.selected_menu && typeof b.selected_menu === 'object') ? (b.selected_menu.text || '') : '';
@@ -1380,8 +1382,8 @@ function EventsTable() {
               </div>
             )}
       </CardContent>
-      <CloseEventDialog lead={manual} onClose={() => setManual(null)} onSaved={() => { setManual(null); load(); }} />
-      <CloseEventDialog booking={editBooking} onClose={() => setEditBooking(null)} onSaved={() => { setEditBooking(null); load(); }} />
+      <CloseEventDialog lead={manual} onClose={() => setManual(null)} onSaved={() => { setManual(null); load(true); }} />
+      <CloseEventDialog booking={editBooking} onClose={() => setEditBooking(null)} onSaved={() => { setEditBooking(null); load(true); }} />
     </Card>
   );
 }
@@ -1423,7 +1425,7 @@ export default function EventsPrivatePage() {
       const res = await base44.functions.purgeEmptyEventLeads({});
       const d = res?.data || res;
       window.alert(`✅ נמחקו ${d?.deleted ?? 0} שיחות רעש.${d?.kept_abandoned ? `\nנשמרו ${d.kept_abandoned} שיחות נטושות לניתוח.` : ''}`);
-      loadAll();
+      loadAll(true);
     } catch (e) {
       window.alert('שגיאה: ' + (e?.message || ''));
     } finally { setPurging(false); }
@@ -1440,18 +1442,17 @@ export default function EventsPrivatePage() {
     } finally { setBusyDelete(null); }
   };
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
+  const loadAll = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setLoadError(null);
     try {
       const res = await base44.functions.listEventLeads({});
       // base44Client wraps as { data, status }.
       setLeads(res?.data?.leads || res?.leads || []);
     } catch (e) {
-      setLoadError(e?.message || String(e));
-      setLeads([]);
+      if (!silent) { setLoadError(e?.message || String(e)); setLeads([]); }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
     // Always fetch diagnostics in parallel so we can confirm DB state.
     try {
@@ -1466,7 +1467,7 @@ export default function EventsPrivatePage() {
   // Auto-refresh every 2 minutes — frequent enough for new leads to surface,
   // not so frequent it spams the network / blinks the UI while owner is working.
   useEffect(() => {
-    const id = setInterval(() => { loadAll(); }, 120000);
+    const id = setInterval(() => { loadAll(true); }, 120000);
     return () => clearInterval(id);
   }, [loadAll]);
 
