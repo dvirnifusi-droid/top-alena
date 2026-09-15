@@ -123,6 +123,57 @@ const CALLBACK_STAGES = {
 
 const MANUAL_EVENT_TYPES = ['יום הולדת', 'יום נישואין', 'חתונה', 'בר/בת מצווה', 'ברית / בריתה', 'אירוע חברה', 'מסיבת רווקים/ות', 'כנס / השתלמות', 'אירוע פרטי אחר'];
 
+// Quick tags shown on every lead card.
+const VENUE = {
+  internal: { label: '🏠 אירוע פנים', cls: 'bg-teal-100 text-teal-800 border border-teal-300' },
+  external: { label: '📍 אירוע חוץ', cls: 'bg-indigo-100 text-indigo-800 border border-indigo-300' },
+};
+// Activity-timeline entry types → icon + tone.
+const ACT_META = {
+  message:        { icon: '📩', tone: 'text-emerald-700' },
+  call_scheduled: { icon: '🗓️', tone: 'text-blue-700' },
+  conclusion:     { icon: '📞', tone: 'text-blue-800' },
+  note:           { icon: '📝', tone: 'text-slate-700' },
+  tasting:        { icon: '🍷', tone: 'text-purple-700' },
+  stage:          { icon: '🔁', tone: 'text-orange-700' },
+};
+
+// Small dialog to schedule a phone call (date + 24h TimePicker + optional note).
+function ScheduleCallDialog({ open, onOpenChange, onSave }) {
+  const [date, setDate] = React.useState('');
+  const [time, setTime] = React.useState('');
+  const [note, setNote] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  React.useEffect(() => { if (open) { setDate(''); setTime(''); setNote(''); setSaving(false); } }, [open]);
+  const save = async () => {
+    if (!date) return;
+    setSaving(true);
+    const scheduled_at = time ? `${date}T${time}` : date;
+    const txt = `שיחת טלפון נקבעה ל-${date}${time ? ` ${time}` : ''}${note ? ` — ${note}` : ''}`;
+    try { await onSave({ scheduled_at, text: txt }); onOpenChange(false); }
+    catch (e) { alert('שמירה נכשלה: ' + (e?.message || '')); }
+    finally { setSaving(false); }
+  };
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!saving) onOpenChange(v); }}>
+      <DialogContent dir="rtl" className="max-w-sm">
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><CalendarDays className="w-4 h-4 text-blue-600" /> קביעת שיחת טלפון</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label className="text-xs">תאריך <span className="text-red-500">*</span></Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
+            <div><Label className="text-xs">שעה</Label><TimePicker value={time} onChange={setTime} /></div>
+          </div>
+          <div><Label className="text-xs">הערה (אופציונלי)</Label><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="למשל: מעדיף אחר הצהריים" /></div>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>ביטול</Button>
+          <Button onClick={save} disabled={saving || !date} className="bg-blue-600 hover:bg-blue-700">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'קבע שיחה'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Owner/manager types a lead in by hand (phone/walk-in inquiry that didn't come
 // through Dana). Creates an EventLead with status 'pending' + source 'manual' so
 // it lands in the active callback board next to Dana's leads.
@@ -429,6 +480,7 @@ function PendingCallbackCard() {
   const [editLead, setEditLead] = React.useState(null);
   const [depositLead, setDepositLead] = React.useState(null);
   const [closeLead, setCloseLead] = React.useState(null); // won → close-event dialog
+  const [scheduleLead, setScheduleLead] = React.useState(null); // → schedule-call dialog
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -461,6 +513,29 @@ function PendingCallbackCard() {
     finally { setBusy(null); }
   };
 
+  // Timeline + tags (all stored server-side in the lead's META block).
+  const logActivity = async (lead, type, text, extra = {}) => {
+    setBusy(lead.id);
+    try { await base44.functions.addLeadActivity({ lead_id: lead.id, type, text, ...extra }); await load(); }
+    catch (e) { alert('שמירה נכשלה: ' + (e?.message || '')); }
+    finally { setBusy(null); }
+  };
+  const setFlags = async (lead, flags) => {
+    setBusy(lead.id);
+    try { await base44.functions.setLeadFlags({ lead_id: lead.id, ...flags }); await load(); }
+    catch (e) { alert('שמירה נכשלה: ' + (e?.message || '')); }
+    finally { setBusy(null); }
+  };
+  const quickMessage = (lead) => { const t = window.prompt('מה נשלח ללקוח? (אופציונלי)'); if (t === null) return; logActivity(lead, 'message', (t || '').trim() || 'נשלחה הודעה ללקוח'); };
+  const quickConclusion = (lead) => { const t = window.prompt('סיכום השיחה / מסקנות:'); if (!t || !t.trim()) return; logActivity(lead, 'conclusion', t.trim()); };
+  const toggleTasting = (lead) => {
+    const on = !lead.tasting_invited;
+    const tasting_date = on ? (window.prompt('תאריך ערב הטעימות (אופציונלי):') || '').trim() : '';
+    setFlags(lead, { tasting_invited: on, tasting_date });
+  };
+  const toggleBuildUp = (lead) => setFlags(lead, { build_up: !lead.build_up });
+  const cycleVenue = (lead) => setFlags(lead, { venue_type: lead.venue_type === 'internal' ? 'external' : 'internal' });
+
   const ACTIVE = ['pending', 'contacted', 'quoted'];
   const CLOSED = ['won', 'lost'];
   // Lead pipeline stage lives in `status` (was a separate callback_stage column but the
@@ -476,6 +551,7 @@ function PendingCallbackCard() {
     <AddEventLeadDialog open={showAdd || !!editLead} lead={editLead} onOpenChange={(v) => { if (!v) { setShowAdd(false); setEditLead(null); } }} onCreated={load} />
     <EventDepositDialog open={!!depositLead} lead={depositLead} onOpenChange={(v) => { if (!v) setDepositLead(null); }} onDone={load} />
     <CloseEventDialog lead={closeLead} onClose={() => setCloseLead(null)} onSaved={() => { setCloseLead(null); load(); }} />
+    <ScheduleCallDialog open={!!scheduleLead} onOpenChange={(v) => { if (!v) setScheduleLead(null); }} onSave={async ({ scheduled_at, text }) => { if (scheduleLead) await logActivity(scheduleLead, 'call_scheduled', text, { scheduled_at }); }} />
     <ThanksPageSettings />
     <EventLeadsSheetCard onImported={load} />
     <Card>
@@ -551,6 +627,22 @@ function PendingCallbackCard() {
                     </div>
                   </div>
 
+                  {/* Quick tags — click to toggle */}
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    <button onClick={() => cycleVenue(l)} disabled={busy === l.id} title="לחץ להחלפה פנים/חוץ"
+                      className={`text-xs font-bold rounded-full px-2.5 py-1 ${l.venue_type ? VENUE[l.venue_type].cls : 'bg-slate-100 text-slate-500 border border-dashed border-slate-300'}`}>
+                      {l.venue_type ? VENUE[l.venue_type].label : '❓ חוץ/פנים?'}
+                    </button>
+                    <button onClick={() => toggleBuildUp(l)} disabled={busy === l.id}
+                      className={`text-xs font-bold rounded-full px-2.5 py-1 border ${l.build_up ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                      {l.build_up ? '🔨 דרוש בילד-אפ' : '🔧 בילד-אפ?'}
+                    </button>
+                    <button onClick={() => toggleTasting(l)} disabled={busy === l.id}
+                      className={`text-xs font-bold rounded-full px-2.5 py-1 border ${l.tasting_invited ? 'bg-purple-100 text-purple-800 border-purple-300' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                      {l.tasting_invited ? `🍷 הוזמן לטעימות${l.tasting_date ? ` · ${l.tasting_date}` : ''}` : '🍷 הזמן לטעימות'}
+                    </button>
+                  </div>
+
                   {/* Details grid */}
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm mb-3">
                     {l.event_date && <div><span className="text-slate-500">📅 תאריך:</span> <strong>{l.event_date}{weekday ? ` (יום ${weekday})` : ''}</strong></div>}
@@ -610,6 +702,35 @@ function PendingCallbackCard() {
                   {l.callback_notes && (
                     <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-900">
                       <span className="font-bold">📝 הערות מנהל: </span>{l.callback_notes}
+                    </div>
+                  )}
+
+                  {/* Activity timeline — who did what, when (newest first) */}
+                  {Array.isArray(l.activity) && l.activity.length > 0 && (
+                    <div className="mb-3">
+                      <div className="text-xs font-bold text-slate-500 mb-1.5 flex items-center gap-1">🕒 יומן שיחה ({l.activity.length})</div>
+                      <div className="space-y-1.5 border-r-2 border-slate-200 pr-3">
+                        {l.activity.slice().reverse().map((a, i) => {
+                          const m = ACT_META[a.type] || ACT_META.note;
+                          return (
+                            <div key={i} className="text-xs leading-relaxed">
+                              <span className="text-sm">{m.icon}</span>{' '}
+                              <span className={`font-semibold ${m.tone}`}>{a.text || ''}</span>
+                              {a.scheduled_at && <span className="text-blue-700 font-bold"> ⏰ {fmt(a.scheduled_at)}</span>}
+                              <span className="text-slate-400"> · {a.by || 'מנהל'} · {fmt(a.at)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quick log actions (active leads) */}
+                  {view === 'active' && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      <button onClick={() => quickMessage(l)} disabled={busy === l.id} className="text-xs rounded-lg px-2 py-1 bg-white border border-slate-200 hover:bg-slate-50">📩 שלחתי הודעה</button>
+                      <button onClick={() => setScheduleLead(l)} disabled={busy === l.id} className="text-xs rounded-lg px-2 py-1 bg-white border border-slate-200 hover:bg-slate-50">🗓️ קבע שיחה</button>
+                      <button onClick={() => quickConclusion(l)} disabled={busy === l.id} className="text-xs rounded-lg px-2 py-1 bg-white border border-slate-200 hover:bg-slate-50">📝 הוסף מסקנה</button>
                     </div>
                   )}
 

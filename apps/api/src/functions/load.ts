@@ -19143,6 +19143,45 @@ registerFn('cancelMyEvent', async ({ body }) => {
   return { ok: true };
 });
 
+// ── Event-lead META helpers (shared by list/create/update/stage/activity) ────
+// Every "extra" lead field lives as a JSON block inside the notes column (marker
+// below) — no schema column needed. These give one place to read/compose it so
+// all paths stay in sync, plus the activity timeline (who did what, when).
+const LEAD_META_MARK = '---META---';
+function parseLeadNotes(raw: any): { head: string; meta: any } {
+  const s = String(raw || '');
+  const i = s.indexOf(LEAD_META_MARK);
+  if (i < 0) return { head: s.trim(), meta: {} };
+  let meta: any = {};
+  try { meta = JSON.parse(s.slice(i + LEAD_META_MARK.length).trim()) || {}; } catch { meta = {}; }
+  return { head: s.slice(0, i).trimEnd(), meta };
+}
+function composeLeadNotes(head: string, meta: any): string {
+  const h = String(head || '').trim();
+  return `${h}${h ? '\n' : ''}${LEAD_META_MARK}\n${JSON.stringify(meta || {})}`;
+}
+// Human name of whoever performed an action, for the activity timeline "by".
+async function resolveActorName(user: any): Promise<string> {
+  if (user?.name && String(user.name).trim()) return String(user.name).trim();
+  const email = String(user?.email || '').trim();
+  if (email) {
+    try {
+      const emp: any = await db.employee.findFirst({ where: { email } });
+      const nm = emp?.full_name || emp?.name || emp?.first_name;
+      if (nm && String(nm).trim()) return String(nm).trim();
+    } catch { /* fall through to email */ }
+    return email.split('@')[0];
+  }
+  return 'מנהל';
+}
+// Append one entry to meta.activity (kept oldest→newest; UI reverses for display).
+function pushLeadActivity(meta: any, entry: any): any {
+  const arr = Array.isArray(meta.activity) ? meta.activity.slice() : [];
+  arr.push(entry);
+  meta.activity = arr.slice(-200); // bound growth
+  return meta;
+}
+
 registerFn('listEventLeads', async () => {
   const rows = await db.eventLead.findMany({
     orderBy: { id: 'desc' },
@@ -19168,6 +19207,11 @@ registerFn('listEventLeads', async () => {
       callback_at: meta.callback_at || null,
       callback_notes: meta.callback_notes || null,
       deposit: meta.deposit || null,
+      venue_type: meta.venue_type || null,
+      build_up: meta.build_up ?? null,
+      tasting_invited: meta.tasting_invited ?? null,
+      tasting_date: meta.tasting_date || null,
+      activity: Array.isArray(meta.activity) ? meta.activity : [],
       // Strip the META block from notes so the UI shows clean human text only.
       notes: raw.slice(0, i).trimEnd() || null,
     };
@@ -19224,6 +19268,8 @@ registerFn('createEventLead', async ({ user, body }: any) => {
   if (str(b.location)) meta.location = str(b.location);
   if (str(b.location_details)) meta.location_details = str(b.location_details);
   if (str(b.special_requests)) meta.special_requests = str(b.special_requests);
+  if (b.venue_type === 'internal' || b.venue_type === 'external') meta.venue_type = b.venue_type;
+  if (b.build_up !== undefined) meta.build_up = !!b.build_up;
   const head = String(b.notes || '').trim();
   const notes = `${head}${head ? '\n' : ''}${META_MARK}\n${JSON.stringify(meta)}`;
   const nowIso = new Date().toISOString();
@@ -19328,6 +19374,21 @@ async function syncEventLeadsCore(opts: { notify?: boolean } = {}): Promise<any>
     date: findCol(['תאריך האירוע']),
     notes: findCol(['הערות']),
     content: findCol(['Content', 'קמפיין', 'מודעה']),
+    venue: findCol(['חוץ/פנים', 'פנים/חוץ', 'חוץ / פנים', 'פנים או חוץ', 'חוץ או פנים', 'סוג מיקום', 'מיקום האירוע', 'אירוע חוץ', 'מיקום']),
+  };
+  // External (catering off-site) vs internal (in-restaurant). Prefer the dedicated
+  // column; if none matched, scan the row for a short cell that is just חוץ/פנים.
+  const detectVenue = (r: string[]): string | undefined => {
+    const consider = idx.venue >= 0 ? [cell(r, idx.venue)] : r.map((_c, ci) => cell(r, ci));
+    for (const raw of consider) {
+      const t = String(raw || '').trim();
+      if (!t) continue;
+      if (idx.venue < 0 && t.length > 14) continue; // avoid false hits inside free text
+      const hasOut = /חוץ/.test(t), hasIn = /פנים|מסעד|אצלנו|בבית/.test(t);
+      if (hasOut && !hasIn) return 'external';
+      if (hasIn && !hasOut) return 'internal';
+    }
+    return undefined;
   };
   const seen: string[] = Array.isArray(cfg.imported_keys) ? cfg.imported_keys.map(String) : [];
   const seenSet = new Set(seen);
@@ -19346,7 +19407,8 @@ async function syncEventLeadsCore(opts: { notify?: boolean } = {}): Promise<any>
     const sheetNotes = cell(r, idx.notes);
     const gc = parseInt(cell(r, idx.guests).replace(/[^\d]/g, ''), 10);
     const head = [sheetNotes, `📱 ליד מפייסבוק${content ? ` · ${content}` : ''}${received ? ` · ${received}` : ''}`].filter(Boolean).join('\n');
-    const notes = `${head}\n---META---\n${JSON.stringify({ ad_source: content || undefined, received: received || undefined })}`;
+    const venue_type = detectVenue(r);
+    const notes = `${head}\n---META---\n${JSON.stringify({ ad_source: content || undefined, received: received || undefined, venue_type })}`;
     const nowIso = new Date().toISOString();
     try {
       const lead = await db.eventLead.create({ data: {
@@ -19467,6 +19529,64 @@ registerFn('updateEventLead', async ({ user, body }: any) => {
       updated_date: new Date().toISOString(),
     },
   });
+  return { ok: true };
+});
+
+// AUTH — append a timeline entry to a lead's activity log (who did what, when).
+// Powers the callback board's quick-actions: message sent / call scheduled /
+// conclusion note. `by` is resolved server-side from the caller = authoritative,
+// so the board always shows WHO handled each step.
+registerFn('addLeadActivity', async ({ user, body }: any) => {
+  const role = (user?.role || '').toLowerCase();
+  if (!['owner', 'admin', 'manager'].includes(role)) throw new Error('admin only');
+  const b = body || {};
+  const id = String(b.lead_id || '').trim();
+  if (!id) throw new Error('lead_id required');
+  const type = String(b.type || 'note').trim().slice(0, 30);
+  const text = String(b.text || '').trim().slice(0, 2000);
+  const scheduled_at = b.scheduled_at ? String(b.scheduled_at).slice(0, 40) : undefined;
+  if (!text && !scheduled_at) throw new Error('טקסט או תאריך נדרשים');
+  const lead: any = await db.eventLead.findUnique({ where: { id } });
+  if (!lead) throw new Error('lead not found');
+  const { head, meta } = parseLeadNotes(lead.notes);
+  const by = await resolveActorName(user);
+  pushLeadActivity(meta, { at: new Date().toISOString(), by, by_email: user?.email || null, type, text: text || undefined, scheduled_at });
+  await db.eventLead.update({ where: { id }, data: { notes: composeLeadNotes(head, meta), updated_date: new Date().toISOString() } });
+  return { ok: true };
+});
+
+// AUTH — set the quick flags/tags on a lead: venue (internal/external), build-up
+// needed, tasting invited. Only submitted keys change. Turning "tasting invited"
+// on also drops a timeline entry so the activity log tells the whole story.
+registerFn('setLeadFlags', async ({ user, body }: any) => {
+  const role = (user?.role || '').toLowerCase();
+  if (!['owner', 'admin', 'manager'].includes(role)) throw new Error('admin only');
+  const b = body || {};
+  const id = String(b.lead_id || '').trim();
+  if (!id) throw new Error('lead_id required');
+  const lead: any = await db.eventLead.findUnique({ where: { id } });
+  if (!lead) throw new Error('lead not found');
+  const { head, meta } = parseLeadNotes(lead.notes);
+  if (b.venue_type !== undefined) {
+    const v = String(b.venue_type || '').trim();
+    if (v === 'internal' || v === 'external') meta.venue_type = v; else delete meta.venue_type;
+  }
+  if (b.build_up !== undefined) meta.build_up = !!b.build_up;
+  if (b.tasting_invited !== undefined) {
+    const was = !!meta.tasting_invited;
+    meta.tasting_invited = !!b.tasting_invited;
+    if (meta.tasting_invited && !was) {
+      const by = await resolveActorName(user);
+      const d = b.tasting_date ? ` · ${String(b.tasting_date).slice(0, 20)}` : '';
+      pushLeadActivity(meta, { at: new Date().toISOString(), by, type: 'tasting', text: `הוזמן לערב טעימות${d}` });
+    }
+    if (!meta.tasting_invited) delete meta.tasting_date;
+  }
+  if (b.tasting_date !== undefined) {
+    const d = String(b.tasting_date || '').trim();
+    if (d) meta.tasting_date = d.slice(0, 20); else delete meta.tasting_date;
+  }
+  await db.eventLead.update({ where: { id }, data: { notes: composeLeadNotes(head, meta), updated_date: new Date().toISOString() } });
   return { ok: true };
 });
 
@@ -19957,30 +20077,34 @@ registerFn('dedupeWorkShifts', async () => {
   return { ok: true, total_shifts: all.length, groups_with_dups: groupsWithDups, merged_staff: merged, deleted };
 });
 
-registerFn('setLeadCallbackStage', async ({ body }) => {
+registerFn('setLeadCallbackStage', async ({ body, user }: any) => {
   const { lead_id, stage, notes: cbNotes } = body as any;
   if (!lead_id) throw new Error('lead_id required');
   const allowed = ['pending', 'contacted', 'quoted', 'won', 'lost'];
   if (!allowed.includes(stage)) throw new Error(`stage must be one of ${allowed.join(',')}`);
 
-  const META_MARK = '---META---';
   const lead = await db.eventLead.findUnique({ where: { id: lead_id } });
   if (!lead) throw new Error('lead not found');
-  const rawNotes = (lead as any).notes || '';
-  const i = rawNotes.indexOf(META_MARK);
-  let meta: any = {};
-  let head = rawNotes;
-  if (i >= 0) {
-    head = rawNotes.slice(0, i).trimEnd();
-    try { meta = JSON.parse(rawNotes.slice(i + META_MARK.length).trim()) || {}; } catch { meta = {}; }
-  }
+  const { head, meta } = parseLeadNotes((lead as any).notes);
   meta.callback_at = new Date().toISOString();
   if (typeof cbNotes === 'string' && cbNotes.trim()) meta.callback_notes = cbNotes.trim().slice(0, 2000);
-  const newNotes = `${head}${head ? '\n' : ''}${META_MARK}\n${JSON.stringify(meta)}`;
+
+  // Mirror every stage change into the activity timeline (who + when + detail),
+  // so the manager's clicks build the lead's story automatically.
+  const STAGE_LOG: Record<string, string> = {
+    contacted: '📞 דיברנו עם הלקוח',
+    quoted: '💰 נשלחה הצעת מחיר',
+    won: '✅ נסגר — הלקוח חתם',
+    lost: '❌ סומן כלא רלוונטי',
+    pending: '↩ הוחזר לרשימת הפעילים',
+  };
+  const by = await resolveActorName(user);
+  const detail = (typeof cbNotes === 'string' && cbNotes.trim()) ? ` — ${cbNotes.trim().slice(0, 500)}` : '';
+  pushLeadActivity(meta, { at: new Date().toISOString(), by, by_email: user?.email || null, type: 'stage', text: `${STAGE_LOG[stage] || `שלב: ${stage}`}${detail}` });
 
   const updated = await db.eventLead.update({
     where: { id: lead_id },
-    data: { status: stage, notes: newNotes, updated_date: new Date().toISOString() },
+    data: { status: stage, notes: composeLeadNotes(head, meta), updated_date: new Date().toISOString() },
   });
   return { ok: true, lead: updated };
 });
