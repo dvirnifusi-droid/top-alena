@@ -19346,6 +19346,11 @@ function normLeadPhone(raw: string): string {
   return d;
 }
 
+// The lead sheet splits events across TABS by venue, not a column: the general
+// tab ("לידים אירועים") = internal (in-restaurant), "אירועי חוץ" = external
+// (off-site catering). We pull each tab by NAME via the gviz CSV endpoint and tag
+// every row with that tab's venue. If neither named tab resolves (a differently-
+// structured sheet) we fall back to the single configured tab, untagged.
 async function syncEventLeadsCore(opts: { notify?: boolean } = {}): Promise<any> {
   await ensureEventLeadsSheet();
   const cfgRows: any[] = await db.$queryRawUnsafe(`SELECT * FROM "EventLeadsSheet" WHERE id='default' LIMIT 1`).catch(() => []);
@@ -19354,83 +19359,140 @@ async function syncEventLeadsCore(opts: { notify?: boolean } = {}): Promise<any>
   const url = String(cfg.sheet_url).trim();
   const m = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
   if (!m) return { skipped: true, reason: 'bad_url' };
+  const sheetId = m[1];
   const gidM = url.match(/[#&?]gid=(\d+)/);
-  const csvUrl = `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv${gidM ? `&gid=${gidM[1]}` : ''}`;
-  const res = await fetch(csvUrl);
-  const text = await res.text();
-  if (!res.ok || /<!DOCTYPE html>|ServiceLogin/i.test(text)) {
-    return { ok: false, error: 'sheet_private', message: 'הגיליון פרטי — הגדר "כל מי שיש לו הקישור: צפייה" ונסה שוב.' };
-  }
-  const rows = parseCsvRows(text);
-  if (rows.length < 2) return { ok: true, imported: 0, skipped: 0, total: 0 };
-  const header = rows[0].map((h) => h.replace(/﻿/g, '').trim());
-  const findCol = (subs: string[]) => header.findIndex((h) => subs.some((s) => h.includes(s)));
-  const idx = {
-    received: findCol(['קבלת הליד', 'תאריך קבלת']),
-    name: findCol(['שם']),
-    phone: findCol(['טלפון']),
-    type: findCol(['חוגג', 'סוג האירוע', 'סוג']),
-    guests: findCol(['כמות', 'אנשים']),
-    date: findCol(['תאריך האירוע']),
-    notes: findCol(['הערות']),
-    content: findCol(['Content', 'קמפיין', 'מודעה']),
-    venue: findCol(['חוץ/פנים', 'פנים/חוץ', 'חוץ / פנים', 'פנים או חוץ', 'חוץ או פנים', 'סוג מיקום', 'מיקום האירוע', 'אירוע חוץ', 'מיקום']),
-  };
-  // External (catering off-site) vs internal (in-restaurant). Prefer the dedicated
-  // column; if none matched, scan the row for a short cell that is just חוץ/פנים.
-  const detectVenue = (r: string[]): string | undefined => {
-    const consider = idx.venue >= 0 ? [cell(r, idx.venue)] : r.map((_c, ci) => cell(r, ci));
-    for (const raw of consider) {
-      const t = String(raw || '').trim();
-      if (!t) continue;
-      if (idx.venue < 0 && t.length > 14) continue; // avoid false hits inside free text
-      const hasOut = /חוץ/.test(t), hasIn = /פנים|מסעד|אצלנו|בבית/.test(t);
-      if (hasOut && !hasIn) return 'external';
-      if (hasIn && !hasOut) return 'internal';
-    }
-    return undefined;
-  };
+
+  const cell = (r: string[], i: number) => (i >= 0 && i < r.length ? String(r[i] || '').trim() : '');
   const seen: string[] = Array.isArray(cfg.imported_keys) ? cfg.imported_keys.map(String) : [];
   const seenSet = new Set(seen);
-  const cell = (r: string[], i: number) => (i >= 0 && i < r.length ? String(r[i] || '').trim() : '');
-  let imported = 0, skipped = 0; const newLeads: any[] = []; const newKeys: string[] = [];
-  for (let ri = 1; ri < rows.length; ri++) {
-    const r = rows[ri];
-    const name = cell(r, idx.name);
-    const phone = normLeadPhone(cell(r, idx.phone));
-    if (!phone || phone === '0' || !name || name === '-') continue; // blank/placeholder row
-    const received = cell(r, idx.received);
-    const key = `${phone}|${received}`;
-    if (seenSet.has(key)) { skipped++; continue; }
-    seenSet.add(key); newKeys.push(key);
-    const content = cell(r, idx.content);
-    const sheetNotes = cell(r, idx.notes);
-    const gc = parseInt(cell(r, idx.guests).replace(/[^\d]/g, ''), 10);
-    const head = [sheetNotes, `📱 ליד מפייסבוק${content ? ` · ${content}` : ''}${received ? ` · ${received}` : ''}`].filter(Boolean).join('\n');
-    const venue_type = detectVenue(r);
-    const notes = `${head}\n---META---\n${JSON.stringify({ ad_source: content || undefined, received: received || undefined, venue_type })}`;
+  const newKeys: string[] = [];
+  const newLeads: any[] = [];
+  const pending: any[] = [];
+  const backfill: any[] = [];
+  let imported = 0, skipped = 0, totalRows = 0;
+
+  // Safety net so switching import method / tab names never re-imports an existing
+  // lead: dedup against leads ALREADY in the DB by phone+event_date, independent of
+  // the imported_keys cache (whose key format can shift between export and gviz).
+  const existing: any[] = await db.eventLead.findMany({ select: { contact_phone: true, event_date: true }, take: 5000 }).catch(() => []);
+  const dbKeys = new Set(existing.map((e: any) => `${normLeadPhone(e.contact_phone || '')}|${String(e.event_date || '').trim()}`));
+
+  const fetchCsv = async (u: string): Promise<string | null> => {
+    try {
+      const r = await fetch(u);
+      const t = await r.text();
+      if (!r.ok) return null;
+      if (/<!DOCTYPE html>|ServiceLogin/i.test(t)) return null;              // private / login wall
+      if (/google\.visualization\.Query\.setResponse/.test(t) && /"status":"error"/.test(t)) return null; // missing tab
+      return t;
+    } catch { return null; }
+  };
+  const gvizUrl = (sheetName: string) => `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+
+  // Collect (don't create yet) the importable rows of one tab's CSV, tagging venue.
+  const processCsv = (text: string, venueForTab: string | undefined) => {
+    const rows = parseCsvRows(text);
+    if (rows.length < 2) return;
+    totalRows += rows.length - 1;
+    const header = rows[0].map((h) => h.replace(/﻿/g, '').trim());
+    const findCol = (subs: string[]) => header.findIndex((h) => subs.some((s) => h.includes(s)));
+    const idx = {
+      received: findCol(['קבלת הליד', 'תאריך קבלת']),
+      name: findCol(['שם']),
+      phone: findCol(['טלפון']),
+      type: findCol(['חוגג', 'סוג האירוע', 'סוג']),
+      guests: findCol(['כמות', 'אנשים']),
+      date: findCol(['תאריך האירוע']),
+      notes: findCol(['הערות']),
+      content: findCol(['Content', 'קמפיין', 'מודעה']),
+    };
+    for (let ri = 1; ri < rows.length; ri++) {
+      const r = rows[ri];
+      const name = cell(r, idx.name);
+      const phone = normLeadPhone(cell(r, idx.phone));
+      if (!phone || phone === '0' || !name || name === '-') continue; // blank/placeholder row
+      const received = cell(r, idx.received);
+      const event_date = cell(r, idx.date);
+      const key = `${phone}|${received}`;
+      const dbKey = `${phone}|${event_date}`;
+      if (seenSet.has(key) || dbKeys.has(dbKey)) {
+        skipped++;
+        // Existed before venue tagging — tag it now (only when we can match it safely).
+        if (venueForTab && event_date) backfill.push({ phone, event_date, venue: venueForTab });
+        continue;
+      }
+      seenSet.add(key); newKeys.push(key); dbKeys.add(dbKey);
+      const content = cell(r, idx.content);
+      const sheetNotes = cell(r, idx.notes);
+      const gc = parseInt(cell(r, idx.guests).replace(/[^\d]/g, ''), 10);
+      const head = [sheetNotes, `📱 ליד מפייסבוק${content ? ` · ${content}` : ''}${received ? ` · ${received}` : ''}`].filter(Boolean).join('\n');
+      const notes = `${head}\n---META---\n${JSON.stringify({ ad_source: content || undefined, received: received || undefined, venue_type: venueForTab })}`;
+      pending.push({ name, phone, event_date, event_type: cell(r, idx.type), gc, notes });
+    }
+  };
+
+  // Pull each venue tab by name (first name in a group that resolves wins).
+  const TAB_GROUPS: { names: string[]; venue: string }[] = [
+    { names: ['לידים אירועים', 'אירועים פנים', 'לידים', 'פנים'], venue: 'internal' },
+    { names: ['אירועי חוץ', 'אירוע חוץ', 'חוץ', 'קייטרינג'], venue: 'external' },
+  ];
+  let anyTab = false;
+  for (const grp of TAB_GROUPS) {
+    for (const nm of grp.names) {
+      const t = await fetchCsv(gvizUrl(nm));
+      if (t == null) continue;
+      anyTab = true;
+      processCsv(t, grp.venue);
+      break;
+    }
+  }
+  if (!anyTab) {
+    // Fallback: original single-tab export (whatever the URL gid points at), untagged.
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv${gidM ? `&gid=${gidM[1]}` : ''}`;
+    const res = await fetch(csvUrl);
+    const text = await res.text();
+    if (!res.ok || /<!DOCTYPE html>|ServiceLogin/i.test(text)) {
+      return { ok: false, error: 'sheet_private', message: 'הגיליון פרטי — הגדר "כל מי שיש לו הקישור: צפייה" ונסה שוב.' };
+    }
+    processCsv(text, undefined);
+  }
+
+  // Create the collected new leads.
+  for (const p of pending) {
     const nowIso = new Date().toISOString();
     try {
       const lead = await db.eventLead.create({ data: {
-        contact_name: name || null,
-        contact_phone: phone,
-        event_date: cell(r, idx.date) || null,
-        event_type: cell(r, idx.type) || null,
-        guest_count: Number.isFinite(gc) ? gc : null,
+        contact_name: p.name || null,
+        contact_phone: p.phone,
+        event_date: p.event_date || null,
+        event_type: p.event_type || null,
+        guest_count: Number.isFinite(p.gc) ? p.gc : null,
         budget_per_person: null,
         hours_window: null,
         status: 'pending',
         score: null,
         source: 'facebook',
-        notes,
+        notes: p.notes,
         created_by: 'facebook-sheet',
         created_date: nowIso,
         updated_date: nowIso,
       } });
-      newLeads.push({ id: lead.id, name, phone, type: cell(r, idx.type) });
+      newLeads.push({ id: lead.id, name: p.name, phone: p.phone, type: p.event_type });
       imported++;
     } catch { /* skip a bad row, keep importing */ }
   }
+
+  // Backfill the venue tag onto leads that existed before tagging (best-effort).
+  for (const bf of backfill) {
+    try {
+      const matches: any[] = await db.eventLead.findMany({ where: { contact_phone: bf.phone, event_date: bf.event_date }, take: 5 });
+      for (const l of matches) {
+        const { head, meta } = parseLeadNotes((l as any).notes);
+        if (!meta.venue_type && bf.venue) { meta.venue_type = bf.venue; await db.eventLead.update({ where: { id: l.id }, data: { notes: composeLeadNotes(head, meta) } }); }
+      }
+    } catch { /* best-effort */ }
+  }
+
   const allKeys = [...seen, ...newKeys].slice(-5000); // bound growth
   await db.$executeRawUnsafe(
     `UPDATE "EventLeadsSheet" SET "imported_keys"=$1::jsonb, "last_sync"=NOW(), "last_count"="last_count"+$2, "updatedAt"=NOW() WHERE id='default'`,
@@ -19441,7 +19503,7 @@ async function syncEventLeadsCore(opts: { notify?: boolean } = {}): Promise<any>
     const body = [`🎉 ${imported} לידים חדשים מפייסבוק נכנסו ל-CRM האירועים`, '', ...lines, newLeads.length > 8 ? `ועוד ${newLeads.length - 8}…` : ''].filter(Boolean).join('\n');
     try { await pushoverEventsOwners('🎉 לידים חדשים מפייסבוק', body); } catch { /* push best-effort */ }
   }
-  return { ok: true, imported, skipped, total: rows.length - 1 };
+  return { ok: true, imported, skipped, total: totalRows };
 }
 
 registerFn('getEventLeadsSheet', async ({ user }: any) => {
