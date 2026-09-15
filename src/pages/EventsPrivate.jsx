@@ -481,6 +481,9 @@ function PendingCallbackCard() {
   const [depositLead, setDepositLead] = React.useState(null);
   const [closeLead, setCloseLead] = React.useState(null); // won → close-event dialog
   const [scheduleLead, setScheduleLead] = React.useState(null); // → schedule-call dialog
+  const [venueFilter, setVenueFilter] = React.useState('all');  // all | internal | external
+  const [visibleCount, setVisibleCount] = React.useState(15);   // paginate the board (perf)
+  const [expandedTL, setExpandedTL] = React.useState(() => new Set()); // lead ids w/ full timeline
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -544,7 +547,12 @@ function PendingCallbackCard() {
   // show only in the bottom "לידים אחרונים" list.
   const active = leads.filter((l) => ACTIVE.includes(l.status));
   const closed = leads.filter((l) => CLOSED.includes(l.status));
-  const shown = view === 'active' ? active : closed;
+  const base = view === 'active' ? active : closed;
+  const internalCount = base.filter((l) => l.venue_type === 'internal').length;
+  const externalCount = base.filter((l) => l.venue_type === 'external').length;
+  const shown = venueFilter === 'all' ? base : base.filter((l) => (l.venue_type || '') === venueFilter);
+  const visible = shown.slice(0, visibleCount);
+  React.useEffect(() => { setVisibleCount(15); }, [view, venueFilter]);
 
   return (
     <>
@@ -569,17 +577,26 @@ function PendingCallbackCard() {
             <Plus className="w-4 h-4 me-1" /> הוסף ליד ידני
           </Button>
         </div>
+        <div className="flex gap-1.5 pt-2 items-center flex-wrap">
+          <span className="text-xs text-slate-500">סוג:</span>
+          {[['all', `הכל (${base.length})`], ['internal', `🏠 פנים (${internalCount})`], ['external', `📍 חוץ (${externalCount})`]].map(([k, lbl]) => (
+            <button key={k} onClick={() => setVenueFilter(k)}
+              className={`text-xs font-bold rounded-full px-3 py-1 border transition ${venueFilter === k ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>
+              {lbl}
+            </button>
+          ))}
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (
           <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
         ) : shown.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">
-            {view === 'active' ? 'אין לידים שמחכים. כשדנה תסיים שיחה — תופיע כאן.' : 'אין לידים סגורים עדיין.'}
+            {venueFilter !== 'all' ? 'אין לידים בסינון הזה — נסה "הכל".' : view === 'active' ? 'אין לידים שמחכים. כשדנה תסיים שיחה — תופיע כאן.' : 'אין לידים סגורים עדיין.'}
           </p>
         ) : (
           <div className="space-y-3">
-            {shown.map((l) => {
+            {visible.map((l) => {
               const stage = CALLBACK_STAGES[l.status] || CALLBACK_STAGES.pending;
               const weekday = (() => {
                 if (!l.event_date) return null;
@@ -705,25 +722,38 @@ function PendingCallbackCard() {
                     </div>
                   )}
 
-                  {/* Activity timeline — who did what, when (newest first) */}
-                  {Array.isArray(l.activity) && l.activity.length > 0 && (
-                    <div className="mb-3">
-                      <div className="text-xs font-bold text-slate-500 mb-1.5 flex items-center gap-1">🕒 יומן שיחה ({l.activity.length})</div>
-                      <div className="space-y-1.5 border-r-2 border-slate-200 pr-3">
-                        {l.activity.slice().reverse().map((a, i) => {
-                          const m = ACT_META[a.type] || ACT_META.note;
-                          return (
-                            <div key={i} className="text-xs leading-relaxed">
-                              <span className="text-sm">{m.icon}</span>{' '}
-                              <span className={`font-semibold ${m.tone}`}>{a.text || ''}</span>
-                              {a.scheduled_at && <span className="text-blue-700 font-bold"> ⏰ {fmt(a.scheduled_at)}</span>}
-                              <span className="text-slate-400"> · {a.by || 'מנהל'} · {fmt(a.at)}</span>
-                            </div>
-                          );
-                        })}
+                  {/* Activity timeline — collapsed to the latest entry by default (perf + tidy) */}
+                  {Array.isArray(l.activity) && l.activity.length > 0 && (() => {
+                    const entries = l.activity.slice().reverse();
+                    const open = expandedTL.has(l.id);
+                    const rows = open ? entries : entries.slice(0, 1);
+                    return (
+                      <div className="mb-3">
+                        <div className="text-xs font-bold text-slate-500 mb-1.5 flex items-center gap-2">
+                          🕒 יומן שיחה ({l.activity.length})
+                          {entries.length > 1 && (
+                            <button onClick={() => setExpandedTL((s) => { const n = new Set(s); if (n.has(l.id)) n.delete(l.id); else n.add(l.id); return n; })}
+                              className="font-normal text-blue-600 hover:underline">
+                              {open ? 'הסתר' : `הצג הכל (${entries.length})`}
+                            </button>
+                          )}
+                        </div>
+                        <div className="space-y-1.5 border-r-2 border-slate-200 pr-3">
+                          {rows.map((a, i) => {
+                            const m = ACT_META[a.type] || ACT_META.note;
+                            return (
+                              <div key={i} className="text-xs leading-relaxed">
+                                <span className="text-sm">{m.icon}</span>{' '}
+                                <span className={`font-semibold ${m.tone}`}>{a.text || ''}</span>
+                                {a.scheduled_at && <span className="text-blue-700 font-bold"> ⏰ {fmt(a.scheduled_at)}</span>}
+                                <span className="text-slate-400"> · {a.by || 'מנהל'} · {fmt(a.at)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Quick log actions (active leads) */}
                   {view === 'active' && (
@@ -770,6 +800,12 @@ function PendingCallbackCard() {
                 </div>
               );
             })}
+            {shown.length > visible.length && (
+              <button onClick={() => setVisibleCount((n) => n + 20)}
+                className="w-full text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl py-2.5 hover:bg-slate-50 transition">
+                טען עוד ({shown.length - visible.length}) ↓
+              </button>
+            )}
           </div>
         )}
       </CardContent>
@@ -1363,6 +1399,7 @@ export default function EventsPrivatePage() {
   const [busyDelete, setBusyDelete] = useState(null);
   const [purging, setPurging] = useState(false);
   const [openTranscript, setOpenTranscript] = useState(null);
+  const [showRecent, setShowRecent] = useState(false); // compact "recent leads" list collapsed by default
 
   // Real user turns in a lead's conversation (excludes Dana's messages and
   // the empty opening turn). Distinguishes bot/page-load NOISE (0 turns)
@@ -1458,11 +1495,18 @@ export default function EventsPrivatePage() {
 
       <EventsLinkCard />
 
+      <PendingCallbackCard />
+
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><Flame className="w-4 h-4 text-red-500" /> לידים אחרונים</CardTitle>
-          <CardDescription>לידים שעברו בצ׳אט הסוכן. לחץ על מספר טלפון כדי לחייג, על פח כדי למחוק.</CardDescription>
+        <CardHeader className="cursor-pointer select-none" onClick={() => setShowRecent((v) => !v)}>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Flame className="w-4 h-4 text-red-500" /> לידים אחרונים (גולמי)
+            <Badge variant="outline" className="ms-1">{leads.length}</Badge>
+            <span className="ms-auto text-xs font-normal text-muted-foreground">{showRecent ? '▲ הסתר' : '▼ הצג'}</span>
+          </CardTitle>
+          <CardDescription>כל הלידים הגולמיים מהסוכן/צ׳אט — כולל נטושות ורעש. מקום העבודה הראשי הוא הלוח שלמעלה.</CardDescription>
         </CardHeader>
+        {showRecent && (
         <CardContent>
           {/* Filters */}
           <div className="flex items-center gap-2 flex-wrap mb-3 pb-3 border-b">
@@ -1600,9 +1644,9 @@ export default function EventsPrivatePage() {
             );
           })()}
         </CardContent>
+        )}
       </Card>
 
-      <PendingCallbackCard />
       <UpcomingEventsTimeline />
       <EventsTable />
     </div>
