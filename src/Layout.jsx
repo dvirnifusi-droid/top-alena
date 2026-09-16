@@ -61,6 +61,11 @@ const colorOf = (key) => COLOR_CLASSES[key] || COLOR_CLASSES.slate;
 // violet/cyan/pink/indigo/rose/blue — feels colder than the brand.
 export const adminLinks = [
   { title: "לוח בקרה", url: createPageUrl("Dashboard"), icon: LayoutGrid, color: "cinnamon" },
+  // An owner/manager who also works shifts needs to clock in. The time clock
+  // (ShiftClockWidget) lives on EmployeeHome, which is otherwise only in the
+  // employee menu — so without this an owner has no button to reach it. Same
+  // spirit as "המסמכים שלי" below (owner is also an employee of the business).
+  { title: "🕐 שעון נוכחות (בית)", url: createPageUrl("EmployeeHome"), icon: LayoutGrid, color: "cinnamon" },
 
   { title: "🤖 כלי AI", url: createPageUrl("AIHub"), icon: Sparkles, color: "gold" },
   { title: "🔍 סורק חכם", url: createPageUrl("Scanner"), icon: ScanLine, color: "gold" },
