@@ -15,10 +15,14 @@ import { Loader2, RefreshCw, Brain, Target, ScanLine, Users, CalendarDays, Alert
 // CSS vars written by Layout from its brand_colours; TOP APOLLO cyan by
 // default), so the hero's ring, pills and CTAs glow in THAT business's colour.
 // The cream body + ink text stay a readable light surface.
+// Full-dark: the body and its panels are the brand's elevated dark surfaces and
+// all copy is the light brand text; `espresso` is used as TEXT below (not bg).
 const A = {
   gold: 'var(--brand-accent, #4fd6ee)', goldHi: 'var(--brand-accent-hi, #b4eff4)', goldLo: 'var(--brand-secondary, #36879e)',
-  espresso: '#241811', espresso2: '#33241a',
-  cream: '#F6ECD6', creamHi: '#FCF6E7', blue: '#2E7DFF', ink: '#2A1C12', muted: '#8A755A', good: '#5F8B3D', line: '#E3D3AC',
+  espresso: 'var(--brand-text, #e8f1f5)', espresso2: 'var(--brand-bg-deep, #151d27)',
+  cream: 'var(--brand-bg-elev, #26323f)', creamHi: 'var(--brand-bg-elev2, #2c3a48)', blue: '#8ab4ff',
+  ink: 'var(--brand-text, #e8f1f5)', muted: 'var(--brand-muted, #8fa3b0)', good: '#8fd07a', line: 'var(--brand-line, rgba(79,214,238,.18))',
+  panel: 'var(--brand-bg-elev2, #2c3a48)',
   glow: 'var(--brand-glow, 0 0 18px rgba(79,214,238,.45))',
 };
 
@@ -163,7 +167,7 @@ export default function ApolloHero() {
       </div>
 
       {/* ── CREAM BODY ──────────────────────────────────────────────────────── */}
-      <div style={{ background: `linear-gradient(168deg,${A.creamHi} 0%,${A.cream} 60%,#EEDFBF 100%)` }}>
+      <div style={{ background: `linear-gradient(168deg,${A.creamHi} 0%,${A.cream} 60%,var(--brand-bg-elev) 100%)` }}>
         {/* live tiles — clickable (Link) or a toggle (במשמרת opens the shift panel) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-4 pt-4">
           {tiles.map((t, i) => {
@@ -178,7 +182,7 @@ export default function ApolloHero() {
               </>
             );
             const cls = 'rounded-2xl px-3 py-2.5 flex items-center gap-2 text-right w-full';
-            const st = { background: '#fffaf0', border: `1px solid ${A.line}` };
+            const st = { background: A.panel, border: `1px solid ${A.line}` };
             if (t.toggle) { const set = toggleMap[t.toggle][1]; return <button key={i} onClick={() => set(s => !s)} className={`${cls} hover:shadow-sm transition-shadow`} style={st}>{inner}</button>; }
             if (t.to) return <Link key={i} to={createPageUrl(t.to)} className={`${cls} hover:shadow-sm transition-shadow`} style={st}>{inner}</Link>;
             return <div key={i} className={cls} style={st}>{inner}</div>;
@@ -188,18 +192,18 @@ export default function ApolloHero() {
         {/* what Apollo actually handled today — opens from the "טיפל ב-N פעולות" line */}
         {showDid && (
           <div className="mx-4 mt-3 rounded-2xl overflow-hidden" style={{ border: `1px solid ${A.line}` }}>
-            <div className="px-3 py-2 text-[12px] font-black flex items-center gap-1.5" style={{ background: '#efe7fb', color: '#6d28d9' }}>
+            <div className="px-3 py-2 text-[12px] font-black flex items-center gap-1.5" style={{ background: 'color-mix(in srgb, #a855f7 20%, var(--brand-bg-elev2))', color: '#c4a6ff' }}>
               <Brain className="w-4 h-4" /> מה אפולו טיפל בו היום
             </div>
-            <div style={{ background: '#fffaf5' }}>
+            <div style={{ background: A.panel }}>
               {/* WhatsApp Apollo answered */}
               {(did.whatsapp || []).length > 0 && (
                 <div className="px-3 py-2 border-b" style={{ borderColor: A.line }}>
                   <div className="text-[11px] font-black mb-1.5" style={{ color: A.espresso }}>💬 תגובות וואטסאפ ({f.breakdown?.whatsapp ?? did.whatsapp.length})</div>
                   <div className="space-y-1 max-h-40 overflow-y-auto">
                     {did.whatsapp.map((w, i) => (
-                      <div key={i} className="text-[12px] leading-snug rounded-lg px-2 py-1.5" style={{ background: '#fff', border: `1px solid ${A.line}` }}>
-                        <span className="text-[10px] font-bold" style={{ color: '#9a7f57' }}>{ilTime(w.at)}{w.to ? ` · ${w.to}` : ''}</span>
+                      <div key={i} className="text-[12px] leading-snug rounded-lg px-2 py-1.5" style={{ background: A.panel, border: `1px solid ${A.line}` }}>
+                        <span className="text-[10px] font-bold" style={{ color: A.muted }}>{ilTime(w.at)}{w.to ? ` · ${w.to}` : ''}</span>
                         <div style={{ color: A.ink }}>{w.text}</div>
                       </div>
                     ))}
@@ -213,7 +217,7 @@ export default function ApolloHero() {
                   <div className="space-y-0.5 max-h-32 overflow-y-auto">
                     {(d.reservations_list || []).slice(0, 8).map((r, i) => (
                       <div key={i} className="flex items-center gap-2 text-[12px]">
-                        <span className="font-black tabular-nums shrink-0" style={{ color: '#2563eb' }}>{r.time || '—'}</span>
+                        <span className="font-black tabular-nums shrink-0" style={{ color: '#8ab4ff' }}>{r.time || '—'}</span>
                         <span className="flex-1 min-w-0 truncate" style={{ color: A.ink }}>{r.name || 'ללא שם'}</span>
                         <span className="text-[11px] shrink-0" style={{ color: A.muted }}>{r.party || '?'} סועדים</span>
                       </div>
@@ -228,7 +232,7 @@ export default function ApolloHero() {
                   <div className="space-y-0.5">
                     {did.checklists.map((c, i) => (
                       <div key={i} className="flex items-center gap-2 text-[12px]">
-                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" style={{ color: '#4d7a2e' }} />
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" style={{ color: '#8fd07a' }} />
                         <span className="flex-1 min-w-0 truncate" style={{ color: A.ink }}>{c.title}</span>
                         {c.by && <span className="text-[11px] shrink-0" style={{ color: A.muted }}>{c.by}</span>}
                       </div>
@@ -249,18 +253,18 @@ export default function ApolloHero() {
         {/* today's reservations — names + times, opens from the "הזמנות היום" tile */}
         {showRes && (
           <div className="mx-4 mt-3 rounded-2xl overflow-hidden" style={{ border: `1px solid ${A.line}` }}>
-            <div className="px-3 py-2 text-[12px] font-black flex items-center justify-between" style={{ background: '#eef4ff', color: '#2563eb' }}>
+            <div className="px-3 py-2 text-[12px] font-black flex items-center justify-between" style={{ background: 'color-mix(in srgb, #3b82f6 20%, var(--brand-bg-elev2))', color: '#8ab4ff' }}>
               <span>📅 הזמנות להיום</span>
               <Link to={createPageUrl('Reservations')} className="text-[11px] font-bold">לניהול המלא ←</Link>
             </div>
             {(d.reservations_list || []).length === 0
-              ? <div className="px-3 py-4 text-center text-[12px]" style={{ color: A.muted, background: '#fffaf5' }}>אין הזמנות להיום</div>
-              : <div className="divide-y max-h-64 overflow-y-auto" style={{ background: '#fffaf5' }}>
+              ? <div className="px-3 py-4 text-center text-[12px]" style={{ color: A.muted, background: A.panel }}>אין הזמנות להיום</div>
+              : <div className="divide-y max-h-64 overflow-y-auto" style={{ background: A.panel }}>
                   {d.reservations_list.map((r, i) => (
                     <div key={i} className="flex items-center gap-3 px-3 py-2">
-                      <span className="font-black text-[13px] tabular-nums shrink-0" style={{ color: '#2563eb' }}>{r.time || '—'}</span>
+                      <span className="font-black text-[13px] tabular-nums shrink-0" style={{ color: '#8ab4ff' }}>{r.time || '—'}</span>
                       <span className="flex-1 min-w-0 truncate text-[13px]" style={{ color: A.ink }}>{r.name || 'ללא שם'}</span>
-                      <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 shrink-0" style={{ background: '#eef4ff', color: '#2563eb' }}>{r.party || '?'} סועדים</span>
+                      <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 shrink-0" style={{ background: 'color-mix(in srgb, #3b82f6 20%, var(--brand-bg-elev2))', color: '#8ab4ff' }}>{r.party || '?'} סועדים</span>
                     </div>
                   ))}
                 </div>}
@@ -271,15 +275,15 @@ export default function ApolloHero() {
             Opens from the "צ׳קליסטים" tile, never navigates away. */}
         {showChecklists && (
           <div className="mx-4 mt-3 rounded-2xl overflow-hidden" style={{ border: `1px solid ${A.line}` }}>
-            <div className="px-3 py-2 text-[12px] font-black flex items-center justify-between" style={{ background: '#f2f7ec', color: '#4d7a2e' }}>
+            <div className="px-3 py-2 text-[12px] font-black flex items-center justify-between" style={{ background: 'color-mix(in srgb, #22c55e 20%, var(--brand-bg-elev2))', color: '#8fd07a' }}>
               <span className="flex items-center gap-1.5"><ListChecks className="w-4 h-4" /> צ׳קליסטים היום</span>
               <Link to={createPageUrl('Checklists')} className="text-[11px] font-bold">לניהול המלא ←</Link>
             </div>
             {cl.runs.length === 0
-              ? <div className="px-3 py-4 text-center text-[12px]" style={{ color: A.muted, background: '#fffaf5' }}>
+              ? <div className="px-3 py-4 text-center text-[12px]" style={{ color: A.muted, background: A.panel }}>
                   עדיין לא נפתח צ׳קליסט היום{cl.not_started > 0 ? ` · ${cl.not_started} מוכנים להרצה` : ''}
                 </div>
-              : <div className="divide-y" style={{ background: '#fffaf5' }}>
+              : <div className="divide-y" style={{ background: A.panel }}>
                   {cl.runs.map((c, i) => {
                     const done = c.status === 'completed';
                     const pct = c.total ? Math.round((c.done / c.total) * 100) : 0;
@@ -287,16 +291,16 @@ export default function ApolloHero() {
                       <div key={i} className="px-3 py-2.5">
                         <div className="flex items-center gap-2">
                           {done
-                            ? <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: '#4d7a2e' }} />
-                            : <Clock className="w-4 h-4 shrink-0" style={{ color: '#c98a2e' }} />}
+                            ? <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: '#8fd07a' }} />
+                            : <Clock className="w-4 h-4 shrink-0" style={{ color: '#f2b85c' }} />}
                           <span className="flex-1 min-w-0 truncate text-[13px] font-bold" style={{ color: A.ink }}>{c.title}</span>
-                          <span className="text-[11px] font-black tabular-nums shrink-0" style={{ color: done ? '#4d7a2e' : '#c98a2e' }}>{c.done}/{c.total}</span>
+                          <span className="text-[11px] font-black tabular-nums shrink-0" style={{ color: done ? '#8fd07a' : '#f2b85c' }}>{c.done}/{c.total}</span>
                         </div>
-                        <div className="mt-1.5 h-1.5 rounded-full overflow-hidden" style={{ background: '#ece3d0' }}>
+                        <div className="mt-1.5 h-1.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--brand-text) 10%, transparent)' }}>
                           <div className="h-full rounded-full" style={{ width: `${pct}%`, background: done ? '#5F8B3D' : '#d8a24a' }} />
                         </div>
                         {!done && c.next && <div className="text-[11px] mt-1" style={{ color: A.muted }}>בשלב: {c.next}</div>}
-                        {done && <div className="text-[11px] mt-1" style={{ color: '#4d7a2e' }}>הושלם ✓{c.by ? ` · ${c.by}` : ''}</div>}
+                        {done && <div className="text-[11px] mt-1" style={{ color: '#8fd07a' }}>הושלם ✓{c.by ? ` · ${c.by}` : ''}</div>}
                       </div>
                     );
                   })}
@@ -307,15 +311,15 @@ export default function ApolloHero() {
 
         {/* agent feed */}
         {(d.feed || []).length > 0 && (
-          <div className="mx-4 mt-3 rounded-2xl p-3" style={{ background: `linear-gradient(170deg,${A.espresso2},${A.espresso})` }}>
+          <div className="mx-4 mt-3 rounded-2xl p-3" style={{ background: `linear-gradient(170deg,${A.espresso2},var(--brand-bg))` }}>
             <div className="flex items-center gap-2 text-[11.5px] font-bold mb-2" style={{ color: A.goldHi }}>
               <Brain className="w-4 h-4" style={{ color: A.blue }} /> אפולו מהוואטסאפ שלך
               <span className="ms-auto text-[10px] flex items-center gap-1" style={{ color: '#bfe0ff' }}><i style={{ width: 6, height: 6, borderRadius: 9, background: '#6FA8FF', display: 'inline-block' }} />חי</span>
             </div>
             <div className="space-y-1.5">
               {d.feed.slice(0, 3).map((m, i) => (
-                <div key={i} className="rounded-xl px-2.5 py-2 text-[12px] leading-snug" style={{ background: '#f6efdd', color: A.ink }}>
-                  <span className="text-[10px] font-bold block mb-0.5" style={{ color: '#9a7f57' }}>🤖 {agoText(m.at)}</span>{m.text}
+                <div key={i} className="rounded-xl px-2.5 py-2 text-[12px] leading-snug" style={{ background: A.panel, color: A.ink }}>
+                  <span className="text-[10px] font-bold block mb-0.5" style={{ color: A.muted }}>🤖 {agoText(m.at)}</span>{m.text}
                 </div>
               ))}
             </div>
@@ -326,16 +330,16 @@ export default function ApolloHero() {
             opened from the ⚠️ pill above. Each row: what · how · action button. */}
         {showAttention && attention.length > 0 && (
           <div className="mx-4 mt-3 rounded-2xl overflow-hidden" style={{ border: '1px solid #f0cba9' }}>
-            <div className="px-3 py-2 text-[12px] font-black" style={{ background: '#fff1e6', color: '#9b4a1a' }}>🎯 מה דורש אותך עכשיו</div>
-            <div className="divide-y" style={{ background: '#fffaf5' }}>
+            <div className="px-3 py-2 text-[12px] font-black" style={{ background: 'color-mix(in srgb, #f97316 20%, var(--brand-bg-elev2))', color: '#f0b08a' }}>🎯 מה דורש אותך עכשיו</div>
+            <div className="divide-y" style={{ background: A.panel }}>
               {attention.map((a, i) => (
                 <div key={i} className="flex items-center gap-3 px-3 py-2.5">
-                  <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#fff1e6' }}><a.icon className="w-4 h-4" style={{ color: '#c2410c' }} /></span>
+                  <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'color-mix(in srgb, #f97316 20%, var(--brand-bg-elev2))' }}><a.icon className="w-4 h-4" style={{ color: '#ff9a5c' }} /></span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-bold" style={{ color: A.ink }}>{a.label} <span className="rounded-full px-1.5 text-white text-[11px]" style={{ background: '#c2410c' }}>{a.count}</span></div>
+                    <div className="text-[13px] font-bold" style={{ color: A.ink }}>{a.label} <span className="rounded-full px-1.5 text-white text-[11px]" style={{ background: '#ea6a2f' }}>{a.count}</span></div>
                     <div className="text-[11.5px]" style={{ color: A.muted }}>{a.how}</div>
                   </div>
-                  <Link to={createPageUrl(a.url)} className="shrink-0 rounded-xl px-3 py-1.5 text-[12px] font-bold text-white" style={{ background: '#c2410c' }}>טפל עכשיו</Link>
+                  <Link to={createPageUrl(a.url)} className="shrink-0 rounded-xl px-3 py-1.5 text-[12px] font-bold text-white" style={{ background: '#ea6a2f' }}>טפל עכשיו</Link>
                 </div>
               ))}
             </div>
@@ -349,7 +353,7 @@ export default function ApolloHero() {
           <Link
             to={createPageUrl('WorkScheduling')}
             className="w-full rounded-2xl py-3 flex items-center justify-center gap-2 font-bold text-[14px]"
-            style={{ background: '#fff8ea', color: A.espresso, border: `1px solid ${A.line}` }}
+            style={{ background: A.panel, color: A.espresso, border: `1px solid ${A.line}` }}
           >
             <CalendarDays className="w-5 h-5" style={{ color: A.goldLo }} />
             הצגת סידור יומי
@@ -359,23 +363,23 @@ export default function ApolloHero() {
         {/* AI tools rail — כלי AI navigates; גיוס + סורק open inline panels */}
         <div className="grid grid-cols-3 gap-2 px-4 py-4">
           <Link to={createPageUrl('AIHub')} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px]" style={{ background: `linear-gradient(160deg,${A.goldHi},${A.gold})`, color: '#0c1a20', boxShadow: A.glow }}><Brain className="w-5 h-5" /> כלי AI</Link>
-          <button onClick={() => { setShowRecruit(s => !s); setShowScanner(false); }} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px] transition" style={{ background: showRecruit ? '#fff1cf' : '#fff8ea', color: A.espresso, border: `1px solid ${showRecruit ? A.gold : A.line}` }}><Target className="w-5 h-5" style={{ color: A.goldLo }} /> סוכן גיוס</button>
-          <button onClick={() => { setShowScanner(s => !s); setShowRecruit(false); }} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px] transition" style={{ background: showScanner ? '#fff1cf' : '#fff8ea', color: A.espresso, border: `1px solid ${showScanner ? A.gold : A.line}` }}><ScanLine className="w-5 h-5" style={{ color: A.goldLo }} /> סורק AI</button>
+          <button onClick={() => { setShowRecruit(s => !s); setShowScanner(false); }} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px] transition" style={{ background: showRecruit ? A.panel : A.panel, color: A.espresso, border: `1px solid ${showRecruit ? A.gold : A.line}` }}><Target className="w-5 h-5" style={{ color: A.goldLo }} /> סוכן גיוס</button>
+          <button onClick={() => { setShowScanner(s => !s); setShowRecruit(false); }} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px] transition" style={{ background: showScanner ? A.panel : A.panel, color: A.espresso, border: `1px solid ${showScanner ? A.gold : A.line}` }}><ScanLine className="w-5 h-5" style={{ color: A.goldLo }} /> סורק AI</button>
         </div>
 
         {/* recruitment agent — inline: share link + new candidates + next interviews */}
         {showRecruit && (
           <div className="mx-4 mb-4 rounded-2xl overflow-hidden" style={{ border: `1px solid ${A.line}` }}>
-            <div className="px-3 py-2 text-[12px] font-black flex items-center justify-between" style={{ background: '#fff4e0', color: A.goldLo }}>
+            <div className="px-3 py-2 text-[12px] font-black flex items-center justify-between" style={{ background: A.panel, color: A.goldLo }}>
               <span className="flex items-center gap-1.5"><UserPlus className="w-4 h-4" /> סוכן הגיוס</span>
               <Link to={createPageUrl('RecruitmentInterviews')} className="text-[11px] font-bold">לניהול המלא ←</Link>
             </div>
-            <div style={{ background: '#fffaf5' }}>
+            <div style={{ background: A.panel }}>
               {/* share the application link */}
               <div className="px-3 py-2.5 border-b" style={{ borderColor: A.line }}>
                 <div className="text-[11px] font-bold mb-1" style={{ color: A.muted }}>קישור להגשת מועמדות — שלח למועמדים:</div>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0 truncate text-[12px] rounded-lg px-2 py-1.5" style={{ background: '#fff', border: `1px solid ${A.line}`, color: A.ink, direction: 'ltr' }}>{applyUrl}</div>
+                  <div className="flex-1 min-w-0 truncate text-[12px] rounded-lg px-2 py-1.5" style={{ background: A.panel, border: `1px solid ${A.line}`, color: A.ink, direction: 'ltr' }}>{applyUrl}</div>
                   <button onClick={copyApply} className="shrink-0 rounded-lg px-2.5 py-1.5 text-[12px] font-bold flex items-center gap-1" style={{ background: A.gold, color: '#2a1c0e' }}>
                     {copied ? <><CheckCircle2 className="w-3.5 h-3.5" /> הועתק</> : <><Copy className="w-3.5 h-3.5" /> העתק</>}
                   </button>
@@ -389,7 +393,7 @@ export default function ApolloHero() {
                   : <div className="space-y-1">
                       {rec.new_candidates.map((c, i) => (
                         <div key={i} className="flex items-center gap-2 text-[12px]">
-                          <span className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-black" style={{ background: '#fff1cf', color: A.goldLo }}>{(c.name || '?').slice(0, 1)}</span>
+                          <span className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-black" style={{ background: A.panel, color: A.goldLo }}>{(c.name || '?').slice(0, 1)}</span>
                           <span className="font-bold truncate" style={{ color: A.ink }}>{c.name || 'מועמד'}</span>
                           {c.role && <span className="text-[11px]" style={{ color: A.muted }}>· {c.role}</span>}
                           {c.city && <span className="text-[11px]" style={{ color: A.muted }}>· {c.city}</span>}
@@ -419,16 +423,16 @@ export default function ApolloHero() {
             used to land on Invoices by mistake; the scanner lives at /Scanner.) */}
         {showScanner && (
           <div className="mx-4 mb-4 rounded-2xl overflow-hidden" style={{ border: `1px solid ${A.line}` }}>
-            <div className="px-3 py-2 text-[12px] font-black flex items-center justify-between" style={{ background: '#fff4e0', color: A.goldLo }}>
+            <div className="px-3 py-2 text-[12px] font-black flex items-center justify-between" style={{ background: A.panel, color: A.goldLo }}>
               <span className="flex items-center gap-1.5"><ScanLine className="w-4 h-4" /> סורק ה-AI</span>
             </div>
-            <div className="px-3 py-3" style={{ background: '#fffaf5' }}>
+            <div className="px-3 py-3" style={{ background: A.panel }}>
               <div className="text-[12px] leading-relaxed mb-2.5" style={{ color: A.ink }}>
                 צלם או העלה כל מסמך — <b>תפריט, רשימת עובדים, ספקים, צ׳ק-ליסט או רשימת הזמנה</b> — וה-AI מזהה מה זה, קורא, מציג תצוגה מקדימה ומייבא ישר למערכת.
               </div>
               <div className="grid grid-cols-3 gap-1.5 mb-3">
                 {[{ i: Menu, t: 'תפריט' }, { i: Users, t: 'עובדים' }, { i: FileSpreadsheet, t: 'ספקים' }, { i: ListChecks, t: 'צ׳ק-ליסט' }, { i: ClipboardCheck, t: 'הזמנה' }, { i: ScanLine, t: 'חשבונית' }].map((x, i) => (
-                  <div key={i} className="rounded-xl py-1.5 flex flex-col items-center gap-0.5 text-[10.5px] font-bold" style={{ background: '#fff', border: `1px solid ${A.line}`, color: A.muted }}>
+                  <div key={i} className="rounded-xl py-1.5 flex flex-col items-center gap-0.5 text-[10.5px] font-bold" style={{ background: A.panel, border: `1px solid ${A.line}`, color: A.muted }}>
                     <x.i className="w-4 h-4" style={{ color: A.goldLo }} />{x.t}
                   </div>
                 ))}

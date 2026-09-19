@@ -322,3 +322,84 @@ h1, h2, h3,
   outline: 2px solid var(--brand-primary, #C9A15A);
   outline-offset: 2px;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   NEON IDENTITY — full-dark surfaces (phase 2). Layout adds `.brand-dark` to
+   <html> on the stock theme and points shadcn's --background/--card/... at the
+   tenant's dark base, so every shadcn primitive goes dark on its own. The rules
+   below re-tone the light Tailwind utilities the pages use directly, so a
+   `bg-white` card or `text-slate-800` label reads correctly on the dark base
+   without a page-by-page sweep. Only NEUTRAL surfaces/text and the light
+   STATUS tints are touched — solid coloured buttons keep their colour.
+   ══════════════════════════════════════════════════════════════════════════ */
+.brand-dark .bg-white { background-color: hsl(var(--card)) !important; }
+.brand-dark [class*="bg-white/"] { background-color: color-mix(in srgb, hsl(var(--card)) 88%, transparent) !important; }
+.brand-dark .bg-slate-50, .brand-dark .bg-gray-50, .brand-dark .bg-stone-50, .brand-dark .bg-zinc-50, .brand-dark .bg-neutral-50 { background-color: hsl(var(--background)) !important; }
+.brand-dark .bg-slate-100, .brand-dark .bg-gray-100, .brand-dark .bg-stone-100, .brand-dark .bg-zinc-100, .brand-dark .bg-neutral-100 { background-color: hsl(var(--muted)) !important; }
+.brand-dark .bg-slate-200, .brand-dark .bg-gray-200 { background-color: hsl(var(--border)) !important; }
+.brand-dark .bg-slate-800, .brand-dark .bg-slate-900, .brand-dark .bg-gray-800, .brand-dark .bg-gray-900 { background-color: hsl(var(--muted)) !important; }
+.brand-dark .hover\:bg-slate-50:hover, .brand-dark .hover\:bg-gray-50:hover, .brand-dark .hover\:bg-slate-100:hover, .brand-dark .hover\:bg-gray-100:hover, .brand-dark .hover\:bg-white:hover { background-color: hsl(var(--muted)) !important; }
+.brand-dark .text-slate-900, .brand-dark .text-slate-800, .brand-dark .text-slate-700, .brand-dark .text-gray-900, .brand-dark .text-gray-800, .brand-dark .text-gray-700, .brand-dark .text-stone-800, .brand-dark .text-stone-700, .brand-dark .text-zinc-800, .brand-dark .text-neutral-800, .brand-dark .text-black { color: hsl(var(--foreground)) !important; }
+.brand-dark .text-slate-600, .brand-dark .text-slate-500, .brand-dark .text-gray-600, .brand-dark .text-gray-500, .brand-dark .text-stone-600, .brand-dark .text-stone-500, .brand-dark .text-zinc-600, .brand-dark .text-zinc-500 { color: hsl(var(--muted-foreground)) !important; }
+.brand-dark .border-slate-200, .brand-dark .border-slate-300, .brand-dark .border-gray-200, .brand-dark .border-gray-300, .brand-dark .border-stone-200, .brand-dark .border-stone-300, .brand-dark .border-zinc-200, .brand-dark .border-neutral-200 { border-color: hsl(var(--border)) !important; }
+.brand-dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]), .brand-dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: hsl(var(--border)) !important; }
+/* Alena's warm "paper" palette is hardcoded across many pages as arbitrary hex
+   utilities; in dark mode they take the tenant's tokens instead. */
+.brand-dark .bg-\[\#F4ECD8\], .brand-dark .bg-\[\#FAF5E8\], .brand-dark .bg-\[\#FFFDF9\], .brand-dark .bg-\[\#F7EFDD\], .brand-dark .bg-\[\#FCF6E7\] { background-color: hsl(var(--card)) !important; }
+.brand-dark .text-\[\#44512C\], .brand-dark .text-\[\#7A3722\], .brand-dark .text-\[\#2E3819\], .brand-dark .text-\[\#1F1B17\], .brand-dark .text-\[\#2A2018\], .brand-dark .text-\[\#2A1C12\] { color: hsl(var(--foreground)) !important; }
+.brand-dark .text-\[\#A04A2E\] { color: color-mix(in srgb, var(--brand-primary, #A04A2E) 55%, #fff) !important; }
+.brand-dark .text-\[\#8A7C64\], .brand-dark .text-\[\#8A755A\] { color: hsl(var(--muted-foreground)) !important; }
+.brand-dark .border-\[\#D9BD83\], .brand-dark .border-\[\#E8D9B5\], .brand-dark .border-\[\#EADFC8\], .brand-dark .border-\[\#E3D3AC\] { border-color: hsl(var(--border)) !important; }
+/* Unstyled native form controls follow the dark base too. */
+.brand-dark input:not([class*="bg-"]), .brand-dark select:not([class*="bg-"]), .brand-dark textarea:not([class*="bg-"]) { background-color: hsl(var(--background)); color: hsl(var(--foreground)); border-color: hsl(var(--border)); }
+/* Status tints: light tint backgrounds become a dark tint of the same hue, and
+   their dark 600–900 text becomes a light tint, so a warning/error/success
+   card stays legible and still reads as that colour. */
+.brand-dark .bg-red-50, .brand-dark .bg-red-100, .brand-dark [class*="bg-red-50/"], .brand-dark [class*="bg-red-100/"] { background-color: color-mix(in srgb, #ef4444 18%, hsl(var(--card))) !important; }
+.brand-dark .text-red-600, .brand-dark .text-red-700, .brand-dark .text-red-800, .brand-dark .text-red-900 { color: color-mix(in srgb, #ef4444 58%, #fff) !important; }
+.brand-dark .border-red-200, .brand-dark .border-red-300 { border-color: color-mix(in srgb, #ef4444 40%, transparent) !important; }
+.brand-dark .bg-orange-50, .brand-dark .bg-orange-100, .brand-dark [class*="bg-orange-50/"], .brand-dark [class*="bg-orange-100/"] { background-color: color-mix(in srgb, #f97316 18%, hsl(var(--card))) !important; }
+.brand-dark .text-orange-600, .brand-dark .text-orange-700, .brand-dark .text-orange-800, .brand-dark .text-orange-900 { color: color-mix(in srgb, #f97316 58%, #fff) !important; }
+.brand-dark .border-orange-200, .brand-dark .border-orange-300 { border-color: color-mix(in srgb, #f97316 40%, transparent) !important; }
+.brand-dark .bg-amber-50, .brand-dark .bg-amber-100, .brand-dark [class*="bg-amber-50/"], .brand-dark [class*="bg-amber-100/"] { background-color: color-mix(in srgb, #f59e0b 18%, hsl(var(--card))) !important; }
+.brand-dark .text-amber-600, .brand-dark .text-amber-700, .brand-dark .text-amber-800, .brand-dark .text-amber-900 { color: color-mix(in srgb, #f59e0b 58%, #fff) !important; }
+.brand-dark .border-amber-200, .brand-dark .border-amber-300 { border-color: color-mix(in srgb, #f59e0b 40%, transparent) !important; }
+.brand-dark .bg-yellow-50, .brand-dark .bg-yellow-100, .brand-dark [class*="bg-yellow-50/"], .brand-dark [class*="bg-yellow-100/"] { background-color: color-mix(in srgb, #eab308 18%, hsl(var(--card))) !important; }
+.brand-dark .text-yellow-600, .brand-dark .text-yellow-700, .brand-dark .text-yellow-800, .brand-dark .text-yellow-900 { color: color-mix(in srgb, #eab308 58%, #fff) !important; }
+.brand-dark .border-yellow-200, .brand-dark .border-yellow-300 { border-color: color-mix(in srgb, #eab308 40%, transparent) !important; }
+.brand-dark .bg-lime-50, .brand-dark .bg-lime-100, .brand-dark [class*="bg-lime-50/"], .brand-dark [class*="bg-lime-100/"] { background-color: color-mix(in srgb, #84cc16 18%, hsl(var(--card))) !important; }
+.brand-dark .text-lime-600, .brand-dark .text-lime-700, .brand-dark .text-lime-800, .brand-dark .text-lime-900 { color: color-mix(in srgb, #84cc16 58%, #fff) !important; }
+.brand-dark .border-lime-200, .brand-dark .border-lime-300 { border-color: color-mix(in srgb, #84cc16 40%, transparent) !important; }
+.brand-dark .bg-green-50, .brand-dark .bg-green-100, .brand-dark [class*="bg-green-50/"], .brand-dark [class*="bg-green-100/"] { background-color: color-mix(in srgb, #22c55e 18%, hsl(var(--card))) !important; }
+.brand-dark .text-green-600, .brand-dark .text-green-700, .brand-dark .text-green-800, .brand-dark .text-green-900 { color: color-mix(in srgb, #22c55e 58%, #fff) !important; }
+.brand-dark .border-green-200, .brand-dark .border-green-300 { border-color: color-mix(in srgb, #22c55e 40%, transparent) !important; }
+.brand-dark .bg-emerald-50, .brand-dark .bg-emerald-100, .brand-dark [class*="bg-emerald-50/"], .brand-dark [class*="bg-emerald-100/"] { background-color: color-mix(in srgb, #10b981 18%, hsl(var(--card))) !important; }
+.brand-dark .text-emerald-600, .brand-dark .text-emerald-700, .brand-dark .text-emerald-800, .brand-dark .text-emerald-900 { color: color-mix(in srgb, #10b981 58%, #fff) !important; }
+.brand-dark .border-emerald-200, .brand-dark .border-emerald-300 { border-color: color-mix(in srgb, #10b981 40%, transparent) !important; }
+.brand-dark .bg-teal-50, .brand-dark .bg-teal-100, .brand-dark [class*="bg-teal-50/"], .brand-dark [class*="bg-teal-100/"] { background-color: color-mix(in srgb, #14b8a6 18%, hsl(var(--card))) !important; }
+.brand-dark .text-teal-600, .brand-dark .text-teal-700, .brand-dark .text-teal-800, .brand-dark .text-teal-900 { color: color-mix(in srgb, #14b8a6 58%, #fff) !important; }
+.brand-dark .border-teal-200, .brand-dark .border-teal-300 { border-color: color-mix(in srgb, #14b8a6 40%, transparent) !important; }
+.brand-dark .bg-cyan-50, .brand-dark .bg-cyan-100, .brand-dark [class*="bg-cyan-50/"], .brand-dark [class*="bg-cyan-100/"] { background-color: color-mix(in srgb, #06b6d4 18%, hsl(var(--card))) !important; }
+.brand-dark .text-cyan-600, .brand-dark .text-cyan-700, .brand-dark .text-cyan-800, .brand-dark .text-cyan-900 { color: color-mix(in srgb, #06b6d4 58%, #fff) !important; }
+.brand-dark .border-cyan-200, .brand-dark .border-cyan-300 { border-color: color-mix(in srgb, #06b6d4 40%, transparent) !important; }
+.brand-dark .bg-sky-50, .brand-dark .bg-sky-100, .brand-dark [class*="bg-sky-50/"], .brand-dark [class*="bg-sky-100/"] { background-color: color-mix(in srgb, #0ea5e9 18%, hsl(var(--card))) !important; }
+.brand-dark .text-sky-600, .brand-dark .text-sky-700, .brand-dark .text-sky-800, .brand-dark .text-sky-900 { color: color-mix(in srgb, #0ea5e9 58%, #fff) !important; }
+.brand-dark .border-sky-200, .brand-dark .border-sky-300 { border-color: color-mix(in srgb, #0ea5e9 40%, transparent) !important; }
+.brand-dark .bg-blue-50, .brand-dark .bg-blue-100, .brand-dark [class*="bg-blue-50/"], .brand-dark [class*="bg-blue-100/"] { background-color: color-mix(in srgb, #3b82f6 18%, hsl(var(--card))) !important; }
+.brand-dark .text-blue-600, .brand-dark .text-blue-700, .brand-dark .text-blue-800, .brand-dark .text-blue-900 { color: color-mix(in srgb, #3b82f6 58%, #fff) !important; }
+.brand-dark .border-blue-200, .brand-dark .border-blue-300 { border-color: color-mix(in srgb, #3b82f6 40%, transparent) !important; }
+.brand-dark .bg-indigo-50, .brand-dark .bg-indigo-100, .brand-dark [class*="bg-indigo-50/"], .brand-dark [class*="bg-indigo-100/"] { background-color: color-mix(in srgb, #6366f1 18%, hsl(var(--card))) !important; }
+.brand-dark .text-indigo-600, .brand-dark .text-indigo-700, .brand-dark .text-indigo-800, .brand-dark .text-indigo-900 { color: color-mix(in srgb, #6366f1 58%, #fff) !important; }
+.brand-dark .border-indigo-200, .brand-dark .border-indigo-300 { border-color: color-mix(in srgb, #6366f1 40%, transparent) !important; }
+.brand-dark .bg-violet-50, .brand-dark .bg-violet-100, .brand-dark [class*="bg-violet-50/"], .brand-dark [class*="bg-violet-100/"] { background-color: color-mix(in srgb, #8b5cf6 18%, hsl(var(--card))) !important; }
+.brand-dark .text-violet-600, .brand-dark .text-violet-700, .brand-dark .text-violet-800, .brand-dark .text-violet-900 { color: color-mix(in srgb, #8b5cf6 58%, #fff) !important; }
+.brand-dark .border-violet-200, .brand-dark .border-violet-300 { border-color: color-mix(in srgb, #8b5cf6 40%, transparent) !important; }
+.brand-dark .bg-purple-50, .brand-dark .bg-purple-100, .brand-dark [class*="bg-purple-50/"], .brand-dark [class*="bg-purple-100/"] { background-color: color-mix(in srgb, #a855f7 18%, hsl(var(--card))) !important; }
+.brand-dark .text-purple-600, .brand-dark .text-purple-700, .brand-dark .text-purple-800, .brand-dark .text-purple-900 { color: color-mix(in srgb, #a855f7 58%, #fff) !important; }
+.brand-dark .border-purple-200, .brand-dark .border-purple-300 { border-color: color-mix(in srgb, #a855f7 40%, transparent) !important; }
+.brand-dark .bg-pink-50, .brand-dark .bg-pink-100, .brand-dark [class*="bg-pink-50/"], .brand-dark [class*="bg-pink-100/"] { background-color: color-mix(in srgb, #ec4899 18%, hsl(var(--card))) !important; }
+.brand-dark .text-pink-600, .brand-dark .text-pink-700, .brand-dark .text-pink-800, .brand-dark .text-pink-900 { color: color-mix(in srgb, #ec4899 58%, #fff) !important; }
+.brand-dark .border-pink-200, .brand-dark .border-pink-300 { border-color: color-mix(in srgb, #ec4899 40%, transparent) !important; }
+.brand-dark .bg-rose-50, .brand-dark .bg-rose-100, .brand-dark [class*="bg-rose-50/"], .brand-dark [class*="bg-rose-100/"] { background-color: color-mix(in srgb, #f43f5e 18%, hsl(var(--card))) !important; }
+.brand-dark .text-rose-600, .brand-dark .text-rose-700, .brand-dark .text-rose-800, .brand-dark .text-rose-900 { color: color-mix(in srgb, #f43f5e 58%, #fff) !important; }
+.brand-dark .border-rose-200, .brand-dark .border-rose-300 { border-color: color-mix(in srgb, #f43f5e 40%, transparent) !important; }

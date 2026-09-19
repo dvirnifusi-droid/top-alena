@@ -84,6 +84,17 @@ export function brandTokens(colors) {
     // Light accents (cyan, gold, lime) need dark text on them, not white.
     primaryHsl: hslTriplet(ah, as, al),
     primaryFg: al > 0.5 ? hslTriplet(ph, sat, 0.08) : '0 0% 100%',
+    // Full-dark surfaces (phase 2): the same base as HSL triplets so shadcn's
+    // hsl(var(--background)) etc. paint the whole app in the brand's dark tone.
+    surfaces: {
+      background: hslTriplet(ph, sat, 0.12),
+      card: hslTriplet(ph, sat, 0.17),
+      popover: hslTriplet(ph, sat, 0.20),
+      muted: hslTriplet(ph, sat, 0.22),
+      border: hslTriplet(ph, Math.min(sat, 0.30), 0.27),
+      foreground: hslTriplet(ph, Math.min(sat, 0.15), 0.94),
+      mutedFg: hslTriplet(ph, Math.min(sat, 0.12), 0.66),
+    },
   };
 }
 

@@ -303,14 +303,34 @@ export default function Layout({ children, currentPageName }) {
     root.style.setProperty('--brand-muted', t.muted);
     // Default <Button> and focus rings take the accent — but only on the stock
     // theme: a user-chosen colour theme (THEME_VARS) keeps its own --primary.
+    // Phase 2 — full-dark surfaces in the brand's own tone. Drives shadcn's
+    // hsl(var(--background|card|...)) plus the `.brand-dark` remap layer in
+    // index.css that re-tones the common light Tailwind utilities.
     if (appTheme === 'light') {
       root.style.setProperty('--primary', t.primaryHsl);
       root.style.setProperty('--primary-foreground', t.primaryFg);
       root.style.setProperty('--ring', t.primaryHsl);
+      const s = t.surfaces;
+      root.style.setProperty('--background', s.background);
+      root.style.setProperty('--foreground', s.foreground);
+      root.style.setProperty('--card', s.card);
+      root.style.setProperty('--card-foreground', s.foreground);
+      root.style.setProperty('--popover', s.popover);
+      root.style.setProperty('--popover-foreground', s.foreground);
+      root.style.setProperty('--muted', s.muted);
+      root.style.setProperty('--muted-foreground', s.mutedFg);
+      root.style.setProperty('--secondary', s.muted);
+      root.style.setProperty('--secondary-foreground', s.foreground);
+      root.style.setProperty('--accent', s.muted);
+      root.style.setProperty('--accent-foreground', s.foreground);
+      root.style.setProperty('--border', s.border);
+      root.style.setProperty('--input', s.border);
+      root.classList.add('brand-dark');
     } else {
-      root.style.removeProperty('--primary');
-      root.style.removeProperty('--primary-foreground');
-      root.style.removeProperty('--ring');
+      ['--primary', '--primary-foreground', '--ring', '--background', '--foreground', '--card', '--card-foreground',
+        '--popover', '--popover-foreground', '--muted', '--muted-foreground', '--secondary', '--secondary-foreground',
+        '--accent', '--accent-foreground', '--border', '--input'].forEach((v) => root.style.removeProperty(v));
+      root.classList.remove('brand-dark');
     }
     if (branding?.brand_font) {
       root.style.setProperty('--brand-font-family', `"${branding.brand_font}", system-ui, sans-serif`);
