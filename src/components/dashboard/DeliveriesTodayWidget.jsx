@@ -26,7 +26,7 @@ export default function DeliveriesTodayWidget() {
     await load(); setBusy(false);
   };
 
-  if (loading) return <div className="rounded-2xl border bg-white p-6 flex justify-center" style={{ borderColor: '#E8D9B5' }}><Loader2 className="w-5 h-5 animate-spin text-amber-500" /></div>;
+  if (loading) return <div className="rounded-2xl border bg-white p-6 flex justify-center" style={{ borderColor: 'var(--brand-line)' }}><Loader2 className="w-5 h-5 animate-spin text-amber-500" /></div>;
   if (!snap) return null;
 
   // top sources from the orders array (real)
@@ -36,19 +36,19 @@ export default function DeliveriesTodayWidget() {
 
   return (
     <section>
-      <div className="rounded-2xl border bg-white overflow-hidden" style={{ borderColor: '#E8D9B5' }}>
+      <div className="rounded-2xl border bg-white overflow-hidden" style={{ borderColor: 'var(--brand-line)' }}>
         <div className="flex items-center justify-between px-4 pt-4">
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><Bike className="w-5 h-5 text-rose-500" /> משלוחים היום</h2>
           <button onClick={refresh} disabled={busy} className="text-slate-400 hover:text-slate-600 p-1"><RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /></button>
         </div>
 
         <div className="grid grid-cols-2 gap-3 px-4 py-4">
-          <div className="rounded-2xl p-4 text-center" style={{ background: '#EAF3E1' }}>
-            <div className="text-3xl font-black tabular-nums" style={{ color: '#0f766e' }}>{ils(snap.total_income)}</div>
+          <div className="rounded-2xl p-4 text-center" style={{ background: 'color-mix(in srgb, #4b7a2b 22%, var(--brand-bg-elev2))' }}>
+            <div className="text-3xl font-black tabular-nums" style={{ color: '#5fd3c4' }}>{ils(snap.total_income)}</div>
             <div className="text-xs font-semibold text-slate-600 mt-1">💰 הכנסה ממשלוחים</div>
           </div>
-          <div className="rounded-2xl p-4 text-center" style={{ background: '#F3E6F0' }}>
-            <div className="text-3xl font-black tabular-nums" style={{ color: '#9333ea' }}>{snap.total_orders || 0}</div>
+          <div className="rounded-2xl p-4 text-center" style={{ background: 'color-mix(in srgb, #9333ea 22%, var(--brand-bg-elev2))' }}>
+            <div className="text-3xl font-black tabular-nums" style={{ color: '#c4a6ff' }}>{snap.total_orders || 0}</div>
             <div className="text-xs font-semibold text-slate-600 mt-1">🛵 משלוחים{snap.cancelled_orders ? ` · ${snap.cancelled_orders} בוטלו` : ''}</div>
           </div>
         </div>
@@ -56,13 +56,13 @@ export default function DeliveriesTodayWidget() {
         {sources.length > 0 && (
           <div className="flex gap-2 flex-wrap px-4 pb-3">
             {sources.map(([s, n], i) => (
-              <span key={i} className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: '#FBF0DC', color: '#8a5a1e' }}>{s} · {n}</span>
+              <span key={i} className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: 'color-mix(in srgb, #b45309 22%, var(--brand-bg-elev2))', color: '#d9b072' }}>{s} · {n}</span>
             ))}
-            {snap.cash_orders_count ? <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: '#EAF3E1', color: '#4b7a2b' }}>💵 מזומן {snap.cash_orders_count} ({ils(snap.cash_orders_amount)})</span> : null}
+            {snap.cash_orders_count ? <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: 'color-mix(in srgb, #4b7a2b 22%, var(--brand-bg-elev2))', color: '#8fd07a' }}>💵 מזומן {snap.cash_orders_count} ({ils(snap.cash_orders_amount)})</span> : null}
           </div>
         )}
 
-        <Link to={createPageUrl('DeliveriesHub')} className="flex items-center justify-center gap-1 text-[12px] font-semibold text-rose-600 border-t py-2.5" style={{ borderColor: '#F0E4C6' }}>
+        <Link to={createPageUrl('DeliveriesHub')} className="flex items-center justify-center gap-1 text-[12px] font-semibold text-rose-600 border-t py-2.5" style={{ borderColor: 'var(--brand-line)' }}>
           לניהול המשלוחים <ArrowLeft className="w-3.5 h-3.5" />
         </Link>
       </div>

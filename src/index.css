@@ -448,3 +448,38 @@ h1, h2, h3,
 .brand-dark .bg-rose-200, .brand-dark .bg-rose-300 { background-color: color-mix(in srgb, #f43f5e 28%, hsl(var(--card))) !important; }
 .brand-dark .bg-slate-300, .brand-dark .bg-gray-300, .brand-dark .bg-stone-300, .brand-dark .bg-zinc-300 { background-color: hsl(var(--muted)) !important; }
 .brand-dark .bg-\[\#D9BD83\], .brand-dark .bg-\[\#E8D9B5\] { background-color: color-mix(in srgb, #D9BD83 26%, hsl(var(--card))) !important; }
+
+/* ── Contrast audit pass (page-by-page scanner, 2026-09-19) ─────────────────
+   Alena's hardcoded olive/terracotta SOLID buttons (`bg-[#44512C]`×104,
+   `bg-[#A04A2E]`×87 …) sit under shadcn's `text-primary-foreground`, which is
+   dark when the accent is light → dark text on dark olive. They ARE the primary
+   CTAs of their pages, so in dark mode they become THE tenant accent — one
+   glowing action colour per page, exactly what the identity asks for. */
+.brand-dark .bg-\[\#44512C\], .brand-dark .bg-\[\#A04A2E\], .brand-dark .bg-\[\#7A3722\],
+.brand-dark .bg-\[\#3a4a1f\], .brand-dark .bg-\[\#6E8B3D\], .brand-dark .bg-\[\#2E3819\] {
+  background-color: hsl(var(--primary)) !important; color: hsl(var(--primary-foreground)) !important; border-color: transparent !important;
+}
+.brand-dark .hover\:bg-\[\#7A3722\]:hover, .brand-dark .hover\:bg-\[\#3a4525\]:hover, .brand-dark .hover\:bg-\[\#3A4525\]:hover,
+.brand-dark .hover\:bg-\[\#3a4526\]:hover, .brand-dark .hover\:bg-\[\#8B3D24\]:hover, .brand-dark .hover\:bg-\[\#384218\]:hover,
+.brand-dark .hover\:bg-\[\#37421f\]:hover, .brand-dark .hover\:bg-\[\#2c3917\]:hover, .brand-dark .hover\:bg-\[\#8A6E3A\]:hover,
+.brand-dark .hover\:bg-\[\#44512C\]:hover, .brand-dark .hover\:bg-\[\#A04A2E\]:hover {
+  background-color: var(--brand-accent-hi) !important; color: hsl(var(--primary-foreground)) !important;
+}
+/* Opacity variants of the warm-paper hexes (`bg-[#F4ECD8]/60`) escaped the exact-class remap. */
+.brand-dark [class*="bg-[#F4ECD8]/"], .brand-dark [class*="bg-[#FAF5E8]/"], .brand-dark [class*="bg-[#FBF6EA]/"] { background-color: hsl(var(--muted) / .55) !important; }
+.brand-dark [class*="bg-[#44512C]/"], .brand-dark [class*="bg-[#A04A2E]/"] { background-color: color-mix(in srgb, var(--brand-accent) 14%, transparent) !important; }
+/* Mid-dark warm text tones that were still ink-on-ink. */
+.brand-dark .text-\[\#7A5A2E\], .brand-dark .text-\[\#7A6F5D\], .brand-dark .text-\[\#6B5D45\], .brand-dark .text-\[\#5D4920\],
+.brand-dark .text-\[\#8A6E3A\], .brand-dark .text-\[\#B8A98C\], .brand-dark .text-\[\#B3A488\], .brand-dark .text-\[\#9A8A68\] { color: hsl(var(--muted-foreground)) !important; }
+.brand-dark .text-\[\#3A2E1E\], .brand-dark .text-\[\#33461f\] { color: hsl(var(--foreground)) !important; }
+.brand-dark .text-\[\#9B2C1A\] { color: #f0a08a !important; }
+/* Remaining light neutral fills. */
+.brand-dark .bg-stone-200, .brand-dark .bg-zinc-200, .brand-dark .bg-neutral-200, .brand-dark .bg-neutral-300 { background-color: hsl(var(--muted)) !important; }
+/* "Dark solid" buttons (bg-slate-800 text-white) were remapped to muted, leaving
+   shadcn's dark primary-foreground on them: as buttons they are the accent, as
+   panels they keep muted with light copy. */
+.brand-dark button.bg-slate-800, .brand-dark button.bg-slate-900, .brand-dark button.bg-gray-800, .brand-dark button.bg-gray-900, .brand-dark button.bg-\[\#1F1B17\] {
+  background-color: hsl(var(--primary)) !important; color: hsl(var(--primary-foreground)) !important;
+}
+.brand-dark .bg-slate-800, .brand-dark .bg-slate-900, .brand-dark .bg-gray-800, .brand-dark .bg-gray-900, .brand-dark .bg-\[\#1F1B17\] { color: hsl(var(--foreground)); }
+.brand-dark .bg-\[\#1F1B17\] { background-color: hsl(var(--muted)) !important; }

@@ -14,7 +14,7 @@ const ils = (n) => `₪${Number(n || 0).toLocaleString()}`;
 function Shell({ to, icon: Icon, tone, title, children, cta }) {
   return (
     <Link to={to} className="block group">
-      <div className="rounded-2xl border bg-white p-4 h-full transition-all hover:shadow-md" style={{ borderColor: '#E8D9B5' }}>
+      <div className="rounded-2xl border bg-white p-4 h-full transition-all hover:shadow-md" style={{ borderColor: 'var(--brand-line)' }}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: tone.bg }}>
@@ -31,7 +31,7 @@ function Shell({ to, icon: Icon, tone, title, children, cta }) {
   );
 }
 
-const Big = ({ children, color }) => <div className="text-2xl font-black tabular-nums leading-none" style={{ color: color || '#1F1B17' }}>{children}</div>;
+const Big = ({ children, color }) => <div className="text-2xl font-black tabular-nums leading-none" style={{ color: color || 'var(--brand-text)' }}>{children}</div>;
 const Sub = ({ children }) => <div className="text-xs text-slate-500 mt-1 leading-snug">{children}</div>;
 
 // A trend has {series:[numbers], delta_pct, good:'higher'|'lower', points}. The
@@ -47,7 +47,7 @@ function Sparkline({ trend }) {
   const xy = (v, i) => [pad + i * step, pad + (h - pad * 2) * (1 - (v - min) / span)];
   const pts = s.map((v, i) => xy(v, i).map((n) => n.toFixed(1)).join(',')).join(' ');
   const good = isGoodMove(trend);
-  const stroke = good == null ? '#94a3b8' : good ? '#16a34a' : '#ef4444';
+  const stroke = good == null ? 'var(--brand-muted)' : good ? '#16a34a' : '#ef4444';
   const [lx, ly] = xy(s[s.length - 1], s.length - 1);
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
@@ -60,7 +60,7 @@ function Sparkline({ trend }) {
 function TrendRow({ trend }) {
   if (!trend || !(trend.points >= 2) || trend.delta_pct == null) return null;
   const d = trend.delta_pct, good = isGoodMove(trend);
-  const color = d === 0 ? '#94a3b8' : good ? '#15803d' : '#dc2626';
+  const color = d === 0 ? 'var(--brand-muted)' : good ? '#4ade80' : '#f87171';
   const arrow = d === 0 ? '→' : d > 0 ? '▲' : '▼';
   return (
     <div className="flex items-center gap-2 mt-2">
@@ -76,7 +76,7 @@ export default function InsightWidgets() {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border bg-white p-6 flex justify-center" style={{ borderColor: '#E8D9B5' }}>
+      <div className="rounded-2xl border bg-white p-6 flex justify-center" style={{ borderColor: 'var(--brand-line)' }}>
         <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
       </div>
     );
@@ -97,31 +97,31 @@ export default function InsightWidgets() {
 
         {/* Cash flow */}
         <Shell to={createPageUrl('CashFlow')} icon={Wallet} title="תזרים השבוע"
-          tone={{ bg: '#E1F0EC', fg: '#0f766e' }}
+          tone={{ bg: 'color-mix(in srgb, #0f766e 22%, var(--brand-bg-elev2))', fg: '#5fd3c4' }}
           cta="לתזרים המלא →">
           {cashflow?.net == null
             ? <><Big color="#94a3b8">—</Big><Sub>אין עדיין נתוני תזרים</Sub></>
-            : <><Big color={cashflow.net < 0 ? '#dc2626' : '#0f766e'}>{ils(cashflow.net)}</Big>
+            : <><Big color={cashflow.net < 0 ? '#f87171' : '#5fd3c4'}>{ils(cashflow.net)}</Big>
                 <Sub>{ils(cashflow.income)} נכנס · {ils(cashflow.expense)} יוצא{cashflow.alerts ? ` · ⚠️ ${cashflow.alerts} התראות` : ''}</Sub>
                 <TrendRow trend={trends.cashflow_net} /></>}
         </Shell>
 
         {/* Churn risk */}
         <Shell to={createPageUrl('SmartPrediction')} icon={UserMinus} title="סיכון עזיבת עובדים"
-          tone={{ bg: '#F3E6F0', fg: '#9333ea' }}
+          tone={{ bg: 'color-mix(in srgb, #9333ea 22%, var(--brand-bg-elev2))', fg: '#c4a6ff' }}
           cta={churn?.last ? 'לניתוח העזיבות →' : 'הרץ ניתוח עזיבות →'}>
           {!churn?.last
             ? <><Big color="#94a3b8">—</Big><Sub>עוד לא הורץ ניתוח</Sub></>
             : churn.count === 0
               ? <><Big color="#4b7a2b">0</Big><Sub>אף עובד לא בסיכון גבוה 👍</Sub></>
-              : <><Big color={churn.critical ? '#dc2626' : '#d97706'}>{churn.count}</Big>
+              : <><Big color={churn.critical ? '#f87171' : '#fbbf24'}>{churn.count}</Big>
                   <Sub>עובדים בסיכון גבוה{churn.critical ? ` · ${churn.critical} קריטי` : ''}</Sub>
                   <TrendRow trend={trends.churn_count} /></>}
         </Shell>
 
         {/* Tomorrow demand */}
         <Shell to={createPageUrl('SmartPrediction')} icon={TrendingUp} title="תחזית ביקוש למחר"
-          tone={{ bg: '#E4EDFB', fg: '#2563eb' }}
+          tone={{ bg: 'color-mix(in srgb, #2563eb 22%, var(--brand-bg-elev2))', fg: '#8ab4ff' }}
           cta="לחיזוי המלא →">
           {demand?.covers == null
             ? <><Big color="#94a3b8">—</Big><Sub>אין מספיק היסטוריית קופה</Sub></>
@@ -132,7 +132,7 @@ export default function InsightWidgets() {
 
         {/* Supplier price drift */}
         <Shell to={createPageUrl('SmartPrediction')} icon={PackageSearch} title="התייקרות ספקים"
-          tone={{ bg: '#FBEADF', fg: '#c2410c' }}
+          tone={{ bg: 'color-mix(in srgb, #c2410c 22%, var(--brand-bg-elev2))', fg: '#ff9a5c' }}
           cta="לניתוח ההתייקרויות →">
           {drift == null
             ? <><Big color="#94a3b8">—</Big><Sub>אין מספיק חשבוניות</Sub></>
@@ -146,12 +146,12 @@ export default function InsightWidgets() {
         {/* Menu profitability — from the owner's REAL recipe food-costs
             (Recipe.food_cost_percent). Lower % = more profitable. */}
         <Shell to={createPageUrl(menu?.source === 'llm' ? 'SmartPrediction' : 'Recipes')} icon={Utensils} title="רווחיות מנות"
-          tone={{ bg: '#F5ECD6', fg: '#a16207' }}
+          tone={{ bg: 'var(--brand-bg-elev2)', fg: '#f2c95c' }}
           cta={menu?.analyzed ? 'לניהול המתכונים →' : 'הזן עלויות במתכונים →'}>
           {!menu?.analyzed
             ? <><Big color="#94a3b8">—</Big><Sub>{menu?.suspect ? `${menu.suspect} מנות עם עלות חריגה — תקן במתכונים` : 'הזן מחיר מכירה + עלות מרכיבים במתכונים'}</Sub></>
             : menu.source === 'recipes'
-              ? <><Big color={menu.avg_food_cost_pct > 32 ? '#e11d48' : '#15803d'}>{menu.avg_food_cost_pct}%</Big>
+              ? <><Big color={menu.avg_food_cost_pct > 32 ? '#e11d48' : '#4ade80'}>{menu.avg_food_cost_pct}%</Big>
                   <div className="text-xs font-bold text-emerald-700 truncate">⬆ {menu.best} · {menu.best_pct}% פוד-קוסט</div>
                   <div className="text-xs font-bold text-rose-600 truncate">⬇ {menu.bottom} · {menu.bottom_pct}%</div>
                   <Sub>פוד-קוסט ממוצע · {menu.analyzed} מנות מתומחרות{menu.high_cost_count ? ` · ${menu.high_cost_count} מעל 35%` : ''}{menu.suspect ? ` · ⚠${menu.suspect} עלות חריגה` : ''}</Sub>

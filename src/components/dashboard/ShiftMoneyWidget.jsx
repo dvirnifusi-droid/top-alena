@@ -27,18 +27,18 @@ export default function ShiftMoneyWidget() {
     await load(); setBusy(false);
   };
 
-  if (loading) return <div className="rounded-2xl border bg-white p-6 flex justify-center" style={{ borderColor: '#E8D9B5' }}><Loader2 className="w-5 h-5 animate-spin text-amber-500" /></div>;
+  if (loading) return <div className="rounded-2xl border bg-white p-6 flex justify-center" style={{ borderColor: 'var(--brand-line)' }}><Loader2 className="w-5 h-5 animate-spin text-amber-500" /></div>;
   if (!snap) return null;
 
   const channels = [
-    { name: '🪑 במקום', d: snap.dine_in, c: '#0f766e', bg: '#E1F0EC' },
-    { name: '🥡 איסוף', d: snap.takeaway, c: '#b45309', bg: '#FBF0DC' },
-    { name: '🛵 משלוח', d: snap.delivery, c: '#7A3722', bg: '#F4ECD8' },
+    { name: '🪑 במקום', d: snap.dine_in, c: '#5fd3c4', bg: 'color-mix(in srgb, #0f766e 22%, var(--brand-bg-elev2))' },
+    { name: '🥡 איסוף', d: snap.takeaway, c: '#f2b85c', bg: 'color-mix(in srgb, #b45309 22%, var(--brand-bg-elev2))' },
+    { name: '🛵 משלוח', d: snap.delivery, c: '#f0b08a', bg: 'var(--brand-bg-elev2)' },
   ];
 
   return (
     <section>
-      <div className="rounded-2xl border bg-white overflow-hidden" style={{ borderColor: '#E8D9B5' }}>
+      <div className="rounded-2xl border bg-white overflow-hidden" style={{ borderColor: 'var(--brand-line)' }}>
         <div className="flex items-center justify-between px-4 pt-4">
           <h2 className="text-lg font-bold text-slate-900">💵 כסף במשמרת עכשיו</h2>
           <button onClick={refresh} disabled={busy} className="text-slate-400 hover:text-slate-600 p-1"><RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /></button>
@@ -46,12 +46,12 @@ export default function ShiftMoneyWidget() {
 
         {/* closed vs open */}
         <div className="grid grid-cols-2 gap-3 px-4 pt-3">
-          <div className="rounded-2xl p-4 text-center" style={{ background: '#EAF3E1' }}>
-            <div className="text-3xl font-black tabular-nums" style={{ color: '#4b7a2b' }}>{ils(snap.total_today)}</div>
+          <div className="rounded-2xl p-4 text-center" style={{ background: 'color-mix(in srgb, #4b7a2b 22%, var(--brand-bg-elev2))' }}>
+            <div className="text-3xl font-black tabular-nums" style={{ color: '#8fd07a' }}>{ils(snap.total_today)}</div>
             <div className="text-xs font-semibold text-slate-600 mt-1">💚 כסף סגור</div>
           </div>
-          <div className="rounded-2xl p-4 text-center" style={{ background: '#FBEADF' }}>
-            <div className="text-3xl font-black tabular-nums" style={{ color: '#c2410c' }}>{ils(snap.open_money)}</div>
+          <div className="rounded-2xl p-4 text-center" style={{ background: 'color-mix(in srgb, #c2410c 22%, var(--brand-bg-elev2))' }}>
+            <div className="text-3xl font-black tabular-nums" style={{ color: '#ff9a5c' }}>{ils(snap.open_money)}</div>
             <div className="text-xs font-semibold text-slate-600 mt-1">🟠 כסף פתוח</div>
           </div>
         </div>
@@ -70,7 +70,7 @@ export default function ShiftMoneyWidget() {
           })}
         </div>
 
-        <Link to={createPageUrl('BeecommLive')} className="flex items-center justify-center gap-1 text-[12px] font-semibold text-amber-700 border-t py-2.5" style={{ borderColor: '#F0E4C6' }}>
+        <Link to={createPageUrl('BeecommLive')} className="flex items-center justify-center gap-1 text-[12px] font-semibold text-amber-700 border-t py-2.5" style={{ borderColor: 'var(--brand-line)' }}>
           לפירוט המלא של הקופה <ArrowLeft className="w-3.5 h-3.5" />
         </Link>
       </div>

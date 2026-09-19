@@ -59,11 +59,11 @@ export default function LaborCostCard() {
   const hasData = total > 0;
 
   return (
-    <div className="rounded-2xl border bg-white p-4 h-full" style={{ borderColor: '#E8D9B5' }}>
+    <div className="rounded-2xl border bg-white p-4 h-full" style={{ borderColor: 'var(--brand-line)' }}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#EAF3E1' }}>
-            <Users2 style={{ color: '#4b7a2b', width: 18, height: 18 }} />
+          <span className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'color-mix(in srgb, #4b7a2b 22%, var(--brand-bg-elev2))' }}>
+            <Users2 style={{ color: '#8fd07a', width: 18, height: 18 }} />
           </span>
           <span className="text-[13px] font-bold text-slate-700">עלות עבודה</span>
         </div>
@@ -88,7 +88,7 @@ export default function LaborCostCard() {
         </>
       ) : (
         <>
-          <div className="text-2xl font-black" style={{ color: overBudget ? '#dc2626' : '#4b7a2b' }}>{ils(total)}</div>
+          <div className="text-2xl font-black" style={{ color: overBudget ? '#f87171' : '#8fd07a' }}>{ils(total)}</div>
           <p className="text-[11.5px] text-slate-500 mt-0.5">
             {hours} שעות{budget != null ? ` · תקציב ${ils(budget)} (${pctOfBudget}%)` : ''}
           </p>
@@ -114,7 +114,7 @@ export default function LaborCostCard() {
         </>
       )}
 
-      <Link to={createPageUrl('WorkScheduling')} className="mt-2 text-[11px] font-bold flex items-center gap-1" style={{ color: '#44512C' }}>
+      <Link to={createPageUrl('WorkScheduling')} className="mt-2 text-[11px] font-bold flex items-center gap-1" style={{ color: 'var(--brand-text)' }}>
         לסידור ולפירוט <ArrowLeft className="w-3 h-3" />
       </Link>
     </div>
