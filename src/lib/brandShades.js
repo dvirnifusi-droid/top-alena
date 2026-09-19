@@ -37,17 +37,58 @@ function hslToHex(h, s, l) {
   return `#${f(0)}${f(8)}${f(4)}`;
 }
 
-// Alena's espresso, used when a tenant hasn't set a brand colour.
-// label lightness is 0.58, not something darker: at 0.48 the category
-// headings measured 3.6-4.3:1 against the rail on most brand hues, under the
-// 4.5:1 small-text minimum. Verified across gold, blue, olive and magenta.
-const FALLBACK = {
-  bg: '#241811', active: '#3B2A1E', fg: '#F6ECD6', dim: '#B9A88C', label: '#A08D6F', line: '#3B2A1E',
-};
+// Platform default = the TOP APOLLO "neon identity" (flat navy base, one
+// glowing cyan accent, teal lines). Used only when a tenant hasn't picked its
+// own brand colours — a tenant with colours gets the SAME design language in
+// ITS palette (Alena stays terracotta/gold, Juiceph stays green/lime).
+export const DEFAULT_BRAND = { primary: '#1e2834', secondary: '#36879e', accent: '#4fd6ee' };
+
+function rgba([r, g, b], a) { return `rgba(${r},${g},${b},${a})`; }
+function hslTriplet(h, s, l) { return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`; }
+
+// The full design-token set for the app chrome, derived from a tenant's
+// {primary, secondary, accent}. Every token is a CSS colour string; Layout
+// writes them to :root as --brand-* and the chrome (sidebar, ApolloHero,
+// buttons, login) reads them — so a tenant changing a colour on /Branding
+// restyles the whole app, and the platform default is TOP APOLLO's palette.
+//   bg / bgDeep / bgElev : the flat dark base and its two elevations
+//   accent / accentHi    : the one glowing accent + its lighter highlight
+//   line / glow          : accent at low alpha (hairlines) and the neon halo
+//   secondary            : quiet lines, icons, category labels
+//   text / muted         : light copy that sits on the dark base
+//   primaryHsl / primaryFg : the same accent as a shadcn --primary triplet
+export function brandTokens(colors) {
+  const c = colors || {};
+  const pRgb = hexToRgb(c.primary) || hexToRgb(DEFAULT_BRAND.primary);
+  const aRgb = hexToRgb(c.accent) || hexToRgb(DEFAULT_BRAND.accent);
+  const sRgb = hexToRgb(c.secondary) || hexToRgb(DEFAULT_BRAND.secondary);
+  const [ph, ps] = rgbToHsl(pRgb);
+  const [ah, as, al] = rgbToHsl(aRgb);
+  const [sh, ss] = rgbToHsl(sRgb);
+  const sat = Math.min(ps, 0.38);                 // same cap as the rail: calm, not a colour block
+  const accent = hslToHex(ah, as, al);
+  const accentHi = hslToHex(ah, Math.max(as * 0.7, 0.3), Math.min(0.88, al + 0.22));
+  return {
+    bgDeep: hslToHex(ph, sat, 0.10),
+    bg: hslToHex(ph, sat, 0.14),
+    bgElev: hslToHex(ph, sat, 0.19),
+    bgElev2: hslToHex(ph, sat, 0.24),
+    accent,
+    accentHi,
+    line: rgba(aRgb, 0.18),
+    glow: `0 0 18px ${rgba(aRgb, 0.45)}, 0 0 46px ${rgba(aRgb, 0.18)}`,
+    secondary: hslToHex(sh, Math.min(ss, 0.5), 0.42),
+    text: hslToHex(ph, Math.min(sat, 0.15), 0.94),
+    muted: hslToHex(ph, Math.min(sat, 0.12), 0.68),
+    // shadcn hook: default <Button> / focus ring become the brand accent.
+    // Light accents (cyan, gold, lime) need dark text on them, not white.
+    primaryHsl: hslTriplet(ah, as, al),
+    primaryFg: al > 0.5 ? hslTriplet(ph, sat, 0.08) : '0 0% 100%',
+  };
+}
 
 export function sidebarShades(primary) {
-  const rgb = hexToRgb(primary);
-  if (!rgb) return FALLBACK;
+  const rgb = hexToRgb(primary) || hexToRgb(DEFAULT_BRAND.primary);
   const [h, s] = rgbToHsl(rgb);
   // Saturation is capped: a fully saturated dark panel is exhausting to sit
   // beside all day, and it fights every status colour placed on top of it.

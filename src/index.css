@@ -75,6 +75,24 @@
   }
 }
 
+/* Neon identity tokens — TOP APOLLO platform defaults (flat navy, one glowing
+   cyan accent, teal hairlines). Layout.jsx overwrites these per tenant from its
+   brand_colours via brandTokens(); these values cover public pages (login,
+   signup) and the first paint before that effect runs. */
+:root {
+  --brand-bg: #1e2834;
+  --brand-bg-deep: #151d27;
+  --brand-bg-elev: #26323f;
+  --brand-bg-elev2: #2c3a48;
+  --brand-accent: #4fd6ee;
+  --brand-accent-hi: #b4eff4;
+  --brand-line: rgba(79, 214, 238, 0.18);
+  --brand-glow: 0 0 18px rgba(79, 214, 238, 0.45), 0 0 46px rgba(79, 214, 238, 0.18);
+  --brand-secondary: #36879e;
+  --brand-text: #e8f1f5;
+  --brand-muted: #8fa3b0;
+}
+
 
 
 @layer base {
@@ -186,12 +204,14 @@ h1, h2, h3,
   color: var(--sidebar-fg, #F6ECD6) !important;
 }
 
-/* Only the current page. A left marker plus a soft fill reads as "you are
-   here" without turning the item into a heavy block. */
+/* Only the current page. Neon identity: the brand accent marks "you are here"
+   — an accent hairline with a soft halo and a faint accent-tinted fill, so the
+   one lit item reads as the live one without becoming a heavy block. */
 .app-rail a.rail-active {
-  background: var(--sidebar-active, #3B2A1E) !important;
-  color: var(--sidebar-fg, #F6ECD6) !important;
+  background: color-mix(in srgb, var(--brand-accent, #4fd6ee) 12%, transparent) !important;
+  color: var(--brand-accent-hi, #b4eff4) !important;
   position: relative;
+  box-shadow: inset 0 0 24px color-mix(in srgb, var(--brand-accent, #4fd6ee) 8%, transparent) !important;
 }
 .app-rail a.rail-active::before {
   content: "";
@@ -201,7 +221,8 @@ h1, h2, h3,
   bottom: 18%;
   width: 3px;
   border-radius: 0 3px 3px 0;
-  background: var(--brand-primary, #C9A15A);
+  background: var(--brand-accent, #4fd6ee);
+  box-shadow: 0 0 10px var(--brand-accent, #4fd6ee);
 }
 
 /* Category headings — quiet, and without the per-category hue, which reads as

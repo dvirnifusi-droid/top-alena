@@ -11,9 +11,15 @@ import { useTenantBranding } from '@/hooks/useTenantBranding';
 import ActiveEmployeesWidget from './ActiveEmployeesWidget';
 import { Loader2, RefreshCw, Brain, Target, ScanLine, Users, CalendarDays, AlertTriangle, ClipboardCheck, Sparkles, ChevronDown, CheckCircle2, Clock, Copy, ExternalLink, UserPlus, Menu, ListChecks, FileSpreadsheet } from 'lucide-react';
 
+// Neon identity: the accent trio comes from the tenant's brand (--brand-*
+// CSS vars written by Layout from its brand_colours; TOP APOLLO cyan by
+// default), so the hero's ring, pills and CTAs glow in THAT business's colour.
+// The cream body + ink text stay a readable light surface.
 const A = {
-  gold: '#C9A15A', goldHi: '#EBD08A', goldLo: '#7c5626', espresso: '#241811', espresso2: '#33241a',
+  gold: 'var(--brand-accent, #4fd6ee)', goldHi: 'var(--brand-accent-hi, #b4eff4)', goldLo: 'var(--brand-secondary, #36879e)',
+  espresso: '#241811', espresso2: '#33241a',
   cream: '#F6ECD6', creamHi: '#FCF6E7', blue: '#2E7DFF', ink: '#2A1C12', muted: '#8A755A', good: '#5F8B3D', line: '#E3D3AC',
+  glow: 'var(--brand-glow, 0 0 18px rgba(79,214,238,.45))',
 };
 
 const ilTime = (iso) => { try { return new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso)); } catch { return ''; } };
@@ -95,16 +101,16 @@ export default function ApolloHero() {
       <div className="relative isolate" style={{ minHeight: 210 }}>
         {cover
           ? <img src={cover} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ zIndex: -2 }} />
-          : <div className="absolute inset-0" style={{ zIndex: -2, background: `linear-gradient(135deg, ${A.espresso} 0%, ${A.espresso2} 48%, ${A.goldLo} 120%)` }} />}
-        {/* darkening + gold-glow overlays */}
+          : <div className="absolute inset-0" style={{ zIndex: -2, background: `linear-gradient(135deg, var(--brand-bg-deep, #151d27) 0%, var(--brand-bg, #1e2834) 48%, var(--brand-secondary, #36879e) 140%)` }} />}
+        {/* darkening + accent-glow overlays (the neon halo, in the tenant's accent) */}
         <div className="absolute inset-0" style={{ zIndex: -1, background: cover
           ? 'linear-gradient(180deg, rgba(20,13,8,.62) 0%, rgba(20,13,8,.34) 38%, rgba(18,11,7,.92) 100%)'
-          : 'radial-gradient(120% 90% at 82% 8%, rgba(235,208,138,.28), transparent 60%)' }} />
+          : `radial-gradient(120% 90% at 82% 8%, color-mix(in srgb, ${A.gold} 26%, transparent), transparent 60%)` }} />
 
         {/* brand row */}
         <div className="relative flex items-start justify-between px-5 pt-4">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: `linear-gradient(160deg,${A.goldHi},${A.goldLo})`, boxShadow: '0 6px 18px rgba(201,161,90,.45)' }}>
+            <span className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: `linear-gradient(160deg,${A.goldHi},${A.goldLo})`, boxShadow: A.glow }}>
               {branding?.logo_url ? <img src={branding.logo_url} alt="" className="w-7 h-7 object-contain rounded-lg" /> : <Brain className="w-5 h-5" style={{ color: '#2a1c0e' }} />}
             </span>
             <div className="min-w-0">
@@ -121,7 +127,8 @@ export default function ApolloHero() {
         <div className="relative flex items-center gap-4 px-5 pt-3 pb-5">
           <div className="relative shrink-0" style={{ width: 112, height: 112 }}>
             <svg width="112" height="112" viewBox="0 0 112 112" style={{ transform: 'rotate(-90deg)', filter: 'drop-shadow(0 4px 14px rgba(0,0,0,.45))' }}>
-              <defs><linearGradient id="apGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={A.goldHi} /><stop offset="1" stopColor={A.gold} /></linearGradient></defs>
+              {/* stop-color as a STYLE, not an attribute — SVG presentation attributes can't resolve var() */}
+              <defs><linearGradient id="apGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style={{ stopColor: A.goldHi }} /><stop offset="1" style={{ stopColor: A.gold }} /></linearGradient></defs>
               <circle cx="56" cy="56" r={R} fill="none" stroke="rgba(255,255,255,.22)" strokeWidth="9" />
               <circle cx="56" cy="56" r={R} fill="none" stroke="url(#apGold)" strokeWidth="9" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={off} style={{ transition: reduce ? 'none' : 'stroke-dashoffset .35s ease' }} />
             </svg>
@@ -301,7 +308,7 @@ export default function ApolloHero() {
         {/* agent feed */}
         {(d.feed || []).length > 0 && (
           <div className="mx-4 mt-3 rounded-2xl p-3" style={{ background: `linear-gradient(170deg,${A.espresso2},${A.espresso})` }}>
-            <div className="flex items-center gap-2 text-[11.5px] font-bold mb-2" style={{ color: '#e6d0a2' }}>
+            <div className="flex items-center gap-2 text-[11.5px] font-bold mb-2" style={{ color: A.goldHi }}>
               <Brain className="w-4 h-4" style={{ color: A.blue }} /> אפולו מהוואטסאפ שלך
               <span className="ms-auto text-[10px] flex items-center gap-1" style={{ color: '#bfe0ff' }}><i style={{ width: 6, height: 6, borderRadius: 9, background: '#6FA8FF', display: 'inline-block' }} />חי</span>
             </div>
@@ -351,7 +358,7 @@ export default function ApolloHero() {
 
         {/* AI tools rail — כלי AI navigates; גיוס + סורק open inline panels */}
         <div className="grid grid-cols-3 gap-2 px-4 py-4">
-          <Link to={createPageUrl('AIHub')} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px]" style={{ background: `linear-gradient(160deg,${A.goldHi},${A.gold})`, color: '#2a1c0e', boxShadow: '0 6px 14px rgba(201,161,90,.35)' }}><Brain className="w-5 h-5" /> כלי AI</Link>
+          <Link to={createPageUrl('AIHub')} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px]" style={{ background: `linear-gradient(160deg,${A.goldHi},${A.gold})`, color: '#0c1a20', boxShadow: A.glow }}><Brain className="w-5 h-5" /> כלי AI</Link>
           <button onClick={() => { setShowRecruit(s => !s); setShowScanner(false); }} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px] transition" style={{ background: showRecruit ? '#fff1cf' : '#fff8ea', color: A.espresso, border: `1px solid ${showRecruit ? A.gold : A.line}` }}><Target className="w-5 h-5" style={{ color: A.goldLo }} /> סוכן גיוס</button>
           <button onClick={() => { setShowScanner(s => !s); setShowRecruit(false); }} className="rounded-2xl py-2.5 flex flex-col items-center gap-1 font-bold text-[12px] transition" style={{ background: showScanner ? '#fff1cf' : '#fff8ea', color: A.espresso, border: `1px solid ${showScanner ? A.gold : A.line}` }}><ScanLine className="w-5 h-5" style={{ color: A.goldLo }} /> סורק AI</button>
         </div>

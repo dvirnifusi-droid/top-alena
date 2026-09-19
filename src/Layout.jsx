@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { sidebarShades } from "@/lib/brandShades";
+import { sidebarShades, brandTokens } from "@/lib/brandShades";
 import { base44 } from "@/api/base44Client";
 import NetworkLayout from "@/components/network/NetworkLayout";
 import VoiceControl from "@/components/voice/VoiceControl";
@@ -286,6 +286,32 @@ export default function Layout({ children, currentPageName }) {
     root.style.setProperty('--sidebar-fg', sb.fg);
     root.style.setProperty('--sidebar-dim', sb.dim);
     root.style.setProperty('--sidebar-label', sb.label);
+    // Neon identity — the full token set (flat base, one glowing accent, thin
+    // lines) in THIS tenant's colours; TOP APOLLO navy/cyan when it has none.
+    // The chrome (rail, ApolloHero, login, index.css) reads these --brand-* vars.
+    const t = brandTokens(colors);
+    root.style.setProperty('--brand-bg', t.bg);
+    root.style.setProperty('--brand-bg-deep', t.bgDeep);
+    root.style.setProperty('--brand-bg-elev', t.bgElev);
+    root.style.setProperty('--brand-bg-elev2', t.bgElev2);
+    root.style.setProperty('--brand-accent', t.accent);
+    root.style.setProperty('--brand-accent-hi', t.accentHi);
+    root.style.setProperty('--brand-line', t.line);
+    root.style.setProperty('--brand-glow', t.glow);
+    root.style.setProperty('--brand-secondary', t.secondary);
+    root.style.setProperty('--brand-text', t.text);
+    root.style.setProperty('--brand-muted', t.muted);
+    // Default <Button> and focus rings take the accent — but only on the stock
+    // theme: a user-chosen colour theme (THEME_VARS) keeps its own --primary.
+    if (appTheme === 'light') {
+      root.style.setProperty('--primary', t.primaryHsl);
+      root.style.setProperty('--primary-foreground', t.primaryFg);
+      root.style.setProperty('--ring', t.primaryHsl);
+    } else {
+      root.style.removeProperty('--primary');
+      root.style.removeProperty('--primary-foreground');
+      root.style.removeProperty('--ring');
+    }
     if (branding?.brand_font) {
       root.style.setProperty('--brand-font-family', `"${branding.brand_font}", system-ui, sans-serif`);
     }
@@ -295,7 +321,7 @@ export default function Layout({ children, currentPageName }) {
     // Point manifest link at the per-tenant dynamic manifest (server-side).
     const link = document.querySelector('link[rel="manifest"]');
     if (link) link.setAttribute('href', '/api/public/fn/getManifest');
-  }, [branding, brandName]);
+  }, [branding, brandName, appTheme]);
 
   // Auto-Tracker: log every page nav so the daily analyzer can spot patterns
   // (e.g. "Dvir opened SeatingSetup 20× tonight → propose a dashboard widget").

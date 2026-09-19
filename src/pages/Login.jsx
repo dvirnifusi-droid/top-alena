@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { isMainAlena } from '@/lib/tenant';
 import { useTenantBranding } from '@/hooks/useTenantBranding';
+import { brandTokens, DEFAULT_BRAND } from '@/lib/brandShades';
 import { Mail, Lock, LogIn, ChevronLeft, ArrowRight } from 'lucide-react';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -94,9 +95,14 @@ export default function Login() {
   const brandLogo = branding?.logo_url || null;
   const brandCover = branding?.cover_photo_url || null;
   const bc = branding?.brand_colors || {};
-  const primary = bc.primary || '#A04A2E';
-  const secondary = bc.secondary || '#44512C';
-  const accent = bc.accent || '#C9A15A';
+  // Fallbacks = the TOP APOLLO platform palette (navy/teal/cyan), NOT Alena's —
+  // a new tenant's login must not wear another restaurant's colours.
+  const primary = bc.primary || DEFAULT_BRAND.primary;
+  const secondary = bc.secondary || DEFAULT_BRAND.secondary;
+  const accent = bc.accent || DEFAULT_BRAND.accent;
+  // Login is a public page outside Layout, so the --brand-* vars aren't set here;
+  // derive the neon tokens locally from this tenant's colours.
+  const tk = brandTokens(bc);
   const hasCover = !!brandCover;
   const brandInitial = (brandName || '?').trim().charAt(0).toUpperCase();
   // Base gradient always paints (shows under/around any photo). The cover photo
@@ -201,8 +207,10 @@ export default function Login() {
                       className="lg-in w-full ps-11 pe-4 py-3.5 rounded-2xl outline-none bg-[#FAF5E8] border border-[#EADFC8] text-[#2A2018] placeholder-[#B3A488]" />
                   </div>
                   {error && <div className="text-sm text-center rounded-xl py-2.5 px-3 text-[#9B2C1A] bg-[#F7E4DE] border border-[#EBCBC1]">{error}</div>}
-                  <button type="submit" disabled={loading} className="lg-btn w-full flex items-center justify-center gap-2 font-bold text-white py-3.5 rounded-2xl disabled:opacity-60"
-                    style={{ background: 'var(--brand-primary, #A04A2E)' }}>
+                  {/* Neon identity: the primary CTA is the glowing brand ACCENT (dark text on it —
+                      accents are light), not the base colour. */}
+                  <button type="submit" disabled={loading} className="lg-btn w-full flex items-center justify-center gap-2 font-bold py-3.5 rounded-2xl disabled:opacity-60"
+                    style={{ background: tk.accent, color: tk.bgDeep, boxShadow: tk.glow }}>
                     {loading ? '...' : <><LogIn className="w-5 h-5" strokeWidth={2.2} />{mode === 'login' ? 'התחברות' : 'הרשמה'}</>}
                   </button>
                 </form>
