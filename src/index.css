@@ -403,3 +403,11 @@ h1, h2, h3,
 .brand-dark .bg-rose-50, .brand-dark .bg-rose-100, .brand-dark [class*="bg-rose-50/"], .brand-dark [class*="bg-rose-100/"] { background-color: color-mix(in srgb, #f43f5e 18%, hsl(var(--card))) !important; }
 .brand-dark .text-rose-600, .brand-dark .text-rose-700, .brand-dark .text-rose-800, .brand-dark .text-rose-900 { color: color-mix(in srgb, #f43f5e 58%, #fff) !important; }
 .brand-dark .border-rose-200, .brand-dark .border-rose-300 { border-color: color-mix(in srgb, #f43f5e 40%, transparent) !important; }
+/* Light GRADIENT backgrounds. `bg-gradient-to-* from-[#FAF5E8] …` is the warm
+   page wrapper on ~51 pages (and from-white/amber/orange-50 on cards); the
+   utilities above can't touch a gradient, so kill the image and fall back to
+   the matching dark surface. Coloured gradients (from-[#A04A2E] …) are left. */
+.brand-dark .from-\[\#FAF5E8\], .brand-dark .from-\[\#F4ECD8\], .brand-dark .from-\[\#FBF6EA\], .brand-dark .from-\[\#FFFDF9\], .brand-dark .from-\[\#F7EFDD\] { background-image: none !important; background-color: hsl(var(--background)) !important; }
+.brand-dark .from-white, .brand-dark .from-slate-50, .brand-dark .from-gray-50, .brand-dark .from-stone-50 { background-image: none !important; background-color: hsl(var(--card)) !important; }
+.brand-dark .from-amber-50 { background-image: none !important; background-color: color-mix(in srgb, #f59e0b 18%, hsl(var(--card))) !important; }
+.brand-dark .from-orange-50 { background-image: none !important; background-color: color-mix(in srgb, #f97316 18%, hsl(var(--card))) !important; }
