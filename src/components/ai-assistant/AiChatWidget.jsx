@@ -651,7 +651,7 @@ export default function AiChatWidget() {
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-full whitespace-nowrap">4 כלים</span>
-                    <span className="text-white text-xs px-3 py-1 rounded-full font-bold whitespace-nowrap" style={{ background: 'var(--brand-accent, #C9A15A)' }}>לחץ לפתיחה!</span>
+                    <span className="text-xs px-3 py-1 rounded-full font-bold whitespace-nowrap" style={{ background: 'var(--brand-accent, #C9A15A)', color: 'var(--brand-bg-deep, #fff)' }}>לחץ לפתיחה!</span>
                 </div>
             </button>
         );

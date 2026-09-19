@@ -483,3 +483,29 @@ h1, h2, h3,
 }
 .brand-dark .bg-slate-800, .brand-dark .bg-slate-900, .brand-dark .bg-gray-800, .brand-dark .bg-gray-900, .brand-dark .bg-\[\#1F1B17\] { color: hsl(var(--foreground)); }
 .brand-dark .bg-\[\#1F1B17\] { background-color: hsl(var(--muted)) !important; }
+/* Pastel gradient cards (`from-emerald-50 to-teal-50`, 131 stops app-wide): a
+   gradient utility can't be re-toned stop by stop, so the FROM stop decides —
+   flat dark tint of that hue, gradient dropped. Solid 400+ stops untouched. */
+.brand-dark .from-red-50, .brand-dark .from-red-100 { background-image: none !important; background-color: color-mix(in srgb, #ef4444 18%, hsl(var(--card))) !important; }
+.brand-dark .from-yellow-50, .brand-dark .from-yellow-100 { background-image: none !important; background-color: color-mix(in srgb, #eab308 18%, hsl(var(--card))) !important; }
+.brand-dark .from-lime-50, .brand-dark .from-lime-100 { background-image: none !important; background-color: color-mix(in srgb, #84cc16 18%, hsl(var(--card))) !important; }
+.brand-dark .from-green-50, .brand-dark .from-green-100 { background-image: none !important; background-color: color-mix(in srgb, #22c55e 18%, hsl(var(--card))) !important; }
+.brand-dark .from-emerald-50, .brand-dark .from-emerald-100 { background-image: none !important; background-color: color-mix(in srgb, #10b981 18%, hsl(var(--card))) !important; }
+.brand-dark .from-teal-50, .brand-dark .from-teal-100 { background-image: none !important; background-color: color-mix(in srgb, #14b8a6 18%, hsl(var(--card))) !important; }
+.brand-dark .from-cyan-50, .brand-dark .from-cyan-100 { background-image: none !important; background-color: color-mix(in srgb, #06b6d4 18%, hsl(var(--card))) !important; }
+.brand-dark .from-sky-50, .brand-dark .from-sky-100 { background-image: none !important; background-color: color-mix(in srgb, #0ea5e9 18%, hsl(var(--card))) !important; }
+.brand-dark .from-blue-50, .brand-dark .from-blue-100 { background-image: none !important; background-color: color-mix(in srgb, #3b82f6 18%, hsl(var(--card))) !important; }
+.brand-dark .from-indigo-50, .brand-dark .from-indigo-100 { background-image: none !important; background-color: color-mix(in srgb, #6366f1 18%, hsl(var(--card))) !important; }
+.brand-dark .from-violet-50, .brand-dark .from-violet-100 { background-image: none !important; background-color: color-mix(in srgb, #8b5cf6 18%, hsl(var(--card))) !important; }
+.brand-dark .from-purple-50, .brand-dark .from-purple-100 { background-image: none !important; background-color: color-mix(in srgb, #a855f7 18%, hsl(var(--card))) !important; }
+.brand-dark .from-fuchsia-50, .brand-dark .from-fuchsia-100 { background-image: none !important; background-color: color-mix(in srgb, #d946ef 18%, hsl(var(--card))) !important; }
+.brand-dark .from-pink-50, .brand-dark .from-pink-100 { background-image: none !important; background-color: color-mix(in srgb, #ec4899 18%, hsl(var(--card))) !important; }
+.brand-dark .from-rose-50, .brand-dark .from-rose-100 { background-image: none !important; background-color: color-mix(in srgb, #f43f5e 18%, hsl(var(--card))) !important; }
+.brand-dark .from-amber-100, .brand-dark .from-orange-100 { background-image: none !important; background-color: color-mix(in srgb, #f59e0b 18%, hsl(var(--card))) !important; }
+.brand-dark .from-slate-100, .brand-dark .from-gray-100, .brand-dark .from-stone-100, .brand-dark .from-zinc-50, .brand-dark .from-zinc-100, .brand-dark .from-neutral-50, .brand-dark .from-neutral-100 { background-image: none !important; background-color: hsl(var(--muted)) !important; }
+/* Inline `background: var(--brand-primary)` buttons carry white copy; with the
+   primary now the light accent (see Layout) that copy goes dark. Attribute
+   match on the serialized inline style is the only handle we have. */
+.brand-dark [style*="background: var(--brand-primary"], .brand-dark [style*="background-color: var(--brand-primary"] { color: var(--brand-bg-deep) !important; }
+.brand-dark .text-amber-950, .brand-dark .text-orange-950, .brand-dark .text-red-950, .brand-dark .text-green-950, .brand-dark .text-emerald-950, .brand-dark .text-blue-950, .brand-dark .text-purple-950, .brand-dark .text-slate-950, .brand-dark .text-gray-950 { color: hsl(var(--foreground)) !important; }
+.brand-dark [class*="text-amber-900/"], .brand-dark [class*="text-amber-800/"], .brand-dark [class*="text-amber-700/"] { color: color-mix(in srgb, #f59e0b 58%, #fff) !important; }

@@ -335,6 +335,11 @@ export default function Layout({ children, currentPageName }) {
       root.style.setProperty('--sidebar-border', s.border);
       root.style.setProperty('--sidebar-primary', t.primaryHsl);
       root.style.setProperty('--sidebar-primary-foreground', t.primaryFg);
+      // ~40 inline `var(--brand-primary)` usages mean "the brand's ACTION
+      // colour" (D2 branding); in dark mode the primary IS the dark base, so
+      // they'd paint navy-on-navy — point them at the accent instead. index.css
+      // flips the white copy inside those inline-filled buttons to dark.
+      root.style.setProperty('--brand-primary', t.accent);
       root.classList.add('brand-dark');
     } else {
       ['--primary', '--primary-foreground', '--ring', '--background', '--foreground', '--card', '--card-foreground',
