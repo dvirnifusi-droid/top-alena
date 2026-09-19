@@ -57,13 +57,24 @@ class Alena_DZ_Hours_Checkout {
         $engine = Alena_DZ_Hours_Engine::get();
         $now    = new DateTimeImmutable('now', new DateTimeZone('Asia/Jerusalem'));
         $cats   = $this->cart_category_slugs();
-        $status = $engine->status('delivery', $now, $cats);
-        if ($status['open']) return $rates;
 
-        // Remove the polygon delivery method when delivery is closed
-        foreach ($rates as $id => $rate) {
-            if (strpos($id, 'alena_polygon:') === 0) {
-                unset($rates[$id]);
+        // Delivery closed → drop the polygon delivery method.
+        if (empty($engine->status('delivery', $now, $cats)['open'])) {
+            foreach ($rates as $id => $rate) {
+                if (strpos($id, 'alena_polygon:') === 0) unset($rates[$id]);
+            }
+        }
+
+        // Pickup closed → drop the pickup method too. This was never enforced,
+        // so a customer could place a collection order at any hour, even when the
+        // kitchen is shut.
+        if (empty($engine->status('pickup', $now, $cats)['open'])) {
+            foreach ($rates as $id => $rate) {
+                $mid = method_exists($rate, 'get_method_id') ? $rate->get_method_id() : '';
+                if (strpos($id, 'local_pickup') !== false || strpos($id, 'pickup') !== false
+                    || strpos((string) $mid, 'local_pickup') !== false || strpos((string) $mid, 'pickup') !== false) {
+                    unset($rates[$id]);
+                }
             }
         }
         return $rates;
@@ -95,7 +106,8 @@ class Alena_DZ_Hours_Checkout {
             }
         }
         return 'לא נמצאה שיטת משלוח לכתובת הזו. ייתכן שהיא מחוץ לאזורי החלוקה שלנו, '
-             . 'או שהמשלוחים סגורים כרגע. אפשר לבחור איסוף עצמי, או להתקשר אלינו 03-6228055.';
+             . 'או שהמשלוחים סגורים כרגע. אפשר לבחור איסוף עצמי, או להתקשר אלינו '
+             . (class_exists('Alena_DZ_Store_Controls') ? Alena_DZ_Store_Controls::phone() : '03-6228055') . '.';
     }
 
     /**

@@ -76,11 +76,35 @@ class Alena_DZ_Hours_Engine {
      */
     public function status(string $service, ?DateTimeImmutable $when = null, array $product_category_slugs = []): array {
         $when = $when ?: new DateTimeImmutable('now', $this->tz());
+
+        // (1) Manual override the owner flips from the app — closed / delivery-
+        //     only / pickup-only. Wins over the schedule entirely.
+        if (class_exists('Alena_DZ_Store_Controls')) {
+            $manual = Alena_DZ_Store_Controls::manual_service_closed($service);
+            if (!empty($manual['closed'])) {
+                return ['open' => false, 'reason' => $manual['reason']];
+            }
+        }
+
         $config = $this->get_config()[$service] ?? [];
         $dow = (int) $when->format('w'); // 0..6
         $hhmm = $when->format('H:i');
 
         $today_ranges = $config[(string) $dow] ?? [];
+
+        // (2) Single-date override (holidays): closed, or special hours for the
+        //     day, consulted before the weekday grid.
+        if (class_exists('Alena_DZ_Store_Controls')) {
+            $ovr = Alena_DZ_Store_Controls::date_override_for($when);
+            if (is_array($ovr)) {
+                if (($ovr['mode'] ?? '') === 'closed') {
+                    return ['open' => false, 'reason' => 'סגור היום (חג/יום מיוחד)'];
+                }
+                if (isset($ovr[$service]) && is_array($ovr[$service])) {
+                    $today_ranges = $ovr[$service];
+                }
+            }
+        }
 
         foreach ($today_ranges as $range) {
             [$open_str, $close_str] = [$range[0], $range[1]];

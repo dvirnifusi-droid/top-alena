@@ -103,9 +103,10 @@ class Alena_DZ_Shop_Styling {
 
     /** Fulfilment options, shared by the header button and the chooser sheet. */
     private function fulfilment_labels() {
+        $sc = class_exists('Alena_DZ_Store_Controls');
         return [
-            'delivery' => ['icon' => '🛵', 'label' => 'משלוח',      'eta' => '35-45 דק׳'],
-            'pickup'   => ['icon' => '🥡', 'label' => 'איסוף עצמי', 'eta' => '15-25 דק׳'],
+            'delivery' => ['icon' => '🛵', 'label' => 'משלוח',      'eta' => $sc ? Alena_DZ_Store_Controls::eta_range('delivery') : '35-45 דק׳'],
+            'pickup'   => ['icon' => '🥡', 'label' => 'איסוף עצמי', 'eta' => $sc ? Alena_DZ_Store_Controls::eta_range('pickup')   : '15-25 דק׳'],
         ];
     }
 
@@ -231,7 +232,7 @@ class Alena_DZ_Shop_Styling {
             <button class="alena-promo-close" id="alena-promo-close" aria-label="סגור">✕</button>
             <div class="alena-promo-emoji">🥙💚</div>
             <h2>ברוכים הבאים לעלינא!</h2>
-            <p>מטבח ים-תיכוני שמח וצבעוני · כשר · משלוחים לראשון לציון והסביבה</p>
+            <p>מטבח ים-תיכוני שמח וצבעוני · כשר · משלוחים ל<?php echo esc_html(class_exists('Alena_DZ_Store_Controls') ? Alena_DZ_Store_Controls::city() : 'ראשון לציון'); ?> והסביבה</p>
             <a class="alena-promo-cta" href="<?php echo esc_url($shop_url); ?>" id="alena-promo-cta">לתפריט המלא →</a>
           </div>
         </div>
@@ -344,14 +345,29 @@ class Alena_DZ_Shop_Styling {
             $hero_sub  = 'מטבח ים-תיכוני שמח וצבעוני · כשר';
         }
 
+        // Cheapest delivery fee + lowest minimum across the ENABLED zones, so the
+        // hero facts track whatever the owner sets in the app (was hardcoded ₪17/₪70).
+        $min_fee = null; $min_min = null;
+        if (class_exists('Alena_DZ_Polygon_Store')) {
+            foreach (Alena_DZ_Polygon_Store::all() as $pz) {
+                if (!is_array($pz) || !empty($pz['disabled'])) continue;
+                $f = (float) ($pz['delivery_fee'] ?? 0);
+                $m = (float) ($pz['min_order'] ?? 0);
+                if ($min_fee === null || $f < $min_fee) $min_fee = $f;
+                if ($min_min === null || $m < $min_min) $min_min = $m;
+            }
+        }
+        $fee_txt = $min_fee !== null ? ('₪' . number_format($min_fee, 0)) : '₪17';
+        $min_txt = $min_min !== null ? ('₪' . number_format($min_min, 0)) : '₪70';
+
         echo '<div class="alena-dz-hero-inner">';
         echo '<h1 class="alena-dz-hero-title">' . esc_html($hero_name) . '</h1>';
         echo '<p class="alena-dz-hero-sub">' . esc_html($hero_sub) . '</p>';
         echo '<div class="alena-dz-hero-info">';
         echo '<span class="alena-dz-hero-chip alena-dz-hero-chip-status">' . esc_html($status) . '</span>';
-        echo '<span class="alena-dz-hero-chip">📍 רוטשילד 104, ראשון לציון</span>';
-        echo '<span class="alena-dz-hero-chip">🚚 משלוחים מ-₪17</span>';
-        echo '<span class="alena-dz-hero-chip">💰 מינ׳ הזמנה ₪70</span>';
+        echo '<span class="alena-dz-hero-chip">📍 ' . esc_html(Alena_DZ_Store_Controls::address_full()) . '</span>';
+        echo '<span class="alena-dz-hero-chip">🚚 משלוחים מ-' . esc_html($fee_txt) . '</span>';
+        echo '<span class="alena-dz-hero-chip">💰 מינ׳ הזמנה ' . esc_html($min_txt) . '</span>';
         echo '</div>';
 
         // Phone header, Wolt-shaped: the same facts as one dotted line instead of
@@ -368,9 +384,9 @@ class Alena_DZ_Shop_Styling {
         );
 
         $meta = [
-            'מינימום הזמנה ₪70',
-            'משלוח מ-₪17',
-            'רוטשילד 104, ראשון לציון',
+            'מינימום הזמנה ' . $min_txt,
+            'משלוח מ-' . $fee_txt,
+            Alena_DZ_Store_Controls::address_full(),
         ];
         echo '<ul class="alena-dz-hero-meta">';
         foreach ($meta as $line) {

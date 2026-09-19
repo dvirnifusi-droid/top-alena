@@ -174,7 +174,7 @@ class Alena_DZ_Cart_Enhancements {
         <div class="alena-dz-tip">
           <p>השליח יראה את הטיפ לאחר המשלוח ויקבל את הסכום ישירות אליו</p>
           <div class="alena-dz-tip-options">
-            <?php foreach ([0, 5, 10, 15] as $amount): ?>
+            <?php foreach ((class_exists('Alena_DZ_Store_Controls') ? Alena_DZ_Store_Controls::tip_presets() : [0, 5, 10, 15]) as $amount): ?>
               <button type="button" class="alena-dz-tip-opt<?php echo abs($current - $amount) < 0.01 ? ' active' : ''; ?>"
                       data-amount="<?php echo $amount; ?>"
                       data-nonce="<?php echo esc_attr($nonce); ?>">

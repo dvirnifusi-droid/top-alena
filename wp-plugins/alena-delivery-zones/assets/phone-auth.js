@@ -51,13 +51,34 @@
 
   function normalize(raw) { return (raw || '').replace(/\D/g, ''); }
 
-  function sendCode(phone) {
+  function sendCode(phone, channel) {
     return $.ajax({
       url: AlenaPhoneAuth.apiUrl + 'send',
       method: 'POST',
       headers: { 'X-WP-Nonce': AlenaPhoneAuth.nonce },
-      data: { phone: phone }
+      data: { phone: phone, channel: channel || 'whatsapp' }
     });
+  }
+
+  // "Didn't get the code? send by SMS" — the reliable escape hatch. Appears a
+  // few seconds after a WhatsApp send; resends the SAME live code by SMS.
+  let smsFallbackTimer = null;
+  function offerSmsFallback(phone) {
+    if (smsFallbackTimer) clearTimeout(smsFallbackTimer);
+    let $link = $('#alena-otp-sms-fallback');
+    if ($link.length) $link.remove();
+    smsFallbackTimer = setTimeout(function () {
+      $link = $('<button type="button" id="alena-otp-sms-fallback" class="alena-otp-link">לא קיבלת קוד? שלח ב-SMS 📩</button>');
+      $codeForm.find('.alena-otp-actions').first().append($link);
+      if (!$codeForm.find('.alena-otp-actions').length) $codeForm.append($link);
+      $link.on('click', function (e) {
+        e.preventDefault();
+        $link.prop('disabled', true).text('שולח SMS…');
+        sendCode(phone, 'sms')
+          .done(function () { $link.text('נשלח ב-SMS ✓'); })
+          .fail(function () { $link.prop('disabled', false).text('לא קיבלת קוד? שלח ב-SMS 📩'); });
+      });
+    }, 15000);
   }
 
   function verifyCode(phone, code) {
@@ -163,6 +184,8 @@
           }
           setTimeout(function () { $codeIn.trigger('focus'); }, 100);
           startCooldown(60);
+          // Offer the SMS fallback only when the code went out on WhatsApp.
+          if (r.via !== 'sms') offerSmsFallback(phone);
         })
         .fail(function (xhr) {
           $btn.prop('disabled', false).html(orig);
@@ -221,6 +244,8 @@
   $change.on('click', function (e) {
     e.preventDefault();
     if (cooldownTimer) clearInterval(cooldownTimer);
+    if (smsFallbackTimer) clearTimeout(smsFallbackTimer);
+    $('#alena-otp-sms-fallback').remove();
     $codeForm.attr('hidden', true);
     $phoneForm.removeAttr('hidden');
     $phoneIn.trigger('focus');

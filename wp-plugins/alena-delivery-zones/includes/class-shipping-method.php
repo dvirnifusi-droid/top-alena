@@ -84,6 +84,12 @@ class Alena_DZ_Shipping_Method extends WC_Shipping_Method {
             return;
         }
 
+        // Zone temporarily switched off from the app (no driver there, weather).
+        if (!empty($polygon['disabled'])) {
+            $this->trace('zone_disabled', $polygon['id'] ?? '');
+            return;
+        }
+
         // Enforce min order
         // MUST include tax. contents_cost and get_subtotal() are both EX-tax,
         // while every price on this menu is quoted inc-VAT -- so a 116 cart
@@ -121,10 +127,24 @@ class Alena_DZ_Shipping_Method extends WC_Shipping_Method {
             WC()->session->set('alena_dz_under_min', null);
         }
 
+        // Free delivery over ₪X (set from the app). Compared inc-VAT, same as min.
+        if (class_exists('Alena_DZ_Store_Controls')) {
+            $free_over = Alena_DZ_Store_Controls::free_delivery_over();
+            if ($free_over > 0 && $cart_total >= $free_over) {
+                $fee = 0.0;
+            }
+        }
+
         $this->trace('rate_added', ['zone' => $polygon_name, 'fee' => $fee]);
+        $label = $fee <= 0
+                    ? sprintf('משלוח חינם לאזור "%s" 🎉', $polygon_name)
+                    : sprintf('משלוח לאזור "%s"', $polygon_name);
+        // Estimated arrival — shown as a max ("up to N min"); we aim to beat it.
+        $eta = (int) ($polygon['eta_max'] ?? 0);
+        if ($eta > 0) $label .= sprintf(' · עד %d דק׳', $eta);
         $this->add_rate([
             'id'    => $this->id . ':' . $polygon['id'],
-            'label' => sprintf('משלוח לאזור "%s"', $polygon_name),
+            'label' => $label,
             'cost'  => $fee,
             'meta_data' => ['alena_dz_polygon_id' => $polygon['id']],
         ]);

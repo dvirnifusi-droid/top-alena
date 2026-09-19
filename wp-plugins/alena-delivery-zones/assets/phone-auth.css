@@ -439,3 +439,7 @@ body.woocommerce-account .e-page-title-heading,
   .alena-dash-action-sub { font-size: 11px; }
   .alena-dash-action-emoji { font-size: 26px; margin-bottom: 4px; }
 }
+
+/* SMS fallback escape link on the code step */
+.alena-otp-link{display:inline-block;margin-top:10px;background:none;border:none;color:#8a5a2b;font-weight:700;font-size:14px;text-decoration:underline;cursor:pointer;font-family:inherit}
+.alena-otp-link:disabled{opacity:.6;cursor:default}

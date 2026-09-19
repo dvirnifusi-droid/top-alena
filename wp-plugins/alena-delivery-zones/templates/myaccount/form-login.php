@@ -123,7 +123,7 @@ do_action('woocommerce_before_customer_login_form');
       <p class="alena-otp-error" id="alena-otp-code-error" hidden></p>
     </form>
 
-    <p class="alena-otp-legal alena-otp-only-register" <?php echo $reg_hidden; ?>>עלינא · רוטשילד 104, ראשון לציון · 03-6228055</p>
+    <p class="alena-otp-legal alena-otp-only-register" <?php echo $reg_hidden; ?>>עלינא · <?php echo esc_html(class_exists('Alena_DZ_Store_Controls') ? Alena_DZ_Store_Controls::address_full() : 'רוטשילד 104, ראשון לציון'); ?> · <?php echo esc_html(class_exists('Alena_DZ_Store_Controls') ? Alena_DZ_Store_Controls::phone() : '03-6228055'); ?></p>
     <p class="alena-otp-legal alena-otp-only-login" <?php echo $log_hidden; ?>>בהמשך אתם מסכימים ל<a href="<?php echo esc_url(get_privacy_policy_url() ?: '#'); ?>">תקנון ומדיניות הפרטיות</a></p>
   </div>
 </div>

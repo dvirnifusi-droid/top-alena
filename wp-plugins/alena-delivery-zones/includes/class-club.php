@@ -547,7 +547,7 @@ class Alena_DZ_Club {
           <?php if ($balance > 0): ?>
           <div class="alena-club-shop-banner-hint">💡 הפדיון מתבצע אוטומטית בעמוד הסל</div>
           <?php else: ?>
-          <div class="alena-club-shop-banner-hint">כל ₪100 בהזמנה צוברים נקודה · כל נקודה שווה ₪<?php echo (int) $coin_v; ?></div>
+          <div class="alena-club-shop-banner-hint">כל ₪<?php echo (int) self::earn_per_ils(); ?> בהזמנה צוברים נקודה · כל נקודה שווה ₪<?php echo (int) $coin_v; ?></div>
           <?php endif; ?>
         </div>
         <?php

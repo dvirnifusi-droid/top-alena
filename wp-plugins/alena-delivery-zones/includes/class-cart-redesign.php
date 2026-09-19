@@ -99,7 +99,7 @@ class Alena_DZ_Cart_Redesign {
         } catch (\Throwable $e) { /* default label */ }
 
         echo '<div class="alena-trust-row">';
-        echo '<span class="alena-trust-pill">⭐ <strong>4.9</strong> · אהוב על אלפי לקוחות</span>';
+        echo '<span class="alena-trust-pill">⭐ <strong>' . esc_html(class_exists('Alena_DZ_Store_Controls') ? Alena_DZ_Store_Controls::rating() : '4.9') . '</strong> · אהוב על אלפי לקוחות</span>';
         echo '<span class="alena-trust-pill">✅ כשר</span>';
         echo '<span class="alena-trust-pill">' . esc_html($hours_label) . '</span>';
         echo '</div>';
@@ -165,7 +165,18 @@ class Alena_DZ_Cart_Redesign {
     private function get_eta_config(): array {
         $defaults = ['delivery_min' => 40, 'delivery_max' => 60, 'pickup_min' => 15, 'pickup_max' => 25];
         $stored = get_option(self::ETA_OPTION, []);
-        return is_array($stored) ? array_merge($defaults, $stored) : $defaults;
+        $cfg = is_array($stored) ? array_merge($defaults, $stored) : $defaults;
+
+        // "Busy mode" from the app pushes every quoted time out by the same bump.
+        if (class_exists('Alena_DZ_Store_Controls')) {
+            $bump = Alena_DZ_Store_Controls::busy_extra_min();
+            if ($bump > 0) {
+                foreach (['delivery_min', 'delivery_max', 'pickup_min', 'pickup_max'] as $k) {
+                    $cfg[$k] = (int) $cfg[$k] + $bump;
+                }
+            }
+        }
+        return $cfg;
     }
 
     public function get_eta(string $service = 'delivery'): string {

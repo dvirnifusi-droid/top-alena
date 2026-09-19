@@ -82,6 +82,8 @@ class Alena_DZ_Phone_Auth {
         $overrides = [
             'myaccount/form-login.php' => 'templates/myaccount/form-login.php',
             'myaccount/dashboard.php'  => 'templates/myaccount/dashboard.php',
+            'myaccount/orders.php'     => 'templates/myaccount/orders.php',
+            'myaccount/my-address.php' => 'templates/myaccount/my-address.php',
         ];
         if (isset($overrides[$template_name])) {
             $custom = ALENA_DZ_PATH . $overrides[$template_name];
@@ -120,26 +122,37 @@ class Alena_DZ_Phone_Auth {
         if (!self::is_valid_phone($phone)) {
             return new \WP_Error('bad_phone', 'מספר טלפון לא תקין', ['status' => 400]);
         }
-        // Rate limit
-        $rate_key = self::RATE_TRANSIENT . md5($phone);
-        if (get_transient($rate_key)) {
-            return new \WP_Error('rate_limit', 'נסה שוב בעוד דקה', ['status' => 429]);
-        }
-        set_transient($rate_key, 1, self::SEND_COOLDOWN);
+        $channel = $req->get_param('channel') === 'sms' ? 'sms' : 'whatsapp';
+        $key     = self::TRANSIENT_PREFIX . md5($phone);
+        $existing = get_transient($key);
 
-        // Generate code
-        $code = self::generate_code();
-        $key  = self::TRANSIENT_PREFIX . md5($phone);
-        set_transient($key, [
-            'code'     => $code,
-            'attempts' => 0,
-            'phone'    => $phone,
-        ], self::CODE_TTL_SECONDS);
+        // The SMS fallback ("didn't get it? send by SMS") RESENDS the same live
+        // code by SMS — no new code, and no rate-limit block, so it works the
+        // moment the customer taps it even seconds after the first send.
+        if ($channel === 'sms' && is_array($existing) && !empty($existing['code'])) {
+            $code = (string) $existing['code'];
+        } else {
+            // Rate limit (fresh code only)
+            $rate_key = self::RATE_TRANSIENT . md5($phone);
+            if (get_transient($rate_key)) {
+                return new \WP_Error('rate_limit', 'נסה שוב בעוד דקה', ['status' => 429]);
+            }
+            set_transient($rate_key, 1, self::SEND_COOLDOWN);
+
+            // Generate code
+            $code = self::generate_code();
+            set_transient($key, [
+                'code'     => $code,
+                'attempts' => 0,
+                'phone'    => $phone,
+            ], self::CODE_TTL_SECONDS);
+        }
 
         // Send via provider
-        $sent = $this->send_via_provider($phone, $code);
+        $sent = $this->send_via_provider($phone, $code, $channel);
         $response = [
             'ok'      => $sent['ok'],
+            'via'     => $sent['via'] ?? $channel,
             'message' => $sent['ok'] ? 'הקוד נשלח' : ('שליחה נכשלה — ' . ($sent['error'] ?? '')),
             'expires_in' => self::CODE_TTL_SECONDS,
         ];
@@ -269,15 +282,51 @@ class Alena_DZ_Phone_Auth {
     /* ===========================================================
        Provider dispatch
        =========================================================== */
-    private function send_via_provider(string $phone, string $code): array {
+    private function send_via_provider(string $phone, string $code, string $channel = 'whatsapp'): array {
         $provider = get_option(self::OPT_PROVIDER, 'console');
         switch ($provider) {
+            case 'topalena':       return $this->send_via_topalena($phone, $code, $channel);
             case 'whatsapp_cloud': return $this->send_whatsapp_cloud($phone, $code);
             case 'twilio_sms':     return $this->send_twilio_sms($phone, $code);
             case 'console':
             default:
                 return $this->send_console($phone, $code);
         }
+    }
+
+    /**
+     * Relay the code through the TOP ALENA app, which sends it on its own Twilio
+     * pipeline (the same one already delivering staff notifications). WP holds no
+     * SMS/WhatsApp credentials in this mode — one messaging stack for everything.
+     * The app decides WhatsApp-template vs SMS; $channel='sms' forces SMS (the
+     * "didn't get it? send by SMS" fallback).
+     */
+    private function send_via_topalena(string $phone, string $code, string $channel = 'whatsapp'): array {
+        $url = trim((string) get_option('alena_otp_relay_url', 'https://topalena.com/api/delivery/send-otp'));
+        $key = class_exists('Alena_DZ_Control_API') ? Alena_DZ_Control_API::key() : (string) get_option('alena_control_key', '');
+        if ($url === '' || $key === '') {
+            return ['ok' => false, 'error' => 'TOP ALENA לא מחובר (חסר כתובת או מפתח)'];
+        }
+        $resp = wp_remote_post($url, [
+            'timeout' => 15,
+            'headers' => ['X-Alena-Control-Key' => $key, 'Content-Type' => 'application/json'],
+            'body'    => wp_json_encode([
+                'phone'   => self::to_international($phone),
+                'code'    => $code,
+                'channel' => $channel === 'sms' ? 'sms' : 'whatsapp',
+            ]),
+        ]);
+        if (is_wp_error($resp)) return ['ok' => false, 'error' => $resp->get_error_message()];
+        $http = wp_remote_retrieve_response_code($resp);
+        $body = json_decode(wp_remote_retrieve_body($resp), true);
+        if ($http < 200 || $http >= 300) {
+            return ['ok' => false, 'error' => 'HTTP ' . $http . ' ' . (is_array($body) ? ($body['error'] ?? '') : '')];
+        }
+        return [
+            'ok'    => !empty($body['ok']),
+            'via'   => is_array($body) ? ($body['via'] ?? '') : '',
+            'error' => is_array($body) ? ($body['error'] ?? '') : '',
+        ];
     }
 
     private function send_console(string $phone, string $code): array {

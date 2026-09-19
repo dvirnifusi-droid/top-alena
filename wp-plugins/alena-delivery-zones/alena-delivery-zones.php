@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Alena Delivery Zones
  * Description: Google Maps polygon-based delivery zones for WooCommerce. Owner draws delivery polygons on a map; the plugin adds a WC shipping method that geocodes the customer address and matches it to the right polygon (fee, min-order).
- * Version: 0.96.2
+ * Version: 0.99.27
  * Author: Alena / TOPALENA
  * Requires PHP: 7.4
  * Requires at least: 6.5
@@ -12,7 +12,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('ALENA_DZ_VERSION', '0.96.2');
+define('ALENA_DZ_VERSION', '0.99.27');
 define('ALENA_DZ_PATH', plugin_dir_path(__FILE__));
 define('ALENA_DZ_URL',  plugin_dir_url(__FILE__));
 
@@ -39,6 +39,7 @@ require_once ALENA_DZ_PATH . 'includes/class-zohara-import.php';
 require_once ALENA_DZ_PATH . 'includes/class-order-notes.php';
 require_once ALENA_DZ_PATH . 'includes/class-webhook-payload.php';
 require_once ALENA_DZ_PATH . 'includes/class-bon-preview.php';
+require_once ALENA_DZ_PATH . 'includes/class-store-controls.php';
 require_once ALENA_DZ_PATH . 'includes/class-control-api.php';
 require_once ALENA_DZ_PATH . 'includes/class-control-center.php';
 require_once ALENA_DZ_PATH . 'includes/class-payment-wallets.php';
@@ -91,6 +92,7 @@ add_action('plugins_loaded', function () {
     new Alena_DZ_Order_Notes();
     new Alena_DZ_Webhook_Payload();
     new Alena_DZ_Bon_Preview();
+    new Alena_DZ_Store_Controls();
     new Alena_DZ_Control_API();
     new Alena_DZ_Control_Center();
     new Alena_DZ_Payment_Wallets();
@@ -170,6 +172,10 @@ add_action('wp_head', function () {
     if (is_admin()) return;
     $home = home_url('/');
     $logo = get_site_icon_url(512) ?: '';
+    $sc   = class_exists('Alena_DZ_Store_Controls');
+    $s_street = $sc ? Alena_DZ_Store_Controls::address() : 'רוטשילד 104';
+    $s_city   = $sc ? Alena_DZ_Store_Controls::city() : 'ראשון לציון';
+    $s_phone  = $sc ? Alena_DZ_Store_Controls::phone_intl() : '+97236228055';
     ?>
     <meta property="og:site_name" content="עלינא" />
     <meta name="application-name" content="עלינא" />
@@ -185,10 +191,11 @@ add_action('wp_head', function () {
       "image": "<?php echo esc_url($logo); ?>",
       "servesCuisine": ["מטבח ים-תיכוני", "כשר"],
       "priceRange": "₪₪",
+      "telephone": "<?php echo esc_js($s_phone); ?>",
       "address": {
         "@type": "PostalAddress",
-        "streetAddress": "רוטשילד 104",
-        "addressLocality": "ראשון לציון",
+        "streetAddress": "<?php echo esc_js($s_street); ?>",
+        "addressLocality": "<?php echo esc_js($s_city); ?>",
         "addressCountry": "IL"
       },
       "sameAs": [
@@ -351,8 +358,15 @@ add_action('template_redirect', function () {
           letter-spacing:0.02em;
         }
         .alena-land-cta:hover { transform:translateY(-3px); box-shadow:0 16px 36px rgba(217,189,131,0.5); }
+        /* Secondary CTA — same shape, different palette (terracotta accent) so both feel primary but distinct */
+        .alena-land-cta-alt {
+          background: linear-gradient(135deg,#A04A2E,#7A3620) !important;
+          color:#F4ECD8 !important;
+          box-shadow: 0 12px 30px rgba(160,74,46,0.35) !important;
+        }
+        .alena-land-cta-alt:hover { box-shadow:0 16px 36px rgba(160,74,46,0.5) !important; }
         .alena-land-cta-sub {
-          display:block; font-size:11px; opacity:0.7; font-weight:600;
+          display:block; font-size:11px; opacity:0.75; font-weight:600;
           letter-spacing:0.2em; text-transform:uppercase; margin-top:4px;
         }
         .alena-land-secondary {
@@ -383,12 +397,17 @@ add_action('template_redirect', function () {
         <div class="alena-land-eyebrow">עלינא</div>
         <h1 class="alena-land-title">ברוכים הבאים</h1>
         <p class="alena-land-sub">
-          מטבח ים-תיכוני שמח וצבעוני · כשר · רוטשילד 104, ראשון לציון
+          מטבח ים-תיכוני שמח וצבעוני · כשר · <?php echo esc_html(class_exists('Alena_DZ_Store_Controls') ? Alena_DZ_Store_Controls::address_full() : 'רוטשילד 104, ראשון לציון'); ?>
         </p>
 
-        <a class="alena-land-cta" href="https://alena.topalena.com" rel="noopener">
-          לאתר הראשי ←
-          <span class="alena-land-cta-sub">תפריט · אירועים · הזמנת שולחן · בלוג</span>
+        <a class="alena-land-cta" href="https://alena.topalena.com/" rel="noopener">
+          לאתר הרשמי של עלינא ←
+          <span class="alena-land-cta-sub">אירועים · בלוג · הזמנת שולחן · גלריה</span>
+        </a>
+
+        <a class="alena-land-cta alena-land-cta-alt" href="https://valuecard.co.il/Orders/alenabepita" rel="noopener">
+          🛵 משלוחים וטייק-אווי
+          <span class="alena-land-cta-sub">תפריט · הזמנה · תשלום מאובטח</span>
         </a>
 
         <div class="alena-land-foot">alenabepita.co.il</div>

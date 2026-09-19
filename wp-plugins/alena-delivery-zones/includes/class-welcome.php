@@ -96,12 +96,12 @@ class Alena_DZ_Welcome {
                 <button type="button" class="alena-welcome-mode" data-mode="pickup">
                   <span class="alena-welcome-mode-icon" aria-hidden="true">🥡</span>
                   <span class="alena-welcome-mode-label">איסוף עצמי</span>
-                  <span class="alena-welcome-mode-sub">~15-25 דק'</span>
+                  <span class="alena-welcome-mode-sub">~<?php echo esc_html(class_exists('Alena_DZ_Store_Controls') ? Alena_DZ_Store_Controls::eta_range('pickup') : "15-25 דק'"); ?></span>
                 </button>
                 <button type="button" class="alena-welcome-mode is-active" data-mode="delivery">
                   <span class="alena-welcome-mode-icon" aria-hidden="true">🛵</span>
                   <span class="alena-welcome-mode-label">משלוח</span>
-                  <span class="alena-welcome-mode-sub">~40-60 דק'</span>
+                  <span class="alena-welcome-mode-sub">~<?php echo esc_html(class_exists('Alena_DZ_Store_Controls') ? Alena_DZ_Store_Controls::eta_range('delivery') : "40-60 דק'"); ?></span>
                 </button>
               </div>
 
@@ -111,7 +111,7 @@ class Alena_DZ_Welcome {
                        id="alena-welcome-address-input"
                        placeholder="לדוגמה: הרצל 123, ראשון לציון"
                        autocomplete="street-address" />
-                <p class="alena-welcome-address-hint">משלוחים לראשון לציון, משמר השבעה ובית דגן</p>
+                <p class="alena-welcome-address-hint">משלוחים ל<?php echo esc_html(class_exists('Alena_DZ_Store_Controls') ? Alena_DZ_Store_Controls::served_cities_text() : 'ראשון לציון, משמר השבעה ובית דגן'); ?></p>
               </div>
 
               <button type="button" class="alena-welcome-next" id="alena-welcome-next">המשך</button>
@@ -194,7 +194,7 @@ class Alena_DZ_Welcome {
               <?php endforeach; ?>
             </ul>
           <?php else: ?>
-            <p class="alena-welcome-benefits-empty">כל ₪100 בהזמנה = נקודה אחת · כל נקודה שווה ₪<?php echo (int) $coin_v; ?> הנחה</p>
+            <p class="alena-welcome-benefits-empty">כל ₪<?php echo (int) (class_exists('Alena_DZ_Club') ? Alena_DZ_Club::earn_per_ils() : 100); ?> בהזמנה = נקודה אחת · כל נקודה שווה ₪<?php echo (int) $coin_v; ?> הנחה</p>
           <?php endif; ?>
         </div>
 

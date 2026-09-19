@@ -162,7 +162,7 @@ class Alena_DZ_Checkout_Redesign {
                 // local_pickup is what every POS and courier system looks for.
                 $rates['local_pickup:alena'] = new WC_Shipping_Rate(
                     'local_pickup:alena',
-                    'איסוף עצמי — רוטשילד 104, ראשון לציון',
+                    'איסוף עצמי — ' . (class_exists('Alena_DZ_Store_Controls') ? Alena_DZ_Store_Controls::address_full() : 'רוטשילד 104, ראשון לציון'),
                     0,
                     [],
                     'local_pickup'
@@ -180,7 +180,20 @@ class Alena_DZ_Checkout_Redesign {
     }
 
     public function save_fulfillment_meta($order_id) {
+        $order = function_exists('wc_get_order') ? wc_get_order($order_id) : null;
+
+        // Authoritative source: the shipping method the customer actually checked
+        // out with. The session flag (current_fulfillment) has drifted to
+        // 'delivery' on genuine pickup orders, so a pickup was saved — and printed
+        // — as a delivery. The chosen local_pickup method cannot drift.
         $mode = self::current_fulfillment();
+        if ($order) {
+            foreach ($order->get_shipping_methods() as $sm) {
+                $mid = $sm->get_method_id();
+                if (strpos($mid, 'local_pickup') !== false || strpos($mid, 'pickup') !== false) { $mode = 'pickup'; break; }
+                if (strpos($mid, 'alena_polygon') !== false || strpos($mid, 'flat_rate') !== false) { $mode = 'delivery'; }
+            }
+        }
         update_post_meta($order_id, '_alena_fulfillment', $mode);
 
         // A collection order must not carry a delivery address. WooCommerce
@@ -189,9 +202,8 @@ class Alena_DZ_Checkout_Redesign {
         // got printed as a delivery -- the method id alone was not enough,
         // because an address that exists will be used. The only reliable fix
         // is for there to be no address to read.
-        if ($mode === 'pickup' && function_exists('wc_get_order')) {
-            $order = wc_get_order($order_id);
-            if ($order) {
+        if ($mode === 'pickup' && $order) {
+            {
                 foreach ([
                     'shipping_address_1', 'shipping_address_2', 'shipping_city',
                     'shipping_postcode', 'shipping_state', 'shipping_company',
@@ -319,7 +331,9 @@ class Alena_DZ_Checkout_Redesign {
         echo '<div class="alena-co-pickup-card">';
         echo '<div class="alena-co-pickup-icon">🏠</div>';
         echo '<div><strong>איסוף עצמי מהמסעדה</strong><br />';
-        echo '<span>רוטשילד 104, ראשון לציון · מוכן בדרך כלל תוך 15–25 דק׳</span></div>';
+        $sc = class_exists('Alena_DZ_Store_Controls');
+        echo '<span>' . esc_html($sc ? Alena_DZ_Store_Controls::address_full() : 'רוטשילד 104, ראשון לציון')
+           . ' · מוכן בדרך כלל תוך ' . esc_html($sc ? Alena_DZ_Store_Controls::eta_range('pickup') : '15–25 דק׳') . '</span></div>';
         echo '</div>';
     }
 
@@ -361,12 +375,15 @@ class Alena_DZ_Checkout_Redesign {
         echo '<div class="alena-co-tabs" role="tablist">';
         // Each choice carries its own ETA -- the question a customer is really
         // answering is "how long", not "which radio button".
+        $sc = class_exists('Alena_DZ_Store_Controls');
+        $eta_d = $sc ? Alena_DZ_Store_Controls::eta_range('delivery') : '45-55 דק׳';
+        $eta_p = $sc ? Alena_DZ_Store_Controls::eta_range('pickup') : '10-30 דק׳';
         echo '<button type="button" class="alena-co-tab' . ($mode === 'delivery' ? ' active' : '') . '" data-mode="delivery">'
            . '<span class="alena-co-tab-ico" aria-hidden="true">🛵</span>'
-           . '<span class="alena-co-tab-txt">משלוח <b>45-55 דק׳</b></span></button>';
+           . '<span class="alena-co-tab-txt">משלוח <b>' . esc_html($eta_d) . '</b></span></button>';
         echo '<button type="button" class="alena-co-tab' . ($mode === 'pickup' ? ' active' : '') . '" data-mode="pickup">'
            . '<span class="alena-co-tab-ico" aria-hidden="true">🚶</span>'
-           . '<span class="alena-co-tab-txt">איסוף <b>10-30 דק׳</b></span></button>';
+           . '<span class="alena-co-tab-txt">איסוף <b>' . esc_html($eta_p) . '</b></span></button>';
         echo '</div>';
         echo '<div class="alena-checkout-main">';
     }

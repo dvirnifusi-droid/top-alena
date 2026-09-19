@@ -112,6 +112,17 @@ class Alena_DZ_Webhook_Payload {
         if ($resource !== 'order' || !is_array($payload)) return $payload;
         if (empty($payload['line_items']) || !is_array($payload['line_items'])) return $payload;
 
+        // Does this order mix both kitchens? The brand tag on each line is only
+        // useful for routing when it does — on a single-brand order it is noise.
+        $brands_seen = [];
+        if (class_exists('Alena_DZ_Brands')) {
+            foreach ($payload['line_items'] as $li) {
+                $pid = (int) ($li['product_id'] ?? 0);
+                if ($pid) $brands_seen[Alena_DZ_Brands::brand_of($pid)] = true;
+            }
+        }
+        $multi_brand = count($brands_seen) > 1;
+
         foreach ($payload['line_items'] as $i => $item) {
             // --- 1. gross prices -------------------------------------------
             $total    = (float) ($item['total'] ?? 0);
@@ -144,10 +155,9 @@ class Alena_DZ_Webhook_Payload {
             }
 
             // --- 4. brand on the line, so the bon prints at the right station.
-            // Two kitchens on one order: without this, Miley cannot tell a
-            // Zohara hummus from an Alena pita and both land at one printer.
-            // Added as a visible meta pair, first, so it reads at the top.
-            if (class_exists('Alena_DZ_Brands')) {
+            // ONLY on mixed-brand orders (Alena + Zohara together) — on a single-
+            // brand order the tag is just clutter on every line.
+            if ($multi_brand && class_exists('Alena_DZ_Brands')) {
                 $pid = (int) ($item['product_id'] ?? 0);
                 if ($pid) {
                     $brand = Alena_DZ_Brands::brand_of($pid);
@@ -159,6 +169,33 @@ class Alena_DZ_Webhook_Payload {
             }
 
             $payload['line_items'][$i]['meta_data'] = array_values($clean);
+        }
+
+        // --- 5. Fulfilment banner — the one fact the line cook must not miss:
+        // hand it over the counter (איסוף) vs send a driver (משלוח). The shipping
+        // method_title is easy to overlook, so we (a) stamp a top-level order_type
+        // and (b) prepend it to the customer note, which Miley prints prominently.
+        // Derived from the chosen shipping method (authoritative), not the session
+        // meta which has drifted to 'delivery' on real pickup orders.
+        $ful = get_post_meta($resource_id, '_alena_fulfillment', true);
+        if ($ful !== 'pickup' && $ful !== 'delivery' && function_exists('wc_get_order')) {
+            $o = wc_get_order($resource_id);
+            if ($o) {
+                $ful = 'delivery';
+                foreach ($o->get_shipping_methods() as $sm) {
+                    if (strpos((string) $sm->get_method_id(), 'pickup') !== false) { $ful = 'pickup'; break; }
+                }
+            }
+        }
+        $payload['order_type'] = ($ful === 'pickup') ? 'איסוף עצמי' : 'משלוח';
+        // The customer-note field is for what the CUSTOMER wrote — not the
+        // fulfilment type. A pickup order has no delivery, so drop the ₪0 shipping
+        // line: the bon then stops printing "דמי משלוח" and Miley no longer flags
+        // it as a delivery (which was forcing the 🛵 icon on pickup orders).
+        if ($ful === 'pickup') {
+            unset($payload['shipping_lines']);
+            $payload['shipping_total'] = '0.00';
+            $payload['shipping_tax']   = '0.00';
         }
 
         return $payload;
