@@ -506,6 +506,12 @@ h1, h2, h3,
 /* Inline `background: var(--brand-primary)` buttons carry white copy; with the
    primary now the light accent (see Layout) that copy goes dark. Attribute
    match on the serialized inline style is the only handle we have. */
-.brand-dark [style*="background: var(--brand-primary"], .brand-dark [style*="background-color: var(--brand-primary"] { color: var(--brand-bg-deep) !important; }
+.brand-dark [style*="background: var(--brand-primary"], .brand-dark [style*="background-color: var(--brand-primary"] { background-color: var(--brand-accent) !important; color: var(--brand-bg-deep) !important; }
 .brand-dark .text-amber-950, .brand-dark .text-orange-950, .brand-dark .text-red-950, .brand-dark .text-green-950, .brand-dark .text-emerald-950, .brand-dark .text-blue-950, .brand-dark .text-purple-950, .brand-dark .text-slate-950, .brand-dark .text-gray-950 { color: hsl(var(--foreground)) !important; }
 .brand-dark [class*="text-amber-900/"], .brand-dark [class*="text-amber-800/"], .brand-dark [class*="text-amber-700/"] { color: color-mix(in srgb, #f59e0b 58%, #fff) !important; }
+/* Neutral fills used as badge/chip overrides (`<Badge className="bg-gray-200">`)
+   inherit shadcn's dark primary-foreground — give them light copy as a
+   fallback (no !important, so an explicit text-* utility still wins). */
+.brand-dark .bg-slate-100, .brand-dark .bg-gray-100, .brand-dark .bg-stone-100, .brand-dark .bg-zinc-100, .brand-dark .bg-neutral-100,
+.brand-dark .bg-slate-200, .brand-dark .bg-gray-200, .brand-dark .bg-stone-200, .brand-dark .bg-zinc-200, .brand-dark .bg-neutral-200,
+.brand-dark .bg-slate-300, .brand-dark .bg-gray-300, .brand-dark .bg-stone-300, .brand-dark .bg-zinc-300, .brand-dark .bg-neutral-300 { color: hsl(var(--foreground)); }
