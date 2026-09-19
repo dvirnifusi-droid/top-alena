@@ -411,3 +411,40 @@ h1, h2, h3,
 .brand-dark .from-white, .brand-dark .from-slate-50, .brand-dark .from-gray-50, .brand-dark .from-stone-50 { background-image: none !important; background-color: hsl(var(--card)) !important; }
 .brand-dark .from-amber-50 { background-image: none !important; background-color: color-mix(in srgb, #f59e0b 18%, hsl(var(--card))) !important; }
 .brand-dark .from-orange-50 { background-image: none !important; background-color: color-mix(in srgb, #f97316 18%, hsl(var(--card))) !important; }
+/* The MOBILE sidebar: shadcn's Sheet, portalled outside .app-rail (so none of
+   the rail rules above reach it). Restate the rail on the sheet itself, keyed
+   on the same --sidebar-* vars, so the phone drawer matches the desktop rail. */
+[data-mobile="true"][data-sidebar="sidebar"] { background: var(--sidebar-bg, #241811) !important; color: var(--sidebar-fg, #F6ECD6) !important; border-color: var(--sidebar-line, #3B2A1E) !important; }
+[data-mobile="true"][data-sidebar="sidebar"] h2, [data-mobile="true"][data-sidebar="sidebar"] .text-foreground { color: var(--sidebar-fg, #F6ECD6) !important; }
+[data-mobile="true"][data-sidebar="sidebar"] .text-muted-foreground { color: var(--sidebar-dim, #B9A88C) !important; }
+[data-mobile="true"][data-sidebar="sidebar"] .border-b, [data-mobile="true"][data-sidebar="sidebar"] .border-t, [data-mobile="true"][data-sidebar="sidebar"] [class*="border-border"] { border-color: var(--sidebar-line, #3B2A1E) !important; }
+[data-mobile="true"][data-sidebar="sidebar"] a, [data-mobile="true"][data-sidebar="sidebar"] nav button { background: transparent !important; box-shadow: none !important; color: var(--sidebar-dim, #B9A88C) !important; border-radius: 8px; }
+[data-mobile="true"][data-sidebar="sidebar"] a:hover, [data-mobile="true"][data-sidebar="sidebar"] nav button:hover { background: color-mix(in srgb, var(--sidebar-active, #3B2A1E) 55%, transparent) !important; color: var(--sidebar-fg, #F6ECD6) !important; }
+[data-mobile="true"][data-sidebar="sidebar"] a.rail-active { background: color-mix(in srgb, var(--brand-accent, #4fd6ee) 12%, transparent) !important; color: var(--brand-accent-hi, #b4eff4) !important; position: relative; box-shadow: inset 0 0 24px color-mix(in srgb, var(--brand-accent, #4fd6ee) 8%, transparent) !important; }
+[data-mobile="true"][data-sidebar="sidebar"] a.rail-active::before { content: ""; position: absolute; inset-inline-start: 0; top: 18%; bottom: 18%; width: 3px; border-radius: 0 3px 3px 0; background: var(--brand-accent, #4fd6ee); box-shadow: 0 0 10px var(--brand-accent, #4fd6ee); }
+[data-mobile="true"][data-sidebar="sidebar"] [class*="uppercase"] { color: var(--sidebar-label, #A08D6F) !important; letter-spacing: .09em; }
+[data-mobile="true"][data-sidebar="sidebar"] [class*="uppercase"] span:first-child { background: var(--sidebar-label, #A08D6F) !important; }
+[data-mobile="true"][data-sidebar="sidebar"] input[type="text"] { background: color-mix(in srgb, var(--sidebar-bg, #241811) 60%, #000) !important; border-color: var(--sidebar-line, #3B2A1E) !important; color: var(--sidebar-fg, #F6ECD6) !important; }
+[data-mobile="true"][data-sidebar="sidebar"] input::placeholder { color: var(--sidebar-label, #A08D6F) !important; }
+[data-mobile="true"][data-sidebar="sidebar"] [class*="bg-card"] { background: var(--sidebar-bg, #241811) !important; }
+[data-mobile="true"][data-sidebar="sidebar"] [class*="bg-muted"] { background: color-mix(in srgb, var(--sidebar-active, #3B2A1E) 45%, transparent) !important; border-color: var(--sidebar-line, #3B2A1E) !important; }
+[data-mobile="true"][data-sidebar="sidebar"] select, [data-mobile="true"][data-sidebar="sidebar"] [role="combobox"] { background: color-mix(in srgb, var(--sidebar-bg, #241811) 60%, #000) !important; color: var(--sidebar-fg, #F6ECD6) !important; border-color: var(--sidebar-line, #3B2A1E) !important; }
+/* Mid tints (200/300) used as chips/fixtures: same idea, a slightly stronger dark tint. */
+.brand-dark .bg-red-200, .brand-dark .bg-red-300 { background-color: color-mix(in srgb, #ef4444 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-orange-200, .brand-dark .bg-orange-300 { background-color: color-mix(in srgb, #f97316 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-amber-200, .brand-dark .bg-amber-300 { background-color: color-mix(in srgb, #f59e0b 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-yellow-200, .brand-dark .bg-yellow-300 { background-color: color-mix(in srgb, #eab308 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-lime-200, .brand-dark .bg-lime-300 { background-color: color-mix(in srgb, #84cc16 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-green-200, .brand-dark .bg-green-300 { background-color: color-mix(in srgb, #22c55e 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-emerald-200, .brand-dark .bg-emerald-300 { background-color: color-mix(in srgb, #10b981 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-teal-200, .brand-dark .bg-teal-300 { background-color: color-mix(in srgb, #14b8a6 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-cyan-200, .brand-dark .bg-cyan-300 { background-color: color-mix(in srgb, #06b6d4 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-sky-200, .brand-dark .bg-sky-300 { background-color: color-mix(in srgb, #0ea5e9 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-blue-200, .brand-dark .bg-blue-300 { background-color: color-mix(in srgb, #3b82f6 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-indigo-200, .brand-dark .bg-indigo-300 { background-color: color-mix(in srgb, #6366f1 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-violet-200, .brand-dark .bg-violet-300 { background-color: color-mix(in srgb, #8b5cf6 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-purple-200, .brand-dark .bg-purple-300 { background-color: color-mix(in srgb, #a855f7 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-pink-200, .brand-dark .bg-pink-300 { background-color: color-mix(in srgb, #ec4899 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-rose-200, .brand-dark .bg-rose-300 { background-color: color-mix(in srgb, #f43f5e 28%, hsl(var(--card))) !important; }
+.brand-dark .bg-slate-300, .brand-dark .bg-gray-300, .brand-dark .bg-stone-300, .brand-dark .bg-zinc-300 { background-color: hsl(var(--muted)) !important; }
+.brand-dark .bg-\[\#D9BD83\], .brand-dark .bg-\[\#E8D9B5\] { background-color: color-mix(in srgb, #D9BD83 26%, hsl(var(--card))) !important; }

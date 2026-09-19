@@ -4555,14 +4555,26 @@ export default function SeatingSetup() {
                                                 for (let i = 0; i < s.length; i++) x = (x * 31 + s.charCodeAt(i)) % 360;
                                                 return x;
                                             };
+                                            // Neon identity (dark surfaces): keep colour = zone, but as a dark tint
+                                            // of the hue so the zones sit under the dark table cards instead of
+                                            // floating as pastel islands on a dark floor. Inline styles can't be
+                                            // reached by the .brand-dark CSS remap, so branch here.
+                                            const dark = typeof document !== 'undefined' && document.documentElement.classList.contains('brand-dark');
                                             const styleFor = (area) => {
                                                 const hit = NAMED[area];
                                                 const h = hit ? hit.h : hueOf(area);
-                                                return {
+                                                return dark ? {
+                                                    bg: `hsl(${h} 38% 17%)`,
+                                                    edge: `hsl(${h} 35% 32%)`,
+                                                    label: `hsl(${h} 70% 80%)`,
+                                                    chip: `hsl(${h} 30% 13% / .92)`,
+                                                    name: hit ? hit.name : area,
+                                                } : {
                                                     // Much lighter than before — overlapping zones used to mix into mud.
                                                     bg: `hsl(${h} 62% 96%)`,
                                                     edge: `hsl(${h} 45% 86%)`,
                                                     label: `hsl(${h} 45% 34%)`,
+                                                    chip: '#ffffffd9',
                                                     name: hit ? hit.name : area,
                                                 };
                                             };
@@ -4602,7 +4614,7 @@ export default function SeatingSetup() {
                                                                 fontSize: 12,
                                                                 fontWeight: 500,
                                                                 color: zone.label,
-                                                                background: '#ffffffd9',
+                                                                background: zone.chip,
                                                                 border: `1px solid ${zone.edge}`,
                                                                 borderRadius: 999,
                                                                 padding: '1px 9px',

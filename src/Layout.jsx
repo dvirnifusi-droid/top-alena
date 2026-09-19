@@ -325,11 +325,23 @@ export default function Layout({ children, currentPageName }) {
       root.style.setProperty('--accent-foreground', s.foreground);
       root.style.setProperty('--border', s.border);
       root.style.setProperty('--input', s.border);
+      // The MOBILE sidebar is shadcn's <Sheet> rendered in a portal — outside
+      // .app-rail — and paints bg-sidebar / text-sidebar-foreground, so those
+      // shadcn tokens must go dark too or the phone drawer stays white.
+      root.style.setProperty('--sidebar-background', s.background);
+      root.style.setProperty('--sidebar-foreground', s.foreground);
+      root.style.setProperty('--sidebar-accent', s.muted);
+      root.style.setProperty('--sidebar-accent-foreground', s.foreground);
+      root.style.setProperty('--sidebar-border', s.border);
+      root.style.setProperty('--sidebar-primary', t.primaryHsl);
+      root.style.setProperty('--sidebar-primary-foreground', t.primaryFg);
       root.classList.add('brand-dark');
     } else {
       ['--primary', '--primary-foreground', '--ring', '--background', '--foreground', '--card', '--card-foreground',
         '--popover', '--popover-foreground', '--muted', '--muted-foreground', '--secondary', '--secondary-foreground',
-        '--accent', '--accent-foreground', '--border', '--input'].forEach((v) => root.style.removeProperty(v));
+        '--accent', '--accent-foreground', '--border', '--input', '--sidebar-background', '--sidebar-foreground',
+        '--sidebar-accent', '--sidebar-accent-foreground', '--sidebar-border', '--sidebar-primary',
+        '--sidebar-primary-foreground'].forEach((v) => root.style.removeProperty(v));
       root.classList.remove('brand-dark');
     }
     if (branding?.brand_font) {
