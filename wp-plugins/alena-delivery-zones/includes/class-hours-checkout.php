@@ -96,6 +96,11 @@ class Alena_DZ_Hours_Checkout {
         if ($domain !== 'woocommerce') return $translated;
         if (strpos($text, 'No shipping method has been selected') === false) return $translated;
 
+        // Same ordering as no_shipping_message(): closed beats under-minimum.
+        if ($this->delivery_closed_now()) {
+            return 'המשלוחים סגורים כרגע — מחוץ לשעות הפעילות. אפשר לבחור איסוף עצמי, '
+                 . 'או להשלים את ההזמנה והיא תצא בפתיחה הקרובה.';
+        }
         if (function_exists('WC') && WC()->session) {
             $under = WC()->session->get('alena_dz_under_min');
             if (is_array($under) && !empty($under['min'])) {
@@ -223,9 +228,35 @@ class Alena_DZ_Hours_Checkout {
         return $out . '</div>';
     }
 
+    /** True when the delivery service is closed right now, per the hours engine. */
+    private function delivery_closed_now(): ?array {
+        try {
+            $engine = Alena_DZ_Hours_Engine::get();
+            $now    = new DateTimeImmutable('now', new DateTimeZone('Asia/Jerusalem'));
+            $status = $engine->status('delivery', $now, $this->cart_category_slugs());
+            return empty($status['open']) ? $status : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     public function no_shipping_message($html) {
-        // Under the zone minimum is a different situation from closed, and it
-        // is the customer's to fix -- so it is said first, with the number.
+        // Hours are checked BEFORE the minimum. The other way round, a ₪51 cart
+        // on Shabbat afternoon was told "add ₪19 and we'll deliver" — the
+        // customer added a dish and was then told delivery is closed. When the
+        // kitchen is shut the shortfall is irrelevant, and the top-up upsell
+        // would be selling something that cannot be delivered.
+        $closed = $this->delivery_closed_now();
+        if ($closed) {
+            $reason = trim((string) ($closed['reason'] ?? ''));
+            return '<span class="alena-dz-closed-shipping">🕒 <strong>המשלוחים סגורים כרגע'
+                 . ($reason ? ' — ' . esc_html($reason) : '')
+                 . '</strong><br>אפשר להשלים את ההזמנה עכשיו והיא תצא בפתיחה הקרובה, '
+                 . 'או לבחור <strong>איסוף עצמי</strong>. הכתובת שלך תקינה.</span>';
+        }
+
+        // Open but under the zone minimum: this one is the customer's to fix,
+        // so say the number and offer a quick way to close the gap.
         if (function_exists('WC') && WC()->session) {
             $under = WC()->session->get('alena_dz_under_min');
             if (is_array($under) && !empty($under['min'])) {
@@ -237,20 +268,7 @@ class Alena_DZ_Hours_Checkout {
                      . $this->topup_html($need) . '</span>';
             }
         }
-        try {
-            $engine = Alena_DZ_Hours_Engine::get();
-            $now    = new DateTimeImmutable('now', new DateTimeZone('Asia/Jerusalem'));
-            $status = $engine->status('delivery', $now, $this->cart_category_slugs());
-            if (!empty($status['open'])) return $html;
-
-            $reason = trim((string) ($status['reason'] ?? ''));
-            return '<span class="alena-dz-closed-shipping">🕒 <strong>המשלוחים סגורים כרגע'
-                 . ($reason ? ' — ' . esc_html($reason) : '')
-                 . '</strong><br>אפשר להשלים את ההזמנה עכשיו והיא תצא בפתיחה הקרובה, '
-                 . 'או לבחור <strong>איסוף עצמי</strong>. הכתובת שלך תקינה.</span>';
-        } catch (\Throwable $e) {
-            return $html;
-        }
+        return $html;
     }
 
     public function shortcode_open_status($atts = []) {
